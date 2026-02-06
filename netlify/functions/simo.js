@@ -2,13 +2,14 @@
  * Netlify Function: simo
  * - GET returns healthcheck JSON (proves what's live)
  * - POST handles math/time/weather/loop + OpenAI chat
- * - Adds "recent_news" guard so Simo doesn't guess on fresh events
+ * - Guards "recent news" questions so Simo won't guess on fresh events
+ * - Uses Simo-toned guard messaging (no corporate / generic assistant tone)
  * - ASCII-only (prevents weird character syntax crashes)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const VERSION = "simo-v1.3-recent-news-guard";
+const VERSION = "simo-v1.4-recent-news-tone-locked";
 
 function respond(statusCode, body) {
   return {
@@ -149,7 +150,7 @@ function detectIntent(message) {
   if (/tired of (this )?(argument|loop)|keep going in circles|same fight|same argument|this again/i.test(message))
     return "loop_fatigue";
 
-  // ✅ Guard: don't guess on fresh events / breaking news / recent deaths
+  // Guard: don't guess on fresh events / breaking news / recent deaths
   const recentNewsPattern =
     /\b(did|has)\b.*\b(die|died|dead|passed away|pass away)\b|(\bdie\b.*\brecently\b)|(\brecent(ly)?\b.*\bnews\b)|(\bbreaking\b.*\bnews\b)|(\bwhat happened\b.*\b(today|recently)\b)/i;
 
@@ -204,7 +205,7 @@ function systemPrompt(contextLines) {
 }
 
 exports.handler = async (event) => {
-  // GET healthcheck (proof of live version)
+  // GET healthcheck
   if (event.httpMethod === "GET") {
     return respond(200, {
       ok: true,
@@ -238,13 +239,14 @@ exports.handler = async (event) => {
 
   const intent = detectIntent(message);
 
-  // ✅ Recent news guard (the “it just works” fix)
+  // ✅ Recent news guard (tone locked to Simo)
   if (intent === "recent_news") {
     return respond(200, {
       ok: true,
       reply:
-        "I don’t want to guess on something that recent. I can’t verify live news from here.\n\n" +
-        "If you paste a link or headline, I’ll break it down fast. If not, check a reliable source and I’ll help you interpret it.",
+        "Yeah — I don’t want to guess on something that recent.\n\n" +
+        "Paste a link or headline and I’ll tell you what it says in plain English.\n" +
+        "No link? Tell me where you saw it (site/app) and I’ll tell you what’s worth trusting.",
       meta: { intent, version: VERSION },
     });
   }
@@ -258,10 +260,10 @@ exports.handler = async (event) => {
     if (!wantsSteps(message)) {
       return respond(200, { ok: true, reply: formatNumber(result), meta: { intent, version: VERSION } });
     }
-    // If steps requested, fall through to OpenAI below
+    // If steps requested, fall through to OpenAI below.
   }
 
-  // TIME: answer using clientTime (browser time)
+  // TIME
   if (intent === "time") {
     if (clientTime && clientTime.iso && clientTime.tz) {
       const dt = new Date(clientTime.iso);
@@ -292,7 +294,7 @@ exports.handler = async (event) => {
     });
   }
 
-  // WEATHER: ZIP or geolocation
+  // WEATHER
   if (intent === "weather") {
     let lat = null;
     let lon = null;
@@ -349,7 +351,7 @@ exports.handler = async (event) => {
     });
   }
 
-  // LOOP FATIGUE: no lecture
+  // LOOP FATIGUE
   if (intent === "loop_fatigue") {
     return respond(200, {
       ok: true,
@@ -359,7 +361,7 @@ exports.handler = async (event) => {
     });
   }
 
-  // OpenAI for everything else (and "math steps" case)
+  // OpenAI for everything else
   const contextLines = [];
   if (clientTime && clientTime.iso && clientTime.tz) contextLines.push("Client time: " + clientTime.iso + " (" + clientTime.tz + ")");
   else contextLines.push("Client time: not provided");
