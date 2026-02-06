@@ -1,0 +1,294 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>SimonChat.ai — Simo</title>
+  <style>
+    :root { --bg:#0b1220; --card:#0f1b33; --text:#e9eefc; --muted:#9fb0d0; --accent:#5aa7ff; }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:linear-gradient(180deg,var(--bg),#070b14);color:var(--text)}
+    .wrap{max-width:900px;margin:0 auto;padding:22px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+    .brand{display:flex;flex-direction:column;gap:2px}
+    .brand h1{margin:0;font-size:20px;letter-spacing:.2px}
+    .brand p{margin:0;color:var(--muted);font-size:13px}
+    .pill{padding:7px 10px;border:1px solid rgba(255,255,255,.12);border-radius:999px;color:var(--muted);font-size:12px;white-space:nowrap}
+    .card{background:rgba(15,27,51,.86);border:1px solid rgba(255,255,255,.10);border-radius:16px;box-shadow:0 8px 30px rgba(0,0,0,.35)}
+    .chat{height:62vh;min-height:420px;overflow:auto;padding:16px}
+    .msg{display:flex;gap:10px;margin:10px 0}
+    .bubble{max-width:78%;padding:12px 14px;border-radius:14px;line-height:1.35;white-space:pre-wrap;word-wrap:break-word}
+    .me{justify-content:flex-end}
+    .me .bubble{background:rgba(90,167,255,.16);border:1px solid rgba(90,167,255,.28)}
+    .ai .bubble{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10)}
+    .bar{display:flex;gap:10px;padding:14px;border-top:1px solid rgba(255,255,255,.10)}
+    textarea{flex:1;resize:none;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.20);color:var(--text);padding:12px 12px;min-height:44px;max-height:140px;outline:none}
+    button{border:0;border-radius:14px;padding:12px 14px;background:var(--accent);color:#06101f;font-weight:700;cursor:pointer}
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:10px 0 0}
+    .link{color:var(--muted);font-size:12px;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+    .miniBtn{
+      display:inline-block;margin-top:8px;padding:8px 10px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.14); background:rgba(0,0,0,.15);
+      color:var(--text); font-weight:700; cursor:pointer;
+    }
+    .hint{color:var(--muted); font-size:12px; margin-top:6px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <h1>Hey — I’m Simo.</h1>
+        <p>Intent-aware. Low fluff. Built to feel human.</p>
+      </div>
+      <div class="pill" id="statusPill">mode: —</div>
+    </div>
+
+    <div class="card">
+      <div class="chat" id="chat"></div>
+      <div class="bar">
+        <textarea id="input" placeholder="Talk to me…" rows="1"></textarea>
+        <button id="send">Send</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <span class="link" id="clear">Clear chat</span>
+      <span class="link" id="resetPrefs">Reset prefs</span>
+    </div>
+  </div>
+
+<script>
+  const chatEl = document.getElementById("chat");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("send");
+  const statusPill = document.getElementById("statusPill");
+
+  const LS_CHAT = "simo_chat_history_v4";
+  const LS_PREFS = "simo_prefs_v4";
+  const LS_GEO  = "simo_geo_v1";
+
+  const defaultPrefs = {
+    name: "Simo",
+    verbosity: "low",
+    explain_only_if_asked: true,
+    temperature: 0.55,
+    max_output_tokens: 320
+  };
+
+  function loadPrefs() {
+    try { return { ...defaultPrefs, ...(JSON.parse(localStorage.getItem(LS_PREFS)) || {}) }; }
+    catch { return { ...defaultPrefs }; }
+  }
+  function savePrefs(p) { localStorage.setItem(LS_PREFS, JSON.stringify(p)); }
+
+  function loadHistory() {
+    try { return JSON.parse(localStorage.getItem(LS_CHAT)) || []; }
+    catch { return []; }
+  }
+  function saveHistory(h) { localStorage.setItem(LS_CHAT, JSON.stringify(h)); }
+
+  function loadGeo() {
+    try { return JSON.parse(localStorage.getItem(LS_GEO)) || null; }
+    catch { return null; }
+  }
+  function saveGeo(g) { localStorage.setItem(LS_GEO, JSON.stringify(g)); }
+
+  let prefs = loadPrefs();
+  let history = loadHistory();
+  let geo = loadGeo(); // {lat, lon, accuracy, ts}
+
+  function updatePrefsFromUser(text) {
+    const t = text.toLowerCase();
+    if (/\b(be shorter|too long|less detail|keep it brief)\b/.test(t)) prefs.verbosity = "low";
+    if (/\b(more detail|go deeper|explain more)\b/.test(t)) prefs.verbosity = "high";
+    if (/\b(no explanation|just answer)\b/.test(t)) prefs.explain_only_if_asked = true;
+    savePrefs(prefs);
+  }
+
+  function render() {
+    chatEl.innerHTML = "";
+    for (const m of history) {
+      const wrap = document.createElement("div");
+      wrap.className = "msg " + (m.role === "user" ? "me" : "ai");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.textContent = m.content;
+
+      if (m.role === "assistant" && m.actions && m.actions.length) {
+        for (const a of m.actions) {
+          if (a.type === "button") {
+            const btn = document.createElement("div");
+            btn.className = "miniBtn";
+            btn.textContent = a.label;
+            btn.onclick = a.onClick;
+            bubble.appendChild(document.createElement("div"));
+            bubble.appendChild(btn);
+          }
+          if (a.type === "hint") {
+            const hint = document.createElement("div");
+            hint.className = "hint";
+            hint.textContent = a.text;
+            bubble.appendChild(document.createElement("div"));
+            bubble.appendChild(hint);
+          }
+        }
+      }
+
+      wrap.appendChild(bubble);
+      chatEl.appendChild(wrap);
+    }
+    chatEl.scrollTop = chatEl.scrollHeight;
+    // store lean (no functions)
+    saveHistory(history.map(({role, content}) => ({role, content})));
+  }
+
+  function push(role, content, actions=[]) {
+    history.push({ role, content, actions });
+    history = history.slice(-24);
+    render();
+  }
+
+  function getServerHistorySlice() {
+    return history.slice(-12).map(m => ({ role: m.role, content: m.content }));
+  }
+
+  function autosize() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + "px";
+  }
+
+  function getClientContext() {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+    const now = new Date();
+    return {
+      timezone: tz,
+      local_iso: now.toISOString(),
+      local_human: now.toLocaleString(),
+      location: geo || null
+    };
+  }
+
+  function userAskedWeather(text) {
+    return /\b(weather|forecast|temperature|temp|rain|snow|wind)\b/i.test(text);
+  }
+
+  function requestGeo() {
+    if (!navigator.geolocation) {
+      push("assistant", "Your browser doesn’t support location. Tell me your city/ZIP and I’ll do weather that way.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        geo = {
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+          accuracy: pos.coords.accuracy,
+          ts: Date.now()
+        };
+        saveGeo(geo);
+        push("assistant", "Locked. Ask “weather” again.");
+      },
+      () => {
+        geo = null;
+        saveGeo(null);
+        push("assistant", "No worries. Tell me your city/ZIP when you want weather.");
+      },
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 }
+    );
+  }
+
+  async function send() {
+    const text = inputEl.value.trim();
+    if (!text) return;
+
+    updatePrefsFromUser(text);
+    push("user", text);
+    inputEl.value = "";
+    autosize();
+
+    sendBtn.disabled = true;
+    statusPill.textContent = "mode: …";
+
+    try {
+      const res = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: text,
+          history: getServerHistorySlice(),
+          prefs,
+          client: getClientContext()
+        })
+      });
+
+      const ct = res.headers.get("content-type") || "";
+      const raw = await res.text();
+
+      if (!ct.includes("application/json")) {
+        throw new Error("Backend returned non-JSON (usually wrong path or cached deploy).");
+      }
+
+      const data = JSON.parse(raw);
+      if (!res.ok) throw new Error(data?.error || "Request failed");
+
+      statusPill.textContent = "mode: " + (data.mode || "—");
+
+      const hasGeo = (geo && Number.isFinite(geo.lat) && Number.isFinite(geo.lon));
+      if (userAskedWeather(text) && !hasGeo) {
+        push("assistant",
+          (data.reply || "Want local weather?"),
+          [
+            { type: "button", label: "Use my location", onClick: requestGeo },
+            { type: "hint", text: "Or type your city/ZIP instead." }
+          ]
+        );
+      } else {
+        push("assistant", data.reply || "…");
+      }
+
+    } catch (err) {
+      statusPill.textContent = "mode: —";
+      push("assistant",
+        "It didn’t send because the page or request failed.\n\nFix:\n1) Hard refresh: Ctrl+Shift+R\n2) If still broken: Chrome → padlock → Site settings → Clear data\n\nIf it still fails after that, tell me the first red line in Console."
+      );
+      console.error(err);
+    } finally {
+      sendBtn.disabled = false;
+    }
+  }
+
+  inputEl.addEventListener("input", autosize);
+  sendBtn.addEventListener("click", send);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  document.getElementById("clear").addEventListener("click", () => {
+    history = [];
+    saveHistory([]);
+    render();
+    statusPill.textContent = "mode: —";
+  });
+
+  document.getElementById("resetPrefs").addEventListener("click", () => {
+    prefs = { ...defaultPrefs };
+    savePrefs(prefs);
+    push("assistant", "Prefs reset.");
+  });
+
+  if (history.length === 0) {
+    history = [{ role: "assistant", content: "Hey — I’m Simo. What’s going on?" }];
+    saveHistory(history);
+  }
+  render();
+  autosize();
+</script>
+</body>
+</html>
