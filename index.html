@@ -148,7 +148,6 @@
   </div>
 
   <script>
-    // ✅ Always call the function directly (no redirect weirdness)
     const API_URL = "/.netlify/functions/simo";
 
     const chatEl = document.getElementById("chat");
@@ -203,7 +202,7 @@
 
       addMessage("user", msg);
       inputEl.value = "";
-      setApi(true, "…");
+      setApi(true, "...");
 
       const payload = {
         message: msg,
@@ -232,7 +231,6 @@
         addMessage("simo", data.reply);
       } catch (e) {
         setApi(false, "offline");
-        // ✅ Normal, user-facing error (no developer instructions)
         addMessage("simo", "I couldn’t connect right now. Try again in a moment.");
       }
     }
@@ -245,14 +243,13 @@
       }
     });
 
-    // Location button: request geolocation and store it
     useLocationBtn.addEventListener("click", () => {
       if (!navigator.geolocation) {
         addMessage("simo", "Your browser doesn’t support location on this device.");
         return;
       }
 
-      addMessage("simo", "Got you. Grabbing your location…");
+      addMessage("simo", "Got you. Grabbing your location...");
 
       navigator.geolocation.getCurrentPosition(
         (pos) => {
@@ -280,7 +277,6 @@
       addMessage("simo", "Locked in: 48044. Ask “weather” anytime.");
     });
 
-    // Initial message
     addMessage("simo", "I’m here. Ask anything — time, weather, venting, whatever.");
     setApi(true, "ready");
   </script>
