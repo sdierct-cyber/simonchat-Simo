@@ -2,12 +2,13 @@
  * Netlify Function: simo
  * - GET returns healthcheck JSON (proves what's live)
  * - POST handles math/time/weather/loop + OpenAI chat
+ * - Adds "recent_news" guard so Simo doesn't guess on fresh events
  * - ASCII-only (prevents weird character syntax crashes)
  */
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-const VERSION = "simo-v1.2-ascii-fixed";
+const VERSION = "simo-v1.3-recent-news-guard";
 
 function respond(statusCode, body) {
   return {
@@ -52,7 +53,6 @@ function evalBasicMath(exprRaw) {
     .replace(/plus/g, "+")
     .replace(/minus/g, "-");
 
-  // Only allow safe characters
   if (!/^[0-9+\-*/().\s]+$/.test(expr)) return null;
   if (/[*\/]{2,}/.test(expr)) return null;
 
@@ -148,6 +148,13 @@ function detectIntent(message) {
   if (/tired of (this )?(argument|loop)|keep going in circles|same fight|same argument|this again/i.test(message))
     return "loop_fatigue";
 
+  // ✅ NEW: guard for "recent news / did X die" type questions
+  // We do NOT want confident guessing on fresh events without browsing.
+  const recentNewsPattern =
+    /\b(did|has)\b.*\b(die|died|dead|passed away|pass away)\b|(\bdie\b.*\brecently\b)|(\brecent(ly)?\b.*\bnews\b)|(\bbreaking\b.*\bnews\b)|(\bwhat happened\b.*\b(today|recently)\b)/i;
+
+  if (recentNewsPattern.test(message)) return "recent_news";
+
   return "chat";
 }
 
@@ -189,7 +196,8 @@ function systemPrompt(contextLines) {
     "Rules:\n" +
     "- Math: give ONLY the answer unless they ask for steps.\n" +
     "- Time/weather/location: do NOT refuse or loop. If info exists, answer. If missing, ask once.\n" +
-    "- If user is tired of a repeating argument loop: one empathic line + 2-3 options. No lectures.\n\n" +
+    "- If user is tired of a repeating argument loop: one empathic line + 2-3 options. No lectures.\n" +
+    "- For 'recent news' claims (e.g., deaths, breaking news): do NOT guess. Ask for a link/headline or suggest checking a reliable source.\n\n" +
     "Context:\n" +
     contextLines.join("\n")
   );
@@ -229,6 +237,17 @@ exports.handler = async (event) => {
   if (!message) return respond(400, { ok: false, error: "Missing message", version: VERSION });
 
   const intent = detectIntent(message);
+
+  // ✅ NEW: recent news guard
+  if (intent === "recent_news") {
+    return respond(200, {
+      ok: true,
+      reply:
+        "I can’t verify *recent* news in real time from here, so I don’t want to guess on something like that.\n\n" +
+        "If you paste a link or a headline, I’ll tell you what it says and break it down. Or if you want a quick check, look at a reliable source (AP/People/IMDb) and I’ll help you interpret it.",
+      meta: { intent, version: VERSION },
+    });
+  }
 
   // MATH: direct answer
   if (intent === "math") {
