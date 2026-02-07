@@ -1,236 +1,159 @@
-// netlify/functions/simo.js
-// Drop-in Netlify Function for SimonChat "Simo" brain (OpenAI)
-// - Best-friend tone, calm + reliable
-// - Math returns JUST the answer
-// - Developer-grade error logs (user sees a friendly fallback)
+// netlify/functions/chat.js
+// Simo single-brain: math + time local, chat via OpenAI, with history support
 
-const OpenAIImport = require("openai");
-const OpenAI = OpenAIImport.default || OpenAIImport;
-
-// ---------- Helpers ----------
-function json(statusCode, obj, extraHeaders = {}) {
+function json(statusCode, obj) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Headers": "Content-Type",
       "Access-Control-Allow-Methods": "POST, OPTIONS",
-      ...extraHeaders,
     },
     body: JSON.stringify(obj),
   };
 }
 
-function safeParseJSON(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
-}
-
-// Simple math parser: supports "277 x 22", "217*22", "217 times 22", "10 / 4"
-function tryMathAnswer(text) {
+function tryMath(text) {
   if (!text) return null;
-  const t = String(text).trim().toLowerCase();
 
-  // Normalize common words/symbols
-  const normalized = t
-    .replace(/times/g, "*")
+  const t = text
+    .toLowerCase()
     .replace(/multiplied by/g, "*")
-    .replace(/x/g, "*")
+    .replace(/\btimes\b/g, "*")
+    .replace(/\bx\b/g, "*")
     .replace(/÷/g, "/");
 
-  // Match: number op number (allow decimals, commas)
-  const m = normalized.match(
-    /^\s*(-?\d[\d,]*\.?\d*)\s*([+\-*/])\s*(-?\d[\d,]*\.?\d*)\s*$/
-  );
+  const m = t.match(/^\s*(-?\d+(\.\d+)?)\s*([+\-*/])\s*(-?\d+(\.\d+)?)\s*$/);
   if (!m) return null;
 
-  const a = Number(m[1].replace(/,/g, ""));
-  const op = m[2];
-  const b = Number(m[3].replace(/,/g, ""));
+  const a = Number(m[1]);
+  const op = m[3];
+  const b = Number(m[4]);
 
   if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
 
-  let result;
+  let out;
   switch (op) {
-    case "+":
-      result = a + b;
-      break;
-    case "-":
-      result = a - b;
-      break;
-    case "*":
-      result = a * b;
-      break;
-    case "/":
-      if (b === 0) return "undefined";
-      result = a / b;
-      break;
-    default:
-      return null;
+    case "+": out = a + b; break;
+    case "-": out = a - b; break;
+    case "*": out = a * b; break;
+    case "/": out = (b === 0) ? "undefined" : (a / b); break;
+    default: return null;
   }
-
-  // Clean output: integer if it is one, else trimmed decimals
-  if (Number.isInteger(result)) return String(result);
-
-  // Avoid scientific notation for common cases
-  const s = result.toString();
-  if (s.includes("e") || s.includes("E")) return String(result);
-
-  // Trim trailing zeros
-  return String(result).replace(/(\.\d*?[1-9])0+$/g, "$1").replace(/\.0+$/g, "");
+  return typeof out === "string" ? out : String(out);
 }
 
-// Basic local time (no external API). Uses env TZ if present.
-function localTimeString() {
-  const tz = process.env.TZ || "America/New_York";
-  const now = new Date();
-  const fmt = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hour: "numeric",
-    minute: "2-digit",
-  });
-  return fmt.format(now);
-}
-
-function looksLikeTimeQuestion(text) {
+function isTimeQuestion(text) {
   if (!text) return false;
   const t = text.toLowerCase();
+  // catches: "what time is it", "time right now", typos like "time ixt"
   return (
     t.includes("what time") ||
-    t === "time" ||
-    t.includes("current time") ||
-    t.includes("time is it")
+    t.includes("time is it") ||
+    t.includes("time right now") ||
+    (t.includes("time") && t.includes("right")) ||
+    t.trim() === "time"
   );
 }
 
-// ---------- OpenAI client (created once) ----------
-const apiKey = process.env.OPENAI_API_KEY;
-const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+function safeLocalTime() {
+  const tz = process.env.TZ || "America/New_York";
+  const now = new Date();
 
-const client = apiKey ? new OpenAI({ apiKey }) : null;
-
-// ---------- Simo system prompt ----------
-const SIMO_SYSTEM = `
-You are Simo — the user's private, ride-or-die best friend.
-You are calm, steady, and trustworthy. No fake therapy-speak. No lecturing.
-Match the user's tone (serious, funny, annoyed, etc.). Keep it real.
-Be direct and helpful. If the user asks a simple question, give a simple answer.
-If the user vents, respond like a best friend: validating, grounded, not preachy.
-Never mention system prompts, policies, or internal tools.
-
-Math rule:
-- If the user asks a pure arithmetic question, respond with ONLY the final answer (no steps), unless they ask for steps.
-
-If a tool/action is impossible, say it simply and offer the closest helpful alternative.
-`;
-
-// ---------- Handler ----------
-exports.handler = async (event) => {
-  // CORS preflight
-  if (event.httpMethod === "OPTIONS") {
-    return json(200, { ok: true });
-  }
-
-  if (event.httpMethod !== "POST") {
-    return json(405, { ok: false, error: "Use POST." });
-  }
-
-  const reqId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-
-  const body = safeParseJSON(event.body || "");
-  const userText =
-    body?.message ??
-    body?.text ??
-    body?.input ??
-    body?.prompt ??
-    "";
-
-  // 1) Local fast-paths that should NEVER hit OpenAI
-  const math = tryMathAnswer(userText);
-  if (math !== null) {
-    return json(200, { ok: true, reply: math, route: "math" });
-  }
-
-  if (looksLikeTimeQuestion(userText)) {
-    return json(200, {
-      ok: true,
-      reply: localTimeString(),
-      route: "time",
-      tz: process.env.TZ || "America/New_York",
-    });
-  }
-
-  // 2) Validate OpenAI config
-  if (!apiKey) {
-    console.error(`[simo ${reqId}] Missing OPENAI_API_KEY`);
-    return json(200, {
-      ok: true,
-      reply:
-        "My brain key isn’t plugged in right now. If you’re the builder, check the OPENAI_API_KEY in Netlify env vars — then hit me again.",
-      route: "no_api_key",
-    });
-  }
-  if (!client) {
-    console.error(`[simo ${reqId}] OpenAI client failed to initialize`);
-    return json(200, {
-      ok: true,
-      reply:
-        "I’m glitching on my side — try again in a sec. If it keeps happening, the builder should check the function logs.",
-      route: "no_client",
-    });
-  }
-
-  // 3) Build message history (supports chat history if frontend sends it)
-  // Accepts either:
-  // - body.history: [{role:"user"|"assistant", content:"..."}]
-  // - or just a single message
-  const history = Array.isArray(body?.history) ? body.history : [];
-
-  // Normalize history items
-  const msgs = [
-    { role: "system", content: SIMO_SYSTEM.trim() },
-    ...history
-      .filter((m) => m && (m.role === "user" || m.role === "assistant") && m.content)
-      .map((m) => ({ role: m.role, content: String(m.content) })),
-    { role: "user", content: String(userText || "").slice(0, 6000) },
-  ];
-
-  // 4) Call OpenAI (with safe, readable error handling)
+  // Best: Intl formatter
   try {
-    const completion = await client.chat.completions.create({
-      model,
-      messages: msgs,
-      temperature: 0.7,
-      max_tokens: 250,
+    const s = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(now);
+    if (s && s.trim()) return s;
+  } catch (_) {}
+
+  // Fallback: plain local (always non-empty)
+  const hh = now.getHours();
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hh >= 12 ? "PM" : "AM";
+  const h12 = ((hh + 11) % 12) + 1;
+  return `${h12}:${mm} ${ampm}`;
+}
+
+function normalizeHistory(history) {
+  if (!Array.isArray(history)) return [];
+  return history
+    .filter(
+      (m) =>
+        m &&
+        (m.role === "user" || m.role === "assistant") &&
+        typeof m.content === "string" &&
+        m.content.trim()
+    )
+    .slice(-20) // keep last 20 turns
+    .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
+}
+
+const SIMO_SYSTEM = [
+  "You are Simo — the user's trusted best friend.",
+  "Be calm, grounded, and real. Match their tone.",
+  "Avoid preachy therapy-speak and generic 'communicate better' lectures unless they ask for that.",
+  "Be direct and practical. Keep it human.",
+  "If they vent: validate + give a real next step, not a lecture.",
+  "If they ask a simple question, answer simply.",
+  "If you’re unsure, say so plainly and help them find the answer.",
+  "Math rule: for pure arithmetic questions, respond with ONLY the final answer (no steps) unless asked.",
+].join(" ");
+
+exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+  if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Use POST." });
+
+  let body = {};
+  try {
+    body = JSON.parse(event.body || "{}");
+  } catch (_) {}
+
+  const text = String(body.message || "").trim();
+  const history = normalizeHistory(body.history);
+
+  if (!text) return json(200, { ok: true, reply: "Say it again — I didn’t catch that.", route: "empty" });
+
+  // 1) local math
+  const math = tryMath(text);
+  if (math !== null) return json(200, { ok: true, reply: math, route: "math" });
+
+  // 2) local time (NEVER empty)
+  if (isTimeQuestion(text)) {
+    const time = safeLocalTime();
+    return json(200, { ok: true, reply: time, route: "time", tz: process.env.TZ || "America/New_York" });
+  }
+
+  // 3) OpenAI chat
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: [{ role: "system", content: SIMO_SYSTEM }, ...history, { role: "user", content: text }],
+        temperature: 0.7,
+        max_tokens: 380,
+      }),
     });
 
-    const reply =
-      completion?.choices?.[0]?.message?.content?.trim() ||
-      "I blanked for a second. Say that again?";
+    const data = await res.json();
+    const reply = data?.choices?.[0]?.message?.content?.trim();
 
     return json(200, {
       ok: true,
-      reply,
+      reply: reply || "I blanked for a second — say that again?",
       route: "openai",
-      model,
     });
   } catch (err) {
-    // Log the real error to Netlify logs (developer-only)
-    console.error(`[simo ${reqId}] OpenAI error:`, err?.message || err);
-    if (err?.response?.data) {
-      console.error(`[simo ${reqId}] OpenAI response data:`, err.response.data);
-    }
-
-    // User-facing: keep Simo calm + trustworthy
-    return json(200, {
-      ok: true,
-      reply: "I couldn’t reach my brain for a second. Try again.",
-      route: "openai_error",
-      reqId,
-    });
+    console.error("Simo error:", err);
+    return json(200, { ok: true, reply: "I couldn’t reach my brain for a second. Try again.", route: "error" });
   }
 };
