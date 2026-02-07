@@ -1,284 +1,112 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <title>Simo</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SimonChat.ai — Simo</title>
   <style>
-    :root{
-      --bg:#071426;
-      --panel:rgba(255,255,255,.06);
-      --panel2:rgba(255,255,255,.08);
-      --text:rgba(255,255,255,.92);
-      --muted:rgba(255,255,255,.70);
-      --border:rgba(255,255,255,.10);
-      --accent:#4aa8ff;
-      --good:#3ddc97;
-      --bad:#ff5c7a;
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e5e7eb;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:
-        radial-gradient(1200px 600px at 70% -10%, rgba(74,168,255,.25), transparent 60%),
-        radial-gradient(800px 500px at 20% 0%, rgba(61,220,151,.18), transparent 60%),
-        var(--bg);
-      color:var(--text);
-      min-height:100vh;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      padding:28px;
+    header {
+      padding: 16px;
+      font-size: 18px;
+      font-weight: 600;
+      background: #020617;
     }
-    .app{width:min(980px,100%);display:grid;grid-template-columns:1fr;gap:18px}
-    .panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;overflow:hidden}
-    .topbar{padding:14px 16px;border-bottom:1px solid var(--border)}
-    .top{display:flex;align-items:center;justify-content:space-between;gap:16px}
-    .brand{display:flex;align-items:center;gap:12px}
-    .dot{width:12px;height:12px;border-radius:999px;background:var(--accent);box-shadow:0 0 0 6px rgba(74,168,255,.12)}
-    h1{font-size:18px;margin:0}
-    .sub{margin:0;font-size:13px;color:var(--muted)}
-    .status{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
-    .badge{padding:4px 8px;border-radius:999px;border:1px solid var(--border);font-size:12px}
-    .badge.good{color:var(--good);border-color:rgba(61,220,151,.35);background:rgba(61,220,151,.08)}
-    .badge.bad{color:var(--bad);border-color:rgba(255,92,122,.35);background:rgba(255,92,122,.08)}
-    .pill{font-size:12px;padding:8px 10px;border-radius:999px;border:1px solid var(--border);background:rgba(255,255,255,.06);color:var(--muted)}
-    .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    button{
-      height:40px;padding:0 12px;border-radius:12px;border:1px solid var(--border);
-      background:rgba(255,255,255,.08);color:var(--text);cursor:pointer;
-      transition:transform .05s ease, background .15s ease;
+    #chat {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
     }
-    button:hover{background:rgba(255,255,255,.12)}
-    button:active{transform:translateY(1px)}
-    button.primary{background:rgba(74,168,255,.18);border-color:rgba(74,168,255,.28)}
-    button.primary:hover{background:rgba(74,168,255,.25)}
-    .chat{
-      height:min(62vh,560px);
-      overflow:auto;
-      padding:18px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
+    .msg {
+      margin-bottom: 12px;
+      line-height: 1.4;
     }
-    .msg{
-      max-width:82%;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid var(--border);
-      background:var(--panel2);
-      line-height:1.35;
-      white-space:pre-wrap;
-      word-wrap:break-word;
+    .user {
+      color: #93c5fd;
     }
-    .msg.user{margin-left:auto;background:rgba(74,168,255,.12);border-color:rgba(74,168,255,.22)}
-    .msg.simo{margin-right:auto;background:rgba(255,255,255,.06)}
-    .row{
-      display:flex;
-      gap:10px;
-      padding:12px;
-      border-top:1px solid var(--border);
-      background:rgba(0,0,0,.10);
+    .simo {
+      color: #e5e7eb;
     }
-    textarea{
-      flex:1;
-      resize:none;
-      height:48px;
-      padding:12px 12px;
-      border-radius:12px;
-      border:1px solid var(--border);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      outline:none;
+    form {
+      display: flex;
+      padding: 12px;
+      background: #020617;
     }
-    textarea::placeholder{color:rgba(255,255,255,.45)}
-    @media (min-width:900px){.app{grid-template-columns:1.2fr .8fr;align-items:start}}
-    .side{padding:16px;display:flex;flex-direction:column;gap:12px}
-    .mini{padding:12px;border-radius:14px;border:1px solid var(--border);background:rgba(255,255,255,.05)}
-    .side h2{margin:0;font-size:14px}
-    .side p{margin:0;font-size:13px;color:var(--muted);line-height:1.45}
+    input {
+      flex: 1;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      outline: none;
+    }
+    button {
+      margin-left: 8px;
+      padding: 12px 16px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
   </style>
 </head>
 <body>
-  <div class="app">
-    <div class="panel">
-      <div class="topbar">
-        <div class="top">
-          <div class="brand">
-            <div class="dot"></div>
-            <div>
-              <h1>Hey — I’m Simo. What’s going on?</h1>
-              <p class="sub">Fast answers. Time + weather work when the page can reach the function.</p>
-            </div>
-          </div>
-          <div class="status">
-            <span class="badge" id="apiBadge">API: …</span>
-            <span class="pill" id="tzPill">TZ: …</span>
-          </div>
-        </div>
 
-        <div class="actions">
-          <button id="useLocationBtn" class="primary">Use my location</button>
-          <button id="setZipBtn">Set ZIP (48044)</button>
-          <span class="pill" id="locPill">Location: not set</span>
-          <span class="pill" id="zipPill">ZIP: not set</span>
-        </div>
-      </div>
+<header>Hey — I’m Simo. What’s going on?</header>
 
-      <div class="chat" id="chat"></div>
+<div id="chat"></div>
 
-      <div class="row">
-        <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
-        <button id="send" class="primary">Send</button>
-      </div>
-    </div>
+<form id="form">
+  <input id="input" placeholder="Talk to Simo…" autocomplete="off" />
+  <button>Send</button>
+</form>
 
-    <div class="panel side">
-      <div class="mini">
-        <h2>Quick checks</h2>
-        <p>• If you ask “what time is it”, Simo uses your browser time.</p>
-        <p>• For weather: set ZIP or use location, then ask “weather”.</p>
-      </div>
-      <div class="mini">
-        <h2>What we fixed here</h2>
-        <p>No more developer gibberish in chat. If a request fails, Simo says a normal one-liner and you can retry.</p>
-      </div>
-    </div>
-  </div>
+<script>
+  const chat = document.getElementById("chat");
+  const form = document.getElementById("form");
+  const input = document.getElementById("input");
 
-  <script>
-    const API_URL = "/.netlify/functions/simo";
+  function add(role, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + role;
+    div.textContent = (role === "user" ? "You: " : "Simo: ") + text;
+    chat.appendChild(div);
+    chat.scrollTop = chat.scrollHeight;
+  }
 
-    const chatEl = document.getElementById("chat");
-    const inputEl = document.getElementById("input");
-    const sendBtn = document.getElementById("send");
-    const useLocationBtn = document.getElementById("useLocationBtn");
-    const setZipBtn = document.getElementById("setZipBtn");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
 
-    const apiBadge = document.getElementById("apiBadge");
-    const tzPill = document.getElementById("tzPill");
-    const locPill = document.getElementById("locPill");
-    const zipPill = document.getElementById("zipPill");
+    add("user", text);
+    input.value = "";
 
-    const state = {
-      history: [],
-      tz: Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown",
-      zip: localStorage.getItem("simo_zip") || "",
-      location: null
-    };
+    try {
+      const res = await fetch("/.netlify/functions/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: text })
+      });
 
-    tzPill.textContent = "TZ: " + state.tz;
-    zipPill.textContent = "ZIP: " + (state.zip || "not set");
+      const data = await res.json();
+      add("simo", data.reply || "…");
 
-    function setApi(ok, text){
-      apiBadge.className = "badge " + (ok ? "good" : "bad");
-      apiBadge.textContent = "API: " + text;
+    } catch {
+      add("simo", "I’m having trouble responding right now.");
     }
+  });
+</script>
 
-    function addMessage(role, content){
-      const div = document.createElement("div");
-      div.className = "msg " + (role === "user" ? "user" : "simo");
-      div.textContent = content;
-      chatEl.appendChild(div);
-      chatEl.scrollTop = chatEl.scrollHeight;
-
-      state.history.push({ role: role === "user" ? "user" : "assistant", content });
-      if (state.history.length > 24) state.history = state.history.slice(-24);
-    }
-
-    function getClientTimePayload(){
-      const d = new Date();
-      return {
-        iso: d.toISOString(),
-        tz: state.tz,
-        offsetMinutes: d.getTimezoneOffset()
-      };
-    }
-
-    async function send(message){
-      const msg = (message || "").trim();
-      if (!msg) return;
-
-      addMessage("user", msg);
-      inputEl.value = "";
-      setApi(true, "...");
-
-      const payload = {
-        message: msg,
-        history: state.history.slice(-12),
-        clientTime: getClientTimePayload(),
-        zip: state.zip || "",
-        location: state.location || null
-      };
-
-      try {
-        const r = await fetch(API_URL, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await r.json().catch(() => null);
-
-        if (!r.ok || !data || !data.ok) {
-          setApi(false, "error");
-          addMessage("simo", "I couldn’t reach my brain for a second. Try again.");
-          return;
-        }
-
-        setApi(true, "ok");
-        addMessage("simo", data.reply);
-      } catch (e) {
-        setApi(false, "offline");
-        addMessage("simo", "I couldn’t connect right now. Try again in a moment.");
-      }
-    }
-
-    sendBtn.addEventListener("click", () => send(inputEl.value));
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send(inputEl.value);
-      }
-    });
-
-    useLocationBtn.addEventListener("click", () => {
-      if (!navigator.geolocation) {
-        addMessage("simo", "Your browser doesn’t support location on this device.");
-        return;
-      }
-
-      addMessage("simo", "Got you. Grabbing your location...");
-
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          state.location = {
-            lat: pos.coords.latitude,
-            lon: pos.coords.longitude,
-            accuracy: pos.coords.accuracy
-          };
-          locPill.textContent = "Location: set (±" + Math.round(pos.coords.accuracy) + "m)";
-          addMessage("simo", "Locked in. Now ask “weather”.");
-        },
-        () => {
-          state.location = null;
-          locPill.textContent = "Location: not set";
-          addMessage("simo", "No worries — just set a ZIP and ask “weather”.");
-        },
-        { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
-      );
-    });
-
-    setZipBtn.addEventListener("click", () => {
-      state.zip = "48044";
-      localStorage.setItem("simo_zip", state.zip);
-      zipPill.textContent = "ZIP: " + state.zip;
-      addMessage("simo", "Locked in: 48044. Ask “weather” anytime.");
-    });
-
-    addMessage("simo", "I’m here. Ask anything — time, weather, venting, whatever.");
-    setApi(true, "ready");
-  </script>
 </body>
 </html>
