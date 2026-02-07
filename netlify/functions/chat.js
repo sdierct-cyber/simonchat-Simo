@@ -1,6 +1,8 @@
 // netlify/functions/chat.js
 // Simo single-brain: math + time local, chat via OpenAI, with history support.
-// Tone rewritten: grounded best-friend, less therapy-speak, more practical.
+// Tone rewrite: best-friend, grounded, fewer therapy questions.
+// Guardrail: violence triggers a firm refusal + de-escalation.
+// Capability: never says "I can't code it for you" — offers step-by-step building.
 
 function json(statusCode, obj) {
   return {
@@ -86,69 +88,69 @@ function normalizeHistory(history) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
 }
 
-// ---------- safety (violence) ----------
+// ---------- guardrail: violence / harm ----------
 function looksLikeViolence(text) {
   if (!text) return false;
   const t = text.toLowerCase();
+
+  // broader match so it triggers even with slang/variations
   const patterns = [
-    /\bkick (his|her|their)?\s*ass\b/,
-    /\bbeat (him|her|them)\b/,
-    /\bhit (him|her|them)\b/,
-    /\bsmack (him|her|them)\b/,
-    /\bkill\b/,
-    /\bhurt (him|her|them)\b/,
+    /\bkick\b.*\bass\b/,
+    /\bbeat\b/,
+    /\bhit\b/,
+    /\bsmack\b/,
+    /\bslap\b/,
+    /\bpunch\b/,
     /\bassault\b/,
+    /\bhurt\b.*\bher\b|\bhurt\b.*\bhim\b|\bhurt\b.*\bthem\b/,
+    /\bkill\b/,
   ];
+
   return patterns.some((re) => re.test(t));
 }
 
 function violenceReply() {
   return [
-    "No — I can’t help with hurting someone.",
-    "I *do* get how angry and fried you are though.",
+    "Nope. I can’t help with hurting her — even if you’re just blowing off steam.",
+    "But I *get* the feeling: you’re drained and you want peace when you walk in.",
     "",
-    "Right now, the goal isn’t to fix the marriage or win an argument.",
-    "It’s to not make tonight worse than it already feels.",
+    "Do this tonight instead (simple, not a big speech):",
+    "1) Take 10 minutes when you get home — car, shower, whatever — no talking.",
+    "2) Then say: “I’m wiped. Give me 15 to decompress, then I can listen.”",
+    "3) If she keeps going, repeat it once and walk away. Boundary, not war.",
     "",
-    "Take 10 minutes when you get home. No talking. Just decompress.",
-    "Then say one clear line: “I’m wiped. I need a bit before I can listen.”",
-    "",
-    "That’s a boundary, not a fight.",
-    "Tell me what usually happens in the first few minutes after you walk in.",
+    "What usually happens in the first 2 minutes after you walk in?",
   ].join("\n");
 }
 
-// ---------- Simo voice (REWRITTEN) ----------
+// ---------- Simo voice (rewritten hard) ----------
 const SIMO_SYSTEM = `
 You are Simo — the user's trusted best friend.
 
-Your role:
-- Be steady, grounded, and human.
-- Sound like someone who knows the user is tired, not broken.
-- Speak plainly. No therapy jargon. No HR tone.
+Core vibe:
+- Grounded, loyal, human.
+- Less “therapist,” more “I’ve got you.”
+- Speak plainly. No lectures. No HR tone.
 
-How you respond:
-- When the user vents, validate first, then offer a practical next move.
-- Ask fewer questions. Prefer statements over reflections.
-- Avoid "How does that make you feel?" or "What do you think?" unless truly necessary.
-- If the user is overwhelmed, slow things down instead of digging deeper.
+How to respond:
+- If the user vents: validate fast, then give one practical next move.
+- Ask fewer questions. Only ask one when you truly need a detail.
+- Avoid “What do you think?” and “How does that sound?” as default phrases.
+- Don’t over-explain.
 
-Boundaries:
-- Do not assist with violence, threats, or harming anyone.
-- When a line is crossed, refuse calmly and redirect to a safer action without lecturing.
+Safety:
+- Never help with violence or harm. If the user says anything violent, refuse and de-escalate like a best friend.
 
-Tone:
-- Supportive, loyal, and honest.
-- It’s okay to be blunt when the user is clearly exhausted or spiraling.
-- Never shame. Never patronize.
+Capabilities:
+- If asked to code/build something: say yes, and guide step-by-step.
+  Do NOT say “I can’t code it for you.” You can provide code and instructions.
 
-Behavior rules:
-- For simple math, return only the answer.
-- For simple factual questions, be concise.
-- If you don’t know something, say so plainly and help the user find it.
+Simple rules:
+- Math: answer only the final number.
+- If you don’t know something, say so plainly and suggest the best next step.
 
-You are not trying to fix the user.
-You are trying to help them get through the moment.
+You are not trying to “fix” the user.
+You’re trying to help them get through the moment and make a better next move.
 `.trim();
 
 // ---------- handler ----------
@@ -164,31 +166,24 @@ exports.handler = async (event) => {
   const text = String(body.message || "").trim();
   const history = normalizeHistory(body.history);
 
-  if (!text) {
-    return json(200, { ok: true, reply: "Say it again — I didn’t catch that." });
-  }
+  if (!text) return json(200, { ok: true, reply: "Say it again — I didn’t catch that." });
 
-  // Safety first
+  // 0) violence guardrail (local, instant)
   if (looksLikeViolence(text)) {
     return json(200, { ok: true, reply: violenceReply() });
   }
 
-  // Local math
+  // 1) math (local)
   const math = tryMath(text);
-  if (math !== null) {
-    return json(200, { ok: true, reply: math });
-  }
+  if (math !== null) return json(200, { ok: true, reply: math });
 
-  // Local time
+  // 2) time (local)
   if (isTimeQuestion(text)) {
     const time = localTimeFromOffset(body.tzOffset);
-    return json(200, {
-      ok: true,
-      reply: time || "Set your timezone in Settings and ask again."
-    });
+    return json(200, { ok: true, reply: time || "Open Settings once so I can use your device timezone." });
   }
 
-  // OpenAI chat
+  // 3) OpenAI chat
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -203,7 +198,7 @@ exports.handler = async (event) => {
           ...history,
           { role: "user", content: text },
         ],
-        temperature: 0.65,
+        temperature: 0.62,
         max_tokens: 420,
       }),
     });
@@ -211,15 +206,9 @@ exports.handler = async (event) => {
     const data = await res.json();
     const reply = data?.choices?.[0]?.message?.content?.trim();
 
-    return json(200, {
-      ok: true,
-      reply: reply || "I’m here — say that again.",
-    });
+    return json(200, { ok: true, reply: reply || "I’m here. Say it again." });
   } catch (err) {
     console.error("Simo error:", err);
-    return json(200, {
-      ok: true,
-      reply: "I couldn’t reach my brain for a second. Try again.",
-    });
+    return json(200, { ok: true, reply: "I couldn’t reach my brain for a second. Try again." });
   }
 };
