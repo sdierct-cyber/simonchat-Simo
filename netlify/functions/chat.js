@@ -1,5 +1,6 @@
 // netlify/functions/chat.js
 // Simo single-brain: math + time local (using user's tzOffset), chat via OpenAI, with history support.
+// No SDK. No split-brain frontend logic.
 
 function json(statusCode, obj) {
   return {
@@ -56,15 +57,13 @@ function isTimeQuestion(text) {
   );
 }
 
-// Convert "now" into the user's local time using tzOffset (minutes)
+// Convert "now" into the user's local time using tzOffset (minutes).
 // JS getTimezoneOffset() returns minutes behind UTC (e.g. New York winter = 300)
 function localTimeFromOffset(tzOffsetMinutes) {
   const now = new Date();
   const offset = Number(tzOffsetMinutes);
-
   if (!Number.isFinite(offset)) return null;
 
-  // Convert current time to UTC milliseconds, then apply user's offset
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
   const userMs = utcMs - offset * 60000;
   const user = new Date(userMs);
@@ -114,23 +113,22 @@ exports.handler = async (event) => {
   const history = normalizeHistory(body.history);
 
   if (!text) {
-    return json(200, { ok: true, reply: "Say it again — I didn’t catch that.", route: "empty" });
+    return json(200, { ok: true, reply: "Say it again — I didn’t catch that." });
   }
 
   // 1) local math
   const math = tryMath(text);
   if (math !== null) {
-    return json(200, { ok: true, reply: math, route: "math" });
+    return json(200, { ok: true, reply: math });
   }
 
-  // 2) local time based on user's tzOffset (fallback if missing)
+  // 2) local time based on user's tzOffset (fallback message if missing)
   if (isTimeQuestion(text)) {
-    const offset = body.tzOffset;
-    const time = localTimeFromOffset(offset) || "[set your timezone in Settings]";
-    return json(200, { ok: true, reply: time, route: "time" });
+    const time = localTimeFromOffset(body.tzOffset);
+    return json(200, { ok: true, reply: time || "Set your timezone in Settings and ask again." });
   }
 
-  // 3) OpenAI chat (everything else)
+  // 3) OpenAI chat
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -156,14 +154,12 @@ exports.handler = async (event) => {
     return json(200, {
       ok: true,
       reply: reply || "I blanked for a second — say that again?",
-      route: "openai",
     });
   } catch (err) {
     console.error("Simo error:", err);
     return json(200, {
       ok: true,
       reply: "I couldn’t reach my brain for a second. Try again.",
-      route: "error",
     });
   }
 };
