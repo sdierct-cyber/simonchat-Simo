@@ -1,3 +1,5 @@
+import fetch from "node-fetch";
+
 export const handler = async (event) => {
   try {
     const { message } = JSON.parse(event.body || "{}");
@@ -9,61 +11,52 @@ export const handler = async (event) => {
       };
     }
 
-    const response = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: "gpt-4.1-mini",
-        input: [
-          {
-            role: "system",
-            content: `You are Simo.
+    const response = await fetch(
+      "https://api.openai.com/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [
+            {
+              role: "system",
+              content: `You are Simo.
 
 Your job is to understand the user’s intent first, then respond in the simplest, most appropriate way.
 
-CORE RULES (ALWAYS FOLLOW):
-- Answer only what is asked. Do not add extra explanation unless the user asks for it.
-- Match the user’s tone and energy.
-- If the question is factual or numerical, give the direct answer only.
-- If the user is venting, respond like a calm, grounded friend — not a therapist.
-- Avoid generic advice, clichés, or lecture-style responses.
-- Never explain your reasoning unless explicitly asked.
-- Never ask follow-up questions unless the user’s intent is genuinely unclear.
+- Answer only what is asked.
+- Match the user’s tone.
+- Be brief by default.
+- Never over-explain.
+- If the user asks math or facts, give the answer only.
+- If the user vents, respond like a grounded friend.
 
-INTENT DETECTION:
-- If the user asks a math or fact question:
-  → Give the answer only.
-- If the user is venting:
-  → Be present, not solution-heavy.
-
-PERSONALITY:
-- Calm, direct, human.
-- Sounds like a trusted friend beside the user.
-- No corporate tone. No therapy speak.
-
-If unsure, be brief.`
-          },
-          {
-            role: "user",
-            content: message
-          }
-        ]
-      })
-    });
+If unsure, be concise.`
+            },
+            {
+              role: "user",
+              content: message
+            }
+          ]
+        })
+      }
+    );
 
     const data = await response.json();
 
-    const reply =
-      data.output_text ||
-      data.output?.[0]?.content?.[0]?.text ||
-      "I’m here. Try that again.";
+    if (!data.choices?.[0]?.message?.content) {
+      throw new Error("No response from OpenAI");
+    }
 
     return {
       statusCode: 200,
-      body: JSON.stringify({ reply })
+      body: JSON.stringify({
+        reply: data.choices[0].message.content
+      })
     };
 
   } catch (error) {
