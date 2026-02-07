@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; display:flex; flex-direction:column; height:100vh; }
-    header { padding:16px; font-size:18px; font-weight:600; background:#020617; }
+    header { padding:14px 16px; font-size:18px; font-weight:600; background:#020617; display:flex; align-items:center; justify-content:space-between; gap:12px; }
     #chat { flex:1; padding:16px; overflow-y:auto; }
     .msg { margin-bottom:12px; line-height:1.4; white-space:pre-wrap; }
     .user { color:#93c5fd; }
@@ -15,11 +15,37 @@
     input { flex:1; padding:12px; font-size:16px; border-radius:10px; border:none; outline:none; }
     button { padding:12px 16px; font-size:16px; border-radius:10px; border:none; cursor:pointer; background:#2563eb; color:white; }
     .meta { opacity:.55; font-size:12px; margin-top:4px; }
+
+    .topbtn { background:#111827; color:#e5e7eb; border:1px solid rgba(255,255,255,.08); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:14px; }
+    .modalback {
+      position: fixed; inset: 0; background: rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:18px;
+    }
+    .modal {
+      width: 100%; max-width: 520px;
+      background:#0b1222; border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px; padding: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+    }
+    .row { display:flex; gap:10px; align-items:center; margin:10px 0; flex-wrap:wrap; }
+    .label { min-width: 170px; opacity:.85; }
+    .field, select {
+      flex:1; min-width: 160px;
+      background:#0f172a; color:#e5e7eb;
+      border: 1px solid rgba(255,255,255,.10);
+      padding:10px; border-radius:10px;
+    }
+    .small { font-size: 12px; opacity:.7; margin-top:6px; }
+    .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+    .danger { background:#7f1d1d; }
   </style>
 </head>
 <body>
 
-<header>Hey — I’m Simo. What’s going on?</header>
+<header>
+  <div>Hey — I’m Simo. What’s going on?</div>
+  <button class="topbtn" id="openSettings">Settings</button>
+</header>
 
 <div id="chat"></div>
 
@@ -28,13 +54,66 @@
   <button type="submit">Send</button>
 </form>
 
+<!-- Settings Modal -->
+<div class="modalback" id="modalBack">
+  <div class="modal">
+    <h3 style="margin:0 0 8px 0;">User Settings</h3>
+    <div class="small">
+      Simo won’t guess your location. You can choose what to share (timezone/ZIP).
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div class="label">Use device timezone</div>
+      <label style="display:flex; gap:8px; align-items:center;">
+        <input type="checkbox" id="useDeviceTz" />
+        <span style="opacity:.85;">On</span>
+      </label>
+    </div>
+
+    <div class="row">
+      <div class="label">Manual timezone offset</div>
+      <input class="field" id="manualOffset" placeholder="e.g. 300 for EST, 240 for EDT" />
+    </div>
+    <div class="small">
+      This is the same number returned by your browser’s <code>getTimezoneOffset()</code>.
+      If “Use device timezone” is On, Simo uses your device automatically.
+    </div>
+
+    <div class="row" style="margin-top:14px;">
+      <div class="label">ZIP (optional)</div>
+      <input class="field" id="zip" placeholder="e.g. 48044" />
+    </div>
+
+    <div class="actions">
+      <button class="topbtn danger" id="resetSettings" type="button">Reset</button>
+      <button class="topbtn" id="closeSettings" type="button">Close</button>
+      <button id="saveSettings" type="button">Save</button>
+    </div>
+  </div>
+</div>
+
 <script>
   const chatEl = document.getElementById("chat");
   const form = document.getElementById("form");
   const input = document.getElementById("input");
 
+  // Settings elements
+  const modalBack = document.getElementById("modalBack");
+  const openSettings = document.getElementById("openSettings");
+  const closeSettings = document.getElementById("closeSettings");
+  const saveSettings = document.getElementById("saveSettings");
+  const resetSettings = document.getElementById("resetSettings");
+
+  const useDeviceTz = document.getElementById("useDeviceTz");
+  const manualOffset = document.getElementById("manualOffset");
+  const zip = document.getElementById("zip");
+
   // Keep the last ~20 turns to send as context
   const history = [];
+
+  // Persist settings + chat history so refresh doesn’t “wipe memory”
+  const STORE_KEY = "simo_settings_v1";
+  const CHAT_KEY = "simo_history_v1";
 
   function add(role, text, meta) {
     const div = document.createElement("div");
@@ -55,7 +134,74 @@
   function pushHistory(role, content) {
     history.push({ role, content });
     if (history.length > 20) history.splice(0, history.length - 20);
+    localStorage.setItem(CHAT_KEY, JSON.stringify(history));
   }
+
+  function loadChatHistory() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
+      if (Array.isArray(saved) && saved.length) {
+        saved.forEach(m => {
+          if (m.role === "user") add("user", m.content);
+          if (m.role === "assistant") add("simo", m.content);
+          history.push(m);
+        });
+      }
+    } catch {}
+  }
+
+  function getSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
+    } catch {
+      return {};
+    }
+  }
+
+  function setSettings(obj) {
+    localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+  }
+
+  function effectiveTzOffset(settings) {
+    if (settings.useDeviceTz) return new Date().getTimezoneOffset();
+    const n = Number(settings.manualOffset);
+    return Number.isFinite(n) ? n : new Date().getTimezoneOffset();
+  }
+
+  // Modal open/close
+  openSettings.addEventListener("click", () => {
+    const s = getSettings();
+    useDeviceTz.checked = !!s.useDeviceTz;
+    manualOffset.value = (s.manualOffset ?? "");
+    zip.value = (s.zip ?? "");
+    modalBack.style.display = "flex";
+  });
+
+  closeSettings.addEventListener("click", () => {
+    modalBack.style.display = "none";
+  });
+
+  saveSettings.addEventListener("click", () => {
+    const next = {
+      useDeviceTz: useDeviceTz.checked,
+      manualOffset: manualOffset.value.trim(),
+      zip: zip.value.trim()
+    };
+    setSettings(next);
+    modalBack.style.display = "none";
+    add("simo", "Locked in. Settings saved.", "settings");
+  });
+
+  resetSettings.addEventListener("click", () => {
+    localStorage.removeItem(STORE_KEY);
+    useDeviceTz.checked = true;
+    manualOffset.value = "";
+    zip.value = "";
+    add("simo", "Settings reset.", "settings");
+  });
+
+  // Load chat history on boot
+  loadChatHistory();
 
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -66,16 +212,23 @@
     pushHistory("user", text);
     input.value = "";
 
+    const settings = getSettings();
+    const tzOffset = effectiveTzOffset(settings);
+
     try {
       const res = await fetch("/.netlify/functions/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, history })
+        body: JSON.stringify({
+          message: text,
+          history,
+          tzOffset,
+          zip: settings.zip || ""
+        })
       });
 
       const data = await res.json();
 
-      // If reply is missing/blank, show raw payload instead of "…"
       let reply = "";
       if (data && typeof data.reply === "string" && data.reply.trim()) {
         reply = data.reply.trim();
