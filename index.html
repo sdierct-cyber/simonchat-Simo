@@ -2,237 +2,635 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Simo</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ParkMate — Preview</title>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; background:#0f172a; color:#e5e7eb; margin:0; display:flex; flex-direction:column; height:100vh; }
-    header { padding:14px 16px; font-size:18px; font-weight:600; background:#020617; display:flex; align-items:center; justify-content:space-between; gap:12px; }
-    #chat { flex:1; padding:16px; overflow-y:auto; }
-    .msg { margin-bottom:12px; line-height:1.4; white-space:pre-wrap; }
-    .user { color:#93c5fd; }
-    .simo { color:#e5e7eb; }
-    form { display:flex; padding:12px; background:#020617; gap:8px; }
-    input { flex:1; padding:12px; font-size:16px; border-radius:10px; border:none; outline:none; }
-    button { padding:12px 16px; font-size:16px; border-radius:10px; border:none; cursor:pointer; background:#2563eb; color:white; }
+    :root{
+      --bg:#0f172a;
+      --panel:#0b1222;
+      --card:#0f1b33;
+      --text:#e5e7eb;
+      --muted:rgba(229,231,235,.7);
+      --line:rgba(255,255,255,.08);
+      --blue:#2563eb;
+      --green:#22c55e;
+      --yellow:#eab308;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:linear-gradient(180deg,#0b1222, #0f172a 60%);
+      color:var(--text);
+      min-height:100vh;
+    }
+    header{
+      position:sticky; top:0;
+      background:rgba(2,6,23,.92);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid var(--line);
+      padding:14px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      z-index:10;
+    }
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:700;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:50%;
+      background:var(--blue);
+      box-shadow:0 0 0 6px rgba(37,99,235,.15);
+    }
+    .sub{color:var(--muted); font-weight:500; font-size:12px}
+    .actions{display:flex; gap:8px; flex-wrap:wrap}
+    .btn{
+      border:1px solid var(--line);
+      background:#111827;
+      color:var(--text);
+      padding:9px 12px;
+      border-radius:12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:14px;
+    }
+    .btn.primary{
+      background:var(--blue);
+      border-color:rgba(255,255,255,.0);
+    }
+    .wrap{
+      max-width:1100px;
+      margin:0 auto;
+      padding:16px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:14px;
+    }
+    @media (max-width: 900px){
+      .grid{grid-template-columns:1fr}
+    }
+    .panel{
+      background:rgba(11,18,34,.7);
+      border:1px solid var(--line);
+      border-radius:18px;
+      overflow:hidden;
+      box-shadow:0 18px 60px rgba(0,0,0,.35);
+    }
+    .panelHead{
+      padding:14px 14px 10px;
+      border-bottom:1px solid var(--line);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .title{font-size:16px; font-weight:800; margin:0}
+    .muted{color:var(--muted); font-size:13px}
+    .searchRow{
+      padding:12px 14px;
+      display:flex; gap:10px; flex-wrap:wrap;
+      border-bottom:1px solid var(--line);
+    }
+    .field{
+      flex:1;
+      min-width:210px;
+      background:#0f172a;
+      border:1px solid var(--line);
+      color:var(--text);
+      padding:11px 12px;
+      border-radius:14px;
+      outline:none;
+      font-size:14px;
+    }
+    .chipRow{display:flex; gap:8px; flex-wrap:wrap}
+    .chip{
+      border:1px solid var(--line);
+      background:#0f172a;
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:999px;
+      cursor:pointer;
+      font-weight:650;
+      font-size:13px;
+      opacity:.95;
+    }
+    .chip.active{
+      border-color:rgba(37,99,235,.65);
+      box-shadow:0 0 0 5px rgba(37,99,235,.12);
+    }
+    .map{
+      height:300px;
+      background:
+        radial-gradient(circle at 20% 30%, rgba(37,99,235,.20), transparent 45%),
+        radial-gradient(circle at 70% 60%, rgba(34,197,94,.18), transparent 48%),
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      position:relative;
+      border-bottom:1px solid var(--line);
+    }
+    .pin{
+      position:absolute;
+      transform:translate(-50%,-100%);
+      width:18px; height:18px;
+      border-radius:50% 50% 50% 0;
+      transform: rotate(-45deg);
+      border:2px solid rgba(255,255,255,.6);
+      background:var(--blue);
+      box-shadow:0 10px 30px rgba(0,0,0,.35);
+    }
+    .pin:after{
+      content:"";
+      position:absolute;
+      width:7px; height:7px;
+      background:#fff;
+      border-radius:50%;
+      top:50%; left:50%;
+      transform:translate(-50%,-50%) rotate(45deg);
+      opacity:.95;
+    }
+    .pin.p2{background:var(--green)}
+    .pin.p3{background:var(--yellow)}
+    .mapLabel{
+      position:absolute; left:14px; bottom:12px;
+      font-size:12px;
+      color:var(--muted);
+      background:rgba(2,6,23,.6);
+      border:1px solid var(--line);
+      padding:7px 10px;
+      border-radius:999px;
+    }
+    .list{
+      padding:12px 12px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      max-height:360px;
+      overflow:auto;
+    }
+    .card{
+      background:rgba(15,27,51,.9);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:12px;
+      display:flex;
+      gap:12px;
+      cursor:pointer;
+      transition:transform .08s ease;
+    }
+    .card:hover{transform:translateY(-1px)}
+    .thumb{
+      width:78px; height:64px; border-radius:14px;
+      border:1px solid var(--line);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+      position:relative;
+      overflow:hidden;
+      flex:0 0 auto;
+    }
+    .thumb:before{
+      content:"";
+      position:absolute; inset:-20px;
+      background:
+        radial-gradient(circle at 25% 30%, rgba(37,99,235,.35), transparent 45%),
+        radial-gradient(circle at 75% 70%, rgba(34,197,94,.30), transparent 50%);
+      transform:rotate(10deg);
+    }
+    .cMain{flex:1}
+    .cTop{display:flex; justify-content:space-between; gap:10px}
+    .name{font-weight:800; font-size:14px; margin:0}
+    .price{font-weight:900; font-size:14px}
+    .cMeta{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .stars{color:#fbbf24; font-size:12px; margin-top:6px}
+    .tagRow{margin-top:8px; display:flex; gap:6px; flex-wrap:wrap}
+    .tag{
+      font-size:11px;
+      padding:5px 8px;
+      border-radius:999px;
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      color:rgba(229,231,235,.85);
+    }
 
-    .topbtn { background:#111827; color:#e5e7eb; border:1px solid rgba(255,255,255,.08); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:14px; }
-    .modalback {
-      position: fixed; inset: 0; background: rgba(0,0,0,.55);
-      display:none; align-items:center; justify-content:center; padding:18px;
+    .rightBody{padding:12px 14px 16px}
+    .section{margin:0 0 14px 0}
+    .h2{font-size:15px; font-weight:900; margin:0 0 8px}
+    .twoCol{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    .mini{
+      background:rgba(15,27,51,.9);
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:12px;
     }
-    .modal {
-      width: 100%; max-width: 520px;
-      background:#0b1222; border: 1px solid rgba(255,255,255,.08);
-      border-radius: 16px; padding: 16px;
-      box-shadow: 0 20px 60px rgba(0,0,0,.55);
+    .miniLabel{color:var(--muted); font-size:12px}
+    .miniValue{font-weight:900; font-size:14px; margin-top:4px}
+    .ctaRow{display:flex; gap:10px; flex-wrap:wrap}
+    .btn.wide{flex:1; min-width:160px}
+    .divider{height:1px; background:var(--line); margin:14px 0}
+
+    /* Modal */
+    .overlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      z-index:50;
     }
-    .row { display:flex; gap:10px; align-items:center; margin:10px 0; flex-wrap:wrap; }
-    .label { min-width: 170px; opacity:.85; }
-    .field {
-      flex:1; min-width: 160px;
-      background:#0f172a; color:#e5e7eb;
-      border: 1px solid rgba(255,255,255,.10);
-      padding:10px; border-radius:10px;
+    .modal{
+      width:100%; max-width:720px;
+      background:rgba(11,18,34,.96);
+      border:1px solid var(--line);
+      border-radius:20px;
+      box-shadow:0 25px 80px rgba(0,0,0,.55);
+      overflow:hidden;
     }
-    .small { font-size: 12px; opacity:.7; margin-top:6px; }
-    .actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
-    .danger { background:#7f1d1d; }
+    .modalHead{
+      padding:14px 16px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--line);
+    }
+    .modalBody{padding:14px 16px 16px}
+    .close{background:#111827; border:1px solid var(--line); color:var(--text); border-radius:12px; padding:9px 12px; cursor:pointer; font-weight:750}
+    .rowLine{display:flex; justify-content:space-between; gap:12px; margin:8px 0; color:rgba(229,231,235,.9)}
+    .rowLine span{color:var(--muted)}
+    .formGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+    @media (max-width:640px){ .formGrid{grid-template-columns:1fr} }
+    .note{font-size:12px; color:var(--muted); margin-top:8px}
+    .foot{
+      border-top:1px solid var(--line);
+      padding:12px 16px;
+      display:flex; justify-content:flex-end; gap:10px; flex-wrap:wrap;
+      background:rgba(2,6,23,.65);
+    }
   </style>
 </head>
 <body>
-
 <header>
-  <div>Hey — I’m Simo. What’s going on?</div>
-  <button class="topbtn" id="openSettings">Settings</button>
+  <div>
+    <div class="brand"><span class="dot"></span> ParkMate <span class="sub">Clickable preview</span></div>
+  </div>
+  <div class="actions">
+    <button class="btn" id="tabBrowse">Browse</button>
+    <button class="btn" id="tabList">List my driveway</button>
+    <button class="btn" id="tabProfile">Profile</button>
+    <button class="btn primary" onclick="location.href='index.html'">Back to Simo</button>
+  </div>
 </header>
 
-<div id="chat"></div>
+<div class="wrap">
+  <div class="grid">
+    <!-- LEFT: Browse -->
+    <div class="panel" id="browsePanel">
+      <div class="panelHead">
+        <div>
+          <p class="title">Find driveway spaces near you</p>
+          <div class="muted">Map + listings • book in seconds</div>
+        </div>
+        <button class="btn" id="toggleView">View: Map + List</button>
+      </div>
 
-<form id="form">
-  <input id="input" placeholder="Talk to Simo…" autocomplete="off" />
-  <button type="submit">Send</button>
-</form>
+      <div class="searchRow">
+        <input class="field" id="q" placeholder="Search by city, ZIP, or address (demo)" />
+        <div class="chipRow">
+          <button class="chip active" data-filter="any">Any</button>
+          <button class="chip" data-filter="covered">Covered</button>
+          <button class="chip" data-filter="ev">EV</button>
+          <button class="chip" data-filter="camera">Camera</button>
+        </div>
+      </div>
 
-<!-- Settings Modal -->
-<div class="modalback" id="modalBack">
+      <div class="map" id="map">
+        <div class="pin" style="left:22%; top:58%"></div>
+        <div class="pin p2" style="left:52%; top:42%"></div>
+        <div class="pin p3" style="left:76%; top:65%"></div>
+        <div class="mapLabel">Demo map (no real GPS yet)</div>
+      </div>
+
+      <div class="list" id="list"></div>
+    </div>
+
+    <!-- RIGHT: Detail / Actions -->
+    <div class="panel">
+      <div class="panelHead">
+        <div>
+          <p class="title" id="rightTitle">Listing details</p>
+          <div class="muted" id="rightSub">Tap a listing to see details</div>
+        </div>
+        <button class="btn primary wide" id="bookBtn" disabled>Book</button>
+      </div>
+
+      <div class="rightBody">
+        <div class="section">
+          <p class="h2">Quick info</p>
+          <div class="twoCol">
+            <div class="mini">
+              <div class="miniLabel">Price</div>
+              <div class="miniValue" id="dPrice">—</div>
+            </div>
+            <div class="mini">
+              <div class="miniLabel">Distance</div>
+              <div class="miniValue" id="dDist">—</div>
+            </div>
+            <div class="mini">
+              <div class="miniLabel">Rating</div>
+              <div class="miniValue" id="dRating">—</div>
+            </div>
+            <div class="mini">
+              <div class="miniLabel">Access</div>
+              <div class="miniValue" id="dAccess">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section">
+          <p class="h2">Features</p>
+          <div class="tagRow" id="dTags"></div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="section">
+          <p class="h2">Next step</p>
+          <div class="ctaRow">
+            <button class="btn wide" id="messageBtn" disabled>Message host</button>
+            <button class="btn wide" id="saveBtn" disabled>Save</button>
+          </div>
+          <div class="note">This is a UI preview. Buttons simulate a flow.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIST MY DRIVEWAY PANEL -->
+  <div class="panel" id="listPanel" style="display:none; margin-top:14px;">
+    <div class="panelHead">
+      <div>
+        <p class="title">List your driveway</p>
+        <div class="muted">Create a listing in ~1 minute (demo)</div>
+      </div>
+      <button class="btn primary" id="publishBtn">Publish (demo)</button>
+    </div>
+    <div class="rightBody">
+      <div class="formGrid">
+        <input class="field" id="lAddress" placeholder="Address (demo)" />
+        <input class="field" id="lPrice" placeholder="Price per day (e.g. 10)" />
+        <input class="field" id="lAvail" placeholder="Availability (e.g. Weekdays 6pm–7am)" />
+        <input class="field" id="lNotes" placeholder="Notes (e.g. tight turn, ring cam)" />
+      </div>
+      <div class="note">Later this becomes a real form that saves to a database.</div>
+    </div>
+  </div>
+
+  <!-- PROFILE PANEL -->
+  <div class="panel" id="profilePanel" style="display:none; margin-top:14px;">
+    <div class="panelHead">
+      <div>
+        <p class="title">Profile</p>
+        <div class="muted">Renter + Host overview (demo)</div>
+      </div>
+      <button class="btn" id="editProfileBtn">Edit</button>
+    </div>
+    <div class="rightBody">
+      <div class="twoCol">
+        <div class="mini">
+          <div class="miniLabel">Name</div>
+          <div class="miniValue">Simon (Demo)</div>
+        </div>
+        <div class="mini">
+          <div class="miniLabel">Rating</div>
+          <div class="miniValue">4.9 ★</div>
+        </div>
+        <div class="mini">
+          <div class="miniLabel">Trips</div>
+          <div class="miniValue">12</div>
+        </div>
+        <div class="mini">
+          <div class="miniLabel">Listings</div>
+          <div class="miniValue">1</div>
+        </div>
+      </div>
+      <div class="divider"></div>
+      <p class="h2">Recent activity</p>
+      <div class="mini" style="margin-top:10px;">
+        <div class="miniLabel">Last booking</div>
+        <div class="miniValue">“Covered driveway — 2 days”</div>
+        <div class="note">Add payments + receipts later.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="overlay" id="overlay">
   <div class="modal">
-    <h3 style="margin:0 0 8px 0;">User Settings</h3>
-    <div class="small">
-      Simo won’t guess your location. You can choose what to share (timezone/ZIP).
+    <div class="modalHead">
+      <div>
+        <div style="font-weight:900" id="mTitle">Book</div>
+        <div class="muted" id="mSub">Confirm details</div>
+      </div>
+      <button class="close" id="closeModal">Close</button>
     </div>
-
-    <div class="row" style="margin-top:14px;">
-      <div class="label">Use device timezone</div>
-      <label style="display:flex; gap:8px; align-items:center;">
-        <input type="checkbox" id="useDeviceTz" />
-        <span style="opacity:.85;">On</span>
-      </label>
+    <div class="modalBody">
+      <div class="rowLine"><b>Listing</b><span id="mListing">—</span></div>
+      <div class="rowLine"><b>Price</b><span id="mPrice">—</span></div>
+      <div class="rowLine"><b>When</b><span id="mWhen">Today (demo)</span></div>
+      <div class="rowLine"><b>Payment</b><span>Card / Apple Pay (demo)</span></div>
+      <div class="note">Next step is wiring real payments + availability checks.</div>
     </div>
-
-    <div class="row">
-      <div class="label">Manual timezone offset</div>
-      <input class="field" id="manualOffset" placeholder="e.g. 300 for EST, 240 for EDT" />
-    </div>
-    <div class="small">
-      If “Use device timezone” is On, Simo uses your device automatically.
-      Manual offset is only if you want to override it.
-    </div>
-
-    <div class="row" style="margin-top:14px;">
-      <div class="label">ZIP (optional)</div>
-      <input class="field" id="zip" placeholder="e.g. 48044" />
-    </div>
-
-    <div class="actions">
-      <button class="topbtn danger" id="resetSettings" type="button">Reset</button>
-      <button class="topbtn" id="closeSettings" type="button">Close</button>
-      <button id="saveSettings" type="button">Save</button>
+    <div class="foot">
+      <button class="btn" id="cancelBook">Cancel</button>
+      <button class="btn primary" id="confirmBook">Confirm booking</button>
     </div>
   </div>
 </div>
 
 <script>
-  const chatEl = document.getElementById("chat");
-  const form = document.getElementById("form");
-  const input = document.getElementById("input");
+  const listings = [
+    {
+      id: "oak",
+      name: "Oak St — Covered driveway",
+      price: "$12/day",
+      dist: "0.8 mi",
+      rating: "4.9 ★ (128)",
+      access: "Self check-in",
+      tags: ["Covered", "Camera", "Wide driveway"],
+      filterTags: ["covered","camera"]
+    },
+    {
+      id: "cedar",
+      name: "Cedar Ave — Quiet spot",
+      price: "$8/day",
+      dist: "1.4 mi",
+      rating: "4.7 ★ (64)",
+      access: "Meet host",
+      tags: ["Easy turn", "Well-lit"],
+      filterTags: []
+    },
+    {
+      id: "elm",
+      name: "Elm Dr — EV friendly",
+      price: "$15/day",
+      dist: "2.1 mi",
+      rating: "4.8 ★ (92)",
+      access: "Self check-in",
+      tags: ["EV outlet", "Camera", "Covered"],
+      filterTags: ["ev","camera","covered"]
+    }
+  ];
 
-  // Settings elements
-  const modalBack = document.getElementById("modalBack");
-  const openSettings = document.getElementById("openSettings");
-  const closeSettings = document.getElementById("closeSettings");
-  const saveSettings = document.getElementById("saveSettings");
-  const resetSettings = document.getElementById("resetSettings");
+  const listEl = document.getElementById("list");
+  const rightTitle = document.getElementById("rightTitle");
+  const rightSub = document.getElementById("rightSub");
+  const dPrice = document.getElementById("dPrice");
+  const dDist = document.getElementById("dDist");
+  const dRating = document.getElementById("dRating");
+  const dAccess = document.getElementById("dAccess");
+  const dTags = document.getElementById("dTags");
 
-  const useDeviceTz = document.getElementById("useDeviceTz");
-  const manualOffset = document.getElementById("manualOffset");
-  const zip = document.getElementById("zip");
+  const bookBtn = document.getElementById("bookBtn");
+  const messageBtn = document.getElementById("messageBtn");
+  const saveBtn = document.getElementById("saveBtn");
 
-  // Keep the last ~20 turns to send as context
-  const history = [];
+  const chips = [...document.querySelectorAll(".chip")];
+  const q = document.getElementById("q");
 
-  // Persist settings + chat history so refresh doesn’t “wipe memory”
-  const STORE_KEY = "simo_settings_v1";
-  const CHAT_KEY = "simo_history_v1";
+  let activeFilter = "any";
+  let selected = null;
 
-  function add(role, text) {
-    const div = document.createElement("div");
-    div.className = "msg " + role;
-    div.textContent = (role === "user" ? "You: " : "Simo: ") + text;
-    chatEl.appendChild(div);
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
+  function render() {
+    listEl.innerHTML = "";
+    const query = (q.value || "").toLowerCase().trim();
 
-  function pushHistory(role, content) {
-    history.push({ role, content });
-    if (history.length > 20) history.splice(0, history.length - 20);
-    localStorage.setItem(CHAT_KEY, JSON.stringify(history));
-  }
+    const filtered = listings.filter(l => {
+      const matchesQuery = !query || l.name.toLowerCase().includes(query);
+      const matchesChip = activeFilter === "any" || l.filterTags.includes(activeFilter);
+      return matchesQuery && matchesChip;
+    });
 
-  function loadChatHistory() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(CHAT_KEY) || "[]");
-      if (Array.isArray(saved) && saved.length) {
-        saved.forEach(m => {
-          if (m.role === "user") add("user", m.content);
-          if (m.role === "assistant") add("simo", m.content);
-          history.push(m);
-        });
-      }
-    } catch {}
-  }
+    filtered.forEach(l => {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.innerHTML = `
+        <div class="thumb"></div>
+        <div class="cMain">
+          <div class="cTop">
+            <p class="name">${l.name}</p>
+            <div class="price">${l.price}</div>
+          </div>
+          <div class="cMeta">${l.dist} • ${l.access}</div>
+          <div class="stars">${l.rating}</div>
+          <div class="tagRow">${l.tags.slice(0,3).map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+        </div>
+      `;
+      card.onclick = () => selectListing(l);
+      listEl.appendChild(card);
+    });
 
-  function getSettings() {
-    try {
-      return JSON.parse(localStorage.getItem(STORE_KEY) || "{}") || {};
-    } catch {
-      return {};
+    if (!filtered.length) {
+      const empty = document.createElement("div");
+      empty.className = "muted";
+      empty.style.padding = "12px";
+      empty.textContent = "No listings match that filter (demo).";
+      listEl.appendChild(empty);
     }
   }
 
-  function setSettings(obj) {
-    localStorage.setItem(STORE_KEY, JSON.stringify(obj));
+  function selectListing(l) {
+    selected = l;
+    rightTitle.textContent = l.name;
+    rightSub.textContent = "Ready when you are.";
+    dPrice.textContent = l.price;
+    dDist.textContent = l.dist;
+    dRating.textContent = l.rating;
+    dAccess.textContent = l.access;
+
+    dTags.innerHTML = "";
+    l.tags.forEach(t => {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = t;
+      dTags.appendChild(tag);
+    });
+
+    bookBtn.disabled = false;
+    messageBtn.disabled = false;
+    saveBtn.disabled = false;
   }
 
-  function effectiveTzOffset(settings) {
-    if (settings.useDeviceTz) return new Date().getTimezoneOffset();
-    const n = Number(settings.manualOffset);
-    return Number.isFinite(n) ? n : new Date().getTimezoneOffset();
+  // Tabs
+  const browsePanel = document.getElementById("browsePanel");
+  const listPanel = document.getElementById("listPanel");
+  const profilePanel = document.getElementById("profilePanel");
+
+  const tabBrowse = document.getElementById("tabBrowse");
+  const tabList = document.getElementById("tabList");
+  const tabProfile = document.getElementById("tabProfile");
+
+  function show(panel) {
+    browsePanel.style.display = (panel==="browse") ? "block" : "none";
+    listPanel.style.display = (panel==="list") ? "block" : "none";
+    profilePanel.style.display = (panel==="profile") ? "block" : "none";
   }
 
-  // Modal open/close
-  openSettings.addEventListener("click", () => {
-    const s = getSettings();
-    useDeviceTz.checked = (s.useDeviceTz !== false); // default ON
-    manualOffset.value = (s.manualOffset ?? "");
-    zip.value = (s.zip ?? "");
-    modalBack.style.display = "flex";
-  });
+  tabBrowse.onclick = () => show("browse");
+  tabList.onclick = () => show("list");
+  tabProfile.onclick = () => show("profile");
 
-  closeSettings.addEventListener("click", () => {
-    modalBack.style.display = "none";
-  });
-
-  saveSettings.addEventListener("click", () => {
-    const next = {
-      useDeviceTz: useDeviceTz.checked,
-      manualOffset: manualOffset.value.trim(),
-      zip: zip.value.trim()
+  // Chips
+  chips.forEach(c => {
+    c.onclick = () => {
+      chips.forEach(x => x.classList.remove("active"));
+      c.classList.add("active");
+      activeFilter = c.dataset.filter;
+      render();
     };
-    setSettings(next);
-    modalBack.style.display = "none";
-    add("simo", "Locked in. Settings saved.");
   });
 
-  resetSettings.addEventListener("click", () => {
-    localStorage.removeItem(STORE_KEY);
-    useDeviceTz.checked = true;
-    manualOffset.value = "";
-    zip.value = "";
-    add("simo", "Settings reset.");
-  });
+  q.addEventListener("input", render);
 
-  // Load chat history on boot
-  loadChatHistory();
+  // Booking modal
+  const overlay = document.getElementById("overlay");
+  const closeModal = document.getElementById("closeModal");
+  const cancelBook = document.getElementById("cancelBook");
+  const confirmBook = document.getElementById("confirmBook");
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const text = input.value.trim();
-    if (!text) return;
+  const mListing = document.getElementById("mListing");
+  const mPrice = document.getElementById("mPrice");
 
-    add("user", text);
-    pushHistory("user", text);
-    input.value = "";
+  bookBtn.onclick = () => {
+    if (!selected) return;
+    mListing.textContent = selected.name;
+    mPrice.textContent = selected.price;
+    overlay.style.display = "flex";
+  };
+  closeModal.onclick = () => overlay.style.display = "none";
+  cancelBook.onclick = () => overlay.style.display = "none";
+  confirmBook.onclick = () => {
+    overlay.style.display = "none";
+    alert("Booked! (demo)\nNext step: add real payments + calendar checks.");
+  };
 
-    const settings = getSettings();
-    const tzOffset = effectiveTzOffset(settings);
+  // Demo publish
+  document.getElementById("publishBtn").onclick = () => {
+    alert("Published (demo)\nNext step: save listing to database.");
+    show("browse");
+  };
 
-    try {
-      const res = await fetch("/.netlify/functions/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: text,
-          history,
-          tzOffset,
-          zip: settings.zip || ""
-        })
-      });
+  // Demo message/save
+  messageBtn.onclick = () => alert("Message host (demo)\nNext step: real chat between users.");
+  saveBtn.onclick = () => alert("Saved (demo)\nNext step: favorites list per user.");
 
-      const data = await res.json();
-      const reply =
-        (data && typeof data.reply === "string" && data.reply.trim())
-          ? data.reply.trim()
-          : "…";
-
-      add("simo", reply);
-      pushHistory("assistant", reply);
-
-    } catch (err) {
-      add("simo", "I’m having trouble responding right now.");
-      pushHistory("assistant", "I’m having trouble responding right now.");
-    }
-  });
+  // Initial render
+  render();
 </script>
-
 </body>
 </html>
