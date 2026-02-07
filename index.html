@@ -14,7 +14,6 @@
     form { display:flex; padding:12px; background:#020617; gap:8px; }
     input { flex:1; padding:12px; font-size:16px; border-radius:10px; border:none; outline:none; }
     button { padding:12px 16px; font-size:16px; border-radius:10px; border:none; cursor:pointer; background:#2563eb; color:white; }
-    .meta { opacity:.55; font-size:12px; margin-top:4px; }
 
     .topbtn { background:#111827; color:#e5e7eb; border:1px solid rgba(255,255,255,.08); padding:8px 10px; border-radius:10px; cursor:pointer; font-size:14px; }
     .modalback {
@@ -29,7 +28,7 @@
     }
     .row { display:flex; gap:10px; align-items:center; margin:10px 0; flex-wrap:wrap; }
     .label { min-width: 170px; opacity:.85; }
-    .field, select {
+    .field {
       flex:1; min-width: 160px;
       background:#0f172a; color:#e5e7eb;
       border: 1px solid rgba(255,255,255,.10);
@@ -75,8 +74,8 @@
       <input class="field" id="manualOffset" placeholder="e.g. 300 for EST, 240 for EDT" />
     </div>
     <div class="small">
-      This is the same number returned by your browser’s <code>getTimezoneOffset()</code>.
       If “Use device timezone” is On, Simo uses your device automatically.
+      Manual offset is only if you want to override it.
     </div>
 
     <div class="row" style="margin-top:14px;">
@@ -115,18 +114,10 @@
   const STORE_KEY = "simo_settings_v1";
   const CHAT_KEY = "simo_history_v1";
 
-  function add(role, text, meta) {
+  function add(role, text) {
     const div = document.createElement("div");
     div.className = "msg " + role;
     div.textContent = (role === "user" ? "You: " : "Simo: ") + text;
-
-    if (meta) {
-      const m = document.createElement("div");
-      m.className = "meta";
-      m.textContent = meta;
-      div.appendChild(m);
-    }
-
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
@@ -171,7 +162,7 @@
   // Modal open/close
   openSettings.addEventListener("click", () => {
     const s = getSettings();
-    useDeviceTz.checked = !!s.useDeviceTz;
+    useDeviceTz.checked = (s.useDeviceTz !== false); // default ON
     manualOffset.value = (s.manualOffset ?? "");
     zip.value = (s.zip ?? "");
     modalBack.style.display = "flex";
@@ -189,7 +180,7 @@
     };
     setSettings(next);
     modalBack.style.display = "none";
-    add("simo", "Locked in. Settings saved.", "settings");
+    add("simo", "Locked in. Settings saved.");
   });
 
   resetSettings.addEventListener("click", () => {
@@ -197,7 +188,7 @@
     useDeviceTz.checked = true;
     manualOffset.value = "";
     zip.value = "";
-    add("simo", "Settings reset.", "settings");
+    add("simo", "Settings reset.");
   });
 
   // Load chat history on boot
@@ -228,22 +219,17 @@
       });
 
       const data = await res.json();
+      const reply =
+        (data && typeof data.reply === "string" && data.reply.trim())
+          ? data.reply.trim()
+          : "…";
 
-      let reply = "";
-      if (data && typeof data.reply === "string" && data.reply.trim()) {
-        reply = data.reply.trim();
-      } else {
-        reply = `DEBUG: ${JSON.stringify(data)}`;
-      }
-
-      add("simo", reply, data?.route ? `route: ${data.route}` : "");
+      add("simo", reply);
       pushHistory("assistant", reply);
-      console.log("NETLIFY RESPONSE:", data);
 
     } catch (err) {
       add("simo", "I’m having trouble responding right now.");
       pushHistory("assistant", "I’m having trouble responding right now.");
-      console.log("FETCH ERROR:", err);
     }
   });
 </script>
