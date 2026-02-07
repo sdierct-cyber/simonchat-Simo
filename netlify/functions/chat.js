@@ -1,5 +1,5 @@
 // netlify/functions/chat.js
-// Zero-dependency Simo brain (no SDK, no build failures)
+// Single-brain Simo — no frontend logic, no SDK, no split responses
 
 function json(statusCode, obj) {
   return {
@@ -43,7 +43,7 @@ function tryMath(text) {
 function isTimeQuestion(text) {
   if (!text) return false;
   const t = text.toLowerCase();
-  return t.includes("what time") || t === "time";
+  return t.includes("what time") || t.includes("time is it") || t === "time";
 }
 
 function getLocalTime() {
@@ -66,20 +66,20 @@ exports.handler = async (event) => {
   }
 
   const body = JSON.parse(event.body || "{}");
-  const userText = body.message || body.input || body.text || "";
+  const text = (body.message || "").trim();
 
-  // 1) math never hits OpenAI
-  const math = tryMath(userText);
+  // 1) math (local, instant)
+  const math = tryMath(text);
   if (math !== null) {
     return json(200, { ok: true, reply: math });
   }
 
-  // 2) time never hits OpenAI
-  if (isTimeQuestion(userText)) {
+  // 2) time (local, instant)
+  if (isTimeQuestion(text)) {
     return json(200, { ok: true, reply: getLocalTime() });
   }
 
-  // 3) OpenAI call
+  // 3) OpenAI (everything else)
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -93,12 +93,12 @@ exports.handler = async (event) => {
           {
             role: "system",
             content:
-              "You are Simo — the user's trusted best friend. Calm, grounded, real. Match tone. No preachy advice. Be helpful and honest."
+              "You are Simo — the user's trusted best friend. Calm, grounded, human. Match their tone. No preachy advice. Be real and supportive."
           },
-          { role: "user", content: userText }
+          { role: "user", content: text }
         ],
         temperature: 0.7,
-        max_tokens: 250
+        max_tokens: 300
       })
     });
 
@@ -107,10 +107,11 @@ exports.handler = async (event) => {
 
     return json(200, {
       ok: true,
-      reply: reply || "I blanked for a second. Say that again?"
+      reply: reply || "I blanked for a second — say that again?"
     });
+
   } catch (err) {
-    console.error("Simo OpenAI error:", err);
+    console.error("Simo error:", err);
     return json(200, {
       ok: true,
       reply: "I couldn’t reach my brain for a second. Try again."
