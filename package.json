@@ -1,9 +1,8 @@
 {
   "name": "simonchat",
   "version": "1.0.0",
-  "type": "module",
+  "private": true,
   "dependencies": {
-    "node-fetch": "^3.3.2"
+    "openai": "^4.0.0"
   }
 }
-
