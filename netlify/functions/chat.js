@@ -1,6 +1,6 @@
 // netlify/functions/chat.js
-// Simo single-brain: math + time local (using user's tzOffset), chat via OpenAI, with history support.
-// No SDK. No split-brain frontend logic.
+// Simo single-brain: math + time local, chat via OpenAI, with history support.
+// Adds a safety guardrail for violence/harm threats, with best-friend de-escalation.
 
 function json(statusCode, obj) {
   return {
@@ -58,7 +58,6 @@ function isTimeQuestion(text) {
 }
 
 // Convert "now" into the user's local time using tzOffset (minutes).
-// JS getTimezoneOffset() returns minutes behind UTC (e.g. New York winter = 300)
 function localTimeFromOffset(tzOffsetMinutes) {
   const now = new Date();
   const offset = Number(tzOffsetMinutes);
@@ -89,12 +88,47 @@ function normalizeHistory(history) {
     .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
 }
 
+// ---- Violence / harm guardrail (best-friend style) ----
+function looksLikeViolence(text) {
+  if (!text) return false;
+  const t = text.toLowerCase();
+
+  // Keep it simple + obvious. This triggers when user mentions hitting/assaulting someone.
+  const patterns = [
+    /\bkick (his|her|their)?\s*ass\b/,
+    /\bbeat (him|her|them)\b/,
+    /\bhit (him|her|them)\b/,
+    /\bsmack (him|her|them)\b/,
+    /\bput (him|her|them) in (their|a) place\b/,
+    /\bkill\b/,
+    /\bhurt (him|her|them)\b/,
+    /\bassault\b/,
+  ];
+
+  return patterns.some((re) => re.test(t));
+}
+
+function violenceReply() {
+  // Firm boundary + de-escalation, without sounding like HR or a therapist.
+  return [
+    "Nah. I can’t help with hurting her — even if you’re just venting.",
+    "But I *do* get the anger. You’re cooked after work and you want peace, not more noise.",
+    "Do this instead, right now:",
+    "1) Take 10 minutes when you get home — car, shower, whatever — no talking.",
+    "2) Then say one clean line: “I’m drained. I need a bit to decompress, then I can listen.”",
+    "If she pushes back, repeat it once and don’t argue. You’re setting a boundary, not starting a war.",
+    "",
+    "Tell me what usually sets the drama off when you walk in — the first 2 minutes matter.",
+  ].join("\n");
+}
+
 const SIMO_SYSTEM = [
   "You are Simo — the user's trusted best friend.",
   "Be calm, grounded, and real. Match their tone.",
   "Avoid preachy therapy-speak and generic 'communicate better' lectures unless they ask for that.",
   "Be direct and practical. Keep it human.",
   "If they vent: validate + give a real next step, not a lecture.",
+  "Do NOT help with violence, threats, or harming anyone; de-escalate and redirect safely.",
   "If they ask a simple question, answer simply.",
   "If you’re unsure, say so plainly and help them find the answer.",
   "Math rule: for pure arithmetic questions, respond with ONLY the final answer (no steps) unless asked.",
@@ -116,13 +150,18 @@ exports.handler = async (event) => {
     return json(200, { ok: true, reply: "Say it again — I didn’t catch that." });
   }
 
+  // 0) violence guardrail (local, instant)
+  if (looksLikeViolence(text)) {
+    return json(200, { ok: true, reply: violenceReply() });
+  }
+
   // 1) local math
   const math = tryMath(text);
   if (math !== null) {
     return json(200, { ok: true, reply: math });
   }
 
-  // 2) local time based on user's tzOffset (fallback message if missing)
+  // 2) local time
   if (isTimeQuestion(text)) {
     const time = localTimeFromOffset(body.tzOffset);
     return json(200, { ok: true, reply: time || "Set your timezone in Settings and ask again." });
