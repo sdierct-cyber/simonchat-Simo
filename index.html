@@ -40,12 +40,14 @@
     const div = document.createElement("div");
     div.className = "msg " + role;
     div.textContent = (role === "user" ? "You: " : "Simo: ") + text;
+
     if (meta) {
       const m = document.createElement("div");
       m.className = "meta";
       m.textContent = meta;
       div.appendChild(m);
     }
+
     chatEl.appendChild(div);
     chatEl.scrollTop = chatEl.scrollHeight;
   }
@@ -72,14 +74,23 @@
       });
 
       const data = await res.json();
-      const reply = (data && typeof data.reply === "string" && data.reply.trim()) ? data.reply : "…";
+
+      // If reply is missing/blank, show raw payload instead of "…"
+      let reply = "";
+      if (data && typeof data.reply === "string" && data.reply.trim()) {
+        reply = data.reply.trim();
+      } else {
+        reply = `DEBUG: ${JSON.stringify(data)}`;
+      }
 
       add("simo", reply, data?.route ? `route: ${data.route}` : "");
       pushHistory("assistant", reply);
+      console.log("NETLIFY RESPONSE:", data);
 
-    } catch {
+    } catch (err) {
       add("simo", "I’m having trouble responding right now.");
       pushHistory("assistant", "I’m having trouble responding right now.");
+      console.log("FETCH ERROR:", err);
     }
   });
 </script>
