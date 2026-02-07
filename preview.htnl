@@ -233,7 +233,6 @@
     .btn.wide{flex:1; min-width:160px}
     .divider{height:1px; background:var(--line); margin:14px 0}
 
-    /* Modal */
     .overlay{
       position:fixed; inset:0;
       background:rgba(0,0,0,.55);
@@ -260,9 +259,6 @@
     .close{background:#111827; border:1px solid var(--line); color:var(--text); border-radius:12px; padding:9px 12px; cursor:pointer; font-weight:750}
     .rowLine{display:flex; justify-content:space-between; gap:12px; margin:8px 0; color:rgba(229,231,235,.9)}
     .rowLine span{color:var(--muted)}
-    .formGrid{display:grid; grid-template-columns:1fr 1fr; gap:10px}
-    @media (max-width:640px){ .formGrid{grid-template-columns:1fr} }
-    .note{font-size:12px; color:var(--muted); margin-top:8px}
     .foot{
       border-top:1px solid var(--line);
       padding:12px 16px;
@@ -280,13 +276,14 @@
     <button class="btn" id="tabBrowse">Browse</button>
     <button class="btn" id="tabList">List my driveway</button>
     <button class="btn" id="tabProfile">Profile</button>
-    <button class="btn primary" onclick="location.href='index.html'">Back to Simo</button>
+
+    <!-- FIXED: absolute path back to root -->
+    <button class="btn primary" onclick="location.href='/'">Back to Simo</button>
   </div>
 </header>
 
 <div class="wrap">
   <div class="grid">
-    <!-- LEFT: Browse -->
     <div class="panel" id="browsePanel">
       <div class="panelHead">
         <div>
@@ -316,7 +313,6 @@
       <div class="list" id="list"></div>
     </div>
 
-    <!-- RIGHT: Detail / Actions -->
     <div class="panel">
       <div class="panelHead">
         <div>
@@ -330,22 +326,10 @@
         <div class="section">
           <p class="h2">Quick info</p>
           <div class="twoCol">
-            <div class="mini">
-              <div class="miniLabel">Price</div>
-              <div class="miniValue" id="dPrice">—</div>
-            </div>
-            <div class="mini">
-              <div class="miniLabel">Distance</div>
-              <div class="miniValue" id="dDist">—</div>
-            </div>
-            <div class="mini">
-              <div class="miniLabel">Rating</div>
-              <div class="miniValue" id="dRating">—</div>
-            </div>
-            <div class="mini">
-              <div class="miniLabel">Access</div>
-              <div class="miniValue" id="dAccess">—</div>
-            </div>
+            <div class="mini"><div class="miniLabel">Price</div><div class="miniValue" id="dPrice">—</div></div>
+            <div class="mini"><div class="miniLabel">Distance</div><div class="miniValue" id="dDist">—</div></div>
+            <div class="mini"><div class="miniLabel">Rating</div><div class="miniValue" id="dRating">—</div></div>
+            <div class="mini"><div class="miniLabel">Access</div><div class="miniValue" id="dAccess">—</div></div>
           </div>
         </div>
 
@@ -364,13 +348,12 @@
             <button class="btn wide" id="messageBtn" disabled>Message host</button>
             <button class="btn wide" id="saveBtn" disabled>Save</button>
           </div>
-          <div class="note">This is a UI preview. Buttons simulate a flow.</div>
+          <div class="muted" style="margin-top:8px; font-size:12px;">This is a UI preview. Buttons simulate a flow.</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- LIST MY DRIVEWAY PANEL -->
   <div class="panel" id="listPanel" style="display:none; margin-top:14px;">
     <div class="panelHead">
       <div>
@@ -380,17 +363,16 @@
       <button class="btn primary" id="publishBtn">Publish (demo)</button>
     </div>
     <div class="rightBody">
-      <div class="formGrid">
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px">
         <input class="field" id="lAddress" placeholder="Address (demo)" />
         <input class="field" id="lPrice" placeholder="Price per day (e.g. 10)" />
         <input class="field" id="lAvail" placeholder="Availability (e.g. Weekdays 6pm–7am)" />
         <input class="field" id="lNotes" placeholder="Notes (e.g. tight turn, ring cam)" />
       </div>
-      <div class="note">Later this becomes a real form that saves to a database.</div>
+      <div class="muted" style="margin-top:10px; font-size:12px;">Later this becomes a real form that saves to a database.</div>
     </div>
   </div>
 
-  <!-- PROFILE PANEL -->
   <div class="panel" id="profilePanel" style="display:none; margin-top:14px;">
     <div class="panelHead">
       <div>
@@ -401,50 +383,36 @@
     </div>
     <div class="rightBody">
       <div class="twoCol">
-        <div class="mini">
-          <div class="miniLabel">Name</div>
-          <div class="miniValue">Simon (Demo)</div>
-        </div>
-        <div class="mini">
-          <div class="miniLabel">Rating</div>
-          <div class="miniValue">4.9 ★</div>
-        </div>
-        <div class="mini">
-          <div class="miniLabel">Trips</div>
-          <div class="miniValue">12</div>
-        </div>
-        <div class="mini">
-          <div class="miniLabel">Listings</div>
-          <div class="miniValue">1</div>
-        </div>
+        <div class="mini"><div class="miniLabel">Name</div><div class="miniValue">Simon (Demo)</div></div>
+        <div class="mini"><div class="miniLabel">Rating</div><div class="miniValue">4.9 ★</div></div>
+        <div class="mini"><div class="miniLabel">Trips</div><div class="miniValue">12</div></div>
+        <div class="mini"><div class="miniLabel">Listings</div><div class="miniValue">1</div></div>
       </div>
       <div class="divider"></div>
-      <p class="h2">Recent activity</p>
-      <div class="mini" style="margin-top:10px;">
+      <div class="mini">
         <div class="miniLabel">Last booking</div>
         <div class="miniValue">“Covered driveway — 2 days”</div>
-        <div class="note">Add payments + receipts later.</div>
+        <div class="muted" style="margin-top:6px; font-size:12px;">Add payments + receipts later.</div>
       </div>
     </div>
   </div>
 </div>
 
-<!-- BOOKING MODAL -->
 <div class="overlay" id="overlay">
   <div class="modal">
     <div class="modalHead">
       <div>
-        <div style="font-weight:900" id="mTitle">Book</div>
-        <div class="muted" id="mSub">Confirm details</div>
+        <div style="font-weight:900">Book</div>
+        <div class="muted">Confirm details</div>
       </div>
       <button class="close" id="closeModal">Close</button>
     </div>
     <div class="modalBody">
       <div class="rowLine"><b>Listing</b><span id="mListing">—</span></div>
       <div class="rowLine"><b>Price</b><span id="mPrice">—</span></div>
-      <div class="rowLine"><b>When</b><span id="mWhen">Today (demo)</span></div>
+      <div class="rowLine"><b>When</b><span>Today (demo)</span></div>
       <div class="rowLine"><b>Payment</b><span>Card / Apple Pay (demo)</span></div>
-      <div class="note">Next step is wiring real payments + availability checks.</div>
+      <div class="muted" style="margin-top:10px; font-size:12px;">Next step: real payments + availability checks.</div>
     </div>
     <div class="foot">
       <button class="btn" id="cancelBook">Cancel</button>
@@ -455,36 +423,9 @@
 
 <script>
   const listings = [
-    {
-      id: "oak",
-      name: "Oak St — Covered driveway",
-      price: "$12/day",
-      dist: "0.8 mi",
-      rating: "4.9 ★ (128)",
-      access: "Self check-in",
-      tags: ["Covered", "Camera", "Wide driveway"],
-      filterTags: ["covered","camera"]
-    },
-    {
-      id: "cedar",
-      name: "Cedar Ave — Quiet spot",
-      price: "$8/day",
-      dist: "1.4 mi",
-      rating: "4.7 ★ (64)",
-      access: "Meet host",
-      tags: ["Easy turn", "Well-lit"],
-      filterTags: []
-    },
-    {
-      id: "elm",
-      name: "Elm Dr — EV friendly",
-      price: "$15/day",
-      dist: "2.1 mi",
-      rating: "4.8 ★ (92)",
-      access: "Self check-in",
-      tags: ["EV outlet", "Camera", "Covered"],
-      filterTags: ["ev","camera","covered"]
-    }
+    { id:"oak", name:"Oak St — Covered driveway", price:"$12/day", dist:"0.8 mi", rating:"4.9 ★ (128)", access:"Self check-in", tags:["Covered","Camera","Wide driveway"], filterTags:["covered","camera"] },
+    { id:"cedar", name:"Cedar Ave — Quiet spot", price:"$8/day", dist:"1.4 mi", rating:"4.7 ★ (64)", access:"Meet host", tags:["Easy turn","Well-lit"], filterTags:[] },
+    { id:"elm", name:"Elm Dr — EV friendly", price:"$15/day", dist:"2.1 mi", rating:"4.8 ★ (92)", access:"Self check-in", tags:["EV outlet","Camera","Covered"], filterTags:["ev","camera","covered"] }
   ];
 
   const listEl = document.getElementById("list");
@@ -571,21 +512,23 @@
   const listPanel = document.getElementById("listPanel");
   const profilePanel = document.getElementById("profilePanel");
 
-  const tabBrowse = document.getElementById("tabBrowse");
-  const tabList = document.getElementById("tabList");
-  const tabProfile = document.getElementById("tabProfile");
+  document.getElementById("tabBrowse").onclick = () => {
+    browsePanel.style.display = "block";
+    listPanel.style.display = "none";
+    profilePanel.style.display = "none";
+  };
+  document.getElementById("tabList").onclick = () => {
+    browsePanel.style.display = "none";
+    listPanel.style.display = "block";
+    profilePanel.style.display = "none";
+  };
+  document.getElementById("tabProfile").onclick = () => {
+    browsePanel.style.display = "none";
+    listPanel.style.display = "none";
+    profilePanel.style.display = "block";
+  };
 
-  function show(panel) {
-    browsePanel.style.display = (panel==="browse") ? "block" : "none";
-    listPanel.style.display = (panel==="list") ? "block" : "none";
-    profilePanel.style.display = (panel==="profile") ? "block" : "none";
-  }
-
-  tabBrowse.onclick = () => show("browse");
-  tabList.onclick = () => show("list");
-  tabProfile.onclick = () => show("profile");
-
-  // Chips
+  // Chips + search
   chips.forEach(c => {
     c.onclick = () => {
       chips.forEach(x => x.classList.remove("active"));
@@ -619,17 +562,16 @@
     alert("Booked! (demo)\nNext step: add real payments + calendar checks.");
   };
 
-  // Demo publish
   document.getElementById("publishBtn").onclick = () => {
     alert("Published (demo)\nNext step: save listing to database.");
-    show("browse");
+    browsePanel.style.display = "block";
+    listPanel.style.display = "none";
+    profilePanel.style.display = "none";
   };
 
-  // Demo message/save
   messageBtn.onclick = () => alert("Message host (demo)\nNext step: real chat between users.");
   saveBtn.onclick = () => alert("Saved (demo)\nNext step: favorites list per user.");
 
-  // Initial render
   render();
 </script>
 </body>
