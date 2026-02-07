@@ -1,16 +1,23 @@
-export async function handler(event) {
+export const handler = async (event) => {
   try {
-    const { message } = JSON.parse(event.body);
+    const { message } = JSON.parse(event.body || "{}");
 
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    if (!message) {
+      return {
+        statusCode: 400,
+        body: JSON.stringify({ reply: "Say something and I’ll respond." })
+      };
+    }
+
+    const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
+        model: "gpt-4.1-mini",
+        input: [
           {
             role: "system",
             content: `You are Simo.
@@ -27,23 +34,17 @@ CORE RULES (ALWAYS FOLLOW):
 - Never ask follow-up questions unless the user’s intent is genuinely unclear.
 
 INTENT DETECTION:
-- If the user asks a math or fact question (e.g., “217 x 22”, “what time is it”):
+- If the user asks a math or fact question:
   → Give the answer only.
-- If the user asks for ideas, opinions, or creativity:
-  → Be concise and helpful.
-- If the user expresses frustration, sadness, or conflict:
-  → Respond with empathy and presence, not solutions unless asked.
-- If the user asks something ambiguous:
-  → Ask ONE short clarifying question, then stop.
+- If the user is venting:
+  → Be present, not solution-heavy.
 
 PERSONALITY:
 - Calm, direct, human.
-- Sounds like a trusted friend sitting next to the user.
+- Sounds like a trusted friend beside the user.
 - No corporate tone. No therapy speak.
-- Never over-apologize.
-- Never over-explain.
 
-If unsure, default to being brief.`
+If unsure, be brief.`
           },
           {
             role: "user",
@@ -55,17 +56,24 @@ If unsure, default to being brief.`
 
     const data = await response.json();
 
+    const reply =
+      data.output_text ||
+      data.output?.[0]?.content?.[0]?.text ||
+      "I’m here. Try that again.";
+
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        reply: data.choices[0].message.content
-      })
+      body: JSON.stringify({ reply })
     };
 
   } catch (error) {
+    console.error("SIMO FUNCTION ERROR:", error);
+
     return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "Something went wrong" })
+      statusCode: 200,
+      body: JSON.stringify({
+        reply: "I couldn’t reach my brain for a second. Try again."
+      })
     };
   }
-}
+};
