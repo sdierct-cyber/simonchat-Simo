@@ -1,6 +1,5 @@
 // netlify/functions/chat.js
-// Simo single-brain: math + time local, chat via OpenAI, with history support.
-// No SDK. No split-brain frontend logic.
+// Simo single-brain: math + time local (using user's tzOffset), chat via OpenAI, with history support.
 
 function json(statusCode, obj) {
   return {
@@ -48,8 +47,6 @@ function tryMath(text) {
 function isTimeQuestion(text) {
   if (!text) return false;
   const t = text.toLowerCase();
-
-  // catches: "what time is it", "time right now", typos like "time ixt"
   return (
     t.includes("what time") ||
     t.includes("time is it") ||
@@ -59,23 +56,21 @@ function isTimeQuestion(text) {
   );
 }
 
-function safeLocalTime() {
-  const tz = process.env.TZ || "America/New_York";
+// Convert "now" into the user's local time using tzOffset (minutes)
+// JS getTimezoneOffset() returns minutes behind UTC (e.g. New York winter = 300)
+function localTimeFromOffset(tzOffsetMinutes) {
   const now = new Date();
+  const offset = Number(tzOffsetMinutes);
 
-  // Best: Intl formatter
-  try {
-    const s = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(now);
-    if (s && typeof s === "string" && s.trim()) return s.trim();
-  } catch (_) {}
+  if (!Number.isFinite(offset)) return null;
 
-  // Fallback: always non-empty
-  const hh = now.getHours();
-  const mm = String(now.getMinutes()).padStart(2, "0");
+  // Convert current time to UTC milliseconds, then apply user's offset
+  const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+  const userMs = utcMs - offset * 60000;
+  const user = new Date(userMs);
+
+  const hh = user.getHours();
+  const mm = String(user.getMinutes()).padStart(2, "0");
   const ampm = hh >= 12 ? "PM" : "AM";
   const h12 = ((hh + 11) % 12) + 1;
   return `${h12}:${mm} ${ampm}`;
@@ -128,19 +123,14 @@ exports.handler = async (event) => {
     return json(200, { ok: true, reply: math, route: "math" });
   }
 
-  // 2) local time (reply can NEVER be empty)
+  // 2) local time based on user's tzOffset (fallback if missing)
   if (isTimeQuestion(text)) {
-    const time = safeLocalTime();
-    const safe = String(time || "").trim() || "[time unavailable]";
-    return json(200, {
-      ok: true,
-      reply: safe,
-      route: "time",
-      tz: process.env.TZ || "America/New_York",
-    });
+    const offset = body.tzOffset;
+    const time = localTimeFromOffset(offset) || "[set your timezone in Settings]";
+    return json(200, { ok: true, reply: time, route: "time" });
   }
 
-  // 3) OpenAI chat
+  // 3) OpenAI chat (everything else)
   try {
     const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
@@ -156,7 +146,7 @@ exports.handler = async (event) => {
           { role: "user", content: text },
         ],
         temperature: 0.7,
-        max_tokens: 380,
+        max_tokens: 420,
       }),
     });
 
