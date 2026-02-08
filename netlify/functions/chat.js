@@ -1,133 +1,261 @@
-// netlify/functions/simo.js  (CommonJS - safe on Netlify)
+// chat.js — Simo chat controller (clean + safe)
 
-const fetch = global.fetch || require("node-fetch");
+(() => {
+  // ---------- DOM ----------
+  const msgsEl = document.getElementById("msgs");
+  const input = document.getElementById("in");
+  const sendBtn = document.getElementById("send");
+  const showBtn = document.getElementById("showBtn");
+  const statusEl = document.getElementById("status");
 
-function json(statusCode, obj) {
-  return {
-    statusCode,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(obj),
+  const previewBody = document.getElementById("previewBody");
+  const pTitle = document.getElementById("pTitle");
+  const pHint = document.getElementById("pHint");
+
+  const modalBack = document.getElementById("modalBack");
+  const cancelBtn = document.getElementById("cancel");
+  const unlockBtn = document.getElementById("unlock");
+
+  // ---------- STATE ----------
+  const state = {
+    sessionId: crypto.randomUUID(),
+    messages: [],
+    builderToken: localStorage.getItem("builder_token") || null,
+    lastPreviewHtml: null,
   };
-}
 
-exports.handler = async (event) => {
-  try {
-    if (event.httpMethod !== "POST") {
-      return json(405, { reply: "Method not allowed." });
-    }
+  // ---------- HELPERS ----------
+  function scrollDown() {
+    msgsEl.scrollTop = msgsEl.scrollHeight;
+  }
 
-    const body = JSON.parse(event.body || "{}");
-    const messages = Array.isArray(body.messages) ? body.messages : [];
-    const builderToken = body.builderToken || null;
-    const forceShow = !!body.forceShow;
+  function addMsg(role, text) {
+    const wrap = document.createElement("div");
+    wrap.className = `m ${role === "user" ? "you" : "simo"}`;
 
-    // If you haven't added Stripe token verification yet, keep it simple:
-    // builderEnabled comes from the client until you wire entitlement tokens.
-    // (Once you wire tokens, replace this with server verification.)
-    const builderEnabled = !!body.builderEnabled || !!builderToken;
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.textContent = role === "user" ? "you" : "Simo";
 
-    const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
-    const wantsBuild = /(\bbuild\b|\bmake\b|\bcreate\b|\bdesign\b|\bwrite\b|\bcode\b|\bfull\b|\blayout\b|\bresume\b|\bwebsite\b|\bdonation\b|\bportfolio\b)/i.test(lastUser);
+    const body = document.createElement("div");
+    body.textContent = text;
 
-    // Soft gate: if user asks for execution and builder isn't enabled
-    if (!builderEnabled && wantsBuild) {
-      return json(200, {
-        reply: "I can help you think this through here — or I can actually build it and show you a first version. What do you want?",
-        builder: { status: "offered" },
-        preview: null
+    wrap.appendChild(meta);
+    wrap.appendChild(body);
+    msgsEl.appendChild(wrap);
+    scrollDown();
+  }
+
+  function setStatus() {
+    statusEl.textContent = state.builderToken ? "Builder" : "Free";
+  }
+
+  function openBuilderModal() {
+    modalBack.style.display = "flex";
+  }
+
+  function closeBuilderModal() {
+    modalBack.style.display = "none";
+  }
+
+  function setPreview(html, title = "Preview") {
+    if (!html) return;
+
+    state.lastPreviewHtml = html;
+    pTitle.textContent = title;
+    pHint.textContent = "React to it — we’ll shape it together.";
+
+    previewBody.innerHTML = "";
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute(
+      "sandbox",
+      "allow-forms allow-scripts allow-same-origin"
+    );
+    iframe.srcdoc = html;
+    previewBody.appendChild(iframe);
+  }
+
+  // ---------- CORE TALK ----------
+  async function talk(text, { forceShow = false } = {}) {
+    addMsg("user", text);
+    state.messages.push({ role: "user", content: text });
+
+    // typing placeholder
+    const typing = document.createElement("div");
+    typing.className = "m simo";
+    typing.innerHTML = `<div class="meta">Simo</div><div>…</div>`;
+    msgsEl.appendChild(typing);
+    scrollDown();
+
+    try {
+      const res = await fetch("/.netlify/functions/simo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionId: state.sessionId,
+          messages: state.messages,
+          builderToken: state.builderToken,
+          forceShow,
+        }),
+      });
+
+      if (!res.ok) throw new Error("Function failed");
+
+      let data;
+      try {
+        const txt = await res.text();
+        data = JSON.parse(txt);
+      } catch {
+        throw new Error("Bad JSON from function");
+      }
+
+      typing.remove();
+
+      if (data.reply) {
+        addMsg("assistant", data.reply);
+        state.messages.push({
+          role: "assistant",
+          content: data.reply,
+        });
+      }
+
+      if (data.builder?.status === "offered" && !state.builderToken) {
+        openBuilderModal();
+      }
+
+      if (data.preview?.html) {
+        setPreview(data.preview.html, data.preview.title || "Preview");
+      }
+    } catch (err) {
+      typing.remove();
+      addMsg(
+        "assistant",
+        "I couldn’t reach my brain for a second. Try again."
+      );
+      state.messages.push({
+        role: "assistant",
+        content: "I couldn’t reach my brain for a second. Try again.",
       });
     }
-
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-    if (!OPENAI_API_KEY) {
-      return json(500, { reply: "Server is missing OPENAI_API_KEY." });
-    }
-
-    const SIMO_CORE = `
-You are Simo.
-You are a trusted best friend first — warm, calm, direct, human.
-Never sound corporate or robotic. Never over-explain. Never teach unless asked.
-Default to conversation and clarity before output.
-Never mention pricing unless UI explicitly instructs you.
-If the user is emotional, stay present and grounded — no feature talk.
-`.trim();
-
-    const SIMO_BUILDER = `
-Builder Mode is active.
-You can execute work fully and create real artifacts.
-Provide a fast first pass when building something visual.
-Describe changes in human language, not technical jargon.
-If the request is big, break it into stages calmly.
-`.trim();
-
-    const SIMO_PREVIEW = `
-You control previews.
-If builder is enabled, you may include a preview when helpful (especially for websites/donation pages).
-If user asks “show me”, include a preview if possible.
-Preview must be complete HTML with inline CSS, no external assets.
-`.trim();
-
-    const RESPONSE_SCHEMA = `
-Return ONLY valid JSON:
-{
-  "reply": string,
-  "preview": { "type":"html", "title": string, "html": string } | null
-}
-Rules:
-- Always include "reply".
-- If builder is NOT enabled, do NOT include preview unless forceShow is true.
-`.trim();
-
-    const sys = [
-      { role: "system", content: SIMO_CORE },
-      ...(builderEnabled ? [
-        { role: "system", content: SIMO_BUILDER },
-        { role: "system", content: SIMO_PREVIEW },
-      ] : []),
-      { role: "system", content: RESPONSE_SCHEMA }
-    ];
-
-    const payload = {
-      model: MODEL,
-      temperature: 0.7,
-      messages: [
-        ...sys,
-        ...messages
-      ],
-    };
-
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!r.ok) {
-      const text = await r.text();
-      return json(200, { reply: "I couldn’t reach my brain for a second. Try again.", debug: text });
-    }
-
-    const j = await r.json();
-    const raw = j?.choices?.[0]?.message?.content || "{}";
-
-    let parsed;
-    try { parsed = JSON.parse(raw); }
-    catch { parsed = { reply: "I’m here. What do you want to do next?", preview: null }; }
-
-    if (!builderEnabled && !forceShow) parsed.preview = null;
-
-    return json(200, {
-      reply: parsed.reply || "I’m here. What’s on your mind?",
-      preview: parsed.preview || null,
-      builder: { status: builderEnabled ? "enabled" : "free" }
-    });
-
-  } catch (e) {
-    return json(200, { reply: "I couldn’t reach my brain for a second. Try again." });
   }
-};
+
+  // ---------- EVENTS ----------
+  sendBtn.addEventListener("click", () => {
+    const t = input.value.trim();
+    if (!t) return;
+    input.value = "";
+    talk(t);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  showBtn.addEventListener("click", () => {
+    if (state.lastPreviewHtml) {
+      setPreview(state.lastPreviewHtml, "Preview");
+      return;
+    }
+    talk("Show me what you’ve got so far.", { forceShow: true });
+  });
+
+  cancelBtn.addEventListener("click", closeBuilderModal);
+
+  unlockBtn.addEventListener("click", async () => {
+    try {
+      const res = await fetch(
+        "/.netlify/functions/create-checkout-session",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ sessionId: state.sessionId }),
+        }
+      );
+
+      const data = await res.json();
+      if (!data.url) throw new Error("No checkout URL");
+
+      window.location.href = data.url;
+    } catch {
+      closeBuilderModal();
+      addMsg(
+        "assistant",
+        "Something went sideways trying to unlock Builder. Try again in a minute."
+      );
+      state.messages.push({
+        role: "assistant",
+        content:
+          "Something went sideways trying to unlock Builder. Try again in a minute.",
+      });
+    }
+  });
+
+  // ---------- STRIPE RETURN HANDLER ----------
+  function getParam(name) {
+    return new URLSearchParams(window.location.search).get(name);
+  }
+
+  (async function handleStripeReturn() {
+    const checkout = getParam("checkout");
+    const sessionId = getParam("session_id");
+
+    if (checkout === "success" && sessionId) {
+      try {
+        const res = await fetch(
+          "/.netlify/functions/verify-checkout-session",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_id: sessionId }),
+          }
+        );
+
+        const data = await res.json();
+
+        if (data.ok && data.token) {
+          localStorage.setItem("builder_token", data.token);
+          state.builderToken = data.token;
+          setStatus();
+
+          const url = new URL(window.location.href);
+          url.searchParams.delete("checkout");
+          url.searchParams.delete("session_id");
+          window.history.replaceState({}, "", url.toString());
+
+          addMsg(
+            "assistant",
+            "Alright. Builder’s unlocked. Tell me what you want me to build first."
+          );
+          state.messages.push({
+            role: "assistant",
+            content:
+              "Alright. Builder’s unlocked. Tell me what you want me to build first.",
+          });
+        }
+      } catch {
+        addMsg(
+          "assistant",
+          "I didn’t get a clean unlock from Stripe. If you were charged, tell me and we’ll fix it."
+        );
+      }
+    }
+
+    if (checkout === "cancel") {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("checkout");
+      window.history.replaceState({}, "", url.toString());
+
+      addMsg(
+        "assistant",
+        "No worries. If you want me to actually build something later, just tell me."
+      );
+    }
+  })();
+
+  // ---------- BOOT ----------
+  setStatus();
+  addMsg("assistant", "Hey — I’m Simo. What’s going on?");
+})();
