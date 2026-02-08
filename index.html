@@ -34,12 +34,13 @@
     .empty { padding:22px; color:var(--muted); line-height:1.4; }
     .pillRow { display:flex; gap:10px; margin-top:10px; flex-wrap:wrap; }
     .pill { font-size:12px; color:var(--muted); border:1px solid var(--line); border-radius:999px; padding:6px 10px; }
-    /* Modal */
+
     .modalBack { position:fixed; inset:0; background:rgba(0,0,0,.55); display:none; align-items:center; justify-content:center; padding:16px; }
     .modal { width:min(520px,100%); border:1px solid var(--line); border-radius:16px; background:var(--panel); padding:16px; }
     .modal h3 { margin:0 0 6px; }
     .modal p { margin:0 0 12px; color:var(--muted); line-height:1.35; }
     .modalActions { display:flex; gap:10px; justify-content:flex-end; }
+
     @media (max-width: 980px) {
       .wrap { flex-direction:column; }
       .right { width:100%; max-width:none; min-width:0; height:42vh; }
@@ -60,7 +61,7 @@
 
       <div class="bar">
         <textarea id="in" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
-        <button id="showBtn" title="Ask Simo to show the latest preview">Show me</button>
+        <button id="showBtn">Show me</button>
         <button class="primary" id="send">Send</button>
       </div>
     </section>
@@ -85,7 +86,6 @@
     </aside>
   </div>
 
-  <!-- Builder Modal -->
   <div class="modalBack" id="modalBack">
     <div class="modal">
       <h3>Unlock Builder</h3>
@@ -97,152 +97,6 @@
     </div>
   </div>
 
-<script>
-(() => {
-  const msgsEl = document.getElementById('msgs');
-  const input = document.getElementById('in');
-  const sendBtn = document.getElementById('send');
-  const showBtn = document.getElementById('showBtn');
-  const statusEl = document.getElementById('status');
-
-  const previewBody = document.getElementById('previewBody');
-  const pTitle = document.getElementById('pTitle');
-  const pHint = document.getElementById('pHint');
-
-  const modalBack = document.getElementById('modalBack');
-  const cancelBtn = document.getElementById('cancel');
-  const unlockBtn = document.getElementById('unlock');
-
-  // Session state
-  const state = {
-    sessionId: crypto.randomUUID(),
-    builderEnabled: false,
-    messages: [],
-    lastPreviewHtml: null
-  };
-
-  function addMsg(role, text) {
-    const wrap = document.createElement('div');
-    wrap.className = `m ${role === 'user' ? 'you' : 'simo'}`;
-    const meta = document.createElement('div');
-    meta.className = 'meta';
-    meta.textContent = role === 'user' ? 'you' : 'Simo';
-    const body = document.createElement('div');
-    body.textContent = text;
-    wrap.appendChild(meta);
-    wrap.appendChild(body);
-    msgsEl.appendChild(wrap);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-  }
-
-  function setStatus() {
-    statusEl.textContent = state.builderEnabled ? 'Builder' : 'Free';
-  }
-
-  function openBuilderModal() { modalBack.style.display = 'flex'; }
-  function closeBuilderModal() { modalBack.style.display = 'none'; }
-
-  function setPreview(html, title = 'Preview') {
-    if (!html) return;
-    state.lastPreviewHtml = html;
-
-    pTitle.textContent = title;
-    pHint.textContent = 'React to it — we’ll shape it together.';
-
-    previewBody.innerHTML = '';
-    const iframe = document.createElement('iframe');
-    // Safer sandbox; allow-forms and allow-scripts to support simple interactions if needed
-    iframe.setAttribute('sandbox', 'allow-forms allow-scripts allow-same-origin');
-    iframe.srcdoc = html;
-    previewBody.appendChild(iframe);
-  }
-
-  async function talk(text, {forceShow=false} = {}) {
-    addMsg('user', text);
-    state.messages.push({ role: 'user', content: text });
-
-    // Typing bubble
-    const typing = document.createElement('div');
-    typing.className = 'm simo';
-    typing.innerHTML = `<div class="meta">Simo</div><div>…</div>`;
-    msgsEl.appendChild(typing);
-    msgsEl.scrollTop = msgsEl.scrollHeight;
-
-    try {
-      const res = await fetch('/.netlify/functions/simo', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId: state.sessionId,
-          builderEnabled: state.builderEnabled,
-          messages: state.messages,
-          forceShow
-        })
-      });
-
-      const data = await res.json();
-
-      typing.remove();
-
-      if (data.reply) {
-        addMsg('assistant', data.reply);
-        state.messages.push({ role: 'assistant', content: data.reply });
-      }
-
-      if (data.builder?.status === 'offered' && !state.builderEnabled) {
-        openBuilderModal();
-      }
-
-      if (data.preview?.html) {
-        setPreview(data.preview.html, data.preview.title || 'Preview');
-      }
-    } catch (e) {
-      typing.remove();
-      addMsg('assistant', "I couldn’t reach my brain for a second. Try again.");
-      state.messages.push({ role: 'assistant', content: "I couldn’t reach my brain for a second. Try again." });
-    }
-  }
-
-  // Events
-  sendBtn.addEventListener('click', () => {
-    const t = input.value.trim();
-    if (!t) return;
-    input.value = '';
-    talk(t);
-  });
-
-  showBtn.addEventListener('click', () => {
-    // If we already have preview, just remind Simo / refresh
-    if (state.lastPreviewHtml) {
-      // Re-show locally
-      setPreview(state.lastPreviewHtml, 'Preview');
-      return;
-    }
-    talk('Show me what you’ve got so far.', { forceShow:true });
-  });
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendBtn.click();
-    }
-  });
-
-  cancelBtn.addEventListener('click', () => closeBuilderModal());
-
-  unlockBtn.addEventListener('click', () => {
-    // For now, this simulates unlocking. Later you’ll switch this to Stripe success.
-    state.builderEnabled = true;
-    setStatus();
-    closeBuilderModal();
-    addMsg('assistant', "Alright. I’m in builder mode — tell me what you want me to build first.");
-    state.messages.push({ role: 'assistant', content: "Alright. I’m in builder mode — tell me what you want me to build first." });
-  });
-
-  // Boot message
-  setStatus();
-  addMsg('assistant', "Hey — I’m Simo. What’s going on?");
-})();
-</script>
+  <script src="./chat.js"></script>
 </body>
 </html>
