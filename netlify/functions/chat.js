@@ -1,7 +1,6 @@
-// chat.js — Simo chat controller (clean + safe)
+// simonchat/chat.js — frontend chat controller
 
 (() => {
-  // ---------- DOM ----------
   const msgsEl = document.getElementById("msgs");
   const input = document.getElementById("in");
   const sendBtn = document.getElementById("send");
@@ -16,15 +15,13 @@
   const cancelBtn = document.getElementById("cancel");
   const unlockBtn = document.getElementById("unlock");
 
-  // ---------- STATE ----------
   const state = {
     sessionId: crypto.randomUUID(),
     messages: [],
-    builderToken: localStorage.getItem("builder_token") || null,
-    lastPreviewHtml: null,
+    builderEnabled: false,      // MVP: no Stripe yet
+    lastPreviewHtml: null
   };
 
-  // ---------- HELPERS ----------
   function scrollDown() {
     msgsEl.scrollTop = msgsEl.scrollHeight;
   }
@@ -47,7 +44,7 @@
   }
 
   function setStatus() {
-    statusEl.textContent = state.builderToken ? "Builder" : "Free";
+    statusEl.textContent = state.builderEnabled ? "Builder" : "Free";
   }
 
   function openBuilderModal() {
@@ -62,25 +59,21 @@
     if (!html) return;
 
     state.lastPreviewHtml = html;
+
     pTitle.textContent = title;
     pHint.textContent = "React to it — we’ll shape it together.";
 
     previewBody.innerHTML = "";
     const iframe = document.createElement("iframe");
-    iframe.setAttribute(
-      "sandbox",
-      "allow-forms allow-scripts allow-same-origin"
-    );
+    iframe.setAttribute("sandbox", "allow-forms allow-scripts allow-same-origin");
     iframe.srcdoc = html;
     previewBody.appendChild(iframe);
   }
 
-  // ---------- CORE TALK ----------
   async function talk(text, { forceShow = false } = {}) {
     addMsg("user", text);
     state.messages.push({ role: "user", content: text });
 
-    // typing placeholder
     const typing = document.createElement("div");
     typing.className = "m simo";
     typing.innerHTML = `<div class="meta">Simo</div><div>…</div>`;
@@ -94,12 +87,12 @@
         body: JSON.stringify({
           sessionId: state.sessionId,
           messages: state.messages,
-          builderToken: state.builderToken,
-          forceShow,
-        }),
+          builderEnabled: state.builderEnabled,
+          forceShow
+        })
       });
 
-      if (!res.ok) throw new Error("Function failed");
+      if (!res.ok) throw new Error("Function error");
 
       let data;
       try {
@@ -113,33 +106,24 @@
 
       if (data.reply) {
         addMsg("assistant", data.reply);
-        state.messages.push({
-          role: "assistant",
-          content: data.reply,
-        });
+        state.messages.push({ role: "assistant", content: data.reply });
       }
 
-      if (data.builder?.status === "offered" && !state.builderToken) {
+      if (data.builder?.status === "offered" && !state.builderEnabled) {
         openBuilderModal();
       }
 
       if (data.preview?.html) {
         setPreview(data.preview.html, data.preview.title || "Preview");
       }
-    } catch (err) {
+
+    } catch (e) {
       typing.remove();
-      addMsg(
-        "assistant",
-        "I couldn’t reach my brain for a second. Try again."
-      );
-      state.messages.push({
-        role: "assistant",
-        content: "I couldn’t reach my brain for a second. Try again.",
-      });
+      addMsg("assistant", "I couldn’t reach my brain for a second. Try again.");
+      state.messages.push({ role: "assistant", content: "I couldn’t reach my brain for a second. Try again." });
     }
   }
 
-  // ---------- EVENTS ----------
   sendBtn.addEventListener("click", () => {
     const t = input.value.trim();
     if (!t) return;
@@ -164,98 +148,16 @@
 
   cancelBtn.addEventListener("click", closeBuilderModal);
 
-  unlockBtn.addEventListener("click", async () => {
-    try {
-      const res = await fetch(
-        "/.netlify/functions/create-checkout-session",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ sessionId: state.sessionId }),
-        }
-      );
-
-      const data = await res.json();
-      if (!data.url) throw new Error("No checkout URL");
-
-      window.location.href = data.url;
-    } catch {
-      closeBuilderModal();
-      addMsg(
-        "assistant",
-        "Something went sideways trying to unlock Builder. Try again in a minute."
-      );
-      state.messages.push({
-        role: "assistant",
-        content:
-          "Something went sideways trying to unlock Builder. Try again in a minute.",
-      });
-    }
+  // MVP “unlock” (no Stripe yet): just flips the flag so you can test previews
+  unlockBtn.addEventListener("click", () => {
+    state.builderEnabled = true;
+    setStatus();
+    closeBuilderModal();
+    addMsg("assistant", "Alright. I’m in builder mode — tell me what you want me to build first.");
+    state.messages.push({ role: "assistant", content: "Alright. I’m in builder mode — tell me what you want me to build first." });
   });
 
-  // ---------- STRIPE RETURN HANDLER ----------
-  function getParam(name) {
-    return new URLSearchParams(window.location.search).get(name);
-  }
-
-  (async function handleStripeReturn() {
-    const checkout = getParam("checkout");
-    const sessionId = getParam("session_id");
-
-    if (checkout === "success" && sessionId) {
-      try {
-        const res = await fetch(
-          "/.netlify/functions/verify-checkout-session",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id: sessionId }),
-          }
-        );
-
-        const data = await res.json();
-
-        if (data.ok && data.token) {
-          localStorage.setItem("builder_token", data.token);
-          state.builderToken = data.token;
-          setStatus();
-
-          const url = new URL(window.location.href);
-          url.searchParams.delete("checkout");
-          url.searchParams.delete("session_id");
-          window.history.replaceState({}, "", url.toString());
-
-          addMsg(
-            "assistant",
-            "Alright. Builder’s unlocked. Tell me what you want me to build first."
-          );
-          state.messages.push({
-            role: "assistant",
-            content:
-              "Alright. Builder’s unlocked. Tell me what you want me to build first.",
-          });
-        }
-      } catch {
-        addMsg(
-          "assistant",
-          "I didn’t get a clean unlock from Stripe. If you were charged, tell me and we’ll fix it."
-        );
-      }
-    }
-
-    if (checkout === "cancel") {
-      const url = new URL(window.location.href);
-      url.searchParams.delete("checkout");
-      window.history.replaceState({}, "", url.toString());
-
-      addMsg(
-        "assistant",
-        "No worries. If you want me to actually build something later, just tell me."
-      );
-    }
-  })();
-
-  // ---------- BOOT ----------
+  // Boot
   setStatus();
   addMsg("assistant", "Hey — I’m Simo. What’s going on?");
 })();
