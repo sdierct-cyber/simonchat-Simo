@@ -1,4 +1,4 @@
-// netlify/functions/simo.js  (CommonJS - safe on Netlify)
+// simonchat/netlify/functions/simo.js  (CommonJS - Netlify safe)
 
 const fetch = global.fetch || require("node-fetch");
 
@@ -18,18 +18,13 @@ exports.handler = async (event) => {
 
     const body = JSON.parse(event.body || "{}");
     const messages = Array.isArray(body.messages) ? body.messages : [];
-    const builderToken = body.builderToken || null;
+    const builderEnabled = !!body.builderEnabled;
     const forceShow = !!body.forceShow;
-
-    // If you haven't added Stripe token verification yet, keep it simple:
-    // builderEnabled comes from the client until you wire entitlement tokens.
-    // (Once you wire tokens, replace this with server verification.)
-    const builderEnabled = !!body.builderEnabled || !!builderToken;
 
     const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
     const wantsBuild = /(\bbuild\b|\bmake\b|\bcreate\b|\bdesign\b|\bwrite\b|\bcode\b|\bfull\b|\blayout\b|\bresume\b|\bwebsite\b|\bdonation\b|\bportfolio\b)/i.test(lastUser);
 
-    // Soft gate: if user asks for execution and builder isn't enabled
+    // Soft gate if user asks for execution and builder isn't enabled
     if (!builderEnabled && wantsBuild) {
       return json(200, {
         reply: "I can help you think this through here — or I can actually build it and show you a first version. What do you want?",
@@ -78,6 +73,7 @@ Return ONLY valid JSON:
 Rules:
 - Always include "reply".
 - If builder is NOT enabled, do NOT include preview unless forceShow is true.
+- If you include preview.html, it must be a full HTML document with inline CSS.
 `.trim();
 
     const sys = [
@@ -108,8 +104,7 @@ Rules:
     });
 
     if (!r.ok) {
-      const text = await r.text();
-      return json(200, { reply: "I couldn’t reach my brain for a second. Try again.", debug: text });
+      return json(200, { reply: "I couldn’t reach my brain for a second. Try again." });
     }
 
     const j = await r.json();
