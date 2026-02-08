@@ -1,159 +1,133 @@
-// netlify/functions/chat.js
-// Simo single-brain: math + time local, chat via OpenAI, with history support
+// netlify/functions/simo.js  (CommonJS - safe on Netlify)
+
+const fetch = global.fetch || require("node-fetch");
 
 function json(statusCode, obj) {
   return {
     statusCode,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Access-Control-Allow-Methods": "POST, OPTIONS",
-    },
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(obj),
   };
 }
 
-function tryMath(text) {
-  if (!text) return null;
-
-  const t = text
-    .toLowerCase()
-    .replace(/multiplied by/g, "*")
-    .replace(/\btimes\b/g, "*")
-    .replace(/\bx\b/g, "*")
-    .replace(/÷/g, "/");
-
-  const m = t.match(/^\s*(-?\d+(\.\d+)?)\s*([+\-*/])\s*(-?\d+(\.\d+)?)\s*$/);
-  if (!m) return null;
-
-  const a = Number(m[1]);
-  const op = m[3];
-  const b = Number(m[4]);
-
-  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
-
-  let out;
-  switch (op) {
-    case "+": out = a + b; break;
-    case "-": out = a - b; break;
-    case "*": out = a * b; break;
-    case "/": out = (b === 0) ? "undefined" : (a / b); break;
-    default: return null;
-  }
-  return typeof out === "string" ? out : String(out);
-}
-
-function isTimeQuestion(text) {
-  if (!text) return false;
-  const t = text.toLowerCase();
-  // catches: "what time is it", "time right now", typos like "time ixt"
-  return (
-    t.includes("what time") ||
-    t.includes("time is it") ||
-    t.includes("time right now") ||
-    (t.includes("time") && t.includes("right")) ||
-    t.trim() === "time"
-  );
-}
-
-function safeLocalTime() {
-  const tz = process.env.TZ || "America/New_York";
-  const now = new Date();
-
-  // Best: Intl formatter
-  try {
-    const s = new Intl.DateTimeFormat("en-US", {
-      timeZone: tz,
-      hour: "numeric",
-      minute: "2-digit",
-    }).format(now);
-    if (s && s.trim()) return s;
-  } catch (_) {}
-
-  // Fallback: plain local (always non-empty)
-  const hh = now.getHours();
-  const mm = String(now.getMinutes()).padStart(2, "0");
-  const ampm = hh >= 12 ? "PM" : "AM";
-  const h12 = ((hh + 11) % 12) + 1;
-  return `${h12}:${mm} ${ampm}`;
-}
-
-function normalizeHistory(history) {
-  if (!Array.isArray(history)) return [];
-  return history
-    .filter(
-      (m) =>
-        m &&
-        (m.role === "user" || m.role === "assistant") &&
-        typeof m.content === "string" &&
-        m.content.trim()
-    )
-    .slice(-20) // keep last 20 turns
-    .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }));
-}
-
-const SIMO_SYSTEM = [
-  "You are Simo — the user's trusted best friend.",
-  "Be calm, grounded, and real. Match their tone.",
-  "Avoid preachy therapy-speak and generic 'communicate better' lectures unless they ask for that.",
-  "Be direct and practical. Keep it human.",
-  "If they vent: validate + give a real next step, not a lecture.",
-  "If they ask a simple question, answer simply.",
-  "If you’re unsure, say so plainly and help them find the answer.",
-  "Math rule: for pure arithmetic questions, respond with ONLY the final answer (no steps) unless asked.",
-].join(" ");
-
 exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
-  if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Use POST." });
-
-  let body = {};
   try {
-    body = JSON.parse(event.body || "{}");
-  } catch (_) {}
+    if (event.httpMethod !== "POST") {
+      return json(405, { reply: "Method not allowed." });
+    }
 
-  const text = String(body.message || "").trim();
-  const history = normalizeHistory(body.history);
+    const body = JSON.parse(event.body || "{}");
+    const messages = Array.isArray(body.messages) ? body.messages : [];
+    const builderToken = body.builderToken || null;
+    const forceShow = !!body.forceShow;
 
-  if (!text) return json(200, { ok: true, reply: "Say it again — I didn’t catch that.", route: "empty" });
+    // If you haven't added Stripe token verification yet, keep it simple:
+    // builderEnabled comes from the client until you wire entitlement tokens.
+    // (Once you wire tokens, replace this with server verification.)
+    const builderEnabled = !!body.builderEnabled || !!builderToken;
 
-  // 1) local math
-  const math = tryMath(text);
-  if (math !== null) return json(200, { ok: true, reply: math, route: "math" });
+    const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
+    const wantsBuild = /(\bbuild\b|\bmake\b|\bcreate\b|\bdesign\b|\bwrite\b|\bcode\b|\bfull\b|\blayout\b|\bresume\b|\bwebsite\b|\bdonation\b|\bportfolio\b)/i.test(lastUser);
 
-  // 2) local time (NEVER empty)
-  if (isTimeQuestion(text)) {
-    const time = safeLocalTime();
-    return json(200, { ok: true, reply: time, route: "time", tz: process.env.TZ || "America/New_York" });
-  }
+    // Soft gate: if user asks for execution and builder isn't enabled
+    if (!builderEnabled && wantsBuild) {
+      return json(200, {
+        reply: "I can help you think this through here — or I can actually build it and show you a first version. What do you want?",
+        builder: { status: "offered" },
+        preview: null
+      });
+    }
 
-  // 3) OpenAI chat
-  try {
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    if (!OPENAI_API_KEY) {
+      return json(500, { reply: "Server is missing OPENAI_API_KEY." });
+    }
+
+    const SIMO_CORE = `
+You are Simo.
+You are a trusted best friend first — warm, calm, direct, human.
+Never sound corporate or robotic. Never over-explain. Never teach unless asked.
+Default to conversation and clarity before output.
+Never mention pricing unless UI explicitly instructs you.
+If the user is emotional, stay present and grounded — no feature talk.
+`.trim();
+
+    const SIMO_BUILDER = `
+Builder Mode is active.
+You can execute work fully and create real artifacts.
+Provide a fast first pass when building something visual.
+Describe changes in human language, not technical jargon.
+If the request is big, break it into stages calmly.
+`.trim();
+
+    const SIMO_PREVIEW = `
+You control previews.
+If builder is enabled, you may include a preview when helpful (especially for websites/donation pages).
+If user asks “show me”, include a preview if possible.
+Preview must be complete HTML with inline CSS, no external assets.
+`.trim();
+
+    const RESPONSE_SCHEMA = `
+Return ONLY valid JSON:
+{
+  "reply": string,
+  "preview": { "type":"html", "title": string, "html": string } | null
+}
+Rules:
+- Always include "reply".
+- If builder is NOT enabled, do NOT include preview unless forceShow is true.
+`.trim();
+
+    const sys = [
+      { role: "system", content: SIMO_CORE },
+      ...(builderEnabled ? [
+        { role: "system", content: SIMO_BUILDER },
+        { role: "system", content: SIMO_PREVIEW },
+      ] : []),
+      { role: "system", content: RESPONSE_SCHEMA }
+    ];
+
+    const payload = {
+      model: MODEL,
+      temperature: 0.7,
+      messages: [
+        ...sys,
+        ...messages
+      ],
+    };
+
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        messages: [{ role: "system", content: SIMO_SYSTEM }, ...history, { role: "user", content: text }],
-        temperature: 0.7,
-        max_tokens: 380,
-      }),
+      body: JSON.stringify(payload),
     });
 
-    const data = await res.json();
-    const reply = data?.choices?.[0]?.message?.content?.trim();
+    if (!r.ok) {
+      const text = await r.text();
+      return json(200, { reply: "I couldn’t reach my brain for a second. Try again.", debug: text });
+    }
+
+    const j = await r.json();
+    const raw = j?.choices?.[0]?.message?.content || "{}";
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch { parsed = { reply: "I’m here. What do you want to do next?", preview: null }; }
+
+    if (!builderEnabled && !forceShow) parsed.preview = null;
 
     return json(200, {
-      ok: true,
-      reply: reply || "I blanked for a second — say that again?",
-      route: "openai",
+      reply: parsed.reply || "I’m here. What’s on your mind?",
+      preview: parsed.preview || null,
+      builder: { status: builderEnabled ? "enabled" : "free" }
     });
-  } catch (err) {
-    console.error("Simo error:", err);
-    return json(200, { ok: true, reply: "I couldn’t reach my brain for a second. Try again.", route: "error" });
+
+  } catch (e) {
+    return json(200, { reply: "I couldn’t reach my brain for a second. Try again." });
   }
 };
