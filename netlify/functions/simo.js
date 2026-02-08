@@ -1,6 +1,4 @@
-// simonchat/netlify/functions/simo.js  (CommonJS - Netlify safe)
-
-const fetch = global.fetch || require("node-fetch");
+// simonchat/netlify/functions/simo.js (CommonJS, no external deps)
 
 function json(statusCode, obj) {
   return {
@@ -24,7 +22,6 @@ exports.handler = async (event) => {
     const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
     const wantsBuild = /(\bbuild\b|\bmake\b|\bcreate\b|\bdesign\b|\bwrite\b|\bcode\b|\bfull\b|\blayout\b|\bresume\b|\bwebsite\b|\bdonation\b|\bportfolio\b)/i.test(lastUser);
 
-    // Soft gate if user asks for execution and builder isn't enabled
     if (!builderEnabled && wantsBuild) {
       return json(200, {
         reply: "I can help you think this through here — or I can actually build it and show you a first version. What do you want?",
