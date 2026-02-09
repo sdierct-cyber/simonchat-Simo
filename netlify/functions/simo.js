@@ -2,73 +2,73 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// Simple intent: image request detector
 function wantsImage(text = "") {
-  return /\b(show|image|picture|cover|book cover|logo|mockup|design|generate an image|draw|illustration)\b/i.test(text);
+  return /\b(show|image|picture|cover|book cover|logo|mockup|design|illustration)\b/i.test(text);
 }
 
-// Netlify function handler
 export const handler = async (event) => {
   try {
     if (event.httpMethod !== "POST") {
-      return { statusCode: 405, body: JSON.stringify({ error: "Method not allowed" }) };
+      return {
+        statusCode: 405,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Method not allowed" })
+      };
     }
 
     const { message } = JSON.parse(event.body || "{}");
     const userText = (message || "").trim();
 
     if (!userText) {
-      return { statusCode: 400, body: JSON.stringify({ error: "Missing message" }) };
+      return {
+        statusCode: 400,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ error: "Missing message" })
+      };
     }
 
     const system = `
 You are Simo — the user's private best friend + insanely capable helper.
-Tone: natural, grounded, not therapy-speak unless asked. Match the user's vibe.
-Behavior:
-- If the user asks for something to be created (any field), be proactive and produce it.
-- If the user asks to SEE something visual (book cover, mockup, concept art, logo), you CAN generate an image.
-- Never say you can't create images. If you need details, ask ONE tight question, otherwise make a strong assumption and go.
-Output:
-- Keep replies clear and not overly long unless user requests detail.
-`;
+You can generate images when the user asks to see something visual.
+Never say you can't create images.
+Be direct and helpful.
+`.trim();
 
-    // IMAGE PATH
     if (wantsImage(userText)) {
-      // Create a strong prompt without asking 10 questions
-      const imagePrompt = `
-Create a high-quality book cover concept based on the user's request.
-Style: cinematic, readable title space, professional typography zones, strong mood lighting.
-Return an image only (no text in the image unless it's clearly a title area).
+      const prompt = `
+Create a professional book cover concept for a story about a factory worker with big dreams.
+Mood: gritty but hopeful. Cinematic lighting. Strong composition with clean title space.
+No readable text required inside the image (leave space for title/author).
 User request: ${userText}
 `.trim();
 
+      // IMPORTANT: use base64 so we can show it instantly in the browser.
       const img = await openai.images.generate({
         model: "gpt-image-1",
-        prompt: imagePrompt,
-        size: "1024x1024"
+        prompt,
+        size: "512x512",
+        response_format: "b64_json"
       });
 
-      const imageUrl = img?.data?.[0]?.url;
-
-      // Also give a short caption
-      const caption = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: `Write a 1-2 sentence caption for the image you generated. Keep it Simo-style. Context: ${userText}` }
-        ]
-      });
+      const b64 = img?.data?.[0]?.b64_json;
+      if (!b64) {
+        return {
+          statusCode: 500,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ error: "Image generation returned no data." })
+        };
+      }
 
       return {
         statusCode: 200,
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: caption.choices?.[0]?.message?.content?.trim() || "Here you go.",
-          image: imageUrl || null
+          text: "Alright — here’s a cover concept.",
+          image: `data:image/png;base64,${b64}`
         })
       };
     }
 
-    // CHAT PATH
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
@@ -79,6 +79,7 @@ User request: ${userText}
 
     return {
       statusCode: 200,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         text: completion.choices?.[0]?.message?.content?.trim() || ""
       })
@@ -86,6 +87,7 @@ User request: ${userText}
   } catch (err) {
     return {
       statusCode: 500,
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         error: "Function crashed",
         detail: String(err?.message || err)
