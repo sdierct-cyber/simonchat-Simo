@@ -3,10 +3,19 @@
   const inputEl = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
 
-  // If IDs don’t match, show it clearly.
+  // Hard fail with visible message if you ever land on the wrong page
   if (!chatEl || !inputEl || !sendBtn) {
-    console.error("Missing required elements:", { chatEl, inputEl, sendBtn });
-    alert("Frontend error: Missing chat/input/sendBtn elements. Recheck index.html IDs.");
+    document.body.innerHTML =
+      `<div style="padding:16px;font-family:system-ui;color:#fff;background:#111">
+        <h2 style="margin:0 0 8px">Simo UI Error</h2>
+        <p style="margin:0 0 8px">This page is missing required elements (chat/input/sendBtn).</p>
+        <pre style="white-space:pre-wrap;background:#000;padding:12px;border-radius:8px;opacity:.9">
+chat: ${!!chatEl}
+input: ${!!inputEl}
+sendBtn: ${!!sendBtn}
+URL: ${location.href}
+        </pre>
+      </div>`;
     return;
   }
 
@@ -154,6 +163,5 @@
     }
   });
 
-  // Optional: focus input on load
   inputEl.focus();
 })();
