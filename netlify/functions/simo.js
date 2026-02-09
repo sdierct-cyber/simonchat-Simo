@@ -1,172 +1,174 @@
 // netlify/functions/simo.js
-// Strict JSON output + reliable preview generation (no deps)
+// Robust Simo brain: always returns real errors, supports preview_html, supports listen/build modes.
 
-function j(statusCode, obj) {
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+// Optional: set a default model in Netlify env: OPENAI_MODEL
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+// Small helper
+function json(statusCode, obj) {
   return {
     statusCode,
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Methods": "POST, OPTIONS, GET",
+    },
     body: JSON.stringify(obj),
   };
 }
 
-function wantsBuildOrPreview(text = "") {
-  return /(\bpreview\b|\bshow me\b|\bmockup\b|\bui\b|\bscreen\b|\bbuild\b|\bcreate\b|\bdesign\b|\bapp\b|\bwebsite\b|\bpage\b|\bprototype\b)/i.test(text);
-}
-
 exports.handler = async (event) => {
+  // OPTIONS preflight
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+
+  // Allow GET in browser (so you don’t see “Method not allowed”)
+  if (event.httpMethod === "GET") {
+    return json(200, { ok: true, reply: "Simo brain is up. Send POST with JSON.", preview: null });
+  }
+
+  if (event.httpMethod !== "POST") {
+    return json(405, { ok: false, error: "Method not allowed. Use POST." });
+  }
+
+  // Parse body
+  let body;
   try {
-    if (event.httpMethod !== "POST") return j(405, { reply: "Method not allowed.", preview: null });
+    body = event.body ? JSON.parse(event.body) : {};
+  } catch (e) {
+    return json(400, { ok: false, error: "Invalid JSON body." });
+  }
 
-    const body = JSON.parse(event.body || "{}");
-    const messages = Array.isArray(body.messages) ? body.messages : [];
-    const builderEnabled = !!body.builderEnabled;
-    const forceShow = !!body.forceShow;
+  const message = (body.message || "").toString();
+  const mode = (body.mode || "listen").toString(); // "listen" or "build"
+  const history = Array.isArray(body.history) ? body.history : [];
 
-    const lastUser = [...messages].reverse().find(m => m.role === "user")?.content || "";
-    const askedToBuild = wantsBuildOrPreview(lastUser);
+  if (!message.trim()) return json(400, { ok: false, error: "Missing 'message'." });
 
-    // Soft gate: offer builder if user asks for building and builder isn't enabled
-    if (!builderEnabled && askedToBuild) {
-      return j(200, {
-        reply: "I can help you think this through here — or I can actually build it and show you a first version. What do you want?",
-        preview: null,
-        builder: { status: "offered" }
-      });
-    }
+  if (!OPENAI_API_KEY) {
+    return json(500, {
+      ok: false,
+      error: "Missing OPENAI_API_KEY in Netlify environment variables.",
+    });
+  }
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  // Build system prompt
+  const system = [
+    "You are Simo: a best-friend companion first, builder second.",
+    "In listen mode: be supportive, natural, concise, no therapy-speak.",
+    "In build mode: do the work. If user asks to 'show me' or preview, return both a chat reply and preview_html.",
+    "",
+    "IMPORTANT OUTPUT RULE:",
+    "Return JSON with keys:",
+    "- reply: string (always present)",
+    "- preview_html: string (optional; include when building a visual/preview).",
+    "",
+    "When you include preview_html, it must be a complete standalone HTML document.",
+    "Keep it simple and clean; no external assets required.",
+  ].join("\n");
 
-    if (!OPENAI_API_KEY) return j(500, { reply: "Server is missing OPENAI_API_KEY.", preview: null });
+  // Convert history into OpenAI format
+  const messages = [
+    { role: "system", content: system },
+    ...history
+      .slice(-14)
+      .map((m) => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: String(m.content || ""),
+      })),
+    { role: "user", content: message },
+  ];
 
-    // --- SYSTEM: Simo personality + builder rules ---
-    const SIMO_CORE = `
-You are Simo — a trusted best friend first: warm, calm, direct, human.
-No corporate voice. No therapy-speak unless asked. Don’t over-explain.
-Answer in the user’s tone. Keep it simple, practical, and real.
-`.trim();
+  // If user is asking for a preview in build mode, nudge model to provide preview_html
+  const wantsPreview =
+    mode === "build" &&
+    /show me|preview|mockup|wireframe|ui|website|landing|app/i.test(message);
 
-    const BUILDER_RULES = `
-Builder mode is ON. When the user asks to "show me", "preview", "mock up", or asks for an app/website/page:
-- Provide a fast first version preview.
-- Preview must be a complete HTML document with inline CSS (no external assets).
-- Include at least: landing/login, browse listings, listing details, host list-your-space, booking request, messages, profile.
-- Keep it clean and modern.
-If user request is vague, make reasonable assumptions and still show a first pass.
-`.trim();
+  const responseSchemaHint = wantsPreview
+    ? "You MUST include preview_html."
+    : "Include preview_html only if it adds value.";
 
-    // This is the strict schema the model MUST output.
-    const schema = {
-      name: "simo_reply",
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: {
-          reply: { type: "string" },
-          preview: {
-            anyOf: [
-              { type: "null" },
-              {
-                type: "object",
-                additionalProperties: false,
-                properties: {
-                  type: { type: "string", enum: ["html"] },
-                  title: { type: "string" },
-                  html: { type: "string" }
-                },
-                required: ["type", "title", "html"]
-              }
-            ]
-          }
-        },
-        required: ["reply", "preview"]
-      }
-    };
+  const finalUserNudge = {
+    role: "user",
+    content:
+      "Output JSON ONLY. " +
+      responseSchemaHint +
+      " No markdown. No backticks. Keys: reply, preview_html (optional).",
+  };
 
-    // Convert chat history into a single prompt chunk to keep it stable.
-    const history = messages
-      .slice(-20)
-      .map(m => `${m.role.toUpperCase()}: ${String(m.content || "")}`)
-      .join("\n");
-
-    // Decide whether we SHOULD produce a preview
-    const shouldPreview = builderEnabled && (forceShow || /(\bpreview\b|\bshow me\b|\bmockup\b)/i.test(lastUser) || askedToBuild);
-
-    const userTask = shouldPreview
-      ? `User wants a preview. Produce preview HTML for: ${lastUser}`
-      : `User wants chat help. Respond as Simo: ${lastUser}`;
-
-    const input = `
-${SIMO_CORE}
-
-${builderEnabled ? BUILDER_RULES : ""}
-
-Conversation so far:
-${history}
-
-Now do this:
-${userTask}
-
-Important:
-- Output must follow the JSON schema exactly.
-- If preview is requested, preview must not be null.
-- If preview is not requested, preview must be null.
-`.trim();
-
-    // Call OpenAI Responses API with strict schema output
-    const resp = await fetch("https://api.openai.com/v1/responses", {
+  // Call OpenAI (Chat Completions)
+  try {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: MODEL,
-        input,
-        temperature: 0.7,
-        response_format: { type: "json_schema", json_schema: schema }
+        model: DEFAULT_MODEL,
+        temperature: mode === "listen" ? 0.6 : 0.4,
+        messages: [...messages, finalUserNudge],
       }),
     });
 
-    if (!resp.ok) {
-      const txt = await resp.text();
-      return j(200, { reply: "I couldn’t reach my brain for a second. Try again.", preview: null, debug: txt });
-    }
-
-    const data = await resp.json();
-
-    // The structured JSON is returned as the "output_text" (string) in many cases;
-    // but schema mode should give clean JSON text.
-    const outText = data.output_text || "";
-
-    let parsed;
+    const text = await res.text();
+    let data;
     try {
-      parsed = JSON.parse(outText);
+      data = JSON.parse(text);
     } catch {
-      // Absolute fallback: no preview
-      return j(200, { reply: "I’m here — tell me what you want to build and I’ll show a first version.", preview: null });
+      // If OpenAI ever returns non-JSON, show the raw text (truncated)
+      return json(502, {
+        ok: false,
+        error: `OpenAI returned non-JSON: ${text.slice(0, 300)}`,
+      });
     }
 
-    // Safety: enforce preview rules server-side
-    if (!shouldPreview) parsed.preview = null;
-    if (shouldPreview && !parsed.preview) {
-      parsed.preview = {
-        type: "html",
-        title: "Space rental app (first pass)",
-        html: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SpaceRent — Preview</title>
-<style>body{font-family:system-ui;margin:0;background:#0b1220;color:#e8eefc} .wrap{padding:24px} .card{background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:16px;max-width:860px} a{color:#9fb0d0}</style>
-</head><body><div class="wrap"><div class="card"><h2>Preview generator failed</h2><p>Your builder mode is on, but the model didn't return preview HTML. Try again.</p></div></div></body></html>`
-      };
+    if (!res.ok) {
+      const errMsg =
+        (data && data.error && data.error.message) ||
+        `OpenAI error HTTP ${res.status}`;
+      return json(502, { ok: false, error: errMsg });
     }
 
-    return j(200, {
-      reply: parsed.reply || "Okay — what do you want to build first?",
-      preview: parsed.preview || null,
-      builder: { status: builderEnabled ? "enabled" : "free" }
+    const content = data?.choices?.[0]?.message?.content || "";
+
+    // We told the model: "Output JSON ONLY" so parse it
+    let out;
+    try {
+      out = JSON.parse(content);
+    } catch (e) {
+      // If the model didn't follow JSON-only, surface content for debugging
+      return json(502, {
+        ok: false,
+        error: "Model output was not valid JSON.",
+        raw: content.slice(0, 600),
+      });
+    }
+
+    const reply = typeof out.reply === "string" ? out.reply : null;
+    const preview_html =
+      typeof out.preview_html === "string" ? out.preview_html : null;
+
+    if (!reply) {
+      return json(502, {
+        ok: false,
+        error: "Model JSON missing 'reply'.",
+        raw: out,
+      });
+    }
+
+    return json(200, {
+      ok: true,
+      reply,
+      preview_html,
     });
-
   } catch (e) {
-    return j(200, { reply: "I couldn’t reach my brain for a second. Try again.", preview: null });
+    // THIS is the key difference: real error shown to frontend
+    return json(500, {
+      ok: false,
+      error: e?.message || "Unknown server error calling OpenAI.",
+    });
   }
 };
