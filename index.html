@@ -7,8 +7,6 @@
   <style>
     :root{
       --bg:#070c14;
-      --panel:#0b1324;
-      --panel2:#091022;
       --text:#e9eefc;
       --muted:#9fb0d0;
       --line:rgba(255,255,255,.08);
@@ -152,7 +150,7 @@
       border:1px solid var(--line);
       box-shadow:none;
       font-weight:600;
-      min-width:110px;
+      min-width:98px;
     }
 
     /* Right panel */
@@ -242,6 +240,7 @@
       <div class="composer">
         <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
         <div class="btns">
+          <button class="ghost" id="clearBtn" title="Clear chat">Clear</button>
           <button class="ghost" id="showBtn" title="Ask Simo to build something visual">Show me</button>
           <button id="sendBtn">Send</button>
         </div>
@@ -267,10 +266,10 @@
           When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.
         </p>
         <div class="chips">
+          <div class="chip" data-prompt="Show me a one-page UI mockup for a driveway/extra-space renting app (listings + booking + map placeholder).">space renting app</div>
           <div class="chip" data-prompt="Show me a simple 1-page website layout.">website</div>
           <div class="chip" data-prompt="Show me a clean resume layout I can edit.">resume</div>
           <div class="chip" data-prompt="Show me a donation landing page mockup.">donation page</div>
-          <div class="chip" data-prompt="Show me a portfolio homepage mockup.">portfolio</div>
         </div>
       </div>
 
@@ -281,19 +280,8 @@
   </div>
 
 <script>
-/**
- * SIMO "ONCE AND FOR ALL" FRONTEND
- * - Best Friend (listen) + Builder (work + preview)
- * - Listen mode NEVER blocks short/ambiguous check-ins
- * - Listen mode NEVER depends on backend for presence/help check-ins
- * - Builder mode calls backend and can render preview HTML in iframe
- */
-
 (() => {
   // ====== CONFIG ======
-  // Recommended Netlify Functions endpoint:
-  // "/.netlify/functions/simo"
-  // If your function is named differently, change it here ONCE.
   const SIMO_ENDPOINT =
     window.SIMO_ENDPOINT ||
     localStorage.getItem("SIMO_ENDPOINT") ||
@@ -301,15 +289,11 @@
 
   const MAX_HISTORY = 14;
 
-  // Expanded: real-world variants, u/ur, help check-ins, etc.
   const SOFT_LISTEN = [
-    // presence / check-in
     "are you listening","are u listening","u listening","you listening",
     "you there","are you there","are u there","you still there","u there",
     "can you hear me","can u hear me","can you hear","can u hear",
     "hello","hey","hi","yo","sup","simo",
-
-    // “help me” check-ins (still listen mode)
     "can you help me","can u help me","are you able to help me","are u able to help me",
     "can you help","can u help","help me","i need help"
   ];
@@ -325,6 +309,7 @@
   const inputEl = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
   const showBtn = document.getElementById("showBtn");
+  const clearBtn = document.getElementById("clearBtn");
 
   const previewBody = document.getElementById("previewBody");
   const previewEmpty = document.getElementById("previewEmpty");
@@ -352,9 +337,21 @@
 
   // ====== EVENTS ======
   sendBtn.addEventListener("click", () => send());
+
   showBtn.addEventListener("click", () => {
-    if (!inputEl.value.trim()) inputEl.value = "Show me a quick preview of the thing we were talking about.";
+    if (!inputEl.value.trim()) {
+      inputEl.value =
+        "Show me a one-page UI mockup for the space renting app (driveway/extra space rentals) with: " +
+        "a search bar, filter chips, listing cards (price + availability), a map placeholder, and a booking panel.";
+    }
     send({ forceMode: "build" });
+  });
+
+  clearBtn.addEventListener("click", () => {
+    const ok = confirm("Clear this conversation?");
+    if (!ok) return;
+    localStorage.removeItem("SIMO_CHAT_V1");
+    location.reload();
   });
 
   inputEl.addEventListener("keydown", (e) => {
@@ -391,6 +388,7 @@
     state.busy = on;
     sendBtn.disabled = on;
     showBtn.disabled = on;
+    clearBtn.disabled = on;
     setNetPill("warn", on ? "thinking…" : "idle");
   }
 
@@ -462,30 +460,18 @@
     }));
   }
 
-  // Decide whether we’re in listen vs build
   function decideMode(userText, forceMode) {
     if (forceMode === "build" || forceMode === "listen") return forceMode;
 
     const t = normalize(userText);
-
-    // Soft-listen wins if message matches or contains those check-ins
     if (SOFT_LISTEN.some(k => t === k || t.includes(k))) return "listen";
-
-    // Build if it includes builder hints
     if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
-
-    // Default listen
     return "listen";
   }
 
-  /**
-   * BEST-FRIEND LOCAL REPLIES (NEVER FAIL)
-   * IMPORTANT: This prevents “I couldn’t reach my brain…” for check-ins.
-   */
   function localListenReply(userText) {
     const t = normalize(userText);
 
-    // Presence/listening variants
     if (
       t.includes("listening") ||
       t.includes("you there") || t.includes("u there") ||
@@ -495,7 +481,6 @@
       return "Yeah — I’m here. What’s up?";
     }
 
-    // Help check-ins
     if (
       t.includes("help me") ||
       t === "help" ||
@@ -505,12 +490,10 @@
       return "Yeah. Tell me what you need — I got you.";
     }
 
-    // Simple greetings / pings
     if (t === "hey" || t === "hi" || t === "hello" || t === "yo" || t === "simo" || t === "sup") {
       return "Hey. I’m here. What’s going on?";
     }
 
-    // Very short messages: don’t hit backend
     if (t.length <= 12) {
       return "I’m here. Say it.";
     }
@@ -552,9 +535,12 @@
         (data && (data.reply || data.output || data.message)) ||
         (typeof data === "string" ? data : null);
 
+      // Supports both preview_html and preview.html (extra-safe)
       const preview_html =
         (data && data.preview_html) ||
-        (data && data.preview && data.preview.type === "html" ? data.preview.html : null);
+        (data && data.preview && data.preview.type === "html" ? data.preview.html : null) ||
+        (data && data.preview && typeof data.preview.html === "string" ? data.preview.html : null) ||
+        null;
 
       return { reply, preview_html, raw: data };
     } finally {
@@ -562,7 +548,6 @@
     }
   }
 
-  // ====== MAIN SEND ======
   async function send(opts = {}) {
     const userText = inputEl.value.trim();
     if (!userText || state.busy) return;
@@ -572,10 +557,8 @@
     const mode = decideMode(userText, opts.forceMode);
     setModePill(mode);
 
-    // Always show user message
     pushMsg("you", userText);
 
-    // LISTEN MODE: local reply for check-ins, no backend dependency
     if (mode === "listen") {
       const local = localListenReply(userText);
       if (local) {
@@ -583,15 +566,12 @@
         setNetPill("good", "ok");
         return;
       }
-      // If it’s listen mode but not a small check-in, we CAN still call backend
-      // (This gives you “best friend” depth without forcing builder mode.)
     }
 
     setBusy(true);
 
     try {
       const { reply, preview_html } = await callSimoAPI({ userText, mode });
-
       if (!reply) throw new Error("Empty reply from backend (missing 'reply').");
 
       pushMsg("simo", reply);
@@ -602,7 +582,6 @@
       }
 
     } catch (err) {
-      // IMPORTANT: show real error so we know what’s wrong
       const msg = (err && err.name === "AbortError")
         ? "Timed out reaching the backend (25s). Usually endpoint mismatch or function crash."
         : (err && err.message ? err.message : "Unknown error.");
@@ -612,7 +591,7 @@
         "I hit a snag talking to the backend.\n\n" +
         "Here’s the exact error:\n" +
         "- " + msg + "\n\n" +
-        "Paste this back to me and I’ll tell you the exact fix (endpoint/function/env)."
+        "Paste this back to me and I’ll tell you the exact fix."
       );
     } finally {
       setBusy(false);
