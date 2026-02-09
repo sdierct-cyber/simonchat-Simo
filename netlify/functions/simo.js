@@ -34,6 +34,7 @@ Never say you can't create images.
 Be direct and helpful.
 `.trim();
 
+    // IMAGE PATH
     if (wantsImage(userText)) {
       const prompt = `
 Create a professional book cover concept for a story about a factory worker with big dreams.
@@ -42,33 +43,49 @@ No readable text required inside the image (leave space for title/author).
 User request: ${userText}
 `.trim();
 
-      // IMPORTANT: use base64 so we can show it instantly in the browser.
-      const img = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        size: "512x512",
-        response_format: "b64_json"
-      });
+      try {
+        // Safer settings: no response_format (avoids unsupported param crashes)
+        const img = await openai.images.generate({
+          model: "gpt-image-1",
+          prompt,
+          size: "512x512"
+        });
 
-      const b64 = img?.data?.[0]?.b64_json;
-      if (!b64) {
+        const imageUrl = img?.data?.[0]?.url;
+
+        if (!imageUrl) {
+          return {
+            statusCode: 200,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              text: "I tried to generate the cover, but the image URL came back empty.",
+              image: null
+            })
+          };
+        }
+
+        return {
+          statusCode: 200,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: "Alright — here’s a cover concept.",
+            image: imageUrl
+          })
+        };
+      } catch (imgErr) {
+        // IMPORTANT: return the real OpenAI error details to the UI
         return {
           statusCode: 500,
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ error: "Image generation returned no data." })
+          body: JSON.stringify({
+            error: "Image generation failed",
+            detail: String(imgErr?.message || imgErr)
+          })
         };
       }
-
-      return {
-        statusCode: 200,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: "Alright — here’s a cover concept.",
-          image: `data:image/png;base64,${b64}`
-        })
-      };
     }
 
+    // CHAT PATH
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
