@@ -3,7 +3,7 @@ const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 
 function escapeHtml(str) {
-  return str
+  return String(str || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;");
@@ -49,16 +49,20 @@ async function callSimo(userText) {
     body: JSON.stringify({ message: userText })
   });
 
-  let data;
-  try {
-    data = await res.json();
-  } catch {
-    throw new Error("Bad JSON response from server.");
+  const contentType = res.headers.get("content-type") || "";
+
+  // If server didn't send JSON, capture the raw body so we can see the real error.
+  if (!contentType.includes("application/json")) {
+    const raw = await res.text();
+    throw new Error(`Server returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 600)}`);
   }
+
+  const data = await res.json();
 
   if (!res.ok) {
     throw new Error(data?.error || `Server error (${res.status})`);
   }
+
   return data;
 }
 
@@ -78,7 +82,7 @@ async function send() {
     addMessage("simo", data.text || "", data.image || null);
   } catch (err) {
     thinking.remove();
-    addMessage("simo", `I hit an error: ${String(err.message || err)}`);
+    addMessage("simo", `I hit an error:\n${String(err.message || err)}`);
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
