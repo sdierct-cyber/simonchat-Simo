@@ -1,567 +1,90 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
   <title>Simo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
-    :root{
-      --bg:#070c14;
-      --text:#e9eefc;
-      --muted:#9fb0d0;
-      --line:rgba(255,255,255,.08);
-      --bubble:rgba(255,255,255,.06);
-      --bubble2:rgba(255,255,255,.08);
-      --btn:#102a59;
-      --btn2:#153a7a;
-      --good:#4fe39a;
-      --bad:#ff6b6b;
-      --warn:#f7c948;
-      --shadow:0 16px 60px rgba(0,0,0,.35);
-      --radius:18px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-    }
-    *{ box-sizing:border-box; }
-    html,body{ height:100%; }
-    body{
-      margin:0;
-      font-family:var(--sans);
-      background: radial-gradient(1200px 900px at 25% 0%, rgba(70,110,255,.12), transparent 60%),
-                  radial-gradient(1200px 900px at 75% 20%, rgba(0,255,209,.08), transparent 55%),
-                  var(--bg);
-      color:var(--text);
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0b1020;
+      color: #eaeaf0;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
-    .app{
-      height:100%;
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:0;
+    header {
+      padding: 16px;
+      font-weight: 600;
+      background: #11162a;
+      border-bottom: 1px solid #1f2545;
     }
 
-    .col{
-      display:flex;
-      flex-direction:column;
-      min-width:0;
-      border-right:1px solid var(--line);
-    }
-    .col:last-child{ border-right:none; }
-
-    header{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 18px;
-      border-bottom:1px solid var(--line);
-      background: linear-gradient(to bottom, rgba(255,255,255,.03), transparent);
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:700;
-      letter-spacing:.2px;
-    }
-    .dot{
-      width:9px; height:9px; border-radius:999px;
-      background: var(--good);
-      box-shadow: 0 0 14px rgba(79,227,154,.35);
-    }
-    .badge{
-      font-size:12px;
-      color:var(--muted);
-      padding:4px 10px;
-      border:1px solid var(--line);
-      border-radius:999px;
-      background: rgba(255,255,255,.03);
+    #chat {
+      flex: 1;
+      padding: 16px;
+      overflow-y: auto;
     }
 
-    .chat{
-      flex:1;
-      overflow:auto;
-      padding:18px;
-    }
-    .row{
-      display:flex;
-      margin:10px 0;
-      gap:10px;
-    }
-    .row.simo{ justify-content:flex-start; }
-    .row.you{ justify-content:flex-end; }
-
-    .bubble{
-      max-width:min(660px, 90%);
-      padding:12px 14px;
-      border:1px solid var(--line);
-      border-radius: var(--radius);
-      background: var(--bubble);
-      box-shadow: 0 10px 40px rgba(0,0,0,.18);
-      white-space:pre-wrap;
-      line-height:1.35;
-    }
-    .row.you .bubble{ background: var(--bubble2); }
-
-    .who{
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:6px;
+    .msg {
+      margin-bottom: 14px;
+      line-height: 1.4;
     }
 
-    .composer{
-      padding:14px 16px;
-      border-top:1px solid var(--line);
-      display:flex;
-      gap:10px;
-      align-items:flex-end;
-      background: linear-gradient(to top, rgba(255,255,255,.03), transparent);
-    }
-    textarea{
-      flex:1;
-      resize:none;
-      min-height:48px;
-      max-height:180px;
-      padding:12px 12px;
-      font-family:var(--sans);
-      color:var(--text);
-      background: rgba(255,255,255,.03);
-      border:1px solid var(--line);
-      border-radius: 14px;
-      outline:none;
-    }
-    textarea:focus{
-      border-color: rgba(120,160,255,.35);
-      box-shadow: 0 0 0 3px rgba(120,160,255,.12);
+    .simo {
+      color: #8fd3ff;
     }
 
-    .btns{ display:flex; gap:10px; }
-    button{
-      border:none;
-      border-radius: 14px;
-      padding: 12px 14px;
-      font-weight:700;
-      color:var(--text);
-      background: linear-gradient(to bottom, var(--btn2), var(--btn));
-      cursor:pointer;
-      box-shadow: var(--shadow);
-      min-width:100px;
-    }
-    button:disabled{ opacity:.55; cursor:not-allowed; box-shadow:none; }
-    .ghost{
-      background: rgba(255,255,255,.05);
-      border:1px solid var(--line);
-      box-shadow:none;
-      font-weight:600;
-      min-width:98px;
+    .user {
+      color: #fff;
+      font-weight: 500;
     }
 
-    .previewWrap{
-      display:flex;
-      flex-direction:column;
-      height:100%;
-      min-width:0;
+    footer {
+      display: flex;
+      border-top: 1px solid #1f2545;
     }
-    .previewTop{
-      padding:18px;
-      border-bottom:1px solid var(--line);
-    }
-    .title{ font-size:20px; font-weight:800; margin:0 0 6px 0; }
-    .sub{ color:var(--muted); font-size:13px; margin:0; }
 
-    .chips{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      margin-top:12px;
+    textarea {
+      flex: 1;
+      resize: none;
+      padding: 12px;
+      border: none;
+      outline: none;
+      background: #0b1020;
+      color: #fff;
+      font-size: 15px;
     }
-    .chip{
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.03);
-      color:var(--muted);
-      cursor:pointer;
-      font-size:12px;
-      user-select:none;
-    }
-    .chip:hover{ color:var(--text); border-color: rgba(255,255,255,.16); }
 
-    .previewBody{
-      flex:1;
-      min-height:0;
-      overflow:auto;
-      padding:0;
-      background: rgba(0,0,0,.15);
+    button {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      padding: 0 18px;
+      cursor: pointer;
+      font-size: 15px;
     }
-    .empty{ padding:18px; color:var(--muted); }
-    iframe{ width:100%; height:100%; border:none; background:white; }
 
-    .statusline{
-      font-family:var(--mono);
-      font-size:12px;
-      color:var(--muted);
-      padding:10px 16px;
-      border-top:1px solid var(--line);
-      background: rgba(255,255,255,.02);
-      display:flex;
-      gap:14px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-    .pill{
-      padding:4px 8px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.03);
-    }
-    .pill.good{ border-color: rgba(79,227,154,.35); color: rgba(79,227,154,.95); }
-    .pill.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,107,107,.95); }
-    .pill.warn{ border-color: rgba(247,201,72,.35); color: rgba(247,201,72,.95); }
-
-    @media (max-width: 980px){
-      .app{ grid-template-columns: 1fr; }
-      .col{ border-right:none; border-bottom:1px solid var(--line); }
-      .col:last-child{ border-bottom:none; }
-      button{ min-width:92px; }
+    img.generated {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 8px;
     }
   </style>
 </head>
-
 <body>
-  <div class="app">
-    <section class="col">
-      <header>
-        <div class="brand"><span class="dot"></span><span>Simo</span></div>
-        <div class="badge" id="planBadge">Free</div>
-      </header>
 
-      <div class="chat" id="chat"></div>
+<header>Hey — I’m Simo. What’s going on?</header>
 
-      <div class="composer">
-        <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
-        <div class="btns">
-          <button class="ghost" id="clearBtn" title="Clear chat">Clear</button>
-          <button class="ghost" id="showBtn" title="Ask Simo to build something visual">Show me</button>
-          <button id="sendBtn">Send</button>
-        </div>
-      </div>
+<div id="chat"></div>
 
-      <div class="statusline" id="statusline">
-        <span class="pill warn" id="netPill">idle</span>
-        <span class="pill" id="modePill">mode: listen</span>
-        <span class="pill" id="endpointPill">endpoint: auto</span>
-      </div>
-    </section>
+<footer>
+  <textarea id="input" rows="2" placeholder="Talk to Simo…"></textarea>
+  <button onclick="send()">Send</button>
+</footer>
 
-    <section class="previewWrap">
-      <header>
-        <div class="brand"><span>Preview</span></div>
-        <div class="badge" id="previewHint">Simo will show things here when there’s something real to look at.</div>
-      </header>
-
-      <div class="previewTop">
-        <h2 class="title" id="previewTitle">Nothing here yet.</h2>
-        <p class="sub" id="previewSub">When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.</p>
-        <div class="chips">
-          <div class="chip" data-prompt="Show me a one-page UI mockup for a driveway/extra-space renting app (listings + booking + map placeholder) in Simo vibe (midnight theme, soft glow, premium minimal).">space renting app</div>
-          <div class="chip" data-prompt="Show me a simple 1-page website layout in Simo vibe (midnight theme, premium minimal).">website</div>
-          <div class="chip" data-prompt="Show me a clean resume layout I can edit in Simo vibe (midnight theme, premium minimal).">resume</div>
-          <div class="chip" data-prompt="Show me a donation landing page mockup in Simo vibe (midnight theme, premium minimal).">donation page</div>
-        </div>
-      </div>
-
-      <div class="previewBody" id="previewBody">
-        <div class="empty" id="previewEmpty">Nothing to preview yet.</div>
-      </div>
-    </section>
-  </div>
-
-<script>
-(() => {
-  const SIMO_ENDPOINT =
-    window.SIMO_ENDPOINT ||
-    localStorage.getItem("SIMO_ENDPOINT") ||
-    "/.netlify/functions/simo";
-
-  const MAX_HISTORY = 14;
-
-  const SOFT_LISTEN = [
-    "are you listening","are u listening","u listening","you listening",
-    "you there","are you there","are u there","you still there","u there",
-    "can you hear me","can u hear me","can you hear","can u hear",
-    "hello","hey","hi","yo","sup","simo",
-    "can you help me","can u help me","are you able to help me","are u able to help me",
-    "can you help","can u help","help me","i need help"
-  ];
-
-  const BUILDER_HINTS = [
-    "show me","build","create","design","make","generate","code",
-    "html","app","website","landing","mockup","ui","wireframe",
-    "resume","portfolio","donation","preview"
-  ];
-
-  const chatEl = document.getElementById("chat");
-  const inputEl = document.getElementById("input");
-  const sendBtn = document.getElementById("sendBtn");
-  const showBtn = document.getElementById("showBtn");
-  const clearBtn = document.getElementById("clearBtn");
-
-  const previewBody = document.getElementById("previewBody");
-  const previewTitle = document.getElementById("previewTitle");
-  const previewSub = document.getElementById("previewSub");
-
-  const netPill = document.getElementById("netPill");
-  const modePill = document.getElementById("modePill");
-  const endpointPill = document.getElementById("endpointPill");
-
-  endpointPill.textContent = "endpoint: " + (SIMO_ENDPOINT.includes("http") ? "remote" : SIMO_ENDPOINT);
-
-  const state = {
-    messages: loadMessages(),
-    busy: false,
-    lastMode: "listen"
-  };
-
-  if (state.messages.length === 0) {
-    state.messages.push({ role: "simo", content: "Hey — I’m Simo. What’s going on?" });
-    saveMessages();
-  }
-  render();
-
-  sendBtn.addEventListener("click", () => send());
-
-  showBtn.addEventListener("click", () => {
-    if (!inputEl.value.trim()) {
-      inputEl.value =
-        "Show me a one-page UI mockup for a space-renting marketplace (driveway, garage, storage, yard pad). " +
-        "Style: Simo vibe — midnight theme, soft glow accents (teal/blue), premium minimal, rounded cards. " +
-        "Layout: top search (location + dates), filter chips, left column listing cards (price hour/day/month, availability, rating), " +
-        "right column map placeholder, and a booking panel (dates, duration, total estimate, Request Booking button). " +
-        "Include a toggle: I need space / I have space. Return a complete HTML document in preview_html.";
-    }
-    send({ forceMode: "build" });
-  });
-
-  clearBtn.addEventListener("click", () => {
-    if (!confirm("Clear this conversation?")) return;
-    localStorage.removeItem("SIMO_CHAT_V1");
-    location.reload();
-  });
-
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  });
-
-  document.querySelectorAll(".chip").forEach(chip => {
-    chip.addEventListener("click", () => {
-      inputEl.value = chip.dataset.prompt;
-      send({ forceMode: "build" });
-    });
-  });
-
-  function normalize(s) { return (s || "").toLowerCase().trim(); }
-
-  function loadMessages() {
-    try {
-      const raw = localStorage.getItem("SIMO_CHAT_V1");
-      return raw ? JSON.parse(raw) : [];
-    } catch { return []; }
-  }
-
-  function saveMessages() {
-    localStorage.setItem("SIMO_CHAT_V1", JSON.stringify(state.messages.slice(-200)));
-  }
-
-  function setBusy(on) {
-    state.busy = on;
-    sendBtn.disabled = on;
-    showBtn.disabled = on;
-    clearBtn.disabled = on;
-    setNetPill("warn", on ? "thinking…" : "idle");
-  }
-
-  function pushMsg(role, content) {
-    state.messages.push({ role, content });
-    saveMessages();
-    render();
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
-
-  function render() {
-    chatEl.innerHTML = "";
-    for (const m of state.messages) {
-      const row = document.createElement("div");
-      row.className = "row " + (m.role === "you" ? "you" : "simo");
-
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-
-      const who = document.createElement("div");
-      who.className = "who";
-      who.textContent = (m.role === "you") ? "you" : "Simo";
-      bubble.appendChild(who);
-
-      const text = document.createElement("div");
-      text.textContent = m.content;
-      bubble.appendChild(text);
-
-      row.appendChild(bubble);
-      chatEl.appendChild(row);
-    }
-    requestAnimationFrame(() => chatEl.scrollTop = chatEl.scrollHeight);
-  }
-
-  function setModePill(mode) {
-    state.lastMode = mode;
-    modePill.textContent = "mode: " + mode;
-  }
-
-  function setNetPill(type, text) {
-    netPill.textContent = text;
-    netPill.className = "pill " + (type === "good" ? "good" : type === "bad" ? "bad" : "warn");
-  }
-
-  function showPreview(html) {
-    previewTitle.textContent = "Preview";
-    previewSub.textContent = "Generated by Simo. If you want changes, tell me what to tweak.";
-    previewBody.innerHTML = "";
-
-    const iframe = document.createElement("iframe");
-    previewBody.appendChild(iframe);
-
-    const doc = iframe.contentDocument || iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-  }
-
-  function summarizeHistoryForAPI() {
-    return state.messages.slice(-MAX_HISTORY).map(m => ({
-      role: m.role === "you" ? "user" : "assistant",
-      content: m.content
-    }));
-  }
-
-  function decideMode(userText, forceMode) {
-    if (forceMode === "build" || forceMode === "listen") return forceMode;
-    const t = normalize(userText);
-    if (SOFT_LISTEN.some(k => t === k || t.includes(k))) return "listen";
-    if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
-    return "listen";
-  }
-
-  function localListenReply(userText) {
-    const t = normalize(userText);
-
-    if (
-      t.includes("listening") ||
-      t.includes("you there") || t.includes("u there") ||
-      t.includes("are you there") || t.includes("are u there") ||
-      t.includes("can you hear") || t.includes("can u hear")
-    ) return "Yeah — I’m here. What’s up?";
-
-    if (
-      t.includes("help me") ||
-      t === "help" ||
-      t.includes("can you help") || t.includes("can u help") ||
-      t.includes("able to help")
-    ) return "Yeah. Tell me what you need — I got you.";
-
-    if (t === "hey" || t === "hi" || t === "hello" || t === "yo" || t === "simo" || t === "sup")
-      return "Hey — I’m here. What’s going on?";
-
-    if (t.length <= 12) return "I’m here. Say it.";
-
-    return null;
-  }
-
-  async function callSimoAPI({ userText, mode }) {
-    const payload = { message: userText, mode, history: summarizeHistoryForAPI() };
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000);
-
-    try {
-      const res = await fetch(SIMO_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal
-      });
-
-      const rawText = await res.text();
-      let data = null;
-      try { data = rawText ? JSON.parse(rawText) : null; } catch {}
-
-      if (!res.ok) {
-        const msg =
-          (data && (data.error || data.message)) ||
-          `HTTP ${res.status} ${res.statusText}` +
-          (rawText ? ` — ${rawText.slice(0, 180)}` : "");
-        throw new Error(msg);
-      }
-
-      const reply =
-        (data && (data.reply || data.output || data.message)) ||
-        (typeof data === "string" ? data : null);
-
-      const preview_html =
-        (data && data.preview_html) ||
-        (data && data.preview && data.preview.type === "html" ? data.preview.html : null) ||
-        (data && data.preview && typeof data.preview.html === "string" ? data.preview.html : null) ||
-        null;
-
-      return { reply, preview_html };
-    } finally {
-      clearTimeout(timeout);
-    }
-  }
-
-  async function send(opts = {}) {
-    const userText = inputEl.value.trim();
-    if (!userText || state.busy) return;
-
-    inputEl.value = "";
-    const mode = decideMode(userText, opts.forceMode);
-    setModePill(mode);
-    pushMsg("you", userText);
-
-    if (mode === "listen") {
-      const local = localListenReply(userText);
-      if (local) {
-        pushMsg("simo", local);
-        setNetPill("good", "ok");
-        return;
-      }
-    }
-
-    setBusy(true);
-    try {
-      const { reply, preview_html } = await callSimoAPI({ userText, mode });
-      if (!reply) throw new Error("Empty reply from backend (missing 'reply').");
-
-      pushMsg("simo", reply);
-      setNetPill("good", "ok");
-
-      if (preview_html && preview_html.trim().length > 20) showPreview(preview_html);
-
-    } catch (err) {
-      const msg = (err && err.name === "AbortError")
-        ? "Timed out reaching the backend (25s)."
-        : (err && err.message ? err.message : "Unknown error.");
-
-      setNetPill("bad", "error");
-      pushMsg("simo",
-        "I hit a snag talking to the backend.\n\n" +
-        "Here’s the exact error:\n" +
-        "- " + msg + "\n\n" +
-        "Paste this back to me and I’ll tell you the exact fix."
-      );
-    } finally {
-      setBusy(false);
-    }
-  }
-})();
-</script>
+<script src="simo.js"></script>
 </body>
 </html>
