@@ -50,17 +50,18 @@ async function callSimo(userText) {
   });
 
   const contentType = res.headers.get("content-type") || "";
-
-  // If server didn't send JSON, capture the raw body so we can see the real error.
   if (!contentType.includes("application/json")) {
     const raw = await res.text();
-    throw new Error(`Server returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 600)}`);
+    throw new Error(`Server returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 800)}`);
   }
 
   const data = await res.json();
 
   if (!res.ok) {
-    throw new Error(data?.error || `Server error (${res.status})`);
+    const msg =
+      (data?.error ? data.error : `Server error (${res.status})`) +
+      (data?.detail ? `\n${data.detail}` : "");
+    throw new Error(msg);
   }
 
   return data;
