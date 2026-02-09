@@ -21,7 +21,6 @@
       --warn:#f7c948;
       --shadow:0 16px 60px rgba(0,0,0,.35);
       --radius:18px;
-      --radius2:14px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
     }
@@ -101,9 +100,8 @@
       white-space:pre-wrap;
       line-height:1.35;
     }
-    .row.you .bubble{
-      background: var(--bubble2);
-    }
+    .row.you .bubble{ background: var(--bubble2); }
+
     .who{
       font-size:12px;
       color:var(--muted);
@@ -136,10 +134,7 @@
       box-shadow: 0 0 0 3px rgba(120,160,255,.12);
     }
 
-    .btns{
-      display:flex;
-      gap:10px;
-    }
+    .btns{ display:flex; gap:10px; }
     button{
       border:none;
       border-radius: 14px;
@@ -151,11 +146,7 @@
       box-shadow: var(--shadow);
       min-width:100px;
     }
-    button:disabled{
-      opacity:.55;
-      cursor:not-allowed;
-      box-shadow:none;
-    }
+    button:disabled{ opacity:.55; cursor:not-allowed; box-shadow:none; }
     .ghost{
       background: rgba(255,255,255,.05);
       border:1px solid var(--line);
@@ -175,16 +166,8 @@
       padding:18px;
       border-bottom:1px solid var(--line);
     }
-    .title{
-      font-size:20px;
-      font-weight:800;
-      margin:0 0 6px 0;
-    }
-    .sub{
-      color:var(--muted);
-      font-size:13px;
-      margin:0;
-    }
+    .title{ font-size:20px; font-weight:800; margin:0 0 6px 0; }
+    .sub{ color:var(--muted); font-size:13px; margin:0; }
 
     .chips{
       display:flex;
@@ -211,17 +194,8 @@
       padding:0;
       background: rgba(0,0,0,.15);
     }
-    .empty{
-      padding:18px;
-      color:var(--muted);
-    }
-
-    iframe{
-      width:100%;
-      height:100%;
-      border:none;
-      background:white;
-    }
+    .empty{ padding:18px; color:var(--muted); }
+    iframe{ width:100%; height:100%; border:none; background:white; }
 
     .statusline{
       font-family:var(--mono);
@@ -272,6 +246,7 @@
           <button id="sendBtn">Send</button>
         </div>
       </div>
+
       <div class="statusline" id="statusline">
         <span class="pill warn" id="netPill">idle</span>
         <span class="pill" id="modePill">mode: listen</span>
@@ -309,45 +284,36 @@
 /**
  * SIMO "ONCE AND FOR ALL" FRONTEND
  * - Best Friend (listen) + Builder (work + preview)
- * - Zero "strict validation" that rejects short human messages
- * - Clear error reporting
- * - Preview panel accepts HTML from backend
- *
- * Backend expected response (flexible):
- * { reply: "text", preview_html: "<html...>" }
- * OR { reply: "text", preview: { type:"html", html:"..." } }
- * OR { reply: "text" }
+ * - Listen mode NEVER blocks short/ambiguous check-ins
+ * - Listen mode NEVER depends on backend for presence/help check-ins
+ * - Builder mode calls backend and can render preview HTML in iframe
  */
 
 (() => {
   // ====== CONFIG ======
-  // Set one of these and never touch the rest of the file again.
-  // 1) If you have Netlify Functions: "/.netlify/functions/simo"
-  // 2) If you proxy it: "/api/simo"
-  // 3) Or full URL: "https://yourdomain.com/api/simo"
+  // Recommended Netlify Functions endpoint:
+  // "/.netlify/functions/simo"
+  // If your function is named differently, change it here ONCE.
   const SIMO_ENDPOINT =
     window.SIMO_ENDPOINT ||
     localStorage.getItem("SIMO_ENDPOINT") ||
     "/.netlify/functions/simo";
 
-  // Minimum chat history to send; keep it light and fast
   const MAX_HISTORY = 14;
 
-  // Soft listen triggers that should NEVER be blocked or forced into "builder"
+  // Expanded: real-world variants, u/ur, help check-ins, etc.
   const SOFT_LISTEN = [
-  // presence / check-in
-  "are you listening","are u listening","u listening","you listening",
-  "you there","are you there","are u there","you still there","u there",
-  "can you hear me","can u hear me","can you hear","can u hear",
-  "hello","hey","hi","yo","sup","simo",
+    // presence / check-in
+    "are you listening","are u listening","u listening","you listening",
+    "you there","are you there","are u there","you still there","u there",
+    "can you hear me","can u hear me","can you hear","can u hear",
+    "hello","hey","hi","yo","sup","simo",
 
-  // “help me” check-ins (still listen mode)
-  "can you help me","can u help me","are you able to help me","are u able to help me",
-  "can you help","can u help","help me","i need help"
-];
+    // “help me” check-ins (still listen mode)
+    "can you help me","can u help me","are you able to help me","are u able to help me",
+    "can you help","can u help","help me","i need help"
+  ];
 
-
-  // Builder keywords (also triggered by "show me" button)
   const BUILDER_HINTS = [
     "show me", "build", "create", "design", "make", "generate", "code",
     "html", "app", "website", "landing", "mockup", "ui", "wireframe",
@@ -368,6 +334,7 @@
   const netPill = document.getElementById("netPill");
   const modePill = document.getElementById("modePill");
   const endpointPill = document.getElementById("endpointPill");
+
   endpointPill.textContent = "endpoint: " + (SIMO_ENDPOINT.includes("http") ? "remote" : SIMO_ENDPOINT);
 
   // ====== STATE ======
@@ -377,7 +344,6 @@
     lastMode: "listen"
   };
 
-  // Seed greeting if empty
   if (state.messages.length === 0) {
     state.messages.push({ role: "simo", content: "Hey — I’m Simo. What’s going on?" });
     saveMessages();
@@ -387,12 +353,10 @@
   // ====== EVENTS ======
   sendBtn.addEventListener("click", () => send());
   showBtn.addEventListener("click", () => {
-    // Put user into builder mode with a gentle default
     if (!inputEl.value.trim()) inputEl.value = "Show me a quick preview of the thing we were talking about.";
     send({ forceMode: "build" });
   });
 
-  // Enter-to-send
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -400,7 +364,6 @@
     }
   });
 
-  // Chip prompts
   document.querySelectorAll(".chip").forEach(chip => {
     chip.addEventListener("click", () => {
       inputEl.value = chip.dataset.prompt;
@@ -409,12 +372,17 @@
   });
 
   // ====== HELPERS ======
+  function normalize(s) {
+    return (s || "").toLowerCase().trim();
+  }
+
   function loadMessages() {
     try {
       const raw = localStorage.getItem("SIMO_CHAT_V1");
       return raw ? JSON.parse(raw) : [];
     } catch { return []; }
   }
+
   function saveMessages() {
     localStorage.setItem("SIMO_CHAT_V1", JSON.stringify(state.messages.slice(-200)));
   }
@@ -423,8 +391,7 @@
     state.busy = on;
     sendBtn.disabled = on;
     showBtn.disabled = on;
-    netPill.textContent = on ? "thinking…" : "idle";
-    netPill.className = "pill " + (on ? "warn" : "warn");
+    setNetPill("warn", on ? "thinking…" : "idle");
   }
 
   function pushMsg(role, content) {
@@ -432,10 +399,6 @@
     saveMessages();
     render();
     scrollChatToBottom();
-  }
-
-  function scrollChatToBottom() {
-    chatEl.scrollTop = chatEl.scrollHeight;
   }
 
   function render() {
@@ -447,17 +410,10 @@
       const bubble = document.createElement("div");
       bubble.className = "bubble";
 
-      if (m.role !== "you") {
-        const who = document.createElement("div");
-        who.className = "who";
-        who.textContent = "Simo";
-        bubble.appendChild(who);
-      } else {
-        const who = document.createElement("div");
-        who.className = "who";
-        who.textContent = "you";
-        bubble.appendChild(who);
-      }
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = (m.role === "you") ? "you" : "Simo";
+      bubble.appendChild(who);
 
       const text = document.createElement("div");
       text.textContent = m.content;
@@ -469,38 +425,8 @@
     requestAnimationFrame(scrollChatToBottom);
   }
 
-  function normalize(s) {
-    return (s || "").toLowerCase().trim();
-  }
-
-  function decideMode(userText, forceMode) {
-    if (forceMode === "build" || forceMode === "listen") return forceMode;
-
-    const t = normalize(userText);
-    // Soft listen always wins
-    if (SOFT_LISTEN.some(k => t === k || t.startsWith(k + " "))) return "listen";
-
-    // Builder if it contains any builder hints
-    if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
-
-    // Default: listen
-    return "listen";
-  }
-
-  function localListenReply(userText) {
-    // This is a "never fail" fallback for friend-mode check-ins
-    const t = normalize(userText);
-
-    if (t.includes("are you listening") || t.includes("you there") || t.includes("can you hear")) {
-      return "Yeah — I’m here. What’s up?";
-    }
-    if (t === "hey" || t === "hi" || t === "hello" || t === "yo") {
-      return "Hey. I’m here. What’s going on?";
-    }
-    if (t.length <= 3) {
-      return "I’m here. Say it.";
-    }
-    return null;
+  function scrollChatToBottom() {
+    chatEl.scrollTop = chatEl.scrollHeight;
   }
 
   function setModePill(mode) {
@@ -516,12 +442,8 @@
   }
 
   function showPreview(html) {
-    // Replace preview area with iframe
-    previewEmpty.style.display = "none";
     previewTitle.textContent = "Preview";
     previewSub.textContent = "Generated by Simo. If you want changes, tell me what to tweak.";
-
-    // Clear old
     previewBody.innerHTML = "";
 
     const iframe = document.createElement("iframe");
@@ -533,22 +455,67 @@
     doc.close();
   }
 
-  function clearPreviewEmpty() {
-    previewBody.innerHTML = "";
-    previewBody.appendChild(previewEmpty);
-    previewEmpty.style.display = "block";
-    previewTitle.textContent = "Nothing here yet.";
-    previewSub.textContent = "When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.";
-  }
-
   function summarizeHistoryForAPI() {
-    // Convert our internal roles to a simple history array
-    // Keep it lightweight
-    const trimmed = state.messages.slice(-MAX_HISTORY).map(m => ({
+    return state.messages.slice(-MAX_HISTORY).map(m => ({
       role: m.role === "you" ? "user" : "assistant",
       content: m.content
     }));
-    return trimmed;
+  }
+
+  // Decide whether we’re in listen vs build
+  function decideMode(userText, forceMode) {
+    if (forceMode === "build" || forceMode === "listen") return forceMode;
+
+    const t = normalize(userText);
+
+    // Soft-listen wins if message matches or contains those check-ins
+    if (SOFT_LISTEN.some(k => t === k || t.includes(k))) return "listen";
+
+    // Build if it includes builder hints
+    if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
+
+    // Default listen
+    return "listen";
+  }
+
+  /**
+   * BEST-FRIEND LOCAL REPLIES (NEVER FAIL)
+   * IMPORTANT: This prevents “I couldn’t reach my brain…” for check-ins.
+   */
+  function localListenReply(userText) {
+    const t = normalize(userText);
+
+    // Presence/listening variants
+    if (
+      t.includes("listening") ||
+      t.includes("you there") || t.includes("u there") ||
+      t.includes("are you there") || t.includes("are u there") ||
+      t.includes("can you hear") || t.includes("can u hear")
+    ) {
+      return "Yeah — I’m here. What’s up?";
+    }
+
+    // Help check-ins
+    if (
+      t.includes("help me") ||
+      t === "help" ||
+      t.includes("can you help") || t.includes("can u help") ||
+      t.includes("able to help")
+    ) {
+      return "Yeah. Tell me what you need — I got you.";
+    }
+
+    // Simple greetings / pings
+    if (t === "hey" || t === "hi" || t === "hello" || t === "yo" || t === "simo" || t === "sup") {
+      return "Hey. I’m here. What’s going on?";
+    }
+
+    // Very short messages: don’t hit backend
+    if (t.length <= 12) {
+      return "I’m here. Say it.";
+    }
+
+    return null;
   }
 
   async function callSimoAPI({ userText, mode }) {
@@ -569,20 +536,18 @@
         signal: controller.signal
       });
 
-      const raw = await res.text();
+      const rawText = await res.text();
       let data = null;
-      try { data = raw ? JSON.parse(raw) : null; } catch { /* keep null */ }
+      try { data = rawText ? JSON.parse(rawText) : null; } catch {}
 
       if (!res.ok) {
-        // Provide real debugging info
         const msg =
           (data && (data.error || data.message)) ||
           `HTTP ${res.status} ${res.statusText}` +
-          (raw ? ` — ${raw.slice(0, 180)}` : "");
+          (rawText ? ` — ${rawText.slice(0, 180)}` : "");
         throw new Error(msg);
       }
 
-      // Flexible schema
       const reply =
         (data && (data.reply || data.output || data.message)) ||
         (typeof data === "string" ? data : null);
@@ -604,59 +569,50 @@
 
     inputEl.value = "";
 
-    // Decide mode
     const mode = decideMode(userText, opts.forceMode);
     setModePill(mode);
 
-    // Always accept user message
+    // Always show user message
     pushMsg("you", userText);
 
-    // If it’s a soft listen check-in, never fail: reply locally if needed
-    const local = (mode === "listen") ? localListenReply(userText) : null;
-
-    // If local reply triggers, use it instantly AND still optionally call API
-    // (If you want zero API usage for check-ins, keep as-is: local-only)
-    if (local) {
-      pushMsg("simo", local);
-      setNetPill("good", "ok");
-      return;
+    // LISTEN MODE: local reply for check-ins, no backend dependency
+    if (mode === "listen") {
+      const local = localListenReply(userText);
+      if (local) {
+        pushMsg("simo", local);
+        setNetPill("good", "ok");
+        return;
+      }
+      // If it’s listen mode but not a small check-in, we CAN still call backend
+      // (This gives you “best friend” depth without forcing builder mode.)
     }
 
     setBusy(true);
-    setNetPill("warn", "thinking…");
 
     try {
       const { reply, preview_html } = await callSimoAPI({ userText, mode });
 
-      // NEVER reject short replies. Only fail if completely missing.
-      if (!reply) {
-        throw new Error("Empty reply from backend (no 'reply' field).");
-      }
+      if (!reply) throw new Error("Empty reply from backend (missing 'reply').");
 
       pushMsg("simo", reply);
       setNetPill("good", "ok");
 
-      // Show preview only if it exists and looks like HTML
       if (preview_html && typeof preview_html === "string" && preview_html.trim().length > 20) {
         showPreview(preview_html);
-      } else if (mode === "build") {
-        // Builder mode but no preview: keep empty, don’t pretend
-        // (leave existing preview if any; comment next line if you want it to persist)
-        // clearPreviewEmpty();
       }
 
     } catch (err) {
-      // Real, helpful errors — no more mystery “couldn’t reach my brain”
+      // IMPORTANT: show real error so we know what’s wrong
       const msg = (err && err.name === "AbortError")
-        ? "Timed out trying to reach the backend (25s). That’s usually a function crash or endpoint mismatch."
+        ? "Timed out reaching the backend (25s). Usually endpoint mismatch or function crash."
         : (err && err.message ? err.message : "Unknown error.");
 
       setNetPill("bad", "error");
       pushMsg("simo",
         "I hit a snag talking to the backend.\n\n" +
-        "Here’s what I know:\n" +
+        "Here’s the exact error:\n" +
         "- " + msg + "\n\n" +
-        "If you paste this error back to me, I’ll fix the exact cause."
+        "Paste this back to me and I’ll tell you the exact fix (endpoint/function/env)."
       );
     } finally {
       setBusy(false);
@@ -667,4 +623,3 @@
 </script>
 </body>
 </html>
-
