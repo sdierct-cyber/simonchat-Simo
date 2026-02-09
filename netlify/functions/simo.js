@@ -48,7 +48,7 @@ User request: ${userText}
         const img = await openai.images.generate({
           model: "gpt-image-1",
           prompt,
-          size: "512x512"
+          size: "1024x1024"
         });
 
         const imageUrl = img?.data?.[0]?.url;
@@ -112,3 +112,4 @@ User request: ${userText}
     };
   }
 };
+
