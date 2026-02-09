@@ -3,10 +3,9 @@ const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 
 function escapeHtml(str) {
-  return String(str || "")
+  return String(str ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
-    .replaceAll(">", "&lt;")
     .replaceAll(">", "&gt;");
 }
 
@@ -28,10 +27,12 @@ function addMessage(role, text, imageUrl) {
   if (imageUrl) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "rowimg";
+
     const img = document.createElement("img");
     img.className = "generated";
     img.alt = "Generated image";
     img.src = imageUrl;
+
     imgWrap.appendChild(img);
     msg.appendChild(imgWrap);
   }
@@ -53,46 +54,64 @@ async function postSimo(userText) {
     const raw = await res.text();
     throw new Error(`Server returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 800)}`);
   }
+
   const data = await res.json();
+
+  // Allow 202 (job created) as "ok"
   if (!res.ok && res.status !== 202) {
     throw new Error((data?.error || `Server error (${res.status})`) + (data?.detail ? `\n${data.detail}` : ""));
   }
+
   return { status: res.status, data };
 }
 
-async function getJob(id) {
-  const res = await fetch(`/.netlify/functions/simo?id=${encodeURIComponent(id)}`);
+async function getJob(jobId) {
+  const res = await fetch(`/.netlify/functions/simo?id=${encodeURIComponent(jobId)}`);
   const ct = res.headers.get("content-type") || "";
-  if (!ct.includes("application/json")) return null;
-  return res.json();
+  if (!ct.includes("application/json")) {
+    const raw = await res.text();
+    throw new Error(`Job status returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 800)}`);
+  }
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error((data?.error || `Job status error (${res.status})`) + (data?.detail ? `\n${data.detail}` : ""));
+  }
+  return data; // {status:'pending'|'running'|'done'|'error', image?, error?}
 }
 
-async function pollJob(id, bubbleEl) {
+async function pollJob(jobId, bubbleEl) {
   const start = Date.now();
-  const timeoutMs = 90_000; // 90 seconds
+  const timeoutMs = 180_000; // 3 minutes
   const intervalMs = 1500;
 
+  bubbleEl.textContent = "Alright — I’m making it. Hang tight…";
+
   while (Date.now() - start < timeoutMs) {
-    const job = await getJob(id);
-    if (job?.status === "done") {
+    const job = await getJob(jobId);
+
+    if (job.status === "done" && job.image) {
       bubbleEl.textContent = "Done. Here you go:";
-      // Append image under bubble
       const wrap = document.createElement("div");
       wrap.className = "rowimg";
+
       const img = document.createElement("img");
       img.className = "generated";
-      img.src = job.image;
       img.alt = "Generated image";
+      img.src = job.image;
+
       wrap.appendChild(img);
       bubbleEl.parentElement.appendChild(wrap);
       return;
     }
-    if (job?.status === "error") {
-      bubbleEl.textContent = `I hit an error making the image:\n${job.error}`;
+
+    if (job.status === "error") {
+      bubbleEl.textContent = `I hit an error making the image:\n${job.error || "Unknown error"}`;
       return;
     }
-    bubbleEl.textContent = "Still cooking…";
-    await new Promise(r => setTimeout(r, intervalMs));
+
+    // pending/running
+    bubbleEl.textContent = job.status === "running" ? "Still cooking…" : "Queued…";
+    await new Promise((r) => setTimeout(r, intervalMs));
   }
 
   bubbleEl.textContent = "That’s taking too long. Try again in a moment.";
@@ -110,8 +129,11 @@ async function send() {
 
   try {
     const { status, data } = await postSimo(text);
+
+    // Show immediate text
     bubble.textContent = data.text || "";
 
+    // If it's an image job, poll for completion
     if (status === 202 && data.jobId) {
       await pollJob(data.jobId, bubble);
     }
