@@ -116,4 +116,546 @@
       display:flex;
       gap:10px;
       align-items:flex-end;
-      background: linear-gradient(to t
+      background: linear-gradient(to top, rgba(255,255,255,.03), transparent);
+    }
+    textarea{
+      flex:1;
+      resize:none;
+      min-height:48px;
+      max-height:180px;
+      padding:12px 12px;
+      font-family:var(--sans);
+      color:var(--text);
+      background: rgba(255,255,255,.03);
+      border:1px solid var(--line);
+      border-radius: 14px;
+      outline:none;
+    }
+    textarea:focus{
+      border-color: rgba(120,160,255,.35);
+      box-shadow: 0 0 0 3px rgba(120,160,255,.12);
+    }
+
+    .btns{
+      display:flex;
+      gap:10px;
+    }
+    button{
+      border:none;
+      border-radius: 14px;
+      padding: 12px 14px;
+      font-weight:700;
+      color:var(--text);
+      background: linear-gradient(to bottom, var(--btn2), var(--btn));
+      cursor:pointer;
+      box-shadow: var(--shadow);
+      min-width:100px;
+    }
+    button:disabled{
+      opacity:.55;
+      cursor:not-allowed;
+      box-shadow:none;
+    }
+    .ghost{
+      background: rgba(255,255,255,.05);
+      border:1px solid var(--line);
+      box-shadow:none;
+      font-weight:600;
+      min-width:110px;
+    }
+
+    /* Right panel */
+    .previewWrap{
+      display:flex;
+      flex-direction:column;
+      height:100%;
+      min-width:0;
+    }
+    .previewTop{
+      padding:18px;
+      border-bottom:1px solid var(--line);
+    }
+    .title{
+      font-size:20px;
+      font-weight:800;
+      margin:0 0 6px 0;
+    }
+    .sub{
+      color:var(--muted);
+      font-size:13px;
+      margin:0;
+    }
+
+    .chips{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      margin-top:12px;
+    }
+    .chip{
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+      color:var(--muted);
+      cursor:pointer;
+      font-size:12px;
+      user-select:none;
+    }
+    .chip:hover{ color:var(--text); border-color: rgba(255,255,255,.16); }
+
+    .previewBody{
+      flex:1;
+      min-height:0;
+      overflow:auto;
+      padding:0;
+      background: rgba(0,0,0,.15);
+    }
+    .empty{
+      padding:18px;
+      color:var(--muted);
+    }
+
+    iframe{
+      width:100%;
+      height:100%;
+      border:none;
+      background:white;
+    }
+
+    .statusline{
+      font-family:var(--mono);
+      font-size:12px;
+      color:var(--muted);
+      padding:10px 16px;
+      border-top:1px solid var(--line);
+      background: rgba(255,255,255,.02);
+      display:flex;
+      gap:14px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .pill{
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.03);
+    }
+    .pill.good{ border-color: rgba(79,227,154,.35); color: rgba(79,227,154,.95); }
+    .pill.bad{ border-color: rgba(255,107,107,.35); color: rgba(255,107,107,.95); }
+    .pill.warn{ border-color: rgba(247,201,72,.35); color: rgba(247,201,72,.95); }
+
+    @media (max-width: 980px){
+      .app{ grid-template-columns: 1fr; }
+      .col{ border-right:none; border-bottom:1px solid var(--line); }
+      .col:last-child{ border-bottom:none; }
+      button{ min-width:92px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+    <!-- LEFT: CHAT -->
+    <section class="col">
+      <header>
+        <div class="brand"><span class="dot"></span><span>Simo</span></div>
+        <div class="badge" id="planBadge">Free</div>
+      </header>
+
+      <div class="chat" id="chat"></div>
+
+      <div class="composer">
+        <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
+        <div class="btns">
+          <button class="ghost" id="showBtn" title="Ask Simo to build something visual">Show me</button>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+      <div class="statusline" id="statusline">
+        <span class="pill warn" id="netPill">idle</span>
+        <span class="pill" id="modePill">mode: listen</span>
+        <span class="pill" id="endpointPill">endpoint: auto</span>
+      </div>
+    </section>
+
+    <!-- RIGHT: PREVIEW -->
+    <section class="previewWrap">
+      <header>
+        <div class="brand"><span>Preview</span></div>
+        <div class="badge" id="previewHint">Simo will show things here when there’s something real to look at.</div>
+      </header>
+
+      <div class="previewTop">
+        <h2 class="title" id="previewTitle">Nothing here yet.</h2>
+        <p class="sub" id="previewSub">
+          When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.
+        </p>
+        <div class="chips">
+          <div class="chip" data-prompt="Show me a simple 1-page website layout.">website</div>
+          <div class="chip" data-prompt="Show me a clean resume layout I can edit.">resume</div>
+          <div class="chip" data-prompt="Show me a donation landing page mockup.">donation page</div>
+          <div class="chip" data-prompt="Show me a portfolio homepage mockup.">portfolio</div>
+        </div>
+      </div>
+
+      <div class="previewBody" id="previewBody">
+        <div class="empty" id="previewEmpty">Nothing to preview yet.</div>
+      </div>
+    </section>
+  </div>
+
+<script>
+/**
+ * SIMO "ONCE AND FOR ALL" FRONTEND
+ * - Best Friend (listen) + Builder (work + preview)
+ * - Zero "strict validation" that rejects short human messages
+ * - Clear error reporting
+ * - Preview panel accepts HTML from backend
+ *
+ * Backend expected response (flexible):
+ * { reply: "text", preview_html: "<html...>" }
+ * OR { reply: "text", preview: { type:"html", html:"..." } }
+ * OR { reply: "text" }
+ */
+
+(() => {
+  // ====== CONFIG ======
+  // Set one of these and never touch the rest of the file again.
+  // 1) If you have Netlify Functions: "/.netlify/functions/simo"
+  // 2) If you proxy it: "/api/simo"
+  // 3) Or full URL: "https://yourdomain.com/api/simo"
+  const SIMO_ENDPOINT =
+    window.SIMO_ENDPOINT ||
+    localStorage.getItem("SIMO_ENDPOINT") ||
+    "/.netlify/functions/simo";
+
+  // Minimum chat history to send; keep it light and fast
+  const MAX_HISTORY = 14;
+
+  // Soft listen triggers that should NEVER be blocked or forced into "builder"
+  const SOFT_LISTEN = [
+    "are you listening", "you listening", "you there", "hello", "hey", "hi",
+    "can you hear me", "simo", "yo", "sup", "what's up", "whats up"
+  ];
+
+  // Builder keywords (also triggered by "show me" button)
+  const BUILDER_HINTS = [
+    "show me", "build", "create", "design", "make", "generate", "code",
+    "html", "app", "website", "landing", "mockup", "ui", "wireframe",
+    "resume", "portfolio", "donation", "preview"
+  ];
+
+  // ====== DOM ======
+  const chatEl = document.getElementById("chat");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const showBtn = document.getElementById("showBtn");
+
+  const previewBody = document.getElementById("previewBody");
+  const previewEmpty = document.getElementById("previewEmpty");
+  const previewTitle = document.getElementById("previewTitle");
+  const previewSub = document.getElementById("previewSub");
+
+  const netPill = document.getElementById("netPill");
+  const modePill = document.getElementById("modePill");
+  const endpointPill = document.getElementById("endpointPill");
+  endpointPill.textContent = "endpoint: " + (SIMO_ENDPOINT.includes("http") ? "remote" : SIMO_ENDPOINT);
+
+  // ====== STATE ======
+  const state = {
+    messages: loadMessages(),
+    busy: false,
+    lastMode: "listen"
+  };
+
+  // Seed greeting if empty
+  if (state.messages.length === 0) {
+    state.messages.push({ role: "simo", content: "Hey — I’m Simo. What’s going on?" });
+    saveMessages();
+  }
+  render();
+
+  // ====== EVENTS ======
+  sendBtn.addEventListener("click", () => send());
+  showBtn.addEventListener("click", () => {
+    // Put user into builder mode with a gentle default
+    if (!inputEl.value.trim()) inputEl.value = "Show me a quick preview of the thing we were talking about.";
+    send({ forceMode: "build" });
+  });
+
+  // Enter-to-send
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  });
+
+  // Chip prompts
+  document.querySelectorAll(".chip").forEach(chip => {
+    chip.addEventListener("click", () => {
+      inputEl.value = chip.dataset.prompt;
+      send({ forceMode: "build" });
+    });
+  });
+
+  // ====== HELPERS ======
+  function loadMessages() {
+    try {
+      const raw = localStorage.getItem("SIMO_CHAT_V1");
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+  function saveMessages() {
+    localStorage.setItem("SIMO_CHAT_V1", JSON.stringify(state.messages.slice(-200)));
+  }
+
+  function setBusy(on) {
+    state.busy = on;
+    sendBtn.disabled = on;
+    showBtn.disabled = on;
+    netPill.textContent = on ? "thinking…" : "idle";
+    netPill.className = "pill " + (on ? "warn" : "warn");
+  }
+
+  function pushMsg(role, content) {
+    state.messages.push({ role, content });
+    saveMessages();
+    render();
+    scrollChatToBottom();
+  }
+
+  function scrollChatToBottom() {
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function render() {
+    chatEl.innerHTML = "";
+    for (const m of state.messages) {
+      const row = document.createElement("div");
+      row.className = "row " + (m.role === "you" ? "you" : "simo");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+
+      if (m.role !== "you") {
+        const who = document.createElement("div");
+        who.className = "who";
+        who.textContent = "Simo";
+        bubble.appendChild(who);
+      } else {
+        const who = document.createElement("div");
+        who.className = "who";
+        who.textContent = "you";
+        bubble.appendChild(who);
+      }
+
+      const text = document.createElement("div");
+      text.textContent = m.content;
+      bubble.appendChild(text);
+
+      row.appendChild(bubble);
+      chatEl.appendChild(row);
+    }
+    requestAnimationFrame(scrollChatToBottom);
+  }
+
+  function normalize(s) {
+    return (s || "").toLowerCase().trim();
+  }
+
+  function decideMode(userText, forceMode) {
+    if (forceMode === "build" || forceMode === "listen") return forceMode;
+
+    const t = normalize(userText);
+    // Soft listen always wins
+    if (SOFT_LISTEN.some(k => t === k || t.startsWith(k + " "))) return "listen";
+
+    // Builder if it contains any builder hints
+    if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
+
+    // Default: listen
+    return "listen";
+  }
+
+  function localListenReply(userText) {
+    // This is a "never fail" fallback for friend-mode check-ins
+    const t = normalize(userText);
+
+    if (t.includes("are you listening") || t.includes("you there") || t.includes("can you hear")) {
+      return "Yeah — I’m here. What’s up?";
+    }
+    if (t === "hey" || t === "hi" || t === "hello" || t === "yo") {
+      return "Hey. I’m here. What’s going on?";
+    }
+    if (t.length <= 3) {
+      return "I’m here. Say it.";
+    }
+    return null;
+  }
+
+  function setModePill(mode) {
+    state.lastMode = mode;
+    modePill.textContent = "mode: " + mode;
+  }
+
+  function setNetPill(type, text) {
+    netPill.textContent = text;
+    if (type === "good") netPill.className = "pill good";
+    else if (type === "bad") netPill.className = "pill bad";
+    else netPill.className = "pill warn";
+  }
+
+  function showPreview(html) {
+    // Replace preview area with iframe
+    previewEmpty.style.display = "none";
+    previewTitle.textContent = "Preview";
+    previewSub.textContent = "Generated by Simo. If you want changes, tell me what to tweak.";
+
+    // Clear old
+    previewBody.innerHTML = "";
+
+    const iframe = document.createElement("iframe");
+    previewBody.appendChild(iframe);
+
+    const doc = iframe.contentDocument || iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
+  }
+
+  function clearPreviewEmpty() {
+    previewBody.innerHTML = "";
+    previewBody.appendChild(previewEmpty);
+    previewEmpty.style.display = "block";
+    previewTitle.textContent = "Nothing here yet.";
+    previewSub.textContent = "When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.";
+  }
+
+  function summarizeHistoryForAPI() {
+    // Convert our internal roles to a simple history array
+    // Keep it lightweight
+    const trimmed = state.messages.slice(-MAX_HISTORY).map(m => ({
+      role: m.role === "you" ? "user" : "assistant",
+      content: m.content
+    }));
+    return trimmed;
+  }
+
+  async function callSimoAPI({ userText, mode }) {
+    const payload = {
+      message: userText,
+      mode,
+      history: summarizeHistoryForAPI()
+    };
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000);
+
+    try {
+      const res = await fetch(SIMO_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+
+      const raw = await res.text();
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch { /* keep null */ }
+
+      if (!res.ok) {
+        // Provide real debugging info
+        const msg =
+          (data && (data.error || data.message)) ||
+          `HTTP ${res.status} ${res.statusText}` +
+          (raw ? ` — ${raw.slice(0, 180)}` : "");
+        throw new Error(msg);
+      }
+
+      // Flexible schema
+      const reply =
+        (data && (data.reply || data.output || data.message)) ||
+        (typeof data === "string" ? data : null);
+
+      const preview_html =
+        (data && data.preview_html) ||
+        (data && data.preview && data.preview.type === "html" ? data.preview.html : null);
+
+      return { reply, preview_html, raw: data };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  // ====== MAIN SEND ======
+  async function send(opts = {}) {
+    const userText = inputEl.value.trim();
+    if (!userText || state.busy) return;
+
+    inputEl.value = "";
+
+    // Decide mode
+    const mode = decideMode(userText, opts.forceMode);
+    setModePill(mode);
+
+    // Always accept user message
+    pushMsg("you", userText);
+
+    // If it’s a soft listen check-in, never fail: reply locally if needed
+    const local = (mode === "listen") ? localListenReply(userText) : null;
+
+    // If local reply triggers, use it instantly AND still optionally call API
+    // (If you want zero API usage for check-ins, keep as-is: local-only)
+    if (local) {
+      pushMsg("simo", local);
+      setNetPill("good", "ok");
+      return;
+    }
+
+    setBusy(true);
+    setNetPill("warn", "thinking…");
+
+    try {
+      const { reply, preview_html } = await callSimoAPI({ userText, mode });
+
+      // NEVER reject short replies. Only fail if completely missing.
+      if (!reply) {
+        throw new Error("Empty reply from backend (no 'reply' field).");
+      }
+
+      pushMsg("simo", reply);
+      setNetPill("good", "ok");
+
+      // Show preview only if it exists and looks like HTML
+      if (preview_html && typeof preview_html === "string" && preview_html.trim().length > 20) {
+        showPreview(preview_html);
+      } else if (mode === "build") {
+        // Builder mode but no preview: keep empty, don’t pretend
+        // (leave existing preview if any; comment next line if you want it to persist)
+        // clearPreviewEmpty();
+      }
+
+    } catch (err) {
+      // Real, helpful errors — no more mystery “couldn’t reach my brain”
+      const msg = (err && err.name === "AbortError")
+        ? "Timed out trying to reach the backend (25s). That’s usually a function crash or endpoint mismatch."
+        : (err && err.message ? err.message : "Unknown error.");
+
+      setNetPill("bad", "error");
+      pushMsg("simo",
+        "I hit a snag talking to the backend.\n\n" +
+        "Here’s what I know:\n" +
+        "- " + msg + "\n\n" +
+        "If you paste this error back to me, I’ll fix the exact cause."
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+})();
+</script>
+</body>
+</html>
