@@ -33,16 +33,42 @@ No readable text required inside the image (leave space for title/author).
 User request: ${prompt}
 `.trim();
 
+    // Ask explicitly for base64 so we always get something displayable.
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: imagePrompt,
-      size: "1024x1536"
+      size: "1024x1536",
+      response_format: "b64_json"
     });
 
-    const url = img && img.data && img.data[0] && img.data[0].url;
-    if (!url) throw new Error("Image URL missing from response.");
+    const first = img && img.data && img.data[0] ? img.data[0] : null;
 
-    await redis.set(`img:${id}`, { status: "done", image: url }, { ex: 600 });
+    // Some responses include url, some include b64_json. Support both.
+    let imageSrc = first && first.url ? first.url : null;
+
+    if (!imageSrc && first && first.b64_json) {
+      imageSrc = `data:image/png;base64,${first.b64_json}`;
+    }
+
+    if (!imageSrc) {
+      // Store a helpful error so polling stops with a real reason
+      await redis.set(
+        `img:${id}`,
+        {
+          status: "error",
+          error: "Image generated but no url or b64_json was returned."
+        },
+        { ex: 600 }
+      );
+
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: "Image URL missing from response." })
+      };
+    }
+
+    await redis.set(`img:${id}`, { status: "done", image: imageSrc }, { ex: 600 });
 
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   } catch (err) {
