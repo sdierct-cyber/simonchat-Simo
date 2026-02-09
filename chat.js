@@ -87,7 +87,7 @@
 
   async function pollJob(jobId, bubbleEl) {
     const start = Date.now();
-    const timeoutMs = 180000; // 3 minutes
+    const timeoutMs = 300000; // 5 minutes
     const intervalMs = 1500;
 
     bubbleEl.textContent = "Alright — I’m making it. Hang tight…";
