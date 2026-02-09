@@ -6,6 +6,7 @@ function escapeHtml(str) {
   return String(str || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
+    .replaceAll(">", "&lt;")
     .replaceAll(">", "&gt;");
 }
 
@@ -27,44 +28,74 @@ function addMessage(role, text, imageUrl) {
   if (imageUrl) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "rowimg";
-
     const img = document.createElement("img");
     img.className = "generated";
     img.alt = "Generated image";
     img.src = imageUrl;
-
     imgWrap.appendChild(img);
     msg.appendChild(imgWrap);
   }
 
   chatEl.appendChild(msg);
   chatEl.scrollTop = chatEl.scrollHeight;
-  return msg;
+  return { msg, bubble };
 }
 
-async function callSimo(userText) {
+async function postSimo(userText) {
   const res = await fetch("/.netlify/functions/simo", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message: userText })
   });
 
-  const contentType = res.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
     const raw = await res.text();
     throw new Error(`Server returned ${res.status} ${res.statusText} (not JSON):\n${raw.slice(0, 800)}`);
   }
-
   const data = await res.json();
+  if (!res.ok && res.status !== 202) {
+    throw new Error((data?.error || `Server error (${res.status})`) + (data?.detail ? `\n${data.detail}` : ""));
+  }
+  return { status: res.status, data };
+}
 
-  if (!res.ok) {
-    const msg =
-      (data?.error ? data.error : `Server error (${res.status})`) +
-      (data?.detail ? `\n${data.detail}` : "");
-    throw new Error(msg);
+async function getJob(id) {
+  const res = await fetch(`/.netlify/functions/simo?id=${encodeURIComponent(id)}`);
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) return null;
+  return res.json();
+}
+
+async function pollJob(id, bubbleEl) {
+  const start = Date.now();
+  const timeoutMs = 90_000; // 90 seconds
+  const intervalMs = 1500;
+
+  while (Date.now() - start < timeoutMs) {
+    const job = await getJob(id);
+    if (job?.status === "done") {
+      bubbleEl.textContent = "Done. Here you go:";
+      // Append image under bubble
+      const wrap = document.createElement("div");
+      wrap.className = "rowimg";
+      const img = document.createElement("img");
+      img.className = "generated";
+      img.src = job.image;
+      img.alt = "Generated image";
+      wrap.appendChild(img);
+      bubbleEl.parentElement.appendChild(wrap);
+      return;
+    }
+    if (job?.status === "error") {
+      bubbleEl.textContent = `I hit an error making the image:\n${job.error}`;
+      return;
+    }
+    bubbleEl.textContent = "Still cooking…";
+    await new Promise(r => setTimeout(r, intervalMs));
   }
 
-  return data;
+  bubbleEl.textContent = "That’s taking too long. Try again in a moment.";
 }
 
 async function send() {
@@ -75,15 +106,17 @@ async function send() {
   inputEl.value = "";
 
   sendBtn.disabled = true;
-  const thinking = addMessage("simo", "…");
+  const { bubble } = addMessage("simo", "…");
 
   try {
-    const data = await callSimo(text);
-    thinking.remove();
-    addMessage("simo", data.text || "", data.image || null);
+    const { status, data } = await postSimo(text);
+    bubble.textContent = data.text || "";
+
+    if (status === 202 && data.jobId) {
+      await pollJob(data.jobId, bubble);
+    }
   } catch (err) {
-    thinking.remove();
-    addMessage("simo", `I hit an error:\n${String(err.message || err)}`);
+    bubble.textContent = `I hit an error:\n${String(err.message || err)}`;
   } finally {
     sendBtn.disabled = false;
     inputEl.focus();
