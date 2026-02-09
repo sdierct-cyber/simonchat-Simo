@@ -38,12 +38,19 @@ export const handler = async (event) => {
       // If no id, just confirm function is alive (so browser visit doesn’t look “broken”)
       if (!id) {
         let redisOk = false;
-        try {
-          redisOk = await redisSelfTest();
-        } catch {
-          redisOk = false;
-        }
-        return {
+let redisError = null;
+try {
+  redisOk = await redisSelfTest();
+} catch (e) {
+  redisOk = false;
+  redisError = String(e?.message || e);
+}
+return {
+  statusCode: 200,
+  headers,
+  body: JSON.stringify({ ok: true, redisOk, redisError })
+};
+
           statusCode: 200,
           headers,
           body: JSON.stringify({ ok: true, redisOk })
@@ -119,3 +126,4 @@ export const handler = async (event) => {
     };
   }
 };
+
