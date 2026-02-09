@@ -1,4 +1,4 @@
-import { Redis } from "@upstash/redis";
+const { Redis } = require("@upstash/redis");
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL,
@@ -20,77 +20,71 @@ function getOrigin(event) {
 }
 
 async function redisSelfTest() {
-  // quick canary write/read to confirm Redis env/token is valid
   const key = `health:${Date.now()}`;
   await redis.set(key, "ok", { ex: 30 });
   const val = await redis.get(key);
   return val === "ok";
 }
 
-export const handler = async (event) => {
+exports.handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
 
   try {
-    // ✅ HEALTHCHECK + JOB POLLING
+    // GET: healthcheck or job status
     if (event.httpMethod === "GET") {
-      const id = event.queryStringParameters?.id;
+      const id = event.queryStringParameters && event.queryStringParameters.id;
 
-      // If no id, just confirm function is alive (so browser visit doesn’t look “broken”)
       if (!id) {
         let redisOk = false;
-let redisError = null;
-try {
-  redisOk = await redisSelfTest();
-} catch (e) {
-  redisOk = false;
-  redisError = String(e?.message || e);
-}
-return {
-  statusCode: 200,
-  headers,
-  body: JSON.stringify({ ok: true, redisOk, redisError })
-};
+        let redisError = null;
+        try {
+          redisOk = await redisSelfTest();
+        } catch (e) {
+          redisOk = false;
+          redisError = String(e && e.message ? e.message : e);
+        }
 
+        return {
           statusCode: 200,
           headers,
-          body: JSON.stringify({ ok: true, redisOk })
+          body: JSON.stringify({ ok: true, redisOk, redisError })
         };
       }
 
       const job = await redis.get(`img:${id}`);
-      if (!job) return { statusCode: 404, headers, body: JSON.stringify({ error: "Job not found" }) };
+      if (!job) {
+        return { statusCode: 404, headers, body: JSON.stringify({ error: "Job not found" }) };
+      }
 
       return { statusCode: 200, headers, body: JSON.stringify(job) };
     }
 
-    // ✅ CHAT / START IMAGE JOB
+    // POST: chat or start image job
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
     }
 
-    const { message } = JSON.parse(event.body || "{}");
-    const userText = (message || "").trim();
-    if (!userText) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
+    const body = JSON.parse(event.body || "{}");
+    const userText = (body.message || "").trim();
+    if (!userText) {
+      return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
+    }
 
-    // Before doing anything job-related, confirm Redis works (so failures are explicit)
+    // Ensure Redis works before creating jobs
     try {
       const ok = await redisSelfTest();
       if (!ok) {
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ error: "Redis self-test failed", detail: "Redis did not echo back value." })
-        };
+        return { statusCode: 500, headers, body: JSON.stringify({ error: "Redis self-test failed" }) };
       }
     } catch (e) {
       return {
         statusCode: 500,
         headers,
-        body: JSON.stringify({ error: "Redis connection failed", detail: String(e?.message || e) })
+        body: JSON.stringify({ error: "Redis connection failed", detail: String(e && e.message ? e.message : e) })
       };
     }
 
-    // IMAGE JOB
+    // Image job path
     if (wantsImage(userText)) {
       const id = makeId();
       await redis.set(`img:${id}`, { status: "pending" }, { ex: 600 });
@@ -98,7 +92,7 @@ return {
       const origin = getOrigin(event);
       const workerUrl = `${origin}/.netlify/functions/simo_image`;
 
-      // Fire worker
+      // Trigger the worker (absolute URL)
       fetch(workerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,7 +106,7 @@ return {
       };
     }
 
-    // NORMAL CHAT (simple placeholder for now)
+    // Normal chat placeholder (keep it simple while we stabilize images)
     return {
       statusCode: 200,
       headers,
@@ -122,8 +116,7 @@ return {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ error: "Function crashed", detail: String(err?.message || err) })
+      body: JSON.stringify({ error: "Function crashed", detail: String(err && err.message ? err.message : err) })
     };
   }
 };
-
