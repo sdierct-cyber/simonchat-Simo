@@ -33,7 +33,6 @@ No readable text required inside the image (leave space for title/author).
 User request: ${prompt}
 `.trim();
 
-    // Ask explicitly for base64 so we always get something displayable.
     const img = await openai.images.generate({
       model: "gpt-image-1",
       prompt: imagePrompt,
@@ -43,44 +42,24 @@ User request: ${prompt}
 
     const first = img && img.data && img.data[0] ? img.data[0] : null;
 
-    // Some responses include url, some include b64_json. Support both.
     let imageSrc = first && first.url ? first.url : null;
-
     if (!imageSrc && first && first.b64_json) {
       imageSrc = `data:image/png;base64,${first.b64_json}`;
     }
 
     if (!imageSrc) {
-      // Store a helpful error so polling stops with a real reason
-      await redis.set(
-        `img:${id}`,
-        {
-          status: "error",
-          error: "Image generated but no url or b64_json was returned."
-        },
-        { ex: 600 }
-      );
-
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: "Image URL missing from response." })
-      };
+      await redis.set(`img:${id}`, { status: "error", error: "No image returned (missing url/b64_json)." }, { ex: 600 });
+      return { statusCode: 500, headers, body: JSON.stringify({ error: "No image returned." }) };
     }
 
     await redis.set(`img:${id}`, { status: "done", image: imageSrc }, { ex: 600 });
-
     return { statusCode: 200, headers, body: JSON.stringify({ ok: true }) };
   } catch (err) {
     const msg = String(err && err.message ? err.message : err);
-
     try {
       const body = JSON.parse(event.body || "{}");
-      if (body.id) {
-        await redis.set(`img:${body.id}`, { status: "error", error: msg }, { ex: 600 });
-      }
+      if (body.id) await redis.set(`img:${body.id}`, { status: "error", error: msg }, { ex: 600 });
     } catch {}
-
     return { statusCode: 500, headers, body: JSON.stringify({ error: "Image worker failed", detail: msg }) };
   }
 };
