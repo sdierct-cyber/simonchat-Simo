@@ -153,7 +153,6 @@
       min-width:98px;
     }
 
-    /* Right panel */
     .previewWrap{
       display:flex;
       flex-direction:column;
@@ -228,7 +227,6 @@
 
 <body>
   <div class="app">
-    <!-- LEFT: CHAT -->
     <section class="col">
       <header>
         <div class="brand"><span class="dot"></span><span>Simo</span></div>
@@ -253,7 +251,6 @@
       </div>
     </section>
 
-    <!-- RIGHT: PREVIEW -->
     <section class="previewWrap">
       <header>
         <div class="brand"><span>Preview</span></div>
@@ -262,14 +259,12 @@
 
       <div class="previewTop">
         <h2 class="title" id="previewTitle">Nothing here yet.</h2>
-        <p class="sub" id="previewSub">
-          When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.
-        </p>
+        <p class="sub" id="previewSub">When Simo builds something visual, it’ll appear here. You can also say “show me” anytime.</p>
         <div class="chips">
-          <div class="chip" data-prompt="Show me a one-page UI mockup for a driveway/extra-space renting app (listings + booking + map placeholder).">space renting app</div>
-          <div class="chip" data-prompt="Show me a simple 1-page website layout.">website</div>
-          <div class="chip" data-prompt="Show me a clean resume layout I can edit.">resume</div>
-          <div class="chip" data-prompt="Show me a donation landing page mockup.">donation page</div>
+          <div class="chip" data-prompt="Show me a one-page UI mockup for a driveway/extra-space renting app (listings + booking + map placeholder) in Simo vibe (midnight theme, soft glow, premium minimal).">space renting app</div>
+          <div class="chip" data-prompt="Show me a simple 1-page website layout in Simo vibe (midnight theme, premium minimal).">website</div>
+          <div class="chip" data-prompt="Show me a clean resume layout I can edit in Simo vibe (midnight theme, premium minimal).">resume</div>
+          <div class="chip" data-prompt="Show me a donation landing page mockup in Simo vibe (midnight theme, premium minimal).">donation page</div>
         </div>
       </div>
 
@@ -281,7 +276,6 @@
 
 <script>
 (() => {
-  // ====== CONFIG ======
   const SIMO_ENDPOINT =
     window.SIMO_ENDPOINT ||
     localStorage.getItem("SIMO_ENDPOINT") ||
@@ -299,12 +293,11 @@
   ];
 
   const BUILDER_HINTS = [
-    "show me", "build", "create", "design", "make", "generate", "code",
-    "html", "app", "website", "landing", "mockup", "ui", "wireframe",
-    "resume", "portfolio", "donation", "preview"
+    "show me","build","create","design","make","generate","code",
+    "html","app","website","landing","mockup","ui","wireframe",
+    "resume","portfolio","donation","preview"
   ];
 
-  // ====== DOM ======
   const chatEl = document.getElementById("chat");
   const inputEl = document.getElementById("input");
   const sendBtn = document.getElementById("sendBtn");
@@ -312,7 +305,6 @@
   const clearBtn = document.getElementById("clearBtn");
 
   const previewBody = document.getElementById("previewBody");
-  const previewEmpty = document.getElementById("previewEmpty");
   const previewTitle = document.getElementById("previewTitle");
   const previewSub = document.getElementById("previewSub");
 
@@ -322,7 +314,6 @@
 
   endpointPill.textContent = "endpoint: " + (SIMO_ENDPOINT.includes("http") ? "remote" : SIMO_ENDPOINT);
 
-  // ====== STATE ======
   const state = {
     messages: loadMessages(),
     busy: false,
@@ -335,21 +326,22 @@
   }
   render();
 
-  // ====== EVENTS ======
   sendBtn.addEventListener("click", () => send());
 
   showBtn.addEventListener("click", () => {
     if (!inputEl.value.trim()) {
       inputEl.value =
-        "Show me a one-page UI mockup for the space renting app (driveway/extra space rentals) with: " +
-        "a search bar, filter chips, listing cards (price + availability), a map placeholder, and a booking panel.";
+        "Show me a one-page UI mockup for a space-renting marketplace (driveway, garage, storage, yard pad). " +
+        "Style: Simo vibe — midnight theme, soft glow accents (teal/blue), premium minimal, rounded cards. " +
+        "Layout: top search (location + dates), filter chips, left column listing cards (price hour/day/month, availability, rating), " +
+        "right column map placeholder, and a booking panel (dates, duration, total estimate, Request Booking button). " +
+        "Include a toggle: I need space / I have space. Return a complete HTML document in preview_html.";
     }
     send({ forceMode: "build" });
   });
 
   clearBtn.addEventListener("click", () => {
-    const ok = confirm("Clear this conversation?");
-    if (!ok) return;
+    if (!confirm("Clear this conversation?")) return;
     localStorage.removeItem("SIMO_CHAT_V1");
     location.reload();
   });
@@ -368,10 +360,7 @@
     });
   });
 
-  // ====== HELPERS ======
-  function normalize(s) {
-    return (s || "").toLowerCase().trim();
-  }
+  function normalize(s) { return (s || "").toLowerCase().trim(); }
 
   function loadMessages() {
     try {
@@ -396,7 +385,7 @@
     state.messages.push({ role, content });
     saveMessages();
     render();
-    scrollChatToBottom();
+    chatEl.scrollTop = chatEl.scrollHeight;
   }
 
   function render() {
@@ -420,11 +409,7 @@
       row.appendChild(bubble);
       chatEl.appendChild(row);
     }
-    requestAnimationFrame(scrollChatToBottom);
-  }
-
-  function scrollChatToBottom() {
-    chatEl.scrollTop = chatEl.scrollHeight;
+    requestAnimationFrame(() => chatEl.scrollTop = chatEl.scrollHeight);
   }
 
   function setModePill(mode) {
@@ -434,9 +419,7 @@
 
   function setNetPill(type, text) {
     netPill.textContent = text;
-    if (type === "good") netPill.className = "pill good";
-    else if (type === "bad") netPill.className = "pill bad";
-    else netPill.className = "pill warn";
+    netPill.className = "pill " + (type === "good" ? "good" : type === "bad" ? "bad" : "warn");
   }
 
   function showPreview(html) {
@@ -462,7 +445,6 @@
 
   function decideMode(userText, forceMode) {
     if (forceMode === "build" || forceMode === "listen") return forceMode;
-
     const t = normalize(userText);
     if (SOFT_LISTEN.some(k => t === k || t.includes(k))) return "listen";
     if (BUILDER_HINTS.some(k => t.includes(k))) return "build";
@@ -477,37 +459,25 @@
       t.includes("you there") || t.includes("u there") ||
       t.includes("are you there") || t.includes("are u there") ||
       t.includes("can you hear") || t.includes("can u hear")
-    ) {
-      return "Yeah — I’m here. What’s up?";
-    }
+    ) return "Yeah — I’m here. What’s up?";
 
     if (
       t.includes("help me") ||
       t === "help" ||
       t.includes("can you help") || t.includes("can u help") ||
       t.includes("able to help")
-    ) {
-      return "Yeah. Tell me what you need — I got you.";
-    }
+    ) return "Yeah. Tell me what you need — I got you.";
 
-    if (t === "hey" || t === "hi" || t === "hello" || t === "yo" || t === "simo" || t === "sup") {
-      return "Hey. I’m here. What’s going on?";
-    }
+    if (t === "hey" || t === "hi" || t === "hello" || t === "yo" || t === "simo" || t === "sup")
+      return "Hey — I’m here. What’s going on?";
 
-    if (t.length <= 12) {
-      return "I’m here. Say it.";
-    }
+    if (t.length <= 12) return "I’m here. Say it.";
 
     return null;
   }
 
   async function callSimoAPI({ userText, mode }) {
-    const payload = {
-      message: userText,
-      mode,
-      history: summarizeHistoryForAPI()
-    };
-
+    const payload = { message: userText, mode, history: summarizeHistoryForAPI() };
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 25000);
 
@@ -535,14 +505,13 @@
         (data && (data.reply || data.output || data.message)) ||
         (typeof data === "string" ? data : null);
 
-      // Supports both preview_html and preview.html (extra-safe)
       const preview_html =
         (data && data.preview_html) ||
         (data && data.preview && data.preview.type === "html" ? data.preview.html : null) ||
         (data && data.preview && typeof data.preview.html === "string" ? data.preview.html : null) ||
         null;
 
-      return { reply, preview_html, raw: data };
+      return { reply, preview_html };
     } finally {
       clearTimeout(timeout);
     }
@@ -553,10 +522,8 @@
     if (!userText || state.busy) return;
 
     inputEl.value = "";
-
     const mode = decideMode(userText, opts.forceMode);
     setModePill(mode);
-
     pushMsg("you", userText);
 
     if (mode === "listen") {
@@ -569,7 +536,6 @@
     }
 
     setBusy(true);
-
     try {
       const { reply, preview_html } = await callSimoAPI({ userText, mode });
       if (!reply) throw new Error("Empty reply from backend (missing 'reply').");
@@ -577,13 +543,11 @@
       pushMsg("simo", reply);
       setNetPill("good", "ok");
 
-      if (preview_html && typeof preview_html === "string" && preview_html.trim().length > 20) {
-        showPreview(preview_html);
-      }
+      if (preview_html && preview_html.trim().length > 20) showPreview(preview_html);
 
     } catch (err) {
       const msg = (err && err.name === "AbortError")
-        ? "Timed out reaching the backend (25s). Usually endpoint mismatch or function crash."
+        ? "Timed out reaching the backend (25s)."
         : (err && err.message ? err.message : "Unknown error.");
 
       setNetPill("bad", "error");
@@ -597,7 +561,6 @@
       setBusy(false);
     }
   }
-
 })();
 </script>
 </body>
