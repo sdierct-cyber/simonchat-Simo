@@ -1,7 +1,7 @@
 {
-  "name": "simonchat",
-  "version": "1.0.0",
+  "name": "simo",
   "private": true,
+  "type": "module",
   "dependencies": {
     "openai": "^4.0.0"
   }
