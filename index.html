@@ -25,11 +25,11 @@
       flex:1; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:12px;
     }
     .msg{ max-width:900px; }
-    .who{ font-size:12px; opacity:.8; margin-bottom:4px; }
+    .who{ font-size:12px; opacity:.85; margin-bottom:4px; }
     .bubble{
       background:rgba(255,255,255,.04);
       border:1px solid rgba(255,255,255,.06);
-      padding:12px 12px; border-radius:14px; line-height:1.4;
+      padding:12px; border-radius:14px; line-height:1.4;
       white-space:pre-wrap;
     }
     .msg.user .bubble{ background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.25); }
@@ -52,7 +52,7 @@
     }
     button{
       padding:10px 14px; border-radius:12px; border:none; cursor:pointer;
-      background:var(--brand); color:white; font-weight:600;
+      background:var(--brand); color:white; font-weight:700;
     }
     button:disabled{ opacity:.6; cursor:not-allowed; }
   </style>
@@ -67,10 +67,9 @@
 
   <footer>
     <textarea id="input" placeholder="Talk to Simo…"></textarea>
-    <button id="sendBtn">Send</button>
+    <button id="sendBtn" type="button">Send</button>
   </footer>
 
-  <!-- IMPORTANT: You have chat.js in your repo already. Use it. -->
   <script src="chat.js"></script>
 </body>
 </html>
