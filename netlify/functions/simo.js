@@ -92,7 +92,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Simple “best friend” default (you can upgrade later)
     return {
       statusCode: 200,
       headers,
