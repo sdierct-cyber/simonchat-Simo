@@ -335,9 +335,17 @@
 
   // Soft listen triggers that should NEVER be blocked or forced into "builder"
   const SOFT_LISTEN = [
-    "are you listening", "you listening", "you there", "hello", "hey", "hi",
-    "can you hear me", "simo", "yo", "sup", "what's up", "whats up"
-  ];
+  // presence / check-in
+  "are you listening","are u listening","u listening","you listening",
+  "you there","are you there","are u there","you still there","u there",
+  "can you hear me","can u hear me","can you hear","can u hear",
+  "hello","hey","hi","yo","sup","simo",
+
+  // “help me” check-ins (still listen mode)
+  "can you help me","can u help me","are you able to help me","are u able to help me",
+  "can you help","can u help","help me","i need help"
+];
+
 
   // Builder keywords (also triggered by "show me" button)
   const BUILDER_HINTS = [
@@ -659,3 +667,4 @@
 </script>
 </body>
 </html>
+
