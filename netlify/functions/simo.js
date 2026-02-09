@@ -13,11 +13,18 @@ function makeId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+// Build an absolute origin like https://simonchat.ai from the incoming request
+function getOrigin(event) {
+  const proto = event.headers["x-forwarded-proto"] || "https";
+  const host = event.headers["host"];
+  return `${proto}://${host}`;
+}
+
 export const handler = async (event) => {
   const headers = { "Content-Type": "application/json" };
 
   try {
-    // POLL STATUS
+    // GET = poll job status
     if (event.httpMethod === "GET") {
       const id = event.queryStringParameters?.id;
       if (!id) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing id" }) };
@@ -28,6 +35,7 @@ export const handler = async (event) => {
       return { statusCode: 200, headers, body: JSON.stringify(job) };
     }
 
+    // POST = chat or start image job
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
     }
@@ -36,15 +44,16 @@ export const handler = async (event) => {
     const userText = (message || "").trim();
     if (!userText) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
 
-    // IMAGE REQUEST → CREATE JOB + TRIGGER BACKGROUND WORK
+    // Image request: create job + trigger worker
     if (wantsImage(userText)) {
       const id = makeId();
+      await redis.set(`img:${id}`, { status: "pending" }, { ex: 600 });
 
-      await redis.set(`img:${id}`, { status: "pending" }, { ex: 600 }); // expires in 10 min
+      const origin = getOrigin(event);
+      const workerUrl = `${origin}/.netlify/functions/simo_image`;
 
-      // Trigger the background function (non-blocking)
-      // NOTE: Uses an internal fetch call; Netlify will route it.
-      fetch(`${process.env.URL}/.netlify/functions/simo_image`, {
+      // Fire-and-forget trigger (absolute URL so Node fetch doesn’t crash)
+      fetch(workerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id, prompt: userText })
@@ -60,12 +69,12 @@ export const handler = async (event) => {
       };
     }
 
-    // NORMAL CHAT (keep your current chat behavior here if you want)
+    // Normal chat placeholder (keep this simple for now)
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
-        text: "For now, chat is working — images are handled as jobs. Ask me to generate a cover and I’ll produce it."
+        text: "I’m here. Ask me anything — or ask me to generate a book cover image."
       })
     };
   } catch (err) {
