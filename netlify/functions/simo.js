@@ -6,7 +6,7 @@ const redis = new Redis({
 });
 
 function wantsImage(text = "") {
-  return /\b(show|image|picture|cover|book cover|logo|mockup|design|illustration)\b/i.test(text);
+  return /\b(show|image|picture|cover|book cover|generate.*image|illustration|make.*image)\b/i.test(text);
 }
 
 function makeId() {
@@ -43,39 +43,27 @@ exports.handler = async (event) => {
           redisOk = false;
           redisError = String(e && e.message ? e.message : e);
         }
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({ ok: true, redisOk, redisError })
-        };
+        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, redisOk, redisError }) };
       }
 
       const job = await redis.get(`img:${id}`);
-      if (!job) {
-        return { statusCode: 404, headers, body: JSON.stringify({ error: "Job not found" }) };
-      }
-
+      if (!job) return { statusCode: 404, headers, body: JSON.stringify({ error: "Job not found" }) };
       return { statusCode: 200, headers, body: JSON.stringify(job) };
     }
 
-    // POST: chat or start image job
+    // POST: start image job OR reply text
     if (event.httpMethod !== "POST") {
       return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
     }
 
     const body = JSON.parse(event.body || "{}");
     const userText = (body.message || "").trim();
-    if (!userText) {
-      return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
-    }
+    if (!userText) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
 
-    // Ensure Redis works before creating jobs
+    // Ensure Redis is good
     try {
       const ok = await redisSelfTest();
-      if (!ok) {
-        return { statusCode: 500, headers, body: JSON.stringify({ error: "Redis self-test failed" }) };
-      }
+      if (!ok) return { statusCode: 500, headers, body: JSON.stringify({ error: "Redis self-test failed" }) };
     } catch (e) {
       return {
         statusCode: 500,
@@ -84,7 +72,6 @@ exports.handler = async (event) => {
       };
     }
 
-    // Image job path
     if (wantsImage(userText)) {
       const id = makeId();
       await redis.set(`img:${id}`, { status: "pending" }, { ex: 600 });
@@ -92,7 +79,6 @@ exports.handler = async (event) => {
       const origin = getOrigin(event);
       const workerUrl = `${origin}/.netlify/functions/simo_image`;
 
-      // Trigger the worker (absolute URL)
       fetch(workerUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,11 +92,11 @@ exports.handler = async (event) => {
       };
     }
 
-    // Normal chat placeholder (keep it simple while we stabilize images)
+    // Simple “best friend” default (you can upgrade later)
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ text: "I’m here. Ask me anything — or ask me to generate a book cover image." })
+      body: JSON.stringify({ text: "I’m here. Tell me what you need — or ask me to generate a book cover image." })
     };
   } catch (err) {
     return {
