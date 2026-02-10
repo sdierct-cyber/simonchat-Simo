@@ -2,7 +2,6 @@
    Drop-in preview modal that loads /preview.html in an iframe.
    Safe: no dependencies, no API calls, doesn't touch chat input handlers.
 */
-
 (function () {
   "use strict";
 
@@ -100,14 +99,12 @@
     const title = (opts && opts.title) ? opts.title : "App preview";
     const badge = (opts && opts.badge) ? opts.badge : "PREVIEW";
 
-    // If already open, close then reopen cleanly
     closeModal();
 
     const overlay = document.createElement("div");
     overlay.id = "simoPreviewOverlay";
     overlay.className = "simoPreviewOverlay";
     overlay.addEventListener("mousedown", (e) => {
-      // Click outside modal closes
       if (e.target === overlay) closeModal();
     });
 
@@ -171,11 +168,9 @@
     document.addEventListener("keydown", onEsc);
   }
 
-  // Very light intent detection (optional)
   function maybeHandlePreviewIntent(userText) {
     const t = String(userText || "").toLowerCase();
 
-    // If user clearly asked to see something
     const wantsPreview =
       t.includes("show me a preview") ||
       t.includes("show a preview") ||
@@ -188,7 +183,6 @@
 
     if (!wantsPreview) return { handled: false };
 
-    // You can map keywords to different preview pages later if you want
     let title = "App preview";
     if (t.includes("bakery")) title = "Bakery app — one-page mockup";
     if (t.includes("space") || t.includes("driveway") || t.includes("parking")) title = "Space renting app — one-page mockup";
@@ -197,7 +191,6 @@
     return { handled: true };
   }
 
-  // Expose a small global API without breaking anything else
   window.SimoPreview = {
     open: openPreview,
     close: closeModal,
