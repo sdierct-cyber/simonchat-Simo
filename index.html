@@ -7,18 +7,16 @@
   <style>
     :root{
       --bg:#0a1020;
-      --panel:#0f1933;
       --text:#eaf0ff;
       --muted:#a9b6d6;
       --line:rgba(255,255,255,.10);
-      --accent:#66a6ff;
       --good:#55d38a;
       --bad:#ff6b6b;
     }
     *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
       background: radial-gradient(1100px 700px at 20% 0%, #142a6b 0%, var(--bg) 55%, #070b16 100%);
       color:var(--text);
       min-height:100vh;
@@ -44,31 +42,16 @@
       border-bottom:1px solid var(--line);
       background: rgba(0,0,0,.12);
     }
-    .brand{
-      display:flex;
-      gap:12px;
-      align-items:center;
-      min-width:0;
-    }
+    .brand{display:flex;gap:12px;align-items:center;min-width:0;}
     .dot{
       width:12px;height:12px;border-radius:999px;background:var(--good);
       box-shadow:0 0 0 6px rgba(85,211,138,.12);
       flex:0 0 auto;
     }
-    .title{
-      display:flex;flex-direction:column;min-width:0;
-    }
-    .title b{
-      font-size:15px;
-      letter-spacing:.2px;
-    }
-    .title span{
-      font-size:12px;color:var(--muted);
-      white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-    }
-    .controls{
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;
-    }
+    .title{display:flex;flex-direction:column;min-width:0;}
+    .title b{font-size:15px;letter-spacing:.2px;}
+    .title span{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end;}
     .pill{
       display:flex;align-items:center;gap:8px;
       padding:8px 10px;border-radius:999px;
@@ -91,93 +74,38 @@
       font-weight:600;
       font-size:12px;
     }
-    button:hover{ transform: translateY(-1px); background: rgba(102,166,255,.20); }
-    button:active{ transform: translateY(0px); }
-
-    main{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:0;
-      padding:0;
-      background: rgba(0,0,0,.06);
-    }
-
-    #chat{
-      height:min(68vh, 640px);
-      overflow:auto;
-      padding:18px;
-    }
-    .msg{
-      display:flex; gap:10px;
-      margin:10px 0;
-      max-width: 820px;
-    }
-    .msg.you{ margin-left:auto; flex-direction:row-reverse; }
+    button:hover{ transform: translateY(-1px); }
+    main{background: rgba(0,0,0,.06);}
+    #chat{height:min(68vh, 640px);overflow:auto;padding:18px;}
+    .msg{display:flex;gap:10px;margin:10px 0;max-width:820px;}
+    .msg.you{margin-left:auto;flex-direction:row-reverse;}
     .avatar{
       width:34px;height:34px;border-radius:12px;
       background: rgba(255,255,255,.08);
       display:flex;align-items:center;justify-content:center;
       border:1px solid var(--line);
       flex:0 0 auto;
-      font-weight:700;
-      font-size:12px;
-      color: rgba(234,240,255,.90);
+      font-weight:700;font-size:12px;color: rgba(234,240,255,.90);
     }
     .bubble{
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid var(--line);
+      padding:12px;border-radius:14px;border:1px solid var(--line);
       background: rgba(10,16,32,.58);
-      line-height:1.35;
-      font-size:14px;
-      white-space:pre-wrap;
+      line-height:1.35;font-size:14px;white-space:pre-wrap;
     }
-    .msg.you .bubble{
-      background: rgba(102,166,255,.14);
-    }
-    .row{
-      display:flex;
-      gap:10px;
-      padding:14px;
-      border-top:1px solid var(--line);
-      background: rgba(0,0,0,.12);
-    }
+    .msg.you .bubble{background: rgba(102,166,255,.14);}
+    .row{display:flex;gap:10px;padding:14px;border-top:1px solid var(--line);background: rgba(0,0,0,.12);}
     textarea{
-      flex:1;
-      min-height:44px;
-      max-height:140px;
-      resize:vertical;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background: rgba(10,16,32,.62);
-      color:var(--text);
-      padding:11px 12px;
-      outline:none;
-      font-size:14px;
-      line-height:1.35;
+      flex:1;min-height:44px;max-height:140px;resize:vertical;
+      border-radius:12px;border:1px solid var(--line);
+      background: rgba(10,16,32,.62);color:var(--text);
+      padding:11px 12px;outline:none;font-size:14px;line-height:1.35;
     }
-    .hint{
-      padding:0 14px 14px;
-      color:var(--muted);
-      font-size:12px;
-    }
+    .hint{padding:0 14px 14px;color:var(--muted);font-size:12px;}
     .tag{
-      display:inline-block;
-      padding:3px 8px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      margin-right:6px;
-      margin-top:6px;
-      font-size:11px;
-      color:var(--muted);
+      display:inline-block;padding:3px 8px;border-radius:999px;border:1px solid var(--line);
+      background: rgba(255,255,255,.06);margin-right:6px;margin-top:6px;font-size:11px;color:var(--muted);
     }
-    .err{
-      color: var(--bad);
-      font-size:12px;
-      padding:8px 14px 14px;
-      display:none;
-    }
+    .err{color:var(--bad);font-size:12px;padding:8px 14px 14px;display:none;}
   </style>
 </head>
 
@@ -217,8 +145,8 @@
         <span class="tag">math: “217*22”</span>
         <span class="tag">time: “what is my time”</span>
         <span class="tag">weather: “weather 48044”</span>
-        <span class="tag">vent: “I’m tired of this argument loop”</span>
-        <span class="tag">build: “help me design an app”</span>
+        <span class="tag">build: “design an app”</span>
+        <span class="tag">exit builder: “back to chat”</span>
       </div>
 
       <div class="err" id="err"></div>
@@ -239,6 +167,7 @@
 
   const STORAGE_KEY = "simo_chat_v1";
   const BUILDER_COUNT_KEY = "simo_builder_count_v1";
+  const MODE_LOCK_KEY = "simo_mode_lock_v1"; // <-- builder lock lives here
 
   let history = [];
 
@@ -247,7 +176,6 @@
     statusDot.style.boxShadow = ok ? "0 0 0 6px rgba(85,211,138,.12)" : "0 0 0 6px rgba(255,107,107,.12)";
     if (text) sub.textContent = text;
   }
-
   function showErr(msg){
     errEl.style.display = "block";
     errEl.textContent = msg;
@@ -314,10 +242,24 @@
     const n = Number(localStorage.getItem(BUILDER_COUNT_KEY) || "0");
     return Number.isFinite(n) ? n : 0;
   }
-
   function bumpBuilderCount(){
     const n = getBuilderCount();
     localStorage.setItem(BUILDER_COUNT_KEY, String(n + 1));
+  }
+
+  function setModeLock(val){
+    if (!val) localStorage.removeItem(MODE_LOCK_KEY);
+    else localStorage.setItem(MODE_LOCK_KEY, val);
+  }
+  function getModeLock(){
+    return localStorage.getItem(MODE_LOCK_KEY) || "";
+  }
+
+  function messageLooksLikeBuilder(text){
+    return /\b(build|code|design|make an app|website|app|html|css|javascript|react|backend)\b/i.test(text);
+  }
+  function messageLooksLikeExit(text){
+    return /\b(back to chat|exit builder|stop builder|nevermind|never mind|cancel|forget it)\b/i.test(text);
   }
 
   async function send(){
@@ -327,12 +269,17 @@
     clearErr();
     setStatus(true, "Thinking…");
 
+    // Update lock BEFORE sending (so server can honor it on follow-ups)
+    if (messageLooksLikeExit(text)) setModeLock("");
+    else if (messageLooksLikeBuilder(text)) setModeLock("build");
+
     history.push({ role:"user", content:text });
     addMessage("user", text);
     inputEl.value = "";
     save();
 
     const builderCount = getBuilderCount();
+    const modeLock = getModeLock();
 
     try{
       const res = await fetch("/api/simon", {
@@ -343,7 +290,8 @@
           history: history.slice(-24),
           tz: tzEl.value || "America/Detroit",
           zip: zipEl.value || "",
-          builderCount
+          builderCount,
+          modeLock
         })
       });
 
@@ -357,9 +305,7 @@
       addMessage("assistant", reply);
       save();
 
-      // rotate builder gate text over time (simple + effective)
       bumpBuilderCount();
-
       setStatus(true, "What’s going on?");
     } catch (e){
       setStatus(false, "I couldn’t reach my brain for a second. Try again.");
@@ -376,8 +322,9 @@
   clearBtn.addEventListener("click", () => {
     history = [];
     localStorage.removeItem(STORAGE_KEY);
-    // keep builderCount (optional); if you want it cleared too, uncomment next line:
+    // Keep builder lock/count by default. If you want a full reset, uncomment:
     // localStorage.removeItem(BUILDER_COUNT_KEY);
+    // localStorage.removeItem(MODE_LOCK_KEY);
     render();
   });
 
