@@ -72,11 +72,11 @@ export async function handler(event) {
 
     // Build/design/code requests: gate it (paid later)
     if (intent === "build") {
-      return json(200, {
-        reply:
-          "I can help you build that — but that’s part of the Builder tools (paid feature). If you tell me what you want (one sentence), I’ll map the plan and what the upgrade unlocks."
-      });
-    }
+  return json(200, {
+    reply:
+      "Yeah — I can help you design that. That’s a Builder thing (paid).\n\nTell me in **one sentence**: what’s the app + who’s it for?\nThen I’ll sketch the plan and what the upgrade unlocks."
+  });
+}
 
     // Everything else: best-friend human tone via model
     const reply = await callOpenAI({
