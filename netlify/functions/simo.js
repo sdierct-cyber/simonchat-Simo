@@ -1,107 +1,67 @@
-const { Redis } = require("@upstash/redis");
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
-});
-
-function wantsImage(text = "") {
-  return /\b(show|image|picture|cover|book cover|generate.*image|illustration|make.*image)\b/i.test(text);
-}
-
-function makeId() {
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
-
-function getOrigin(event) {
-  const proto = event.headers["x-forwarded-proto"] || "https";
-  const host = event.headers["host"];
-  return `${proto}://${host}`;
-}
-
-async function redisSelfTest() {
-  const key = `health:${Date.now()}`;
-  await redis.set(key, "ok", { ex: 30 });
-  const val = await redis.get(key);
-  return val === "ok";
-}
-
-exports.handler = async (event) => {
-  const headers = { "Content-Type": "application/json" };
-
+export default async (req) => {
   try {
-    // GET: healthcheck or job status
-    if (event.httpMethod === "GET") {
-      const id = event.queryStringParameters && event.queryStringParameters.id;
+    if (req.method !== "POST") return json(405, { error: "Method not allowed" });
 
-      if (!id) {
-        let redisOk = false;
-        let redisError = null;
-        try {
-          redisOk = await redisSelfTest();
-        } catch (e) {
-          redisOk = false;
-          redisError = String(e && e.message ? e.message : e);
-        }
-        return { statusCode: 200, headers, body: JSON.stringify({ ok: true, redisOk, redisError }) };
-      }
+    const body = await req.json().catch(() => ({}));
+    const incoming = Array.isArray(body.messages) ? body.messages : [];
+    const userText = String(body.user_text || "").trim();
 
-      const job = await redis.get(`img:${id}`);
-      if (!job) return { statusCode: 404, headers, body: JSON.stringify({ error: "Job not found" }) };
-      return { statusCode: 200, headers, body: JSON.stringify(job) };
-    }
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+    if (!OPENAI_API_KEY) return json(500, { error: "Missing OPENAI_API_KEY in Netlify env vars." });
 
-    // POST: start image job OR reply text
-    if (event.httpMethod !== "POST") {
-      return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
-    }
+    // Simo vibe: stable + concise + best-friend
+    const system = {
+      role: "system",
+      content:
+`You are Simo. You sound like a private best friend: direct, warm, sometimes a little edgy, never clinical.
+No therapy-speak unless asked.
 
-    const body = JSON.parse(event.body || "{}");
-    const userText = (body.message || "").trim();
-    if (!userText) return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing message" }) };
-
-    // Ensure Redis is good
-    try {
-      const ok = await redisSelfTest();
-      if (!ok) return { statusCode: 500, headers, body: JSON.stringify({ error: "Redis self-test failed" }) };
-    } catch (e) {
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: "Redis connection failed", detail: String(e && e.message ? e.message : e) })
-      };
-    }
-
-    if (wantsImage(userText)) {
-      const id = makeId();
-      await redis.set(`img:${id}`, { status: "pending" }, { ex: 600 });
-
-      const origin = getOrigin(event);
-      const workerUrl = `${origin}/.netlify/functions/simo_image`;
-
-      fetch(workerUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, prompt: userText })
-      }).catch(() => {});
-
-      return {
-        statusCode: 202,
-        headers,
-        body: JSON.stringify({ text: "Alright — I’m making it. Hang tight.", jobId: id })
-      };
-    }
-
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ text: "I’m here. Tell me what you need — or ask me to generate a book cover image." })
+Rules:
+- If the user asks simple math (like 217*22), answer with ONLY the number.
+- Keep replies tight and human. 1–10 sentences.
+- If the user vents, validate briefly and ask ONE real question.`
     };
-  } catch (err) {
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: "Function crashed", detail: String(err && err.message ? err.message : err) })
-    };
+
+    const trimmed = trim(incoming, 14);
+
+    const apiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "authorization": `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        messages: [system, ...trimmed, { role: "user", content: userText }],
+        temperature: 0.8,
+        max_tokens: 260
+      })
+    });
+
+    const data = await apiRes.json().catch(() => ({}));
+    if (!apiRes.ok) {
+      return json(500, { error: data?.error?.message || `OpenAI error (${apiRes.status})` });
+    }
+
+    const reply = data?.choices?.[0]?.message?.content?.trim() || "Hey — I’m here. What’s going on?";
+    return json(200, { reply });
+  } catch (e) {
+    return json(500, { error: e?.message || "Server error" });
   }
 };
+
+function json(status, obj) {
+  return new Response(JSON.stringify(obj), {
+    status,
+    headers: { "content-type": "application/json" }
+  });
+}
+
+function trim(msgs, pairs) {
+  const clean = msgs
+    .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+    .map(m => ({ role: m.role, content: m.content }));
+  const max = Math.max(2, pairs * 2);
+  return clean.slice(-max);
+}
