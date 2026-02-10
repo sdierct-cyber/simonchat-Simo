@@ -40,18 +40,21 @@ export async function handler(event) {
     }
 
     // Time: quick local time (no model)
-    if (intent === "time") {
+        if (intent === "time") {
       const now = new Date();
-      const fmt = new Intl.DateTimeFormat("en-US", {
+      const timeFmt = new Intl.DateTimeFormat("en-US", {
         timeZone: tz,
-        weekday: "long",
-        month: "long",
-        day: "2-digit",
-        year: "numeric",
         hour: "numeric",
         minute: "2-digit"
       });
-      return json(200, { reply: `It’s ${fmt.format(now)} (${tz}).` });
+      const dateFmt = new Intl.DateTimeFormat("en-US", {
+        timeZone: tz,
+        weekday: "long",
+        month: "long",
+        day: "numeric"
+      });
+
+      return json(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
     }
 
     // Weather: real weather via Open-Meteo if ZIP present
