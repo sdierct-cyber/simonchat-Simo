@@ -8,7 +8,6 @@
     :root{
       --bg:#0a1020;
       --panel:#0f1933;
-      --panel2:#0c1530;
       --text:#eaf0ff;
       --muted:#a9b6d6;
       --line:rgba(255,255,255,.10);
@@ -78,7 +77,7 @@
       font-size:12px;color:var(--muted);
     }
     .pill input{
-      width:88px;
+      width:120px;
       background:transparent;border:none;outline:none;color:var(--text);
       font-size:12px;
     }
@@ -120,6 +119,9 @@
       display:flex;align-items:center;justify-content:center;
       border:1px solid var(--line);
       flex:0 0 auto;
+      font-weight:700;
+      font-size:12px;
+      color: rgba(234,240,255,.90);
     }
     .bubble{
       padding:12px 12px;
@@ -132,11 +134,6 @@
     }
     .msg.you .bubble{
       background: rgba(102,166,255,.14);
-    }
-    .meta{
-      margin-top:6px;
-      font-size:11px;
-      color:var(--muted);
     }
     .row{
       display:flex;
@@ -218,7 +215,7 @@
 
       <div class="hint">
         <span class="tag">math: “217*22”</span>
-        <span class="tag">time: “what time is it”</span>
+        <span class="tag">time: “what is my time”</span>
         <span class="tag">weather: “weather 48044”</span>
         <span class="tag">vent: “I’m tired of this argument loop”</span>
         <span class="tag">build: “help me design an app”</span>
@@ -241,6 +238,8 @@
   const sub = document.getElementById("sub");
 
   const STORAGE_KEY = "simo_chat_v1";
+  const BUILDER_COUNT_KEY = "simo_builder_count_v1";
+
   let history = [];
 
   function setStatus(ok, text){
@@ -259,7 +258,7 @@
   }
 
   function escapeHTML(s){
-    return s.replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[c]));
   }
 
   function addMessage(role, content){
@@ -274,11 +273,8 @@
     bubble.className = "bubble";
     bubble.innerHTML = escapeHTML(content);
 
-    const block = document.createElement("div");
-    block.appendChild(bubble);
-
     wrap.appendChild(avatar);
-    wrap.appendChild(block);
+    wrap.appendChild(bubble);
 
     chatEl.appendChild(wrap);
     chatEl.scrollTop = chatEl.scrollHeight;
@@ -291,6 +287,7 @@
       zip: zipEl.value || ""
     }));
   }
+
   function load(){
     try{
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -313,6 +310,16 @@
     }
   }
 
+  function getBuilderCount(){
+    const n = Number(localStorage.getItem(BUILDER_COUNT_KEY) || "0");
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  function bumpBuilderCount(){
+    const n = getBuilderCount();
+    localStorage.setItem(BUILDER_COUNT_KEY, String(n + 1));
+  }
+
   async function send(){
     const text = (inputEl.value || "").trim();
     if(!text) return;
@@ -325,6 +332,8 @@
     inputEl.value = "";
     save();
 
+    const builderCount = getBuilderCount();
+
     try{
       const res = await fetch("/api/simon", {
         method: "POST",
@@ -333,7 +342,8 @@
           message: text,
           history: history.slice(-24),
           tz: tzEl.value || "America/Detroit",
-          zip: zipEl.value || ""
+          zip: zipEl.value || "",
+          builderCount
         })
       });
 
@@ -346,11 +356,15 @@
       history.push({ role:"assistant", content: reply });
       addMessage("assistant", reply);
       save();
+
+      // rotate builder gate text over time (simple + effective)
+      bumpBuilderCount();
+
       setStatus(true, "What’s going on?");
     } catch (e){
       setStatus(false, "I couldn’t reach my brain for a second. Try again.");
       showErr(String(e.message || e));
-      // keep the chat usable even if API fails
+
       history.push({ role:"assistant", content:"I couldn’t reach my brain for a second. Try again." });
       addMessage("assistant", "I couldn’t reach my brain for a second. Try again.");
       save();
@@ -358,9 +372,12 @@
   }
 
   sendBtn.addEventListener("click", send);
+
   clearBtn.addEventListener("click", () => {
     history = [];
     localStorage.removeItem(STORAGE_KEY);
+    // keep builderCount (optional); if you want it cleared too, uncomment next line:
+    // localStorage.removeItem(BUILDER_COUNT_KEY);
     render();
   });
 
