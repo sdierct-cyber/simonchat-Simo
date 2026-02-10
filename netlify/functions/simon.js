@@ -111,8 +111,15 @@ function detectIntent(text) {
   if (/\b(generate|make|create|draw|render)\b.*\b(image|picture|photo|cover|logo|art)\b/.test(t)) return "image";
   if (/\bimage\b/.test(t) && /\bloop\b/.test(t)) return "image";
 
-  // time
-  if (/\bwhat time\b|\btime is it\b|\bcurrent time\b/.test(t)) return "time";
+    // time (cover more natural phrasing)
+  if (
+    /\bwhat\s*(is|’s)\s*(my\s*)?time\b/.test(t) ||
+    /\bmy\s*time\b/.test(t) ||
+    /\btime\s*now\b/.test(t) ||
+    /\bwhat\s*time\b/.test(t) ||
+    /\btime\s+is\s+it\b/.test(t) ||
+    /\bcurrent\s+time\b/.test(t)
+  ) return "time";
 
   // weather
   if (/\bweather\b|\bforecast\b|\btemperature\b|\brain\b|\bsnow\b/.test(t)) return "weather";
