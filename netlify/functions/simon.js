@@ -1,4 +1,6 @@
-export async function handler(event) {
+// netlify/functions/simon.js  (CommonJS version for Netlify reliability)
+
+exports.handler = async function handler(event) {
   try {
     if (event.httpMethod !== "POST") {
       return json(405, { error: "Use POST" });
@@ -118,9 +120,10 @@ export async function handler(event) {
 
     return json(200, { reply: cleanup(reply) });
   } catch (err) {
+    // Return the real error to the browser so you can see what broke
     return json(500, { error: err?.message || String(err) });
   }
-}
+};
 
 // -----------------------------
 // Helpers
@@ -167,7 +170,6 @@ function detectIntent(text) {
 }
 
 function looksLikeMath(t) {
-  // 217*22, 217 x 22, (2+3)*5, 10/2, etc.
   if (/^\s*[-+()0-9.\s]+([x*\/^+-]\s*[-+()0-9.\s]+)+\s*$/.test(t)) return true;
   if (/\b(multiplied by|times|divided by|plus|minus)\b/.test(t) && /[0-9]/.test(t)) return true;
   return false;
@@ -245,4 +247,85 @@ function cleanup(s) {
     .trim();
 
   // remove robotic filler openings
-  out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+
+  out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
+  out = out.replace(/^here(’|')?s\b\s*/i, "");
+
+  // avoid AI disclaimers (best effort)
+  out = out.replace(/\b(as an ai|i’m an ai|i am an ai|i cannot|i can't access real[- ]time)\b.*$/i, out);
+
+  if (out.length > 900) out = out.slice(0, 900).trim();
+  return out;
+}
+
+async function callOpenAI({ tz, zip, history, userText, mode }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY in Netlify env vars");
+
+  const system = buildSystemPrompt({ tz, zip, mode });
+  const msgs = [{ role: "system", content: system }];
+
+  if (Array.isArray(history)) {
+    for (const m of history.slice(-18)) {
+      if (!m || typeof m !== "object") continue;
+      if (m.role !== "user" && m.role !== "assistant") continue;
+      const c = String(m.content || "").slice(0, 1800);
+      msgs.push({ role: m.role, content: c });
+    }
+  }
+
+  msgs.push({ role: "user", content: userText });
+
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      messages: msgs,
+      temperature: mode === "math" ? 0 : 0.7,
+      max_tokens: mode === "math" ? 40 : 400
+    })
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`OpenAI error (${res.status}): ${errText || "request failed"}`);
+  }
+
+  const data = await res.json();
+  return data?.choices?.[0]?.message?.content || "";
+}
+
+function buildSystemPrompt({ tz, zip, mode }) {
+  const base = `You are "Simo" — a private best friend.
+Speak like a real person: short, direct, normal words. A little edge is fine.
+No therapy-speak. No corporate tone. No lectures.
+Don't narrate what you're doing. Don't say you're an AI. Don't say you "can't access" things.
+If unclear, ask ONE short question — not a list.
+
+Hard rules:
+- Math questions: output ONLY the final answer. No steps. No extra words.
+- Time questions: use timezone "${tz}".
+- Weather: if ZIP is needed, ask for ZIP; do not invent live weather. ZIP on file: "${zip || "none"}".
+- Image requests: you cannot generate images here. Offer a strong text prompt instead. Do NOT loop.
+- Build/design/coding requests: say it's part of Builder tools (paid) and ask what they want in ONE sentence. Keep it friendly, not salesy.
+
+Style:
+- Keep replies tight (usually 1–6 lines).
+- Sound like a human texting, not a help article.`;
+
+  if (mode === "math") return base + "\n\nMode: MATH. Output must be only the final numeric answer.";
+  return base + "\n\nMode: CHAT. Be human, concise, and useful.";
+}
+
+function hash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
+  }
+  return h;
+}
