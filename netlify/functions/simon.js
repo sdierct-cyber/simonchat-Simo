@@ -1,4 +1,4 @@
-// netlify/functions/simon.js (Netlify-safe CommonJS + Builder Lock)
+// netlify/functions/simon.js (Netlify-safe CommonJS baseline)
 
 exports.handler = async function (event) {
   try {
@@ -9,38 +9,38 @@ exports.handler = async function (event) {
     const history = Array.isArray(body.history) ? body.history : [];
     const tz = String(body.tz || "America/Detroit");
     const zip = String(body.zip || "");
-    const builderCount = Number(body.builderCount || 0);
-    const modeLock = String(body.modeLock || ""); // <-- builder lock input
 
     if (!text) return j(400, { error: "Missing message" });
 
     const intent = detectIntent(text);
 
-    // If user is locked into builder, keep them there until they exit (handled on client)
-    const lockedIntent = modeLock === "build" ? "build" : intent;
-
-    if (lockedIntent === "image") {
+    // Image loop stopper
+    if (intent === "image") {
       return j(200, {
         reply:
-          "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I’ll help you write a strong prompt — but I won’t spin in an image loop."
+          "I can’t generate images in this chat right now. Tell me what you want and I’ll write a strong prompt — but I won’t spin in an image loop."
       });
     }
 
-    if (lockedIntent === "math") {
+    // Math: answer only (no model)
+    if (intent === "math") {
       const ans = safeMath(text);
       if (ans.ok) return j(200, { reply: String(ans.value) });
+      // if it doesn't parse clean, fall back to model
       const reply = await callOpenAI({ tz, zip, history, userText: text, mode: "math" });
       return j(200, { reply: cleanup(reply) });
     }
 
-    if (lockedIntent === "time") {
+    // Time: local (no model)
+    if (intent === "time") {
       const now = new Date();
       const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
       const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" });
       return j(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
     }
 
-    if (lockedIntent === "weather") {
+    // Weather: ZIP → coords → current weather (no model)
+    if (intent === "weather") {
       const z = extractZip(text) || zip.trim();
       if (!z) return j(200, { reply: "Tell me your ZIP (like 48044) and I’ll pull the weather." });
 
@@ -49,40 +49,26 @@ exports.handler = async function (event) {
       return j(200, { reply: w.reply });
     }
 
-    // BUILDER: ALWAYS GATED (even follow-ups) while lockedIntent === "build"
-    if (lockedIntent === "build") {
+    // Builder gate: ALWAYS returns locally (no model)
+    if (intent === "build") {
       const t = text.toLowerCase();
-
       let thing = "that";
       if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
       else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
       else if (/\bcode\b|\bscript\b|\bprogram\b/.test(t)) thing = "some code";
       else if (/\bui\b|\bmockup\b|\bwireframe\b|\bdesign\b/.test(t)) thing = "a design";
 
-      const openers = [
-        `Yeah — I can help you with ${thing}.`,
-        `Alright. I can do ${thing} with you.`,
-        `Got you. I can help build ${thing}.`
-      ];
-      const teases = [
-        `I’ll start with a quick plan: pages + features + what to build first.`,
-        `I’ll map the steps and keep it simple so you can actually ship it.`,
-        `I’ll sketch the blueprint (fast) and what we’d build in phase 1.`
-      ];
-
-      const pick = (arr) => arr[(Math.abs(hash(text)) + builderCount) % arr.length];
-
       return j(200, {
         reply:
-          `${pick(openers)} That’s a Builder thing (paid).\n\n` +
-          `${pick(teases)}\n\n` +
+          `Yeah — I can help you with ${thing}. That’s a Builder thing (paid).\n\n` +
           `One sentence: what are we making + who’s it for?`
       });
     }
 
-    // Normal chat uses OpenAI
+    // Normal chat: OpenAI
     const reply = await callOpenAI({ tz, zip, history, userText: text, mode: "chat" });
     return j(200, { reply: cleanup(reply) });
+
   } catch (e) {
     return j(500, { error: e?.message || String(e) });
   }
@@ -99,8 +85,10 @@ function j(statusCode, obj) {
 function detectIntent(text) {
   const t = text.toLowerCase().trim();
 
+  // image
   if (/\b(generate|make|create|draw|render)\b.*\b(image|picture|photo|cover|logo|art)\b/.test(t)) return "image";
 
+  // time
   if (
     /\bwhat\s*(is|’s|'s)\s*(my\s*)?time\b/.test(t) ||
     /\bmy\s*time\b/.test(t) ||
@@ -110,11 +98,13 @@ function detectIntent(text) {
     /\bcurrent\s+time\b/.test(t)
   ) return "time";
 
+  // weather
   if (/\bweather\b|\bforecast\b|\btemperature\b|\brain\b|\bsnow\b/.test(t)) return "weather";
 
-  if (/\b(build|code|program|make an app|design an app|website|ui mockup|wireframe|html|css|javascript|react|backend)\b/.test(t))
-    return "build";
+  // build
+  if (/\b(build|code|program|website|app|ui mockup|wireframe|html|css|javascript|react|backend|design)\b/.test(t)) return "build";
 
+  // math
   if (looksLikeMath(t)) return "math";
 
   return "chat";
@@ -191,8 +181,6 @@ function cleanup(s) {
   let out = String(s || "").replace(/^\s*(simo:|assistant:)\s*/i, "").trim();
   out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
   out = out.replace(/^here(’|')?s\b\s*/i, "");
-  // Remove salesy phrase if it ever sneaks in
-  out = out.replace(/ready to move forward with builder\??/i, "").trim();
   if (out.length > 900) out = out.slice(0, 900).trim();
   return out;
 }
@@ -216,4 +204,11 @@ async function callOpenAI({ tz, zip, history, userText, mode }) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
-      messages: m
+      messages: msgs,
+      temperature: mode === "math" ? 0 : 0.7,
+      max_tokens: mode === "math" ? 40 : 400
+    })
+  });
+
+  if (!res.ok) {
+    const errText = aw
