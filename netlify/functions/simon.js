@@ -4,31 +4,32 @@ export async function handler(event) {
       return json(405, { error: "Use POST" });
     }
 
-    const { message = "", history = [], tz = "America/Detroit", zip = "" } = JSON.parse(event.body || "{}");
-    const text = String(message || "").trim();
+    const {
+      message = "",
+      history = [],
+      tz = "America/Detroit",
+      zip = "",
+      builderCount = 0
+    } = JSON.parse(event.body || "{}");
 
+    const text = String(message || "").trim();
     if (!text) return json(400, { error: "Missing message" });
 
-    // -----------------------------
-    // Intent routing (fast + strict)
-    // -----------------------------
     const intent = detectIntent(text);
 
     // Stop image-generation loops HARD.
     if (intent === "image") {
       return json(200, {
         reply:
-          "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I can help you write the prompt or plan it — but I won’t spin in an image loop."
+          "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I’ll help you write a killer prompt — but I won’t spin in an image loop."
       });
     }
 
-    // Math: answer only (no explanation)
+    // Math: answer only
     if (intent === "math") {
       const ans = safeMath(text);
-      if (ans.ok) {
-        return json(200, { reply: String(ans.value) });
-      }
-      // fallback to model if math parser doesn’t like it
+      if (ans.ok) return json(200, { reply: String(ans.value) });
+
       const reply = await callOpenAI({
         tz,
         zip,
@@ -39,8 +40,8 @@ export async function handler(event) {
       return json(200, { reply: cleanup(reply) });
     }
 
-    // Time: quick local time (no model)
-        if (intent === "time") {
+    // Time: local time (no model)
+    if (intent === "time") {
       const now = new Date();
       const timeFmt = new Intl.DateTimeFormat("en-US", {
         timeZone: tz,
@@ -57,7 +58,7 @@ export async function handler(event) {
       return json(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
     }
 
-    // Weather: real weather via Open-Meteo if ZIP present
+    // Weather: real weather via ZIP
     if (intent === "weather") {
       const z = extractZip(text) || String(zip || "").trim();
       if (!z) {
@@ -70,41 +71,41 @@ export async function handler(event) {
       return json(200, { reply: w.reply });
     }
 
-    // Build/design/code requests: gate it (paid later)
-   if (intent === "build") {
-  const t = text.toLowerCase();
+    // Build/design/code: paid gate, but human + varied + matched to request
+    if (intent === "build") {
+      const t = text.toLowerCase();
 
-  let thing = "that";
-  if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
-  else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
-  else if (/\bcode\b|\bscript\b|\bprogram\b/.test(t)) thing = "some code";
-  else if (/\bui\b|\bmockup\b|\bwireframe\b|\bdesign\b/.test(t)) thing = "a design";
+      let thing = "that";
+      if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
+      else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
+      else if (/\bcode\b|\bscript\b|\bprogram\b/.test(t)) thing = "some code";
+      else if (/\bui\b|\bmockup\b|\bwireframe\b|\bdesign\b/.test(t)) thing = "a design";
 
-  const openers = [
-    `Yeah — I can help you with ${thing}.`,
-    `Alright. I can do ${thing} with you.`,
-    `Got you. I can help build ${thing}.`
-  ];
+      const openers = [
+        `Yeah — I can help you with ${thing}.`,
+        `Alright. I can do ${thing} with you.`,
+        `Got you. I can help build ${thing}.`
+      ];
 
-  const teases = [
-    `I’ll start with a quick plan: pages + features + what to build first.`,
-    `I’ll map the steps and keep it simple so you can actually ship it.`,
-    `I’ll sketch the blueprint (fast) and what we’d build in phase 1.`
-  ];
+      const teases = [
+        `I’ll start with a quick plan: pages + features + what to build first.`,
+        `I’ll map the steps and keep it simple so you can actually ship it.`,
+        `I’ll sketch the blueprint (fast) and what we’d build in phase 1.`
+      ];
 
-  // stable-ish choice per message so it doesn't feel random mid-thread
-  const pick = (arr) => arr[Math.abs(hash(text)) % arr.length];
+      // rotate even if the same message repeats (uses builderCount from the browser)
+      const pick = (arr) => arr[(Math.abs(hash(text)) + Number(builderCount || 0)) % arr.length];
 
-  const opener = pick(openers);
-  const tease = pick(teases);
+      const opener = pick(openers);
+      const tease = pick(teases);
 
-  return json(200, {
-    reply:
-      `${opener} That’s a Builder thing (paid).\n\n` +
-      `${tease}\n\n` +
-      `One sentence: what are we making + who’s it for?`
-  });
-}
+      return json(200, {
+        reply:
+          `${opener} That’s a Builder thing (paid).\n\n` +
+          `${tease}\n\n` +
+          `One sentence: what are we making + who’s it for?`
+      });
+    }
 
     // Everything else: best-friend human tone via model
     const reply = await callOpenAI({
@@ -140,11 +141,11 @@ function detectIntent(text) {
 
   // image requests / loops
   if (/\b(generate|make|create|draw|render)\b.*\b(image|picture|photo|cover|logo|art)\b/.test(t)) return "image";
-  if (/\bimage\b/.test(t) && /\bloop\b/.test(t)) return "image";
+  if (/\bimage\b/.test(t) && /\b(loop|stuck)\b/.test(t)) return "image";
 
-    // time (cover more natural phrasing)
+  // time (covers natural phrasing like "what is my time")
   if (
-    /\bwhat\s*(is|’s)\s*(my\s*)?time\b/.test(t) ||
+    /\bwhat\s*(is|’s|'s)\s*(my\s*)?time\b/.test(t) ||
     /\bmy\s*time\b/.test(t) ||
     /\btime\s*now\b/.test(t) ||
     /\bwhat\s*time\b/.test(t) ||
@@ -184,13 +185,12 @@ function safeMath(input) {
     t = t.replace(/[^0-9+\-*/(). ^]/g, "");
     t = t.replace(/\^/g, "**");
 
-    // very small guard: prevent long/odd expressions
     if (t.length > 80) return { ok: false };
 
     // eslint-disable-next-line no-new-func
     const val = Function(`"use strict"; return (${t});`)();
     if (typeof val !== "number" || !Number.isFinite(val)) return { ok: false };
-    // round tiny float noise
+
     const out = Math.abs(val) < 1e15 ? Number(val.toPrecision(15)) : val;
     return { ok: true, value: out };
   } catch {
@@ -205,7 +205,6 @@ function extractZip(text) {
 
 async function getWeatherByZip(zip) {
   try {
-    // Open-Meteo geocoding by name isn’t ZIP-native, so use zippopotam for lat/lon.
     const z = await fetch(`https://api.zippopotam.us/us/${encodeURIComponent(zip)}`);
     if (!z.ok) return { ok: false };
     const j = await z.json();
@@ -217,7 +216,9 @@ async function getWeatherByZip(zip) {
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { ok: false };
 
     const w = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m` +
+      `&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`
     );
     if (!w.ok) return { ok: false };
     const data = await w.json();
@@ -244,95 +245,4 @@ function cleanup(s) {
     .trim();
 
   // remove robotic filler openings
-  out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
-  out = out.replace(/^here(’|')?s\b\s*/i, "");
-
-  // avoid AI disclaimers
-  out = out.replace(/\b(as an ai|i’m an ai|i am an ai|i cannot|i can't access real[- ]time)\b.*$/i, out);
-
-  // keep replies tight
-  if (out.length > 900) out = out.slice(0, 900).trim();
-
-  return out;
-}
-
-async function callOpenAI({ tz, zip, history, userText, mode }) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-  if (!apiKey) throw new Error("Missing OPENAI_API_KEY in Netlify env vars");
-
-  const system = buildSystemPrompt({ tz, zip, mode });
-
-  // Keep only safe history shape
-  const msgs = [];
-  msgs.push({ role: "system", content: system });
-
-  // Add a bit of recent context, but don’t let it drag intent off-course
-  if (Array.isArray(history)) {
-    for (const m of history.slice(-18)) {
-      if (!m || typeof m !== "object") continue;
-      if (m.role !== "user" && m.role !== "assistant") continue;
-      const c = String(m.content || "").slice(0, 1800);
-      msgs.push({ role: m.role, content: c });
-    }
-  }
-
-  msgs.push({ role: "user", content: userText });
-
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
-    body: JSON.stringify({
-      model,
-      messages: msgs,
-      temperature: mode === "math" ? 0 : 0.7,
-      max_tokens: mode === "math" ? 40 : 400
-    })
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`OpenAI error (${res.status}): ${errText || "request failed"}`);
-  }
-
-  const data = await res.json();
-  const out = data?.choices?.[0]?.message?.content;
-  return out || "";
-}
-
-function buildSystemPrompt({ tz, zip, mode }) {
-  const base = `You are "Simo" — a private best friend.
-Speak like a real person: short, direct, normal words. A little edge is fine.
-No therapy-speak. No corporate tone. No lectures.
-Don't narrate what you're doing. Don't say you're an AI. Don't say you "can't access" things.
-If unclear, ask ONE short question — not a list.
-
-Hard rules:
-- Math questions: output ONLY the final answer. No steps. No extra words.
-- Time questions: use timezone "${tz}".
-- Weather: if ZIP is needed, ask for ZIP; do not invent live weather. ZIP on file: "${zip || "none"}".
-- Image requests: you cannot generate images here. Offer a strong text prompt instead. Do NOT loop.
-- Build/design/coding requests: say it's part of Builder tools (paid) and ask what they want in ONE sentence. Keep it friendly, not salesy.
-
-Style:
-- Keep replies tight (usually 1–6 lines).
-- Sound like a human texting, not a help article.`;
-
-  if (mode === "math") {
-    return base + "\n\nMode: MATH. Output must be only the final numeric answer.";
-  }
-  return base + "\n\nMode: CHAT. Be human, concise, and useful.";
-}
-
-function hash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
-    h |= 0;
-  }
-  return h;
-}
+  out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+
