@@ -131,7 +131,9 @@ URL: ${location.href}
 
   async function send() {
     const text = inputEl.value.trim();
-    if (!text) return;
+if (window.SimoPreview?.maybeHandle(text)?.handled) return;
+
+if (!text) return;
 
     addMessage("user", text);
     inputEl.value = "";
