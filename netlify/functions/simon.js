@@ -72,9 +72,19 @@ export async function handler(event) {
 
     // Build/design/code requests: gate it (paid later)
     if (intent === "build") {
+  const t = text.toLowerCase();
+
+  let thing = "that";
+  if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
+  else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
+  else if (/\bcode\b|\bscript\b|\bprogram\b/.test(t)) thing = "some code";
+  else if (/\bui\b|\bmockup\b|\bwireframe\b|\bdesign\b/.test(t)) thing = "a design";
+
   return json(200, {
     reply:
-      "Yeah — I can help you design that. That’s a Builder thing (paid).\n\nTell me in **one sentence**: what’s the app + who’s it for?\nThen I’ll sketch the plan and what the upgrade unlocks."
+      `Yeah — I can help you with ${thing}. That’s a Builder thing (paid).\n\n` +
+      `Tell me in **one sentence**: what are we making + who’s it for?\n` +
+      `Then I’ll sketch the plan and what the upgrade unlocks.`
   });
 }
 
