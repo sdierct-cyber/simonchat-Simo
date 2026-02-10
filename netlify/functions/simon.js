@@ -211,10 +211,21 @@ async function getWeatherByZip(zip) {
 }
 
 function cleanup(s) {
-  // keep it human and tight; remove accidental leading labels
-  return String(s || "")
+  let out = String(s || "")
     .replace(/^\s*(simo:|assistant:)\s*/i, "")
     .trim();
+
+  // remove robotic filler openings
+  out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
+  out = out.replace(/^here(’|')?s\b\s*/i, "");
+
+  // avoid AI disclaimers
+  out = out.replace(/\b(as an ai|i’m an ai|i am an ai|i cannot|i can't access real[- ]time)\b.*$/i, out);
+
+  // keep replies tight
+  if (out.length > 900) out = out.slice(0, 900).trim();
+
+  return out;
 }
 
 async function callOpenAI({ tz, zip, history, userText, mode }) {
