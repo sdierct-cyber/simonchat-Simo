@@ -71,7 +71,7 @@ export async function handler(event) {
     }
 
     // Build/design/code requests: gate it (paid later)
-    if (intent === "build") {
+   if (intent === "build") {
   const t = text.toLowerCase();
 
   let thing = "that";
@@ -80,11 +80,29 @@ export async function handler(event) {
   else if (/\bcode\b|\bscript\b|\bprogram\b/.test(t)) thing = "some code";
   else if (/\bui\b|\bmockup\b|\bwireframe\b|\bdesign\b/.test(t)) thing = "a design";
 
+  const openers = [
+    `Yeah — I can help you with ${thing}.`,
+    `Alright. I can do ${thing} with you.`,
+    `Got you. I can help build ${thing}.`
+  ];
+
+  const teases = [
+    `I’ll start with a quick plan: pages + features + what to build first.`,
+    `I’ll map the steps and keep it simple so you can actually ship it.`,
+    `I’ll sketch the blueprint (fast) and what we’d build in phase 1.`
+  ];
+
+  // stable-ish choice per message so it doesn't feel random mid-thread
+  const pick = (arr) => arr[Math.abs(hash(text)) % arr.length];
+
+  const opener = pick(openers);
+  const tease = pick(teases);
+
   return json(200, {
     reply:
-      `Yeah — I can help you with ${thing}. That’s a Builder thing (paid).\n\n` +
-      `Tell me in **one sentence**: what are we making + who’s it for?\n` +
-      `Then I’ll sketch the plan and what the upgrade unlocks.`
+      `${opener} That’s a Builder thing (paid).\n\n` +
+      `${tease}\n\n` +
+      `One sentence: what are we making + who’s it for?`
   });
 }
 
