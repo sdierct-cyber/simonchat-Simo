@@ -1,82 +1,58 @@
-// netlify/functions/simon.js  (CommonJS version for Netlify reliability)
+// netlify/functions/simon.js (Netlify-safe CommonJS)
 
-exports.handler = async function handler(event) {
+exports.handler = async function (event) {
   try {
-    if (event.httpMethod !== "POST") {
-      return json(405, { error: "Use POST" });
-    }
+    if (event.httpMethod !== "POST") return j(405, { error: "Use POST" });
 
-    const {
-      message = "",
-      history = [],
-      tz = "America/Detroit",
-      zip = "",
-      builderCount = 0
-    } = JSON.parse(event.body || "{}");
+    const body = JSON.parse(event.body || "{}");
+    const text = String(body.message || "").trim();
+    const history = Array.isArray(body.history) ? body.history : [];
+    const tz = String(body.tz || "America/Detroit");
+    const zip = String(body.zip || "");
+    const builderCount = Number(body.builderCount || 0);
 
-    const text = String(message || "").trim();
-    if (!text) return json(400, { error: "Missing message" });
+    if (!text) return j(400, { error: "Missing message" });
 
     const intent = detectIntent(text);
 
-    // Stop image-generation loops HARD.
+    // Image loop stopper
     if (intent === "image") {
-      return json(200, {
+      return j(200, {
         reply:
-          "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I’ll help you write a killer prompt — but I won’t spin in an image loop."
+          "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I’ll help you write a strong prompt — but I won’t spin in an image loop."
       });
     }
 
     // Math: answer only
     if (intent === "math") {
       const ans = safeMath(text);
-      if (ans.ok) return json(200, { reply: String(ans.value) });
-
-      const reply = await callOpenAI({
-        tz,
-        zip,
-        history,
-        userText: text,
-        mode: "math"
-      });
-      return json(200, { reply: cleanup(reply) });
+      if (ans.ok) return j(200, { reply: String(ans.value) });
+      // fallback to model
+      const reply = await callOpenAI({ tz, zip, history, userText: text, mode: "math" });
+      return j(200, { reply: cleanup(reply) });
     }
 
-    // Time: local time (no model)
+    // Time: local (no model)
     if (intent === "time") {
       const now = new Date();
-      const timeFmt = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        hour: "numeric",
-        minute: "2-digit"
-      });
-      const dateFmt = new Intl.DateTimeFormat("en-US", {
-        timeZone: tz,
-        weekday: "long",
-        month: "long",
-        day: "numeric"
-      });
-
-      return json(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
+      const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
+      const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" });
+      return j(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
     }
 
-    // Weather: real weather via ZIP
+    // Weather (ZIP) — no OpenAI needed
     if (intent === "weather") {
-      const z = extractZip(text) || String(zip || "").trim();
-      if (!z) {
-        return json(200, { reply: "Tell me your ZIP (like 48044) and I’ll pull the weather." });
-      }
+      const z = extractZip(text) || zip.trim();
+      if (!z) return j(200, { reply: "Tell me your ZIP (like 48044) and I’ll pull the weather." });
+
       const w = await getWeatherByZip(z);
-      if (!w.ok) {
-        return json(200, { reply: `I couldn’t pull weather for ${z}. Try again or confirm the ZIP.` });
-      }
-      return json(200, { reply: w.reply });
+      if (!w.ok) return j(200, { reply: `I couldn’t pull weather for ${z}. Try again or confirm the ZIP.` });
+      return j(200, { reply: w.reply });
     }
 
-    // Build/design/code: paid gate, but human + varied + matched to request
+    // Builder gate (varied, doesn’t call OpenAI)
     if (intent === "build") {
       const t = text.toLowerCase();
-
       let thing = "that";
       if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
       else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
@@ -88,53 +64,33 @@ exports.handler = async function handler(event) {
         `Alright. I can do ${thing} with you.`,
         `Got you. I can help build ${thing}.`
       ];
-
       const teases = [
         `I’ll start with a quick plan: pages + features + what to build first.`,
         `I’ll map the steps and keep it simple so you can actually ship it.`,
         `I’ll sketch the blueprint (fast) and what we’d build in phase 1.`
       ];
 
-      // rotate even if the same message repeats (uses builderCount from the browser)
-      const pick = (arr) => arr[(Math.abs(hash(text)) + Number(builderCount || 0)) % arr.length];
-
-      const opener = pick(openers);
-      const tease = pick(teases);
-
-      return json(200, {
+      const pick = (arr) => arr[(Math.abs(hash(text)) + builderCount) % arr.length];
+      return j(200, {
         reply:
-          `${opener} That’s a Builder thing (paid).\n\n` +
-          `${tease}\n\n` +
+          `${pick(openers)} That’s a Builder thing (paid).\n\n` +
+          `${pick(teases)}\n\n` +
           `One sentence: what are we making + who’s it for?`
       });
     }
 
-    // Everything else: best-friend human tone via model
-    const reply = await callOpenAI({
-      tz,
-      zip,
-      history,
-      userText: text,
-      mode: "chat"
-    });
-
-    return json(200, { reply: cleanup(reply) });
-  } catch (err) {
-    // Return the real error to the browser so you can see what broke
-    return json(500, { error: err?.message || String(err) });
+    // Normal chat uses OpenAI
+    const reply = await callOpenAI({ tz, zip, history, userText: text, mode: "chat" });
+    return j(200, { reply: cleanup(reply) });
+  } catch (e) {
+    return j(500, { error: e?.message || String(e) });
   }
 };
 
-// -----------------------------
-// Helpers
-// -----------------------------
-function json(statusCode, obj) {
+function j(statusCode, obj) {
   return {
     statusCode,
-    headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Access-Control-Allow-Origin": "*"
-    },
+    headers: { "Content-Type": "application/json; charset=utf-8", "Access-Control-Allow-Origin": "*" },
     body: JSON.stringify(obj)
   };
 }
@@ -142,11 +98,8 @@ function json(statusCode, obj) {
 function detectIntent(text) {
   const t = text.toLowerCase().trim();
 
-  // image requests / loops
   if (/\b(generate|make|create|draw|render)\b.*\b(image|picture|photo|cover|logo|art)\b/.test(t)) return "image";
-  if (/\bimage\b/.test(t) && /\b(loop|stuck)\b/.test(t)) return "image";
 
-  // time (covers natural phrasing like "what is my time")
   if (
     /\bwhat\s*(is|’s|'s)\s*(my\s*)?time\b/.test(t) ||
     /\bmy\s*time\b/.test(t) ||
@@ -156,14 +109,11 @@ function detectIntent(text) {
     /\bcurrent\s+time\b/.test(t)
   ) return "time";
 
-  // weather
   if (/\bweather\b|\bforecast\b|\btemperature\b|\brain\b|\bsnow\b/.test(t)) return "weather";
 
-  // build/design/code requests
   if (/\b(build|code|program|make an app|design an app|website|ui mockup|wireframe|html|css|javascript|react|backend)\b/.test(t))
     return "build";
 
-  // math-ish: quick heuristic
   if (looksLikeMath(t)) return "math";
 
   return "chat";
@@ -178,14 +128,14 @@ function looksLikeMath(t) {
 function safeMath(input) {
   try {
     let t = input.toLowerCase().trim();
-    t = t.replace(/\bx\b/g, "*");
-    t = t.replace(/\bmultiplied by\b/g, "*");
-    t = t.replace(/\btimes\b/g, "*");
-    t = t.replace(/\bdivided by\b/g, "/");
-    t = t.replace(/\bplus\b/g, "+");
-    t = t.replace(/\bminus\b/g, "-");
-    t = t.replace(/[^0-9+\-*/(). ^]/g, "");
-    t = t.replace(/\^/g, "**");
+    t = t.replace(/\bx\b/g, "*")
+      .replace(/\bmultiplied by\b/g, "*")
+      .replace(/\btimes\b/g, "*")
+      .replace(/\bdivided by\b/g, "/")
+      .replace(/\bplus\b/g, "+")
+      .replace(/\bminus\b/g, "-")
+      .replace(/[^0-9+\-*/(). ^]/g, "")
+      .replace(/\^/g, "**");
 
     if (t.length > 80) return { ok: false };
 
@@ -193,8 +143,7 @@ function safeMath(input) {
     const val = Function(`"use strict"; return (${t});`)();
     if (typeof val !== "number" || !Number.isFinite(val)) return { ok: false };
 
-    const out = Math.abs(val) < 1e15 ? Number(val.toPrecision(15)) : val;
-    return { ok: true, value: out };
+    return { ok: true, value: Math.abs(val) < 1e15 ? Number(val.toPrecision(15)) : val };
   } catch {
     return { ok: false };
   }
@@ -214,12 +163,11 @@ async function getWeatherByZip(zip) {
     const lat = Number(place?.latitude);
     const lon = Number(place?.longitude);
     const name = `${place["place name"]}, ${place["state abbreviation"]}`;
-
     if (!Number.isFinite(lat) || !Number.isFinite(lon)) return { ok: false };
 
     const w = await fetch(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      `&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m` +
+      `&current=temperature_2m,apparent_temperature,precipitation,wind_speed_10m` +
       `&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch`
     );
     if (!w.ok) return { ok: false };
@@ -232,27 +180,16 @@ async function getWeatherByZip(zip) {
     const wind = Math.round(c.wind_speed_10m);
     const precip = c.precipitation ?? 0;
 
-    return {
-      ok: true,
-      reply: `Right now in ${name} (${zip}): ${temp}°F (feels like ${feels}°F). Wind ${wind} mph. Precip ${precip} in.`
-    };
+    return { ok: true, reply: `Right now in ${name} (${zip}): ${temp}°F (feels like ${feels}°F). Wind ${wind} mph. Precip ${precip} in.` };
   } catch {
     return { ok: false };
   }
 }
 
 function cleanup(s) {
-  let out = String(s || "")
-    .replace(/^\s*(simo:|assistant:)\s*/i, "")
-    .trim();
-
-  // remove robotic filler openings
+  let out = String(s || "").replace(/^\s*(simo:|assistant:)\s*/i, "").trim();
   out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
   out = out.replace(/^here(’|')?s\b\s*/i, "");
-
-  // avoid AI disclaimers (best effort)
-  out = out.replace(/\b(as an ai|i’m an ai|i am an ai|i cannot|i can't access real[- ]time)\b.*$/i, out);
-
   if (out.length > 900) out = out.slice(0, 900).trim();
   return out;
 }
@@ -262,26 +199,18 @@ async function callOpenAI({ tz, zip, history, userText, mode }) {
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
   if (!apiKey) throw new Error("Missing OPENAI_API_KEY in Netlify env vars");
 
-  const system = buildSystemPrompt({ tz, zip, mode });
-  const msgs = [{ role: "system", content: system }];
+  const msgs = [{ role: "system", content: buildSystemPrompt({ tz, zip, mode }) }];
 
-  if (Array.isArray(history)) {
-    for (const m of history.slice(-18)) {
-      if (!m || typeof m !== "object") continue;
-      if (m.role !== "user" && m.role !== "assistant") continue;
-      const c = String(m.content || "").slice(0, 1800);
-      msgs.push({ role: m.role, content: c });
-    }
+  for (const m of history.slice(-18)) {
+    if (!m || typeof m !== "object") continue;
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    msgs.push({ role: m.role, content: String(m.content || "").slice(0, 1800) });
   }
-
   msgs.push({ role: "user", content: userText });
 
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`
-    },
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
       messages: msgs,
@@ -303,22 +232,20 @@ function buildSystemPrompt({ tz, zip, mode }) {
   const base = `You are "Simo" — a private best friend.
 Speak like a real person: short, direct, normal words. A little edge is fine.
 No therapy-speak. No corporate tone. No lectures.
-Don't narrate what you're doing. Don't say you're an AI. Don't say you "can't access" things.
-If unclear, ask ONE short question — not a list.
+Don't say you're an AI. Don't lecture. If unclear, ask ONE short question.
 
 Hard rules:
-- Math questions: output ONLY the final answer. No steps. No extra words.
-- Time questions: use timezone "${tz}".
-- Weather: if ZIP is needed, ask for ZIP; do not invent live weather. ZIP on file: "${zip || "none"}".
-- Image requests: you cannot generate images here. Offer a strong text prompt instead. Do NOT loop.
-- Build/design/coding requests: say it's part of Builder tools (paid) and ask what they want in ONE sentence. Keep it friendly, not salesy.
+- Math: output ONLY the final answer.
+- Time: use timezone "${tz}".
+- Weather: do not invent live weather; ask for ZIP if needed. ZIP on file: "${zip || "none"}".
+- Images: you can't generate images here; offer a strong text prompt instead. Do NOT loop.
+- Build/design/coding: say it's Builder (paid) and ask ONE sentence: what + who.
 
-Style:
-- Keep replies tight (usually 1–6 lines).
-- Sound like a human texting, not a help article.`;
+Keep replies tight (1–6 lines).`;
 
-  if (mode === "math") return base + "\n\nMode: MATH. Output must be only the final numeric answer.";
-  return base + "\n\nMode: CHAT. Be human, concise, and useful.";
+  return mode === "math"
+    ? base + "\nMode: MATH."
+    : base + "\nMode: CHAT.";
 }
 
 function hash(str) {
