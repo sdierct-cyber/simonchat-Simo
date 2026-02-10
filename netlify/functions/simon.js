@@ -1,4 +1,4 @@
-// netlify/functions/simon.js (Netlify-safe CommonJS)
+// netlify/functions/simon.js (Netlify-safe CommonJS + Builder Lock)
 
 exports.handler = async function (event) {
   try {
@@ -10,38 +10,37 @@ exports.handler = async function (event) {
     const tz = String(body.tz || "America/Detroit");
     const zip = String(body.zip || "");
     const builderCount = Number(body.builderCount || 0);
+    const modeLock = String(body.modeLock || ""); // <-- builder lock input
 
     if (!text) return j(400, { error: "Missing message" });
 
     const intent = detectIntent(text);
 
-    // Image loop stopper
-    if (intent === "image") {
+    // If user is locked into builder, keep them there until they exit (handled on client)
+    const lockedIntent = modeLock === "build" ? "build" : intent;
+
+    if (lockedIntent === "image") {
       return j(200, {
         reply:
           "I can’t generate images in this chat right now. If you tell me what you’re trying to make, I’ll help you write a strong prompt — but I won’t spin in an image loop."
       });
     }
 
-    // Math: answer only
-    if (intent === "math") {
+    if (lockedIntent === "math") {
       const ans = safeMath(text);
       if (ans.ok) return j(200, { reply: String(ans.value) });
-      // fallback to model
       const reply = await callOpenAI({ tz, zip, history, userText: text, mode: "math" });
       return j(200, { reply: cleanup(reply) });
     }
 
-    // Time: local (no model)
-    if (intent === "time") {
+    if (lockedIntent === "time") {
       const now = new Date();
       const timeFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" });
       const dateFmt = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long", month: "long", day: "numeric" });
       return j(200, { reply: `It’s ${timeFmt.format(now)} — ${dateFmt.format(now)} (${tz}).` });
     }
 
-    // Weather (ZIP) — no OpenAI needed
-    if (intent === "weather") {
+    if (lockedIntent === "weather") {
       const z = extractZip(text) || zip.trim();
       if (!z) return j(200, { reply: "Tell me your ZIP (like 48044) and I’ll pull the weather." });
 
@@ -50,9 +49,10 @@ exports.handler = async function (event) {
       return j(200, { reply: w.reply });
     }
 
-    // Builder gate (varied, doesn’t call OpenAI)
-    if (intent === "build") {
+    // BUILDER: ALWAYS GATED (even follow-ups) while lockedIntent === "build"
+    if (lockedIntent === "build") {
       const t = text.toLowerCase();
+
       let thing = "that";
       if (/\bwebsite\b|\bsite\b|\blanding page\b/.test(t)) thing = "a website";
       else if (/\bapp\b|\bapplication\b/.test(t)) thing = "an app";
@@ -71,6 +71,7 @@ exports.handler = async function (event) {
       ];
 
       const pick = (arr) => arr[(Math.abs(hash(text)) + builderCount) % arr.length];
+
       return j(200, {
         reply:
           `${pick(openers)} That’s a Builder thing (paid).\n\n` +
@@ -190,6 +191,8 @@ function cleanup(s) {
   let out = String(s || "").replace(/^\s*(simo:|assistant:)\s*/i, "").trim();
   out = out.replace(/^(sure|absolutely|of course|certainly|great|no problem)[.!]?\s+/i, "");
   out = out.replace(/^here(’|')?s\b\s*/i, "");
+  // Remove salesy phrase if it ever sneaks in
+  out = out.replace(/ready to move forward with builder\??/i, "").trim();
   if (out.length > 900) out = out.slice(0, 900).trim();
   return out;
 }
@@ -213,46 +216,4 @@ async function callOpenAI({ tz, zip, history, userText, mode }) {
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
     body: JSON.stringify({
       model,
-      messages: msgs,
-      temperature: mode === "math" ? 0 : 0.7,
-      max_tokens: mode === "math" ? 40 : 400
-    })
-  });
-
-  if (!res.ok) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(`OpenAI error (${res.status}): ${errText || "request failed"}`);
-  }
-
-  const data = await res.json();
-  return data?.choices?.[0]?.message?.content || "";
-}
-
-function buildSystemPrompt({ tz, zip, mode }) {
-  const base = `You are "Simo" — a private best friend.
-Speak like a real person: short, direct, normal words. A little edge is fine.
-No therapy-speak. No corporate tone. No lectures.
-Don't say you're an AI. Don't lecture. If unclear, ask ONE short question.
-
-Hard rules:
-- Math: output ONLY the final answer.
-- Time: use timezone "${tz}".
-- Weather: do not invent live weather; ask for ZIP if needed. ZIP on file: "${zip || "none"}".
-- Images: you can't generate images here; offer a strong text prompt instead. Do NOT loop.
-- Build/design/coding: say it's Builder (paid) and ask ONE sentence: what + who.
-
-Keep replies tight (1–6 lines).`;
-
-  return mode === "math"
-    ? base + "\nMode: MATH."
-    : base + "\nMode: CHAT.";
-}
-
-function hash(str) {
-  let h = 0;
-  for (let i = 0; i < str.length; i++) {
-    h = (h << 5) - h + str.charCodeAt(i);
-    h |= 0;
-  }
-  return h;
-}
+      messages: m
