@@ -1,114 +1,155 @@
-// netlify/functions/simon.js
-export default async (req) => {
+export async function handler(event) {
   try {
-    if (req.method !== "POST") {
-      return json(405, { error: "Method not allowed" });
+    const body = event.body ? JSON.parse(event.body) : {};
+    const userText = String(body.message || "").trim();
+    const history = Array.isArray(body.history) ? body.history : [];
+
+    if (!userText) {
+      return json({ ok: false, error: "Missing message" }, 400);
     }
 
-    const body = await req.json().catch(() => ({}));
-    const incoming = Array.isArray(body.messages) ? body.messages : [];
-    const userText = String(body.user_text || "").trim();
+    // ---- 1) Your Simo style stays the same (system prompt) ----
+    const systemPrompt = `
+You are Simo — a best-friend vibe assistant.
+- Keep replies tight and helpful.
+- No therapy-speak unless asked.
+- If user asks for simple math, give just the answer.
+- You can use tools when you need fresh/live info.
+`.trim();
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
-
-    if (!OPENAI_API_KEY) {
-      return json(500, {
-        error: "Missing OPENAI_API_KEY env var in Netlify."
-      });
-    }
-
-    // --- Lightweight intent shortcuts (fast + cheap) ---
-    // Math like 217*22, 10+5, 12/3
-    if (/^\s*[-+]?(\d+(\.\d+)?)(\s*[-+*/]\s*[-+]?(\d+(\.\d+)?))+\s*$/.test(userText)) {
-      // Safe eval for basic arithmetic only
-      const safe = userText.replace(/[^0-9+\-*/().\s]/g, "");
-      let result;
-      try {
-        // eslint-disable-next-line no-new-func
-        result = Function(`"use strict"; return (${safe});`)();
-      } catch {
-        result = null;
+    // ---- 2) TOOL: web_search definition ----
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "web_search",
+          description:
+            "Search the web for fresh/live info (weather, current events, addresses, hours, prices, etc.)",
+          parameters: {
+            type: "object",
+            properties: {
+              query: { type: "string" }
+            },
+            required: ["query"]
+          }
+        }
       }
-      if (result !== null && Number.isFinite(result)) {
-        return json(200, { reply: String(result) });
-      }
-    }
+    ];
 
-    // Time
-    if (/^\s*(what\s+time\s+is\s+it|time)\s*\??\s*$/i.test(userText)) {
-      const now = new Date();
-      return json(200, { reply: now.toLocaleString("en-US", { timeZone: "America/Detroit" }) });
-    }
-
-    // If you want weather later, we’ll add it without breaking anything.
-
-    // --- Simo system prompt (stable) ---
-    const system = {
-      role: "system",
-      content:
-`You are Simo. You sound like a private best friend: direct, warm, a little edgy when appropriate, not clinical.
-No therapy-speak unless the user asks for it. Keep replies tight and human.
-
-Rules:
-- If user asks a simple math question, give ONLY the answer.
-- If user vents, validate briefly and ask ONE grounding question.
-- If user asks for app/product building, give an actionable plan and optional code snippets.
-- Never mention policy or internal tools.`
-    };
-
-    // Limit conversation size to keep cost stable
-    const trimmed = trimMessages(incoming, 18);
-
+    // ---- 3) Build messages (keep your existing history behavior) ----
+    // Expecting history like: [{role:"user"/"assistant", content:"..."}]
     const messages = [
-      system,
-      ...trimmed,
+      { role: "system", content: systemPrompt },
+      ...history.map(m => ({
+        role: m.role === "assistant" ? "assistant" : "user",
+        content: String(m.content || "")
+      })),
       { role: "user", content: userText }
     ];
 
-    const apiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${OPENAI_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages,
-        temperature: 0.8,
-        max_tokens: 280
-      })
-    });
+    // ---- 4) Call OpenAI once; if it requests tool(s), run them and call again ----
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) return json({ ok: false, error: "Missing OPENAI_API_KEY" }, 500);
 
-    const data = await apiRes.json().catch(() => ({}));
+    // helper: call OpenAI chat completions (works everywhere)
+    async function callOpenAI(msgs, toolOutputs) {
+      const payload = {
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        messages: msgs,
+        tools,
+        tool_choice: "auto"
+      };
 
-    if (!apiRes.ok) {
-      const msg = data?.error?.message || `OpenAI error (${apiRes.status})`;
-      return json(500, { error: msg });
+      // If we have tool outputs to attach, we append them as tool messages:
+      if (toolOutputs?.length) {
+        payload.messages = [...msgs, ...toolOutputs];
+      }
+
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${OPENAI_API_KEY}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      const j = await r.json();
+      if (!r.ok) {
+        throw new Error(j?.error?.message || "OpenAI error");
+      }
+      return j;
     }
 
-    const reply = data?.choices?.[0]?.message?.content?.trim() || "I’m here. What’s going on?";
-    return json(200, { reply });
+    // helper: run your Netlify search function
+    async function runWebSearch(query) {
+      // Build absolute URL for Netlify. In production, use URL env or Host header.
+      const host = event.headers["host"];
+      const proto = event.headers["x-forwarded-proto"] || "https";
+      const base = `${proto}://${host}`;
+      const url = `${base}/api/search?q=${encodeURIComponent(query)}`;
 
+      const r = await fetch(url);
+      const j = await r.json();
+      return j;
+    }
+
+    // First OpenAI call
+    const first = await callOpenAI(messages);
+
+    const choice = first.choices?.[0];
+    const assistantMsg = choice?.message;
+
+    // If no tool calls, return the answer as-is
+    const toolCalls = assistantMsg?.tool_calls || [];
+    if (!toolCalls.length) {
+      const text = assistantMsg?.content || "…";
+      return json({ ok: true, reply: text });
+    }
+
+    // If there are tool calls, execute them and send results back
+    const toolOutputs = [];
+    for (const tc of toolCalls) {
+      const name = tc.function?.name;
+      const args = safeParse(tc.function?.arguments);
+
+      if (name === "web_search") {
+        const query = String(args?.query || "").trim();
+        const result = query ? await runWebSearch(query) : { ok: false, error: "Missing query" };
+
+        toolOutputs.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify(result)
+        });
+      } else {
+        toolOutputs.push({
+          role: "tool",
+          tool_call_id: tc.id,
+          content: JSON.stringify({ ok: false, error: `Unknown tool: ${name}` })
+        });
+      }
+    }
+
+    // Second OpenAI call with tool outputs
+    const second = await callOpenAI(messages, toolOutputs);
+    const finalText = second.choices?.[0]?.message?.content || "…";
+
+    return json({ ok: true, reply: finalText });
   } catch (err) {
-    return json(500, { error: err?.message || "Server error" });
+    return json({ ok: false, error: err?.message || "Unknown error" }, 500);
   }
-};
-
-function json(statusCode, obj) {
-  return new Response(JSON.stringify(obj), {
-    status: statusCode,
-    headers: { "content-type": "application/json" }
-  });
 }
 
-function trimMessages(msgs, maxPairs) {
-  // Keep last N user/assistant messages only (drop anything else)
-  const clean = msgs
-    .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-    .map(m => ({ role: m.role, content: m.content }));
+// small helpers
+function json(obj, statusCode = 200) {
+  return {
+    statusCode,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(obj)
+  };
+}
 
-  // maxPairs means user+assistant pairs → 2*maxPairs messages
-  const max = Math.max(2, maxPairs * 2);
-  return clean.slice(-max);
+function safeParse(s) {
+  try { return JSON.parse(s || "{}"); } catch { return {}; }
 }
