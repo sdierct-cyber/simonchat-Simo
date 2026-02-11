@@ -8,8 +8,7 @@ export async function handler(event) {
       return json({ ok: false, error: "Missing message" }, 400);
     }
 
-    // ---- 1) Simo style stays the same (system prompt) ----
-    // Key addition: clear rule for when to use web_search (live facts).
+    // Simo vibe stays the same — only adds "use search for live facts"
     const systemPrompt = `
 You are Simo — a best-friend vibe assistant.
 - Keep replies tight and helpful.
@@ -19,7 +18,6 @@ You are Simo — a best-friend vibe assistant.
 - When you use web_search, summarize results in plain English and don’t dump links unless asked.
 `.trim();
 
-    // ---- 2) TOOL: web_search definition ----
     const tools = [
       {
         type: "function",
@@ -38,7 +36,6 @@ You are Simo — a best-friend vibe assistant.
       }
     ];
 
-    // ---- 3) Build messages (keep your existing history behavior) ----
     const messages = [
       { role: "system", content: systemPrompt },
       ...history.map((m) => ({
@@ -51,7 +48,6 @@ You are Simo — a best-friend vibe assistant.
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     if (!OPENAI_API_KEY) return json({ ok: false, error: "Missing OPENAI_API_KEY" }, 500);
 
-    // helper: call OpenAI chat completions
     async function callOpenAI(msgs) {
       const payload = {
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
@@ -74,7 +70,6 @@ You are Simo — a best-friend vibe assistant.
       return j;
     }
 
-    // helper: call your Netlify /api/search endpoint
     async function runWebSearch(query) {
       const host = event.headers["host"];
       const proto = event.headers["x-forwarded-proto"] || "https";
@@ -82,21 +77,19 @@ You are Simo — a best-friend vibe assistant.
       const url = `${base}/api/search?q=${encodeURIComponent(query)}`;
 
       const r = await fetch(url);
-      const j = await r.json();
-      return j;
+      return await r.json();
     }
 
-    // ---- 4) First OpenAI call ----
+    // 1st model call
     const first = await callOpenAI(messages);
     const assistantMsg = first.choices?.[0]?.message;
 
-    // If no tool calls, return
     const toolCalls = assistantMsg?.tool_calls || [];
     if (!toolCalls.length) {
       return json({ ok: true, reply: assistantMsg?.content || "…" });
     }
 
-    // ---- 5) Execute tool calls and append tool outputs to messages ----
+    // run tools, then 2nd model call
     const msgsWithTools = [...messages, assistantMsg];
 
     for (const tc of toolCalls) {
@@ -105,9 +98,7 @@ You are Simo — a best-friend vibe assistant.
 
       if (name === "web_search") {
         const query = String(args?.query || "").trim();
-        const result = query
-          ? await runWebSearch(query)
-          : { ok: false, error: "Missing query" };
+        const result = query ? await runWebSearch(query) : { ok: false, error: "Missing query" };
 
         msgsWithTools.push({
           role: "tool",
@@ -123,7 +114,6 @@ You are Simo — a best-friend vibe assistant.
       }
     }
 
-    // ---- 6) Second OpenAI call (model sees tool results) ----
     const second = await callOpenAI(msgsWithTools);
     const finalText = second.choices?.[0]?.message?.content || "…";
 
@@ -133,7 +123,6 @@ You are Simo — a best-friend vibe assistant.
   }
 }
 
-// helpers
 function json(obj, statusCode = 200) {
   return {
     statusCode,
