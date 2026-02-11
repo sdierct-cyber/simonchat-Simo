@@ -1,346 +1,360 @@
+/* app.js
+   - Tabs: Chat / App Preview / Builder Preview
+   - App Preview can render "space" or "bakery" in the SAME view
+   - Keeps everything in ONE preview system (no extra html files)
+*/
 (() => {
-  const $ = (id) => document.getElementById(id);
+  "use strict";
 
-  // Views / tabs
-  const tabChat = $("tabChat");
-  const tabPreview = $("tabPreview");
-  const tabBuilder = $("tabBuilder");
+  // ---- DOM ----
+  const tabChat = document.getElementById("tabChat");
+  const tabPreview = document.getElementById("tabPreview");
+  const tabBuilder = document.getElementById("tabBuilder");
 
-  const viewChat = $("viewChat");
-  const viewPreview = $("viewPreview");
-  const viewBuilder = $("viewBuilder");
+  const viewChat = document.getElementById("viewChat");
+  const viewPreview = document.getElementById("viewPreview");
+  const viewBuilder = document.getElementById("viewBuilder");
 
-  const planPill = $("planPill");
-  const statusText = $("statusText");
+  const planPill = document.getElementById("planPill");
+  const statusText = document.getElementById("statusText");
+  const debugLog = document.getElementById("debugLog");
 
-  // Chat
-  const chatEl = $("chat");
-  const inputEl = $("input");
-  const sendBtn = $("sendBtn");
-  const btnReset = $("btnReset");
+  const btnUnlock = document.getElementById("btnUnlock");
+  const btnReset = document.getElementById("btnReset");
+  const btnShowUnlock = document.getElementById("btnShowUnlock");
 
-  // Debug
-  const debugDrawer = $("debugDrawer");
-  const debugLog = $("debugLog");
+  const overlay = document.getElementById("overlay");
+  const btnClose = document.getElementById("btnClose");
+  const btnApply = document.getElementById("btnApply");
+  const unlockCode = document.getElementById("unlockCode");
+  const unlockStatus = document.getElementById("unlockStatus");
 
-  // Preview UI
-  const listingList = $("listingList");
-  const selectedListing = $("selectedListing");
-  const spaceQuery = $("spaceQuery");
-  const chips = $("chips");
-  const btnBook = $("btnBook");
-  const bookMsg = $("bookMsg");
+  const unlockTitle = document.getElementById("unlockTitle");
+  const unlockText = document.getElementById("unlockText");
 
-  // Unlock modal
-  const overlay = $("overlay");
-  const btnUnlock = $("btnUnlock");
-  const btnShowUnlock = $("btnShowUnlock");
-  const btnClose = $("btnClose");
-  const btnApply = $("btnApply");
-  const unlockCode = $("unlockCode");
-  const unlockStatus = $("unlockStatus");
-  const unlockTitle = $("unlockTitle");
-  const unlockText = $("unlockText");
+  // ---- State ----
+  let previewKind = "space"; // "space" | "bakery"
+  let plan = "Free";
+  let unlocked = false;
 
-  function log(...args) {
-    const line = `[${new Date().toLocaleTimeString()}] ` + args.map(a => {
-      try { return typeof a === "string" ? a : JSON.stringify(a); }
-      catch { return String(a); }
-    }).join(" ");
-    debugLog.textContent = (debugLog.textContent ? debugLog.textContent + "\n" : "") + line;
+  function setStatus(t) {
+    if (statusText) statusText.textContent = t;
+  }
+  function log(line) {
+    if (!debugLog) return;
+    const ts = new Date().toLocaleTimeString();
+    debugLog.textContent += `[${ts}] ${line}\n`;
     debugLog.scrollTop = debugLog.scrollHeight;
   }
-  function setStatus(text, kind="") {
-    statusText.textContent = text;
-    statusText.style.color = kind === "bad" ? "#fecaca" : (kind === "good" ? "#bbf7d0" : "");
+
+  function setActive(which) {
+    if (viewChat) viewChat.style.display = which === "chat" ? "" : "none";
+    if (viewPreview) viewPreview.style.display = which === "preview" ? "" : "none";
+    if (viewBuilder) viewBuilder.style.display = which === "builder" ? "" : "none";
+
+    if (tabChat) tabChat.classList.toggle("active", which === "chat");
+    if (tabPreview) tabPreview.classList.toggle("active", which === "preview");
+    if (tabBuilder) tabBuilder.classList.toggle("active", which === "builder");
   }
 
-  // ----------------------------
-  // Plan / unlock (demo gate)
-  // ----------------------------
-  const PLAN_KEY = "simo_plan_v1";
-  function getPlan() {
-    return localStorage.getItem(PLAN_KEY) || "free";
-  }
-  function setPlan(p) {
-    localStorage.setItem(PLAN_KEY, p);
-    renderPlan();
-  }
-  function renderPlan() {
-    const plan = getPlan();
-    planPill.textContent = `Plan: ${plan === "pro" ? "Pro" : "Free"}`;
-    planPill.style.borderColor = plan === "pro" ? "rgba(34,197,94,.45)" : "rgba(255,255,255,.10)";
-    planPill.style.background = plan === "pro" ? "rgba(34,197,94,.12)" : "rgba(255,255,255,.04)";
+  function setPlan(newPlan) {
+    plan = newPlan;
+    unlocked = plan !== "Free";
+    if (planPill) planPill.textContent = `Plan: ${plan}`;
   }
 
-  function openUnlock(reasonTitle="Unlock Builder", reasonText="Builder features are locked on Free.") {
-    unlockTitle.textContent = reasonTitle;
-    unlockText.textContent = reasonText;
-    unlockStatus.textContent = "";
-    unlockStatus.className = "status";
-    unlockCode.value = "";
+  // ---- Preview rendering (same view, two templates) ----
+  function renderPreview() {
+    if (!viewPreview) return;
+
+    // We only replace the inside of the Preview section, not the whole app.
+    const head = viewPreview.querySelector(".head");
+    const body = viewPreview.querySelector(".body");
+    if (!head || !body) return;
+
+    if (previewKind === "bakery") {
+      head.innerHTML = `
+        <h2>Bakery App Preview</h2>
+        <p>Concrete UI mockup (search + categories + menu cards + checkout panel).</p>
+      `;
+
+      body.innerHTML = `
+        <div class="spacesTop">
+          <div class="search">🔎 <input id="bakeryQuery" placeholder="Search croissant, sourdough, cake…"></div>
+          <div class="chips" id="bakeryChips">
+            <button class="chip on" data-chip="pastries">Pastries</button>
+            <button class="chip" data-chip="bread">Bread</button>
+            <button class="chip" data-chip="cakes">Cakes</button>
+            <button class="chip" data-chip="vegan">Vegan</button>
+            <button class="chip" data-chip="glutenfree">Gluten-free</button>
+          </div>
+        </div>
+
+        <div style="height:12px;"></div>
+
+        <div class="grid" style="grid-template-columns:1fr .95fr;">
+          <div class="card" style="box-shadow:none;">
+            <div class="body">
+              <div class="listings" id="bakeryList"></div>
+            </div>
+          </div>
+
+          <div class="card" style="box-shadow:none;">
+            <div class="body">
+              <div class="pill">Checkout panel (preview)</div>
+              <div style="height:10px;"></div>
+
+              <div class="panel">
+                <div class="field">
+                  <label>Pickup or delivery</label>
+                  <select id="fulfillment">
+                    <option>Pickup</option>
+                    <option>Delivery</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label>Pickup time</label>
+                  <input id="pickupTime" placeholder="Today • 3:30 PM"/>
+                </div>
+
+                <div class="field">
+                  <label>Payment</label>
+                  <select id="payment">
+                    <option>Card</option>
+                    <option>Apple Pay</option>
+                    <option>Cash (pickup)</option>
+                  </select>
+                </div>
+
+                <button class="btn primary" id="btnPlaceOrder">Place order</button>
+                <div class="tiny" id="orderMsg"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      const items = [
+        { name: "Butter Croissant", desc: "Flaky • baked this morning • 4.8★", price: "$4.50" },
+        { name: "Sourdough Loaf", desc: "48h ferment • crusty • best-seller", price: "$8.00" },
+        { name: "Chocolate Cake Slice", desc: "Rich • ganache • limited today", price: "$6.25" },
+      ];
+
+      const list = document.getElementById("bakeryList");
+      if (list) {
+        list.innerHTML = items.map(i => `
+          <div class="listing">
+            <div class="thumb"></div>
+            <div class="meta">
+              <h3>${i.name}</h3>
+              <div class="sub2">${i.desc}</div>
+              <div class="price">${i.price}</div>
+            </div>
+            <button class="btn" type="button">Add</button>
+          </div>
+        `).join("");
+      }
+
+      // chip toggle (pure UI)
+      const chips = document.getElementById("bakeryChips");
+      if (chips) {
+        chips.querySelectorAll(".chip").forEach(btn => {
+          btn.addEventListener("click", () => btn.classList.toggle("on"));
+        });
+      }
+
+      const btn = document.getElementById("btnPlaceOrder");
+      const msg = document.getElementById("orderMsg");
+      if (btn && msg) {
+        btn.addEventListener("click", () => {
+          msg.textContent = "Preview only — ordering isn’t wired yet.";
+        });
+      }
+
+      log("Rendered preview: bakery");
+      return;
+    }
+
+    // Default: SPACE preview (re-render your original layout)
+    head.innerHTML = `
+      <h2>Space Renting App Preview</h2>
+      <p>This is a concrete UI preview (search + filters + listings + map + booking panel).</p>
+    `;
+
+    body.innerHTML = `
+      <div class="spacesTop">
+        <div class="search">🔎 <input id="spaceQuery" placeholder="Search city / ZIP / “driveway”, “garage”…"></div>
+        <div class="chips" id="chips">
+          <button class="chip on" data-chip="driveway">Driveway</button>
+          <button class="chip" data-chip="garage">Garage</button>
+          <button class="chip" data-chip="rv">RV/Boat</button>
+          <button class="chip" data-chip="covered">Covered</button>
+          <button class="chip" data-chip="24_7">24/7</button>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="grid" style="grid-template-columns:1fr .95fr;">
+        <div class="card" style="box-shadow:none;">
+          <div class="body">
+            <div class="listings" id="listingList"></div>
+          </div>
+        </div>
+
+        <div class="card" style="box-shadow:none;">
+          <div class="body">
+            <div class="map" id="mapBox">Map placeholder</div>
+            <div style="height:12px;"></div>
+
+            <div class="panel">
+              <div class="pill">Booking panel (preview)</div>
+
+              <div class="field">
+                <label>Selected listing</label>
+                <select id="selectedListing"></select>
+              </div>
+
+              <div class="field">
+                <label>Start date</label>
+                <input id="startDate" type="date"/>
+              </div>
+
+              <div class="field">
+                <label>End date</label>
+                <input id="endDate" type="date"/>
+              </div>
+
+              <button class="btn primary" id="btnBook">Request booking</button>
+              <div class="tiny" id="bookMsg"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const listings = [
+      { name: "Driveway spot • Quiet street", info: "Fits sedan/SUV • Available today • Well-lit", price: "$12/day" },
+      { name: "Covered garage bay", info: "Covered • Winter-friendly • 24/7 access", price: "$20/day" },
+      { name: "RV/Boat side pad", info: "Wide access • Camera on site • Weekly discount", price: "$18/day" },
+    ];
+
+    const listEl = document.getElementById("listingList");
+    const selectEl = document.getElementById("selectedListing");
+
+    if (listEl) {
+      listEl.innerHTML = listings.map((l, idx) => `
+        <div class="listing">
+          <div class="thumb"></div>
+          <div class="meta">
+            <h3>${l.name}</h3>
+            <div class="sub2">${l.info}</div>
+            <div class="price">${l.price}</div>
+          </div>
+          <button class="btn" type="button" data-pick="${idx}">Pick</button>
+        </div>
+      `).join("");
+    }
+
+    if (selectEl) {
+      selectEl.innerHTML = listings.map((l, idx) =>
+        `<option value="${idx}">${l.name} (${l.price})</option>`
+      ).join("");
+    }
+
+    // Pick buttons
+    if (listEl && selectEl) {
+      listEl.querySelectorAll("[data-pick]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          selectEl.value = btn.getAttribute("data-pick");
+        });
+      });
+    }
+
+    // chips toggle
+    const chips = document.getElementById("chips");
+    if (chips) {
+      chips.querySelectorAll(".chip").forEach(btn => {
+        btn.addEventListener("click", () => btn.classList.toggle("on"));
+      });
+    }
+
+    // booking message
+    const btnBook = document.getElementById("btnBook");
+    const bookMsg = document.getElementById("bookMsg");
+    if (btnBook && bookMsg) {
+      btnBook.addEventListener("click", () => {
+        bookMsg.textContent = "Preview only — booking isn’t wired yet.";
+      });
+    }
+
+    log("Rendered preview: space");
+  }
+
+  // Expose setter for preview kind (used by preview.js and chat.js intercept)
+  window.SimoSetPreviewKind = function (kind) {
+    previewKind = (kind === "bakery") ? "bakery" : "space";
+    // If you are currently on preview view, rerender immediately
+    renderPreview();
+  };
+
+  // ---- Unlock modal (keeps your existing UI working) ----
+  function openUnlock(reason) {
+    if (!overlay) return;
     overlay.style.display = "flex";
+    if (unlockStatus) unlockStatus.textContent = "";
+    if (unlockCode) unlockCode.value = "";
+    if (unlockTitle) unlockTitle.textContent = "Unlock Builder";
+    if (unlockText) unlockText.textContent = reason || "Unlock to enable Builder features.";
   }
   function closeUnlock() {
+    if (!overlay) return;
     overlay.style.display = "none";
   }
 
-  btnUnlock.addEventListener("click", () => openUnlock());
-  btnShowUnlock.addEventListener("click", () =>
-    openUnlock(
-      "Why unlock?",
-      "Because Simo can do real work for you (designs, app scaffolds, landing pages). Free is for chat + previews."
-    )
-  );
-  btnClose.addEventListener("click", closeUnlock);
-  overlay.addEventListener("click", (e) => { if (e.target === overlay) closeUnlock(); });
-
-  btnApply.addEventListener("click", () => {
-    const code = (unlockCode.value || "").trim().toUpperCase();
+  function applyUnlock() {
+    const code = String(unlockCode?.value || "").trim();
     if (code === "SIMO-UNLOCK") {
-      setPlan("pro");
-      unlockStatus.textContent = "Unlocked. Plan is now Pro.";
-      unlockStatus.className = "status good";
-      setStatus("Unlocked Pro features.", "good");
-      setTimeout(closeUnlock, 450);
+      setPlan("Pro");
+      if (unlockStatus) {
+        unlockStatus.textContent = "Unlocked. Plan is now Pro.";
+        unlockStatus.className = "status good";
+      }
+      setStatus("Unlocked.");
+      log("Unlock applied: Pro");
+      setTimeout(closeUnlock, 500);
     } else {
-      unlockStatus.textContent = "Invalid code. Use SIMO-UNLOCK for demo.";
-      unlockStatus.className = "status bad";
-      setStatus("Unlock failed.", "bad");
-    }
-  });
-
-  // Locked feature buttons
-  document.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-locked-action]");
-    if (!btn) return;
-
-    const action = btn.getAttribute("data-locked-action");
-    if (getPlan() !== "pro") {
-      openUnlock("Unlock required", "That Builder feature is locked. Unlock to use it.");
-      log("Locked action blocked:", action);
-      return;
-    }
-
-    // Pro demo behavior: show a “working” teaser output in chat
-    setTab("chat");
-    addMsg("assistant", `Alright. Builder mode is ON.\nTell me what you want for: ${action.replaceAll("_"," ")}.\n(Example: goals, style, budget, deadline.)`);
-  });
-
-  // ----------------------------
-  // Tabs
-  // ----------------------------
-  function setTab(which) {
-    const isChat = which === "chat";
-    const isPreview = which === "preview";
-    const isBuilder = which === "builder";
-
-    tabChat.classList.toggle("active", isChat);
-    tabPreview.classList.toggle("active", isPreview);
-    tabBuilder.classList.toggle("active", isBuilder);
-
-    viewChat.style.display = isChat ? "" : "none";
-    viewPreview.style.display = isPreview ? "" : "none";
-    viewBuilder.style.display = isBuilder ? "" : "none";
-
-    // Save last tab (prevents “stuck mode” surprises)
-    localStorage.setItem("simo_tab_v1", which);
-  }
-  tabChat.addEventListener("click", () => setTab("chat"));
-  tabPreview.addEventListener("click", () => setTab("preview"));
-  tabBuilder.addEventListener("click", () => setTab("builder"));
-
-  // ----------------------------
-  // Chat
-  // ----------------------------
-  const CHAT_KEY = "simo_chat_v2";
-  let messages = [];
-
-  function loadChat() {
-    try {
-      const raw = localStorage.getItem(CHAT_KEY);
-      messages = raw ? JSON.parse(raw) : [];
-    } catch { messages = []; }
-  }
-  function saveChat() {
-    try { localStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
-  }
-  function renderMsg(msg) {
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (msg.role === "user" ? "you" : "simo");
-
-    const who = document.createElement("div");
-    who.className = "who";
-    who.textContent = msg.role === "user" ? "You" : "S";
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.textContent = msg.content;
-
-    wrap.appendChild(who);
-    wrap.appendChild(bubble);
-    chatEl.appendChild(wrap);
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
-  function renderAll() {
-    chatEl.innerHTML = "";
-    messages.forEach(renderMsg);
-  }
-  function addMsg(role, text) {
-    const msg = { role, content: String(text || "") };
-    messages.push(msg);
-    renderMsg(msg);
-    saveChat();
-  }
-
-  function bootHello() {
-    addMsg("assistant", "Hey — I’m Simo. What’s going on?");
-  }
-
-  btnReset.addEventListener("click", () => {
-    localStorage.removeItem(CHAT_KEY);
-    messages = [];
-    chatEl.innerHTML = "";
-    bootHello();
-    setStatus("Chat reset.");
-    log("Chat reset");
-  });
-
-  // Endpoint (via netlify.toml redirect)
-  async function callSimo(userText) {
-    const payload = { messages, user_text: userText };
-    const res = await fetch("/api/simo", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      const err = data?.error || data?.message || `HTTP ${res.status}`;
-      throw new Error(err);
-    }
-    return data;
-  }
-
-  async function onSend() {
-    const text = inputEl.value.trim();
-    if (!text) return;
-
-    inputEl.value = "";
-    addMsg("user", text);
-
-    // If user explicitly asks for Builder features but is Free, show gate (no surprises)
-    const wantsBuilder = /(build|design|make)\s+(my|a)\s+(app|website|landing|logo|brand|home)/i.test(text);
-    if (wantsBuilder && getPlan() !== "pro") {
-      addMsg("assistant", "I can do that — but that’s Builder mode. Unlock it, and I’ll build it with you.");
-      openUnlock("Unlock Builder", "Builder mode is required for done-for-you work (designs, app scaffolds, landing pages).");
-      return;
-    }
-
-    setStatus("Simo is typing…");
-    sendBtn.disabled = true;
-    inputEl.disabled = true;
-
-    try {
-      const data = await callSimo(text);
-      addMsg("assistant", data?.reply || "I’m here. What’s going on?");
-      setStatus("Ready.", "good");
-      log("Reply OK");
-    } catch (err) {
-      addMsg("assistant", "I hit an error talking to the server.\n\n" + (err?.message || "Unknown error"));
-      setStatus("Server error: " + (err?.message || "Unknown"), "bad");
-      debugDrawer.open = true;
-      log("ERROR:", err?.stack || err?.message || String(err));
-    } finally {
-      sendBtn.disabled = false;
-      inputEl.disabled = false;
-      inputEl.focus();
+      if (unlockStatus) {
+        unlockStatus.textContent = "Invalid code. Try SIMO-UNLOCK.";
+        unlockStatus.className = "status bad";
+      }
+      setStatus("Unlock failed.");
+      log("Unlock failed (bad code).");
     }
   }
 
-  sendBtn.addEventListener("click", onSend);
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-  });
+  // ---- Wire buttons ----
+  if (tabChat) tabChat.addEventListener("click", () => { setActive("chat"); setStatus("Ready."); });
+  if (tabPreview) tabPreview.addEventListener("click", () => { setActive("preview"); renderPreview(); setStatus("Ready."); });
+  if (tabBuilder) tabBuilder.addEventListener("click", () => { setActive("builder"); setStatus("Ready."); });
 
-  // ----------------------------
-  // Preview listings (concrete UI)
-  // ----------------------------
-  const listings = [
-    { id:"l1", title:"Driveway spot • Quiet street", sub:"Fits sedan/SUV • Available today • Well-lit", price:12 },
-    { id:"l2", title:"Covered garage bay", sub:"Covered • Winter-friendly • 24/7 access", price:20 },
-    { id:"l3", title:"RV/Boat side pad", sub:"Wide access • Camera on site • Weekly discount", price:18 },
-  ];
+  if (btnUnlock) btnUnlock.addEventListener("click", () => openUnlock("Builder features are locked on Free. Unlock to enable."));
+  if (btnShowUnlock) btnShowUnlock.addEventListener("click", () => openUnlock("Unlock to access paid Builder features."));
+  if (btnClose) btnClose.addEventListener("click", closeUnlock);
+  if (btnApply) btnApply.addEventListener("click", applyUnlock);
+  if (overlay) overlay.addEventListener("click", (e) => { if (e.target === overlay) closeUnlock(); });
 
-  function renderListings() {
-    if (!listingList) return;
-
-    listingList.innerHTML = "";
-    const q = (spaceQuery?.value || "").toLowerCase();
-    const active = Array.from(chips?.querySelectorAll(".chip.on") || []).map(b => b.dataset.chip);
-
-    const filtered = listings.filter(l => {
-      const blob = (l.title + " " + l.sub).toLowerCase();
-      const matchQ = !q || blob.includes(q);
-      const matchChip = active.length === 0 ? true : true; // preview: chips are visual filter toggles
-      return matchQ && matchChip;
-    });
-
-    filtered.forEach(l => {
-      const row = document.createElement("div");
-      row.className = "listing";
-      row.innerHTML = `
-        <div class="thumb"></div>
-        <div class="meta">
-          <h3>${l.title}</h3>
-          <div class="sub2">${l.sub}</div>
-          <div class="sub2"><span class="price">$${l.price}/day</span> <span class="pill">Instant request</span></div>
-        </div>
-        <button class="btn" data-pick="${l.id}">Pick</button>
-      `;
-      listingList.appendChild(row);
-    });
-
-    selectedListing.innerHTML = filtered.map(l => `<option value="${l.id}">${l.title} ($${l.price}/day)</option>`).join("");
-    if (!selectedListing.value && filtered[0]) selectedListing.value = filtered[0].id;
-
-    listingList.querySelectorAll("[data-pick]").forEach(btn => {
-      btn.addEventListener("click", () => {
-        selectedListing.value = btn.getAttribute("data-pick");
-        bookMsg.textContent = "Selected. Choose dates and request booking (preview).";
-      });
+  if (btnReset) {
+    btnReset.addEventListener("click", () => {
+      // chat.js owns the actual chat history; we just refresh the page for a clean state
+      location.reload();
     });
   }
 
-  chips?.addEventListener("click", (e) => {
-    const b = e.target.closest(".chip");
-    if (!b) return;
-    b.classList.toggle("on");
-    renderListings();
-  });
-
-  spaceQuery?.addEventListener("input", renderListings);
-
-  btnBook?.addEventListener("click", () => {
-    bookMsg.textContent = "Request sent (preview). Next phase: real accounts + payments + calendar availability.";
-  });
-
-  // ----------------------------
-  // Boot
-  // ----------------------------
-  renderPlan();
-
-  loadChat();
-  if (messages.length === 0) bootHello();
-  else renderAll();
-
-  renderListings();
-
-  const lastTab = localStorage.getItem("simo_tab_v1") || "chat";
-  setTab(lastTab);
-
+  // ---- Boot ----
+  setPlan("Free");
+  setActive("chat");
   setStatus("Ready.");
-  log("App loaded. Plan:", getPlan(), "Tab:", lastTab); })();
+  log("app.js loaded. Single preview system active.");
+})();
