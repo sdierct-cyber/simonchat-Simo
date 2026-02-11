@@ -6,18 +6,23 @@ export default async (req) => {
     const incoming = Array.isArray(body.messages) ? body.messages : [];
     const userText = String(body.user_text || "").trim();
 
+    // Normalize common user input: 217 x 22, 217×22 -> 217*22
+    const normalizedText = userText.replace(/[x×]/gi, "*");
+
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-    if (!OPENAI_API_KEY) return json(500, { error: "Missing OPENAI_API_KEY in Netlify env vars." });
+    if (!OPENAI_API_KEY) {
+      return json(500, { error: "Missing OPENAI_API_KEY in Netlify env vars." });
+    }
 
     // -------------------------
     // Reliable shortcuts (no regressions)
     // -------------------------
 
-    // Math: 217*22 -> 4774 (answer only)
-    if (/^\s*[-+]?(\d+(\.\d+)?)(\s*[-+*/]\s*[-+]?(\d+(\.\d+)?))+\s*$/.test(userText)) {
-      const safe = userText.replace(/[^0-9+\-*/().\s]/g, "");
+    // Math: 217*22 OR 217 x 22 OR 217×22 -> 4774 (answer only)
+    if (/^\s*[-+]?(\d+(\.\d+)?)(\s*[-+*/]\s*[-+]?(\d+(\.\d+)?))+\s*$/.test(normalizedText)) {
+      const safe = normalizedText.replace(/[^0-9+\-*/().\s]/g, "");
       try {
         // eslint-disable-next-line no-new-func
         const result = Function(`"use strict"; return (${safe});`)();
@@ -45,8 +50,7 @@ export default async (req) => {
     // -------------------------
     const system = {
       role: "system",
-      content:
-`You are Simo: a private best friend vibe—direct, warm, sometimes a little edgy, never clinical.
+      content: `You are Simo: a private best friend vibe—direct, warm, sometimes a little edgy, never clinical.
 No therapy-speak unless asked.
 
 Hard rules:
@@ -96,6 +100,7 @@ function trim(msgs, pairs) {
   const clean = msgs
     .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
     .map(m => ({ role: m.role, content: m.content }));
+
   const max = Math.max(2, pairs * 2);
   return clean.slice(-max);
 }
