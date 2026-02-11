@@ -3,12 +3,11 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo — SimonChat.ai</title>
+  <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020; --card:#101a33; --card2:#0f1730; --text:#eaf0ff; --muted:#a9b6d3;
-      --line:rgba(255,255,255,.08); --btn:#2a66ff; --btn2:#1f4dd6; --bad:#ff4d4d;
-      --good:#39d98a;
+      --bg:#0b1020; --card:#0f1730; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.10); --btn:#2a66ff; --btn2:#1f4dd6; --bad:#ff4d4d; --good:#39d98a;
     }
     *{box-sizing:border-box}
     body{
@@ -16,92 +15,39 @@
       background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    .wrap{max-width:980px;margin:0 auto;padding:22px}
-    .top{
-      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;
-    }
-    .brand{display:flex;align-items:center;gap:12px}
-    .logo{
-      width:44px;height:44px;border-radius:14px;
-      background:linear-gradient(145deg,#2a66ff,#5aa5ff);
-      box-shadow:0 12px 30px rgba(42,102,255,.25);
-    }
-    .title{font-size:18px;font-weight:700;line-height:1.1}
+    .wrap{max-width:980px;margin:0 auto;padding:18px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+    .brand{display:flex;align-items:center;gap:10px}
+    .logo{width:40px;height:40px;border-radius:14px;background:linear-gradient(145deg,#2a66ff,#5aa5ff);box-shadow:0 12px 30px rgba(42,102,255,.25)}
+    .title{font-size:16px;font-weight:800;line-height:1.1}
     .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    .pill{
-      font-size:12px;padding:8px 10px;border:1px solid var(--line); border-radius:999px;
-      background:rgba(255,255,255,.04); color:var(--muted); display:flex; gap:10px; align-items:center;
-    }
+    .pill{font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(255,255,255,.04);color:var(--muted);display:flex;gap:10px;align-items:center}
     .dot{width:8px;height:8px;border-radius:50%}
     .dot.good{background:var(--good)}
     .dot.bad{background:var(--bad)}
-    .grid{
-      display:grid; grid-template-columns: 1.1fr .9fr; gap:14px;
-    }
-    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
-
-    .card{
-      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
-      border:1px solid var(--line); border-radius:18px; overflow:hidden;
-      box-shadow:0 16px 50px rgba(0,0,0,.28);
-    }
-    .cardHead{
-      padding:14px 14px 10px; border-bottom:1px solid var(--line);
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      background:rgba(255,255,255,.02);
-    }
-    .cardHead h2{margin:0;font-size:14px;letter-spacing:.2px}
+    .card{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));box-shadow:0 16px 50px rgba(0,0,0,.28)}
+    .head{padding:12px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .head h2{margin:0;font-size:13px;letter-spacing:.2px}
     .mini{font-size:12px;color:var(--muted)}
-    .chat{
-      height: 520px; overflow:auto; padding:14px;
-      display:flex; flex-direction:column; gap:10px;
-      background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.12));
-    }
-    .msg{max-width:82%; padding:10px 12px; border-radius:14px; border:1px solid var(--line); white-space:pre-wrap}
-    .msg.you{
-      align-self:flex-end; background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.25)
-    }
-    .msg.simo{
-      align-self:flex-start; background:rgba(255,255,255,.05)
-    }
-    .row{
-      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
-      background:rgba(255,255,255,.02);
-    }
+    .chat{height:520px;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.12))}
+    .msg{max-width:82%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);white-space:pre-wrap}
+    .msg.you{align-self:flex-end;background:rgba(42,102,255,.18);border-color:rgba(42,102,255,.25)}
+    .msg.simo{align-self:flex-start;background:rgba(255,255,255,.05)}
+    .row{display:flex;gap:10px;padding:12px;border-top:1px solid var(--line);background:rgba(255,255,255,.02)}
     textarea{
-      flex:1; resize:none; min-height:44px; max-height:140px; padding:10px 12px;
-      border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text);
-      outline:none;
+      flex:1;resize:none;min-height:44px;max-height:140px;padding:10px 12px;border-radius:14px;
+      border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none
     }
     button{
-      border:0; border-radius:14px; padding:0 14px; min-width:110px; font-weight:700;
-      background:linear-gradient(180deg,var(--btn),var(--btn2));
-      color:white; cursor:pointer;
-      box-shadow:0 12px 26px rgba(42,102,255,.25);
+      border:0;border-radius:14px;padding:0 14px;min-width:110px;font-weight:800;
+      background:linear-gradient(180deg,var(--btn),var(--btn2));color:white;cursor:pointer;
+      box-shadow:0 12px 26px rgba(42,102,255,.25)
     }
     button:disabled{opacity:.55;cursor:not-allowed}
-    .side{
-      padding:14px;
-      display:flex; flex-direction:column; gap:12px;
-    }
-    .box{
-      border:1px solid var(--line); border-radius:16px; padding:12px;
-      background:rgba(255,255,255,.03);
-    }
-    .box h3{margin:0 0 6px; font-size:13px}
-    .box p{margin:0; font-size:12px; color:var(--muted); line-height:1.35}
-    .kvs{display:grid; grid-template-columns: 1fr; gap:8px; margin-top:10px}
-    .kv{display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--muted)}
-    .kv b{color:var(--text); font-weight:700}
-    .smallbtn{
-      margin-top:10px; width:100%; min-width:0; padding:10px 12px;
-      background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line);
-      box-shadow:none;
-    }
-    .smallbtn:hover{background:rgba(255,255,255,.08)}
-    .warn{color:#ffd27d}
+    .stamp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="top">
@@ -109,59 +55,117 @@
         <div class="logo" aria-hidden="true"></div>
         <div>
           <div class="title">Simo</div>
-          <div class="sub">Best-friend vibe. Fast answers. Builder when you pay.</div>
+          <div class="sub">Core chat (stable) — no hidden calls on page load</div>
         </div>
       </div>
-      <div class="pill" id="statusPill">
-        <span class="dot bad" id="statusDot"></span>
-        <span id="statusText">API: checking…</span>
+      <div class="pill">
+        <span class="dot bad" id="dot"></span>
+        <span id="status">Offline (not calling API)</span>
       </div>
     </div>
 
-    <div class="grid">
-      <div class="card">
-        <div class="cardHead">
-          <h2>Chat</h2>
-          <div class="mini">Enter to send · Shift+Enter = new line</div>
-        </div>
-
-        <div class="chat" id="chat"></div>
-
-        <div class="row">
-          <textarea id="input" placeholder="Talk to Simo…" spellcheck="true"></textarea>
-          <button id="sendBtn">Send</button>
-        </div>
+    <div class="card">
+      <div class="head">
+        <h2>Chat</h2>
+        <div class="mini stamp">BUILD: SIMO_CORE_V1_2026-02-11A</div>
       </div>
 
-      <div class="card">
-        <div class="cardHead">
-          <h2>Debug</h2>
-          <div class="mini">No guessing. We show what’s real.</div>
-        </div>
-        <div class="side">
-          <div class="box">
-            <h3>Health</h3>
-            <p>If send/enter stops working, it’s almost always event listeners not binding or script not loading. This version prevents that.</p>
-            <div class="kvs">
-              <div class="kv"><span>Script loaded</span><b id="kvScript">…</b></div>
-              <div class="kv"><span>Bindings</span><b id="kvBind">…</b></div>
-              <div class="kv"><span>API route</span><b id="kvRoute">/api/simon</b></div>
-            </div>
-            <button class="smallbtn" id="debugBtn" type="button">Run Debug</button>
-          </div>
+      <div class="chat" id="chat"></div>
 
-          <div class="box">
-            <h3>What Simo does</h3>
-            <p><b>Normal:</b> best-friend responses + quick helpers.<br/>
-               <b>Builder:</b> code/design/mockups when you gate it later.</p>
-            <p class="warn" style="margin-top:8px;">We’re stabilizing core first so it never breaks again.</p>
-          </div>
-        </div>
+      <div class="row">
+        <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter new line)"></textarea>
+        <button id="send">Send</button>
       </div>
     </div>
   </div>
 
-  <!-- IMPORTANT: defer so DOM exists before simo.js runs -->
-  <script src="./simo.js" defer></script>
+  <script>
+    // ===== SIMO CORE (INLINE) =====
+    // If Send/Enter doesn't work with THIS file, you're not viewing the file you deployed.
+
+    const chat = document.getElementById("chat");
+    const input = document.getElementById("input");
+    const send = document.getElementById("send");
+    const dot = document.getElementById("dot");
+    const status = document.getElementById("status");
+
+    function add(role, text) {
+      const d = document.createElement("div");
+      d.className = "msg " + (role === "you" ? "you" : "simo");
+      d.textContent = text;
+      chat.appendChild(d);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    function setOnline(on, text){
+      dot.classList.remove("good","bad");
+      dot.classList.add(on ? "good" : "bad");
+      status.textContent = text;
+    }
+
+    function autoGrow() {
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 140) + "px";
+    }
+
+    async function callBackend(message){
+      // IMPORTANT: This does NOT run unless the user sends a message.
+      // If your Netlify function exists, it should respond at /api/simon
+      const res = await fetch("/api/simon", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ message })
+      });
+
+      if (!res.ok) {
+        const t = await res.text().catch(()=> "");
+        throw new Error(`API HTTP ${res.status} ${res.statusText}${t ? " — " + t.slice(0,140) : ""}`);
+      }
+
+      const data = await res.json().catch(()=> ({}));
+      return data.reply || data.text || "I’m here. What’s going on?";
+    }
+
+    async function onSend(){
+      const msg = (input.value || "").trim();
+      if (!msg) return;
+
+      add("you", msg);
+      input.value = "";
+      autoGrow();
+      send.disabled = true;
+
+      // First: prove UI works even if backend is broken
+      // Then: try backend (only when user sends)
+      try{
+        setOnline(true, "Calling API…");
+        const reply = await callBackend(msg);
+        add("simo", reply);
+        setOnline(true, "Online");
+      } catch(e){
+        // Fallback response so user sees *something* and we don't “do nothing”
+        add("simo", `UI is working, but backend failed:\n${e.message}\n\nThat means /api/simon isn’t reachable from this deploy.`);
+        setOnline(false, "Backend error");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
+    }
+
+    // Bindings (these are what kept “not working”)
+    send.addEventListener("click", onSend);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+    });
+    input.addEventListener("input", autoGrow);
+
+    // Startup
+    add("simo", "Hey — I’m Simo. What’s going on?");
+    setOnline(false, "Offline (not calling API)");
+    input.focus();
+  </script>
 </body>
 </html>
