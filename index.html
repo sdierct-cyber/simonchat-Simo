@@ -1,335 +1,167 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Simo</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo — SimonChat.ai</title>
   <style>
     :root{
-      --bg:#0b1220; --card:#0f1a33; --text:#eaf1ff; --muted:#8ea0c6;
-      --line:rgba(255,255,255,.10); --accent:#3b82f6; --good:#22c55e; --bad:#ef4444;
-      --shadow:0 12px 46px rgba(0,0,0,.35); --r:18px;
-      font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      --bg:#0b1020; --card:#101a33; --card2:#0f1730; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.08); --btn:#2a66ff; --btn2:#1f4dd6; --bad:#ff4d4d;
+      --good:#39d98a;
     }
-    body{margin:0;background:
-      radial-gradient(1100px 650px at 20% 0%, rgba(59,130,246,.22), transparent 60%),
-      radial-gradient(900px 550px at 85% 10%, rgba(34,197,94,.14), transparent 55%),
-      var(--bg);
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    header{position:sticky;top:0;z-index:10;background:rgba(11,18,32,.88);backdrop-filter:blur(12px);
-      border-bottom:1px solid var(--line);}
-    .wrap{max-width:1100px;margin:0 auto;padding:14px 16px;}
-    .row{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-    .brand{display:flex;align-items:center;gap:10px;}
-    .logo{width:36px;height:36px;border-radius:12px;background:linear-gradient(135deg,#3b82f6,#22c55e);box-shadow:var(--shadow);}
-    .title{font-weight:900;letter-spacing:.2px;}
-    .sub{color:var(--muted);font-size:12px;margin-top:2px;}
-    .tabs{display:flex;gap:8px;flex-wrap:wrap;}
-    .tab, .btn{
-      cursor:pointer; border:1px solid var(--line); background:rgba(255,255,255,.05);
-      color:var(--text); padding:10px 12px; border-radius:12px; font-weight:900; font-size:13px;
+    .wrap{max-width:980px;margin:0 auto;padding:22px}
+    .top{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px;
     }
-    .tab.active{border-color:rgba(59,130,246,.55); box-shadow:0 0 0 3px rgba(59,130,246,.16) inset;}
-    .btn.primary{border-color:rgba(59,130,246,.55); background:rgba(59,130,246,.18);}
-    .btn.good{border-color:rgba(34,197,94,.45); background:rgba(34,197,94,.14);}
-    .btn.bad{border-color:rgba(239,68,68,.45); background:rgba(239,68,68,.12);}
-    main .wrap{padding:18px 16px 28px;}
-    .grid{display:grid;grid-template-columns:1.15fr .85fr; gap:14px;}
-    @media (max-width: 920px){.grid{grid-template-columns:1fr;}}
-    .card{background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:var(--r); box-shadow:var(--shadow); overflow:hidden;}
-    .head{padding:14px 14px 10px;border-bottom:1px solid var(--line);}
-    .head h2{margin:0;font-size:15px;}
-    .head p{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.35;}
-    .body{padding:12px 14px 14px;}
-    .pill{display:inline-flex;gap:8px;align-items:center;padding:6px 10px;border-radius:999px;
-      border:1px solid var(--line);background:rgba(255,255,255,.04);font-size:12px;color:var(--muted);}
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{
+      width:44px;height:44px;border-radius:14px;
+      background:linear-gradient(145deg,#2a66ff,#5aa5ff);
+      box-shadow:0 12px 30px rgba(42,102,255,.25);
+    }
+    .title{font-size:18px;font-weight:700;line-height:1.1}
+    .sub{font-size:12px;color:var(--muted);margin-top:2px}
+    .pill{
+      font-size:12px;padding:8px 10px;border:1px solid var(--line); border-radius:999px;
+      background:rgba(255,255,255,.04); color:var(--muted); display:flex; gap:10px; align-items:center;
+    }
+    .dot{width:8px;height:8px;border-radius:50%}
+    .dot.good{background:var(--good)}
+    .dot.bad{background:var(--bad)}
+    .grid{
+      display:grid; grid-template-columns: 1.1fr .9fr; gap:14px;
+    }
+    @media (max-width:900px){ .grid{grid-template-columns:1fr} }
 
-    /* Chat */
-    #chat{height:420px; overflow:auto; padding:12px; border-radius:14px; background:rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.06);}
-    .msg{display:flex;gap:10px;margin:10px 0;}
-    .who{width:38px;height:38px;border-radius:14px;display:grid;place-items:center;
-      background:rgba(255,255,255,.06);border:1px solid var(--line);font-weight:900;}
-    .bubble{max-width:860px;padding:10px 12px;border-radius:14px;border:1px solid var(--line);
-      background:rgba(255,255,255,.05);white-space:pre-wrap;line-height:1.35;}
-    .msg.you .who{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.35);}
-    .msg.you .bubble{background:rgba(34,197,94,.07);border-color:rgba(34,197,94,.25);}
-    .msg.simo .who{background:rgba(59,130,246,.14);border-color:rgba(59,130,246,.35);}
-    .msg.simo .bubble{background:rgba(59,130,246,.07);border-color:rgba(59,130,246,.25);}
-    .composer{display:flex;gap:10px;margin-top:10px;}
-    textarea{flex:1;resize:none;min-height:46px;max-height:140px;padding:12px 12px;border-radius:14px;
-      border:1px solid var(--line);background:rgba(255,255,255,.04);color:var(--text);
-      outline:none;font-size:14px;}
-    textarea:focus{box-shadow:0 0 0 3px rgba(59,130,246,.18);border-color:rgba(59,130,246,.55);}
-    .tiny{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.35;}
-
-    /* Preview UI */
-    .spacesTop{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-    .search{flex:1;min-width:220px;display:flex;gap:8px;align-items:center;border:1px solid var(--line);
-      background:rgba(255,255,255,.04);border-radius:14px;padding:10px 12px;}
-    .search input{flex:1;border:0;background:transparent;color:var(--text);outline:none;font-size:14px;}
-    .chips{display:flex;gap:8px;flex-wrap:wrap;}
-    .chip{cursor:pointer;padding:8px 10px;border-radius:999px;border:1px solid var(--line);
-      background:rgba(255,255,255,.03);color:var(--text);font-size:13px;font-weight:900;}
-    .chip.on{border-color:rgba(59,130,246,.55);box-shadow:0 0 0 3px rgba(59,130,246,.14) inset;}
-    .listings{display:grid;gap:10px;}
-    .listing{display:flex;gap:12px;align-items:flex-start;padding:12px;border-radius:16px;
-      border:1px solid var(--line);background:rgba(255,255,255,.04);}
-    .thumb{width:62px;height:62px;border-radius:16px;background:linear-gradient(135deg, rgba(59,130,246,.25), rgba(34,197,94,.18));
-      border:1px solid rgba(255,255,255,.08);}
-    .meta{flex:1;}
-    .meta h3{margin:0;font-size:14px;}
-    .meta .sub2{margin:4px 0 0;color:var(--muted);font-size:12px;line-height:1.3;}
-    .price{font-weight:900;}
-    .map{height:240px;border-radius:16px;border:1px dashed rgba(255,255,255,.18);
-      background:rgba(0,0,0,.12);display:grid;place-items:center;color:var(--muted);}
-    .panel{display:grid;gap:10px;}
-    .field{display:grid;gap:6px;}
-    .field label{font-size:12px;color:var(--muted);}
-    .field input, .field select{padding:11px 12px;border-radius:14px;border:1px solid var(--line);
-      background:rgba(255,255,255,.04);color:var(--text);outline:none;}
-    .field input:focus, .field select:focus{box-shadow:0 0 0 3px rgba(34,197,94,.14);border-color:rgba(34,197,94,.45);}
-
-    /* Builder Preview + Gate */
-    .builderGrid{display:grid;grid-template-columns:1fr;gap:10px;}
-    .builderCard{border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.04);padding:12px;}
-    .builderCard h3{margin:0 0 6px;font-size:14px;}
-    .builderCard p{margin:0;color:var(--muted);font-size:12px;line-height:1.35;}
-    .builderActions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
-
-    /* Modal */
-    .overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;z-index:50;padding:18px;}
-    .modal{width:min(720px,100%);background:rgba(15,26,51,.96);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);overflow:hidden;}
-    .modalHead{padding:14px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:10px;align-items:center;}
-    .modalHead h3{margin:0;font-size:15px;}
-    .modalBody{padding:14px;}
-    .modalBody p{margin:0 0 12px;color:var(--muted);font-size:12px;line-height:1.45;}
-    .modalRow{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
-    .modalRow input{flex:1;min-width:220px;padding:11px 12px;border-radius:14px;border:1px solid var(--line);
-      background:rgba(255,255,255,.04);color:var(--text);outline:none;}
-    .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.4;}
-    .status{margin-top:10px;font-size:12px;}
-    .status.good{color:#bbf7d0;}
-    .status.bad{color:#fecaca;}
-
-    /* In-page status (no console needed) */
-    .rightStack{display:grid;gap:12px;}
-    details{border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.03);overflow:hidden;}
-    summary{cursor:pointer;padding:12px 14px;font-weight:900;}
-    #debugLog{padding:12px 14px;border-top:1px solid var(--line);font-family:ui-monospace, Menlo, Monaco, Consolas, monospace;
-      font-size:12px;white-space:pre-wrap;color:#cfe3ff;max-height:220px;overflow:auto;background:rgba(0,0,0,.18);}
+    .card{
+      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+      border:1px solid var(--line); border-radius:18px; overflow:hidden;
+      box-shadow:0 16px 50px rgba(0,0,0,.28);
+    }
+    .cardHead{
+      padding:14px 14px 10px; border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      background:rgba(255,255,255,.02);
+    }
+    .cardHead h2{margin:0;font-size:14px;letter-spacing:.2px}
+    .mini{font-size:12px;color:var(--muted)}
+    .chat{
+      height: 520px; overflow:auto; padding:14px;
+      display:flex; flex-direction:column; gap:10px;
+      background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.12));
+    }
+    .msg{max-width:82%; padding:10px 12px; border-radius:14px; border:1px solid var(--line); white-space:pre-wrap}
+    .msg.you{
+      align-self:flex-end; background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.25)
+    }
+    .msg.simo{
+      align-self:flex-start; background:rgba(255,255,255,.05)
+    }
+    .row{
+      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
+      background:rgba(255,255,255,.02);
+    }
+    textarea{
+      flex:1; resize:none; min-height:44px; max-height:140px; padding:10px 12px;
+      border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text);
+      outline:none;
+    }
+    button{
+      border:0; border-radius:14px; padding:0 14px; min-width:110px; font-weight:700;
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      color:white; cursor:pointer;
+      box-shadow:0 12px 26px rgba(42,102,255,.25);
+    }
+    button:disabled{opacity:.55;cursor:not-allowed}
+    .side{
+      padding:14px;
+      display:flex; flex-direction:column; gap:12px;
+    }
+    .box{
+      border:1px solid var(--line); border-radius:16px; padding:12px;
+      background:rgba(255,255,255,.03);
+    }
+    .box h3{margin:0 0 6px; font-size:13px}
+    .box p{margin:0; font-size:12px; color:var(--muted); line-height:1.35}
+    .kvs{display:grid; grid-template-columns: 1fr; gap:8px; margin-top:10px}
+    .kv{display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--muted)}
+    .kv b{color:var(--text); font-weight:700}
+    .smallbtn{
+      margin-top:10px; width:100%; min-width:0; padding:10px 12px;
+      background:rgba(255,255,255,.06); color:var(--text); border:1px solid var(--line);
+      box-shadow:none;
+    }
+    .smallbtn:hover{background:rgba(255,255,255,.08)}
+    .warn{color:#ffd27d}
   </style>
 </head>
-
 <body>
-  <header>
-    <div class="wrap">
-      <div class="row">
-        <div class="brand">
-          <div class="logo"></div>
-          <div>
-            <div class="title">Simo</div>
-            <div class="sub">Best-friend guide • Preview what paid features unlock</div>
-          </div>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div>
+          <div class="title">Simo</div>
+          <div class="sub">Best-friend vibe. Fast answers. Builder when you pay.</div>
         </div>
-
-        <div class="tabs">
-          <button class="tab active" id="tabChat">Chat</button>
-          <button class="tab" id="tabPreview">App Preview</button>
-          <button class="tab" id="tabBuilder">Builder Preview</button>
-        </div>
-
-        <div class="row" style="gap:8px;">
-          <button class="btn good" id="btnUnlock">Unlock</button>
-          <button class="btn bad" id="btnReset">Reset chat</button>
-        </div>
+      </div>
+      <div class="pill" id="statusPill">
+        <span class="dot bad" id="statusDot"></span>
+        <span id="statusText">API: checking…</span>
       </div>
     </div>
-  </header>
 
-  <main>
-    <div class="wrap">
-      <div class="grid">
-        <!-- LEFT COLUMN: main views -->
-        <section class="card" id="viewChat">
-          <div class="head">
-            <h2>Talk to Simo</h2>
-            <p>Simo is always here. The “Builder” features are previewable and unlockable.</p>
-          </div>
-          <div class="body">
-            <div id="chat" aria-live="polite"></div>
-
-            <div class="composer">
-              <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
-              <button class="btn primary" id="sendBtn">Send</button>
-            </div>
-
-            <div class="tiny">
-              Quick tests: <b>time</b>, <b>217*22</b>, “I’m stressed”, “help me write a text to someone”.
-              <br/>Want to show users what they’ll get? Click <b>App Preview</b> and <b>Builder Preview</b>.
-            </div>
-          </div>
-        </section>
-
-        <section class="card" id="viewPreview" style="display:none;">
-          <div class="head">
-            <h2>Space Renting App Preview</h2>
-            <p>This is a concrete UI preview (search + filters + listings + map + booking panel).</p>
-          </div>
-          <div class="body">
-            <div class="spacesTop">
-              <div class="search">🔎 <input id="spaceQuery" placeholder="Search city / ZIP / “driveway”, “garage”…"></div>
-              <div class="chips" id="chips">
-                <button class="chip on" data-chip="driveway">Driveway</button>
-                <button class="chip" data-chip="garage">Garage</button>
-                <button class="chip" data-chip="rv">RV/Boat</button>
-                <button class="chip" data-chip="covered">Covered</button>
-                <button class="chip" data-chip="24_7">24/7</button>
-              </div>
-            </div>
-
-            <div style="height:12px;"></div>
-
-            <div class="grid" style="grid-template-columns:1fr .95fr;">
-              <div class="card" style="box-shadow:none;">
-                <div class="body">
-                  <div class="listings" id="listingList"></div>
-                </div>
-              </div>
-
-              <div class="card" style="box-shadow:none;">
-                <div class="body">
-                  <div class="map" id="mapBox">Map placeholder</div>
-                  <div style="height:12px;"></div>
-
-                  <div class="panel">
-                    <div class="pill">Booking panel (preview)</div>
-
-                    <div class="field">
-                      <label>Selected listing</label>
-                      <select id="selectedListing"></select>
-                    </div>
-
-                    <div class="field">
-                      <label>Start date</label>
-                      <input id="startDate" type="date"/>
-                    </div>
-
-                    <div class="field">
-                      <label>End date</label>
-                      <input id="endDate" type="date"/>
-                    </div>
-
-                    <button class="btn primary" id="btnBook">Request booking</button>
-                    <div class="tiny" id="bookMsg"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-          </div>
-        </section>
-
-        <section class="card" id="viewBuilder" style="display:none;">
-          <div class="head">
-            <h2>Builder Preview</h2>
-            <p>These are the “paid features” users can unlock. Clicking them asks for unlock.</p>
-          </div>
-          <div class="body">
-            <div class="pill">Preview first • Unlock when ready</div>
-            <div style="height:10px;"></div>
-
-            <div class="builderGrid">
-              <div class="builderCard">
-                <h3>Design Mode</h3>
-                <p>Generate a home layout concept, vibe boards, and a room-by-room plan.</p>
-                <div class="builderActions">
-                  <button class="btn primary" data-locked-action="design_home">Try “Design my dream home”</button>
-                  <button class="btn" data-locked-action="logo_brand">Try “Logo + brand kit”</button>
-                </div>
-              </div>
-
-              <div class="builderCard">
-                <h3>App Builder Mode</h3>
-                <p>Generate a concrete MVP spec + UI + code scaffolding (HTML/JS) for a user’s idea.</p>
-                <div class="builderActions">
-                  <button class="btn primary" data-locked-action="build_mvp">Try “Build my app MVP”</button>
-                  <button class="btn" data-locked-action="pricing_page">Try “Make a pricing page”</button>
-                </div>
-              </div>
-
-              <div class="builderCard">
-                <h3>Done-For-You Mode</h3>
-                <p>Simo produces the deliverable: copywriting, landing pages, onboarding, FAQs.</p>
-                <div class="builderActions">
-                  <button class="btn primary" data-locked-action="landing_copy">Try “Write my landing page”</button>
-                  <button class="btn" data-locked-action="email_seq">Try “Email sequence”</button>
-                </div>
-              </div>
-            </div>
-
-            <div class="tiny" style="margin-top:10px;">
-              The unlock gate is working now. Payments/auth come next phase (Stripe + accounts).
-            </div>
-          </div>
-        </section>
-
-        <!-- RIGHT COLUMN: status + debug + plans -->
-        <aside class="rightStack">
-          <section class="card">
-            <div class="head">
-              <h2>Status</h2>
-              <p>Everything you need is visible here. No console required.</p>
-            </div>
-            <div class="body">
-              <div class="pill" id="planPill">Plan: Free</div>
-              <div class="tiny" id="statusText" style="margin-top:10px;">Ready.</div>
-              <div style="height:10px;"></div>
-              <button class="btn" id="btnShowUnlock">Why unlock?</button>
-            </div>
-          </section>
-
-          <details id="debugDrawer">
-            <summary>Debug drawer</summary>
-            <div id="debugLog"></div>
-          </details>
-        </aside>
-      </div>
-    </div>
-  </main>
-
-  <!-- Unlock modal -->
-  <div class="overlay" id="overlay">
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Unlock">
-      <div class="modalHead">
-        <h3 id="unlockTitle">Unlock Builder</h3>
-        <button class="btn" id="btnClose">Close</button>
-      </div>
-      <div class="modalBody">
-        <p id="unlockText">
-          Builder features are locked on Free. Unlock to generate “done-for-you” outputs like designs, MVP code, and brand kits.
-        </p>
-
-        <div class="modalRow">
-          <input id="unlockCode" placeholder="Enter unlock code (demo: SIMO-UNLOCK)"/>
-          <button class="btn good" id="btnApply">Apply</button>
+    <div class="grid">
+      <div class="card">
+        <div class="cardHead">
+          <h2>Chat</h2>
+          <div class="mini">Enter to send · Shift+Enter = new line</div>
         </div>
 
-        <div class="status" id="unlockStatus"></div>
+        <div class="chat" id="chat"></div>
 
-        <div class="note">
-          Demo unlock code: <b>SIMO-UNLOCK</b><br/>
-          Next phase = real login + Stripe plans. This is the working gate + preview now.
+        <div class="row">
+          <textarea id="input" placeholder="Talk to Simo…" spellcheck="true"></textarea>
+          <button id="sendBtn">Send</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="cardHead">
+          <h2>Debug</h2>
+          <div class="mini">No guessing. We show what’s real.</div>
+        </div>
+        <div class="side">
+          <div class="box">
+            <h3>Health</h3>
+            <p>If send/enter stops working, it’s almost always event listeners not binding or script not loading. This version prevents that.</p>
+            <div class="kvs">
+              <div class="kv"><span>Script loaded</span><b id="kvScript">…</b></div>
+              <div class="kv"><span>Bindings</span><b id="kvBind">…</b></div>
+              <div class="kv"><span>API route</span><b id="kvRoute">/api/simon</b></div>
+            </div>
+            <button class="smallbtn" id="debugBtn" type="button">Run Debug</button>
+          </div>
+
+          <div class="box">
+            <h3>What Simo does</h3>
+            <p><b>Normal:</b> best-friend responses + quick helpers.<br/>
+               <b>Builder:</b> code/design/mockups when you gate it later.</p>
+            <p class="warn" style="margin-top:8px;">We’re stabilizing core first so it never breaks again.</p>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-<script src="app.js"></script>
-<script src="/preview.js" defer></script>
+  <!-- IMPORTANT: defer so DOM exists before simo.js runs -->
+  <script src="./simo.js" defer></script>
 </body>
 </html>
-
-
-
