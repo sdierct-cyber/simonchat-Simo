@@ -124,14 +124,14 @@
     <div class="card">
       <div class="head">
         <h2>Chat</h2>
-        <div class="mini stamp">BUILD: SIMO_CORE_V1_2026-02-11A + PREVIEW_MODAL_V1</div>
+        <div class="mini stamp">BUILD: SIMO_CORE_V1_2026-02-11B + PREVIEW_MODAL_V2 (NO DUP LISTENERS)</div>
       </div>
 
       <div class="chat" id="chat"></div>
 
       <div class="row">
         <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter new line)"></textarea>
-        <button id="send">Send</button>
+        <button id="send" type="button">Send</button>
       </div>
     </div>
   </div>
@@ -188,8 +188,6 @@
     }
 
     async function callBackend(message){
-      // IMPORTANT:
-      // This does NOT run unless user sends a message.
       const res = await fetch("/api/simon", {
         method: "POST",
         headers: {"Content-Type":"application/json"},
@@ -204,44 +202,6 @@
       const data = await res.json().catch(()=> ({}));
       return data.reply || data.text || "Hey — I’m Simo. What’s going on?";
     }
-
-    async function onSend(){
-      const msg = (input.value || "").trim();
-      if (!msg) return;
-
-      add("you", msg);
-      input.value = "";
-      autoGrow();
-      send.disabled = true;
-
-      try{
-        setOnline(true, "Calling API…");
-        const reply = await callBackend(msg);
-        add("simo", reply);
-        setOnline(true, "Online");
-      } catch(e){
-        add("simo",
-          `UI is working, but backend failed:\n${e.message}\n\nThat means /api/simon isn’t reachable from this deploy.`
-        );
-        setOnline(false, "Backend error");
-      } finally {
-        send.disabled = false;
-        input.focus();
-      }
-    }
-
-    send.addEventListener("click", onSend);
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        onSend();
-      }
-    });
-    input.addEventListener("input", autoGrow);
-
-    add("simo", "Hey — I’m Simo. What’s going on?");
-    setOnline(false, "Offline (not calling API)");
-    input.focus();
 
     // ==========================
     // PREVIEW MODAL (ISOLATED)
@@ -399,40 +359,46 @@
       renderPreview(previewSelect.value);
       previewModal.style.display = "flex";
       previewModal.setAttribute("aria-hidden","false");
-      // no touching chat listeners; just stop typing behind modal
       if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     }
 
     function closePreview(){
       previewModal.style.display = "none";
       previewModal.setAttribute("aria-hidden","true");
-      // return focus to chat input
       input.focus();
     }
 
     previewBtn.addEventListener("click", openPreview);
     closePreviewBtn.addEventListener("click", closePreview);
 
-    // Click outside closes
     previewModal.addEventListener("click", (e) => {
       if (e.target === previewModal) closePreview();
     });
 
-    // ESC closes
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && previewModal.style.display === "flex") closePreview();
     });
 
     previewSelect.addEventListener("change", () => renderPreview(previewSelect.value));
 
-    // Optional: let chat command open preview (safe)
-    // If user types "preview" or "show preview" — open modal, no API call.
-    const originalOnSend = onSend;
-    async function onSendWithPreview(){
+    // ==========================
+    // ONE SEND FUNCTION (NO DUP LISTENERS)
+    // ==========================
+    function isPreviewCommand(raw){
+      const lower = (raw || "").trim().toLowerCase();
+      return (
+        lower === "preview" ||
+        lower === "show preview" ||
+        lower.includes("app preview")
+      );
+    }
+
+    async function handleSend(){
       const raw = (input.value || "").trim();
-      const lower = raw.toLowerCase();
-      if (lower === "preview" || lower === "show preview" || lower.includes("app preview")) {
-        // show in chat that preview opened, then open modal
+      if (!raw) return;
+
+      // Preview commands never call API
+      if (isPreviewCommand(raw)) {
         add("you", raw);
         input.value = "";
         autoGrow();
@@ -440,18 +406,44 @@
         openPreview();
         return;
       }
-      return originalOnSend();
+
+      add("you", raw);
+      input.value = "";
+      autoGrow();
+      send.disabled = true;
+
+      try{
+        setOnline(true, "Calling API…");
+        const reply = await callBackend(raw);
+        add("simo", reply);
+        setOnline(true, "Online");
+      } catch(e){
+        add("simo",
+          `UI is working, but backend failed:\n${e.message}\n\nThat means /api/simon isn’t reachable from this deploy.`
+        );
+        setOnline(false, "Backend error");
+      } finally {
+        send.disabled = false;
+        input.focus();
+      }
     }
-    // swap handlers safely
-    send.removeEventListener("click", onSend);
-    send.addEventListener("click", onSendWithPreview);
-    input.removeEventListener("keydown", () => {});
+
+    // Attach listeners ONCE
+    send.addEventListener("click", handleSend);
+
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        onSendWithPreview();
+        handleSend();
       }
     });
+
+    input.addEventListener("input", autoGrow);
+
+    // Boot
+    add("simo", "Hey — I’m Simo. What’s going on?");
+    setOnline(false, "Offline (not calling API)");
+    input.focus();
   </script>
 </body>
 </html>
