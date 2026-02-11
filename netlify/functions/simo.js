@@ -1,106 +1,144 @@
-export default async (req) => {
-  try {
-    if (req.method !== "POST") return json(405, { error: "Method not allowed" });
+(() => {
+  // --- Safe DOM getters
+  const $ = (id) => document.getElementById(id);
 
-    const body = await req.json().catch(() => ({}));
-    const incoming = Array.isArray(body.messages) ? body.messages : [];
-    const userText = String(body.user_text || "").trim();
+  const chatEl = $("chat");
+  const inputEl = $("input");
+  const sendBtn = $("sendBtn");
+  const debugBtn = $("debugBtn");
 
-    // Normalize common user input: 217 x 22, 217×22 -> 217*22
-    const normalizedText = userText.replace(/[x×]/gi, "*");
+  const statusDot = $("statusDot");
+  const statusText = $("statusText");
 
-    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-    const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  const kvScript = $("kvScript");
+  const kvBind = $("kvBind");
 
-    if (!OPENAI_API_KEY) {
-      return json(500, { error: "Missing OPENAI_API_KEY in Netlify env vars." });
-    }
+  // --- Render helpers
+  function addMsg(role, text) {
+    const div = document.createElement("div");
+    div.className = `msg ${role === "you" ? "you" : "simo"}`;
+    div.textContent = text;
+    chatEl.appendChild(div);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
 
-    // -------------------------
-    // Reliable shortcuts (no regressions)
-    // -------------------------
+  function setStatus(ok, text) {
+    statusDot.classList.remove("good", "bad");
+    statusDot.classList.add(ok ? "good" : "bad");
+    statusText.textContent = text;
+  }
 
-    // Math: 217*22 OR 217 x 22 OR 217×22 -> 4774 (answer only)
-    if (/^\s*[-+]?(\d+(\.\d+)?)(\s*[-+*/]\s*[-+]?(\d+(\.\d+)?))+\s*$/.test(normalizedText)) {
-      const safe = normalizedText.replace(/[^0-9+\-*/().\s]/g, "");
-      try {
-        // eslint-disable-next-line no-new-func
-        const result = Function(`"use strict"; return (${safe});`)();
-        if (Number.isFinite(result)) return json(200, { reply: String(result) });
-      } catch {}
-    }
+  function setKV(el, value) {
+    if (!el) return;
+    el.textContent = value;
+  }
 
-    // Time in America/Detroit
-    if (/^\s*(what\s+time\s+is\s+it|time)\s*\??\s*$/i.test(userText)) {
-      const now = new Date();
-      const formatted = now.toLocaleString("en-US", {
-        timeZone: "America/Detroit",
-        weekday: "long",
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-      return json(200, { reply: formatted });
-    }
-
-    // -------------------------
-    // Simo prompt (best friend)
-    // -------------------------
-    const system = {
-      role: "system",
-      content: `You are Simo: a private best friend vibe—direct, warm, sometimes a little edgy, never clinical.
-No therapy-speak unless asked.
-
-Hard rules:
-- If the user asks simple math, output ONLY the answer.
-- Keep replies tight and human.
-- If the user vents, validate briefly and ask ONE real question.
-- If they ask for building/design, give an actionable plan and ask 1–3 clarifying questions.`
-    };
-
-    const trimmed = trim(incoming, 14);
-
-    const apiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+  // --- Core API call
+  async function callSimo(message) {
+    const res = await fetch("/api/simon", {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "authorization": `Bearer ${OPENAI_API_KEY}`
-      },
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        messages: [system, ...trimmed, { role: "user", content: userText }],
-        temperature: 0.8,
-        max_tokens: 280
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message })
     });
 
-    const data = await apiRes.json().catch(() => ({}));
-    if (!apiRes.ok) {
-      return json(500, { error: data?.error?.message || `OpenAI error (${apiRes.status})` });
+    // If Netlify function isn't wired, this will show it clearly.
+    if (!res.ok) {
+      const t = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status} ${res.statusText}${t ? ` — ${t.slice(0, 180)}` : ""}`);
     }
 
-    const reply = data?.choices?.[0]?.message?.content?.trim() || "Hey — I’m here. What’s going on?";
-    return json(200, { reply });
-
-  } catch (e) {
-    return json(500, { error: e?.message || "Server error" });
+    const data = await res.json().catch(() => ({}));
+    // Expect { reply: "..." } or { text: "..." }
+    return data.reply || data.text || "I’m here. What’s going on?";
   }
-};
 
-function json(status, obj) {
-  return new Response(JSON.stringify(obj), {
-    status,
-    headers: { "content-type": "application/json" }
-  });
-}
+  // --- Send logic (button + Enter)
+  async function handleSend() {
+    const raw = inputEl.value || "";
+    const msg = raw.trim();
+    if (!msg) return;
 
-function trim(msgs, pairs) {
-  const clean = msgs
-    .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
-    .map(m => ({ role: m.role, content: m.content }));
+    addMsg("you", msg);
+    inputEl.value = "";
+    inputEl.style.height = ""; // reset auto-grow
+    sendBtn.disabled = true;
 
-  const max = Math.max(2, pairs * 2);
-  return clean.slice(-max);
-}
+    try {
+      const reply = await callSimo(msg);
+      addMsg("simo", reply);
+    } catch (err) {
+      addMsg("simo", `I hit an error. ${err?.message || err}`);
+    } finally {
+      sendBtn.disabled = false;
+      inputEl.focus();
+    }
+  }
+
+  // --- Auto-grow textarea
+  function autoGrow() {
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + "px";
+  }
+
+  // --- Debug runner
+  async function runDebug() {
+    addMsg("simo", "Debug check: running…");
+    try {
+      const res = await fetch("/api/simon?ping=1", { method: "GET" });
+      if (!res.ok) throw new Error(`API not OK (HTTP ${res.status})`);
+      const data = await res.json().catch(() => ({}));
+      const hasKey = !!data.has_OPENAI_API_KEY || !!data.hasOpenAIKey;
+      addMsg("simo", `Debug: API reachable. Key present: ${hasKey ? "YES" : "NO"}.`);
+      setStatus(true, `API: OK${hasKey ? "" : " (no key?)"}`);
+    } catch (e) {
+      addMsg("simo", `Debug: API issue — ${e?.message || e}`);
+      setStatus(false, "API: error");
+    }
+  }
+
+  // --- Bindings (this is where your old versions were breaking)
+  function bind() {
+    if (!chatEl || !inputEl || !sendBtn || !debugBtn) {
+      console.error("Missing required elements:", { chatEl, inputEl, sendBtn, debugBtn });
+      alert("Missing required elements. Your HTML IDs do not match simo.js.");
+      return false;
+    }
+
+    // Button click
+    sendBtn.addEventListener("click", handleSend);
+
+    // Enter to send, Shift+Enter = newline
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    });
+
+    // Auto-grow
+    inputEl.addEventListener("input", autoGrow);
+
+    // Debug button
+    debugBtn.addEventListener("click", runDebug);
+
+    return true;
+  }
+
+  // --- Init
+  function init() {
+    setKV(kvScript, "YES");
+    const ok = bind();
+    setKV(kvBind, ok ? "OK" : "FAILED");
+
+    addMsg("simo", "Hey — I’m Simo. What’s going on?");
+    setStatus(false, "API: not checked");
+    inputEl.focus();
+
+    // Light API check (doesn't waste tokens if your function handles ?ping=1)
+    // If your backend doesn't support ping, it will just show error (still useful).
+    runDebug();
+  }
+
+  // Because index.html uses defer, DOM is ready here.
+  init();
+})();
