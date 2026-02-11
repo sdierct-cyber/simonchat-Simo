@@ -8,13 +8,15 @@ export async function handler(event) {
       return json({ ok: false, error: "Missing message" }, 400);
     }
 
-    // ---- 1) Your Simo style stays the same (system prompt) ----
+    // ---- 1) Simo style stays the same (system prompt) ----
+    // Key addition: clear rule for when to use web_search (live facts).
     const systemPrompt = `
 You are Simo — a best-friend vibe assistant.
 - Keep replies tight and helpful.
 - No therapy-speak unless asked.
 - If user asks for simple math, give just the answer.
-- You can use tools when you need fresh/live info.
+- If the user asks for live/current info (weather, news, addresses, "right now", "today"), call the web_search tool.
+- When you use web_search, summarize results in plain English and don’t dump links unless asked.
 `.trim();
 
     // ---- 2) TOOL: web_search definition ----
@@ -28,7 +30,7 @@ You are Simo — a best-friend vibe assistant.
           parameters: {
             type: "object",
             properties: {
-              query: { type: "string" }
+              query: { type: "string", description: "Search query" }
             },
             required: ["query"]
           }
@@ -37,33 +39,26 @@ You are Simo — a best-friend vibe assistant.
     ];
 
     // ---- 3) Build messages (keep your existing history behavior) ----
-    // Expecting history like: [{role:"user"/"assistant", content:"..."}]
     const messages = [
       { role: "system", content: systemPrompt },
-      ...history.map(m => ({
+      ...history.map((m) => ({
         role: m.role === "assistant" ? "assistant" : "user",
         content: String(m.content || "")
       })),
       { role: "user", content: userText }
     ];
 
-    // ---- 4) Call OpenAI once; if it requests tool(s), run them and call again ----
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
     if (!OPENAI_API_KEY) return json({ ok: false, error: "Missing OPENAI_API_KEY" }, 500);
 
-    // helper: call OpenAI chat completions (works everywhere)
-    async function callOpenAI(msgs, toolOutputs) {
+    // helper: call OpenAI chat completions
+    async function callOpenAI(msgs) {
       const payload = {
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
         messages: msgs,
         tools,
         tool_choice: "auto"
       };
-
-      // If we have tool outputs to attach, we append them as tool messages:
-      if (toolOutputs?.length) {
-        payload.messages = [...msgs, ...toolOutputs];
-      }
 
       const r = await fetch("https://api.openai.com/v1/chat/completions", {
         method: "POST",
@@ -75,15 +70,12 @@ You are Simo — a best-friend vibe assistant.
       });
 
       const j = await r.json();
-      if (!r.ok) {
-        throw new Error(j?.error?.message || "OpenAI error");
-      }
+      if (!r.ok) throw new Error(j?.error?.message || "OpenAI error");
       return j;
     }
 
-    // helper: run your Netlify search function
+    // helper: call your Netlify /api/search endpoint
     async function runWebSearch(query) {
-      // Build absolute URL for Netlify. In production, use URL env or Host header.
       const host = event.headers["host"];
       const proto = event.headers["x-forwarded-proto"] || "https";
       const base = `${proto}://${host}`;
@@ -94,36 +86,36 @@ You are Simo — a best-friend vibe assistant.
       return j;
     }
 
-    // First OpenAI call
+    // ---- 4) First OpenAI call ----
     const first = await callOpenAI(messages);
+    const assistantMsg = first.choices?.[0]?.message;
 
-    const choice = first.choices?.[0];
-    const assistantMsg = choice?.message;
-
-    // If no tool calls, return the answer as-is
+    // If no tool calls, return
     const toolCalls = assistantMsg?.tool_calls || [];
     if (!toolCalls.length) {
-      const text = assistantMsg?.content || "…";
-      return json({ ok: true, reply: text });
+      return json({ ok: true, reply: assistantMsg?.content || "…" });
     }
 
-    // If there are tool calls, execute them and send results back
-    const toolOutputs = [];
+    // ---- 5) Execute tool calls and append tool outputs to messages ----
+    const msgsWithTools = [...messages, assistantMsg];
+
     for (const tc of toolCalls) {
       const name = tc.function?.name;
       const args = safeParse(tc.function?.arguments);
 
       if (name === "web_search") {
         const query = String(args?.query || "").trim();
-        const result = query ? await runWebSearch(query) : { ok: false, error: "Missing query" };
+        const result = query
+          ? await runWebSearch(query)
+          : { ok: false, error: "Missing query" };
 
-        toolOutputs.push({
+        msgsWithTools.push({
           role: "tool",
           tool_call_id: tc.id,
           content: JSON.stringify(result)
         });
       } else {
-        toolOutputs.push({
+        msgsWithTools.push({
           role: "tool",
           tool_call_id: tc.id,
           content: JSON.stringify({ ok: false, error: `Unknown tool: ${name}` })
@@ -131,8 +123,8 @@ You are Simo — a best-friend vibe assistant.
       }
     }
 
-    // Second OpenAI call with tool outputs
-    const second = await callOpenAI(messages, toolOutputs);
+    // ---- 6) Second OpenAI call (model sees tool results) ----
+    const second = await callOpenAI(msgsWithTools);
     const finalText = second.choices?.[0]?.message?.content || "…";
 
     return json({ ok: true, reply: finalText });
@@ -141,7 +133,7 @@ You are Simo — a best-friend vibe assistant.
   }
 }
 
-// small helpers
+// helpers
 function json(obj, statusCode = 200) {
   return {
     statusCode,
@@ -151,5 +143,9 @@ function json(obj, statusCode = 200) {
 }
 
 function safeParse(s) {
-  try { return JSON.parse(s || "{}"); } catch { return {}; }
+  try {
+    return JSON.parse(s || "{}");
+  } catch {
+    return {};
+  }
 }
