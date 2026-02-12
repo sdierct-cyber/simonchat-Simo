@@ -264,12 +264,12 @@ hr.sep{
     <div class="badgeRow">
       <div class="badge">Plan: <strong id="planBadge">Free</strong></div>
       <div class="badge">Mode: <strong id="modeBadge">Friend</strong></div>
+      <div class="badge">Focus: <strong id="focusBadge">—</strong></div>
       <div class="badge">Preview: <strong id="previewBadge">Ready</strong></div>
     </div>
   </div>
 
   <div class="grid">
-    <!-- CHAT -->
     <div class="card">
       <div class="cardHeader">
         <div>
@@ -287,12 +287,11 @@ hr.sep{
       </div>
     </div>
 
-    <!-- RIGHT: PREVIEW + CONTEXT -->
     <div class="card">
       <div class="cardHeader">
         <div>
           <div class="cardTitle">Preview</div>
-          <div class="cardHint">Shows when you ask: “show me a preview / mockup”</div>
+          <div class="cardHint">Ask: “show me a preview / mockup” + what you want on it</div>
         </div>
         <button class="secondaryBtn" id="togglePlanBtn" type="button">Toggle Pro</button>
       </div>
@@ -303,7 +302,7 @@ hr.sep{
         <div class="kv"><span>Preview modules</span><strong id="modulesKV">—</strong></div>
 
         <div class="small">
-          Tip: Ask anything. If you want visuals, say “show me a preview” and include what you want on it.
+          You can switch gears anytime: “switch to venting / switch to solving / switch to building”.
         </div>
 
         <hr class="sep" />
@@ -316,42 +315,38 @@ hr.sep{
   </div>
 </div>
 
-<!-- Upgrade Modal -->
 <div id="modalBackdrop" class="modalBackdrop" role="dialog" aria-modal="true">
   <div class="modal">
     <h3>That’s a Pro action</h3>
     <p>
-      I can absolutely do it — but in the Free plan I keep it light. Toggle Pro to simulate paid upgrades.
-      (Payment wiring comes later; this is the UI + logic gate.)
+      I can do that — but in the Free plan I keep it light. Toggle Pro to simulate paid upgrades.
+      (Payment wiring comes later; this is UI + logic gate.)
     </p>
     <div class="row">
       <button class="secondaryBtn" id="closeModalBtn" type="button">Not now</button>
       <button id="enableProBtn" type="button">Enable Pro</button>
     </div>
     <div class="warnLine">
-      This is just the upgrade *gate*. It doesn’t charge anyone — it only flips the plan state.
+      This doesn’t charge anyone. It only flips the plan state.
     </div>
   </div>
 </div>
 
 <script>
-/* =========================
-   State
-========================= */
 const state = {
-  plan: "free",             // "free" | "pro" (simulated)
-  mode: "friend",           // "friend" | "builder"
-  history: [],              // {role:"user"|"simo", text, ts}
+  plan: "free",              // free | pro (simulated)
+  mode: "friend",            // friend | builder
+  focus: "",                 // vent | solve | build (session focus)
+  expectingLaneChoice: false,
+  lastSimoKey: "",
+  history: [],
   memory: {
     lastIntent: "",
     lastTopic: "",
-    lastPreviewSpec: null,  // {title, modules[], notes}
+    lastPreviewSpec: null,
   }
 };
 
-/* =========================
-   DOM
-========================= */
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
@@ -361,6 +356,7 @@ const togglePlanBtn = document.getElementById("togglePlanBtn");
 
 const planBadge = document.getElementById("planBadge");
 const modeBadge = document.getElementById("modeBadge");
+const focusBadge = document.getElementById("focusBadge");
 const previewBadge = document.getElementById("previewBadge");
 
 const intentKV = document.getElementById("intentKV");
@@ -372,9 +368,6 @@ const modalBackdrop = document.getElementById("modalBackdrop");
 const closeModalBtn = document.getElementById("closeModalBtn");
 const enableProBtn = document.getElementById("enableProBtn");
 
-/* =========================
-   Helpers
-========================= */
 function escapeHtml(str){
   return String(str)
     .replaceAll("&","&amp;")
@@ -384,13 +377,12 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 
-function nowTs(){
-  return new Date().toISOString();
-}
+function nowTs(){ return new Date().toISOString(); }
 
 function setBadges(){
   planBadge.textContent = state.plan === "pro" ? "Pro" : "Free";
   modeBadge.textContent = state.mode === "builder" ? "Builder" : "Friend";
+  focusBadge.textContent = state.focus ? state.focus.toUpperCase() : "—";
 }
 
 function setContextCards(){
@@ -401,14 +393,10 @@ function setContextCards(){
     : "—";
 }
 
-function openModal(){
-  modalBackdrop.style.display = "flex";
-}
-function closeModal(){
-  modalBackdrop.style.display = "none";
-}
+function openModal(){ modalBackdrop.style.display = "flex"; }
+function closeModal(){ modalBackdrop.style.display = "none"; }
 
-function addMessage(role, text){
+function addMessage(role, text, key=""){
   state.history.push({ role, text, ts: nowTs() });
 
   const msg = document.createElement("div");
@@ -426,36 +414,41 @@ function addMessage(role, text){
   msg.appendChild(bubble);
   chatEl.appendChild(msg);
   chatEl.scrollTop = chatEl.scrollHeight;
+
+  if (role === "simo" && key) state.lastSimoKey = key;
 }
 
-/* =========================
-   Intent + Topic parsing
-========================= */
 function detectIntent(text){
   const t = text.toLowerCase();
+
+  // Explicit lane choices / switching
+  if (/(switch to|let's|lets)\s+(vent|venting)/i.test(text) || /\bvent(ing)?\b/.test(t)) return "lane_vent";
+  if (/(switch to|let's|lets)\s+(solve|solving|problem solve|problem solving)/i.test(text) || /\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
+  if (/(switch to|let's|lets)\s+(build|building|create|design)/i.test(text) || /\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
 
   if (/(show me|make|build).*(preview|mockup)/i.test(text) || /(preview|mockup)/i.test(text)) return "preview";
   if (/(write|draft|email|resume|cover letter|bio|script|story|book)/i.test(text)) return "write";
   if (/(code|html|css|js|javascript|react|bug|fix|error)/i.test(text)) return "code";
   if (/(design|ui|ux|layout|wireframe)/i.test(text)) return "design";
   if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained)/i.test(text)) return "vent";
+
+  // “help me with my idea / software idea” is SOLVE/BUILD leaning
+  if (/(help me|idea|software idea|startup|app idea|business idea)/i.test(text)) return "solve";
+
   return "chat";
 }
 
-// Pull a "topic" from the user's message without locking them into it.
-// If they say "preview of X" capture X; else capture a short summary.
 function inferTopic(text){
   const raw = (text || "").trim();
   if (!raw) return "";
 
-  // Try patterns like: "preview of my ____" or "mockup for ____"
   const m1 = raw.match(/(?:preview|mockup)\s+(?:of|for)\s+(.+)$/i);
   if (m1 && m1[1]) return shorten(cleanTopic(m1[1]));
 
-  // Try patterns like: "can you build me a ____"
   const m2 = raw.match(/(?:build|create|design)\s+(?:me|a|an)\s+(.+)$/i);
   if (m2 && m2[1]) return shorten(cleanTopic(m2[1]));
 
+  // If they say “my software idea” we keep it, but short
   return shorten(raw);
 }
 
@@ -472,38 +465,24 @@ function shorten(s){
   return s.length > 56 ? (s.slice(0, 56).trim() + "…") : s;
 }
 
-/* =========================
-   Preview module parsing
-   (Matches what the user asked for)
-========================= */
 function parsePreviewModules(text){
   const t = (text || "").toLowerCase();
   const modules = [];
-
-  // If user explicitly asks for parts, add them
   if (t.includes("search")) modules.push("search");
-  if (t.includes("filter")) modules.push("filters");
-  if (t.includes("chip")) modules.push("filters");
+  if (t.includes("filter") || t.includes("chip")) modules.push("filters");
   if (t.includes("card") || t.includes("listing") || t.includes("results")) modules.push("cards");
-  if (t.includes("map")) modules.push("map");
-  if (t.includes("booking") || t.includes("checkout") || t.includes("reserve")) modules.push("action panel");
+  if (t.includes("map") || t.includes("image") || t.includes("visual")) modules.push("map");
+  if (t.includes("booking") || t.includes("checkout") || t.includes("reserve") || t.includes("submit")) modules.push("action panel");
   if (t.includes("profile")) modules.push("profile");
   if (t.includes("settings")) modules.push("settings");
-
-  // If nothing was specified, use a neutral default template
-  if (modules.length === 0){
-    modules.push("search", "filters", "cards", "map", "action panel");
-  }
-
-  // Dedupe
+  if (modules.length === 0) modules.push("search","filters","cards","map","action panel");
   return [...new Set(modules)];
 }
 
 function renderPreview(spec){
   const title = spec.title || "UI Mockup Template";
   const modules = spec.modules || [];
-  const notes = spec.notes || "";
-
+  const notes = spec.notes || "Generic preview template (adapts to your request).";
   const parts = [];
 
   parts.push(`
@@ -511,33 +490,23 @@ function renderPreview(spec){
       <div class="previewTitle">
         <div>
           <h3>${escapeHtml(title)}</h3>
-          <div class="previewSub">${escapeHtml(notes || "Generic preview template (adapts to your request).")}</div>
+          <div class="previewSub">${escapeHtml(notes)}</div>
         </div>
         <div class="tag">Preview</div>
       </div>
   `);
 
-  // Search / Input
   if (modules.includes("search")){
-    parts.push(`
-      <div class="blockTitle">Search / Input</div>
-      <div class="box">Type here… (search, prompt, query)</div>
-    `);
+    parts.push(`<div class="blockTitle">Search / Input</div><div class="box">Type here…</div>`);
   }
-
-  // Filters
   if (modules.includes("filters")){
     parts.push(`
       <div class="blockTitle">Filters</div>
       <div class="pillRow">
-        <div class="pill">Filter A</div>
-        <div class="pill">Filter B</div>
-        <div class="pill">Filter C</div>
+        <div class="pill">Filter A</div><div class="pill">Filter B</div><div class="pill">Filter C</div>
       </div>
     `);
   }
-
-  // Cards / Results
   if (modules.includes("cards")){
     parts.push(`
       <div class="blockTitle">Results / Cards</div>
@@ -546,49 +515,25 @@ function renderPreview(spec){
       <div class="box"><strong>Item Three</strong><br/>Short description • status/price • CTA</div>
     `);
   }
-
-  // Map / Visual
   if (modules.includes("map")){
-    parts.push(`
-      <div class="blockTitle">Main Visual / Map / Image Area</div>
-      <div class="grayBox"></div>
-    `);
+    parts.push(`<div class="blockTitle">Main Visual / Map / Image Area</div><div class="grayBox"></div>`);
   }
-
-  // Action Panel
   if (modules.includes("action panel")){
-    parts.push(`
-      <div class="blockTitle">Action Panel</div>
-      <div class="box">Primary action: Book / Submit / Checkout / Save</div>
-    `);
+    parts.push(`<div class="blockTitle">Action Panel</div><div class="box">Primary action: Book / Submit / Checkout / Save</div>`);
   }
-
-  // Profile / Settings (optional modules)
   if (modules.includes("profile")){
-    parts.push(`
-      <div class="blockTitle">Profile</div>
-      <div class="box">Avatar • Name • Bio • Saved items</div>
-    `);
+    parts.push(`<div class="blockTitle">Profile</div><div class="box">Avatar • Name • Bio • Saved items</div>`);
   }
-
   if (modules.includes("settings")){
-    parts.push(`
-      <div class="blockTitle">Settings</div>
-      <div class="box">Notifications • Privacy • Account</div>
-    `);
+    parts.push(`<div class="blockTitle">Settings</div><div class="box">Notifications • Privacy • Account</div>`);
   }
 
   parts.push(`</div>`);
-
   previewArea.innerHTML = parts.join("");
 }
 
-/* =========================
-   Pro gating stubs
-========================= */
 function isProAction(text){
   const t = text.toLowerCase();
-  // examples of “paid upgrades”: generating full code, multi-step build, images, heavy exports, etc.
   if (/(generate|create|build).*(full|complete).*(code|website|app)/i.test(text)) return true;
   if (/(make|generate).*(image|logo|cover|art)/i.test(text)) return true;
   if (/(export|download|pdf|docx|pptx)/i.test(text)) return true;
@@ -596,113 +541,185 @@ function isProAction(text){
   return false;
 }
 
-/* =========================
-   Simo brain (local)
-========================= */
+/* ==========
+   Focus helpers
+========== */
+function setFocus(f){
+  state.focus = f;               // vent | solve | build
+  state.expectingLaneChoice = false;
+  setBadges();
+}
+
+function askLaneOnce(){
+  // If we already asked this last time, don't repeat it.
+  if (state.lastSimoKey === "ask_lane") return;
+
+  state.expectingLaneChoice = true;
+  addMessage("simo",
+    "I’m here.\nTell me what you want right now: venting, solving, or building?",
+    "ask_lane"
+  );
+}
+
+function handleLaneChoice(intent){
+  if (intent === "lane_vent"){ setFocus("vent"); return true; }
+  if (intent === "lane_solve"){ setFocus("solve"); return true; }
+  if (intent === "lane_build"){ setFocus("build"); return true; }
+  return false;
+}
+
+function nextPromptForFocus(){
+  if (state.focus === "vent"){
+    state.mode = "friend";
+    setBadges();
+    addMessage("simo", "Alright — vent. What happened, and what part hit you the hardest?", "vent_prompt");
+    return;
+  }
+  if (state.focus === "solve"){
+    state.mode = "builder";
+    setBadges();
+    addMessage("simo",
+      "Alright — problem solving.\nGive me:\n1) the goal (one sentence)\n2) what’s blocking you\n3) what you’ve tried",
+      "solve_prompt"
+    );
+    return;
+  }
+  if (state.focus === "build"){
+    state.mode = "builder";
+    setBadges();
+    addMessage("simo",
+      "Alright — we’re building.\nWhat is it, who’s it for, and your top 3 must-haves?",
+      "build_prompt"
+    );
+    return;
+  }
+}
+
 function simoReply(userText){
   const intent = detectIntent(userText);
   state.memory.lastIntent = intent;
 
-  // Update topic memory *without locking* — just a “last known”
   const topic = inferTopic(userText);
   if (topic) state.memory.lastTopic = topic;
 
-  // Previews: match user request
+  // Lane choice or switch
+  if (handleLaneChoice(intent)){
+    setContextCards();
+    nextPromptForFocus();
+    return;
+  }
+
+  // If Simo asked for lane choice and user answered in plain English like "problem solving"
+  if (state.expectingLaneChoice){
+    // detectIntent already maps "problem solving" to lane_solve via regex, but keep a safety net:
+    const t = userText.toLowerCase();
+    if (t.includes("problem") || t.includes("solve") || t.includes("solving")){
+      setFocus("solve");
+      setContextCards();
+      nextPromptForFocus();
+      return;
+    }
+    if (t.includes("vent") || t.includes("talk") || t.includes("feel")){
+      setFocus("vent");
+      setContextCards();
+      nextPromptForFocus();
+      return;
+    }
+    if (t.includes("build") || t.includes("create") || t.includes("design")){
+      setFocus("build");
+      setContextCards();
+      nextPromptForFocus();
+      return;
+    }
+    // If they didn't choose, ask once (no loop)
+    askLaneOnce();
+    setContextCards();
+    return;
+  }
+
+  // Preview
   if (intent === "preview"){
     const modules = parsePreviewModules(userText);
     const title = state.memory.lastTopic ? `Mockup: ${state.memory.lastTopic}` : "UI Mockup Template";
-
     state.memory.lastPreviewSpec = {
       title,
       modules,
-      notes: "Tell me what you want changed (layout, colors, sections, flow)."
+      notes: "Tell me what you want changed (sections, layout, flow)."
     };
-
     previewBadge.textContent = "Shown";
     renderPreview(state.memory.lastPreviewSpec);
     setContextCards();
 
-    // Friend tone + quick next step
+    // Focus stays; preview is just a tool
     addMessage("simo",
-      "Alright — I dropped a preview on the right based on what you asked for.\n" +
-      "What should this *feel like* to the user: clean + calm, or bold + energetic?"
+      "Preview’s on the right. What should I adjust first — layout, features, or the user flow?",
+      "preview_next"
     );
     return;
   }
 
-  // If user asks for a Pro action and they’re on Free → gate it (but still be helpful)
+  // Pro gating
   if (state.plan !== "pro" && isProAction(userText)){
     addMessage("simo",
-      "I can do that — but that’s a paid-upgrade type action in your setup.\n" +
-      "If you want, toggle Pro (top right) and I’ll treat it like the upgraded plan."
+      "I can do that — but that’s a paid-upgrade type action.\nToggle Pro (top right) and I’ll treat it like the upgraded plan.",
+      "pro_gate"
     );
     openModal();
     setContextCards();
     return;
   }
 
-  // Best-friend defaults (no cheesy therapy talk)
-  if (intent === "vent"){
-    state.mode = "friend";
-    setBadges();
+  // If user says “hello?” don’t throw the lane question again—respond naturally
+  if (/^(hello|hi|hey|\?+|hello\?)$/i.test(userText.trim())){
+    if (state.focus){
+      addMessage("simo", `Hey. I’m here. We’re in ${state.focus.toUpperCase()} — want to continue?`, "hello_focus");
+    } else {
+      addMessage("simo", "Hey. I’m here. What do you need right now?", "hello_plain");
+      // don’t auto ask lane; let them talk
+    }
     setContextCards();
-
-    addMessage("simo",
-      "Yeah… I hear you.\n" +
-      "What’s the *exact moment* it flips into the same loop again?"
-    );
     return;
   }
 
-  // Builder-ish prompts, but still Simo
-  if (intent === "code" || intent === "design"){
-    state.mode = "builder";
-    setBadges();
+  // If we already have a focus, keep moving in that direction instead of asking lane again.
+  if (state.focus){
     setContextCards();
-
-    addMessage("simo",
-      "Okay — builder hat on.\n" +
-      "Give me the goal in one sentence, then your top 3 must-haves. If you want a visual first, say “show me a preview” + what sections you want."
-    );
-    return;
+    if (state.focus === "solve"){
+      state.mode = "builder"; setBadges();
+      addMessage("simo",
+        "Okay. Give me the details:\n• Goal\n• Constraints\n• What success looks like\nThen I’ll map the next steps.",
+        "solve_continue"
+      );
+      return;
+    }
+    if (state.focus === "build"){
+      state.mode = "builder"; setBadges();
+      addMessage("simo",
+        "Okay. What are we building — and what’s the first screen the user sees?",
+        "build_continue"
+      );
+      return;
+    }
+    if (state.focus === "vent"){
+      state.mode = "friend"; setBadges();
+      addMessage("simo",
+        "Talk to me. What set it off?",
+        "vent_continue"
+      );
+      return;
+    }
   }
 
-  if (intent === "write"){
-    state.mode = "builder";
-    setBadges();
-    setContextCards();
-
-    addMessage("simo",
-      "Got you. What are we writing — and what vibe: calm, confident, funny, or serious?"
-    );
-    return;
-  }
-
-  // Default friend chat
-  state.mode = "friend";
-  setBadges();
+  // Otherwise: ask lane ONCE (no repetition)
   setContextCards();
-
-  addMessage("simo",
-    "I’m here.\n" +
-    "Are we venting, solving, or building something right now?"
-  );
+  askLaneOnce();
 }
 
-/* =========================
-   Sending (Enter + Button)
-========================= */
 function sendMessage(){
   const text = inputEl.value.trim();
   if (!text) return;
-
-  // User message
   addMessage("user", text);
-
-  // Clear input
   inputEl.value = "";
-
-  // Reply
   simoReply(text);
 }
 
@@ -715,11 +732,11 @@ inputEl.addEventListener("keydown", (e) => {
   }
 });
 
-/* =========================
-   Buttons / UI actions
-========================= */
 clearBtn.addEventListener("click", () => {
   state.history = [];
+  state.focus = "";
+  state.expectingLaneChoice = false;
+  state.lastSimoKey = "";
   state.memory.lastIntent = "";
   state.memory.lastTopic = "";
   state.memory.lastPreviewSpec = null;
@@ -728,8 +745,9 @@ clearBtn.addEventListener("click", () => {
   previewArea.innerHTML = `<div class="small">No preview yet. Ask for one.</div>`;
   previewBadge.textContent = "Ready";
   setContextCards();
+  setBadges();
 
-  addMessage("simo", "Clean slate. I’m still here. What’s up?");
+  addMessage("simo", "Clean slate. I’m still here. What’s up?", "clean_slate");
 });
 
 togglePlanBtn.addEventListener("click", () => {
@@ -745,17 +763,14 @@ enableProBtn.addEventListener("click", () => {
   state.plan = "pro";
   setBadges();
   closeModal();
-  addMessage("simo", "Alright — Pro is on. Now tell me exactly what you want me to generate.");
+  addMessage("simo", "Alright — Pro is on. Now tell me exactly what you want me to generate.", "pro_on");
 });
 
-/* =========================
-   Boot message
-========================= */
 setBadges();
 setContextCards();
 addMessage("simo",
-  "Hey. I’m here.\n" +
-  "If you want visuals, say: “show me a preview” and include what you want on it."
+  "Hey. I’m here.\nIf you want visuals, say: “show me a preview” and include what you want on it.",
+  "boot"
 );
 </script>
 </body>
