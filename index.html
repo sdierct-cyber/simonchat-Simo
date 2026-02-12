@@ -16,6 +16,8 @@
   --accent:#2a66ff;
   --accent2:#1f4dd6;
   --warn:#ffcc66;
+  --good:#39d98a;
+  --bad:#ff4d4d;
 }
 *{box-sizing:border-box}
 body{
@@ -24,9 +26,9 @@ body{
   background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
   color:var(--text);
 }
-.wrap{max-width:980px;margin:0 auto;padding:18px}
+.wrap{max-width:1020px;margin:0 auto;padding:18px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-.brand{font-size:22px;font-weight:700;letter-spacing:.2px}
+.brand{font-size:22px;font-weight:800;letter-spacing:.2px}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
 .badgeRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .badge{
@@ -34,9 +36,10 @@ body{
   border:1px solid var(--line);padding:6px 10px;border-radius:999px;
   background:rgba(255,255,255,.04);
 }
-.badge strong{color:var(--text);font-weight:700}
-.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
-@media (max-width: 920px){ .grid{grid-template-columns:1fr} }
+.badge strong{color:var(--text);font-weight:800}
+.grid{display:grid;grid-template-columns: 1.15fr .85fr;gap:12px}
+@media (max-width: 940px){ .grid{grid-template-columns:1fr} }
+
 .card{
   background:rgba(255,255,255,.03);
   border:1px solid var(--line);
@@ -48,11 +51,12 @@ body{
   border-bottom:1px solid var(--line);
   display:flex;align-items:center;justify-content:space-between;gap:10px;
 }
-.cardTitle{font-weight:700}
+.cardTitle{font-weight:800}
 .cardHint{color:var(--muted);font-size:12px}
-.chat{height:520px;overflow:auto;padding:12px}
+
+.chat{height:540px;overflow:auto;padding:12px}
 .msg{margin:0 0 12px 0;line-height:1.5;font-size:14px}
-.msg .who{display:inline-block;font-weight:700;margin-right:8px}
+.msg .who{display:inline-block;font-weight:800;margin-right:8px}
 .msg.user .who{color:#fff}
 .msg.simo .who{color:var(--muted)}
 .bubble{
@@ -68,6 +72,7 @@ body{
   background:rgba(42,102,255,.10);
   border-color:rgba(42,102,255,.25);
 }
+
 .controls{
   padding:12px;
   border-top:1px solid var(--line);
@@ -84,7 +89,7 @@ textarea{
 }
 button{
   border:none;padding:12px 14px;border-radius:12px;
-  font-weight:800;cursor:pointer;color:#fff;background:var(--accent);
+  font-weight:900;cursor:pointer;color:#fff;background:var(--accent);
 }
 button:hover{background:var(--accent2)}
 .secondaryBtn{
@@ -93,6 +98,7 @@ button:hover{background:var(--accent2)}
   color:var(--text);
 }
 .secondaryBtn:hover{background:rgba(255,255,255,.10)}
+
 .side{padding:12px}
 .kv{
   display:flex;justify-content:space-between;gap:10px;
@@ -103,6 +109,7 @@ button:hover{background:var(--accent2)}
 .kv span{color:var(--muted)}
 .small{color:var(--muted);font-size:12px;line-height:1.4}
 hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
+
 .previewWrap{padding:12px}
 .previewCard{
   background:#fff;color:#111;
@@ -122,12 +129,13 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   font-size:11px;padding:6px 10px;border-radius:999px;
   border:1px solid #c7d2fe;background:#eef2ff;
 }
-.blockTitle{font-size:12px;font-weight:800;margin:12px 0 8px;color:#222}
+.blockTitle{font-size:12px;font-weight:900;margin:12px 0 8px;color:#222}
 .box{
   border:1px solid #e5e7eb;border-radius:12px;
   padding:10px;background:#f9fafb;margin-bottom:8px;
 }
-.grayBox{height:140px;background:#e5e7eb;border-radius:12px}
+.grayBox{height:160px;background:#e5e7eb;border-radius:12px}
+
 .modalBackdrop{
   position:fixed;inset:0;background:rgba(0,0,0,.55);
   display:none;align-items:center;justify-content:center;
@@ -157,7 +165,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
   <div class="top">
     <div>
       <div class="brand">Hey — I’m Simo.</div>
-      <div class="sub">Best friend vibes by default. Previews adapt to what you ask for.</div>
+      <div class="sub">Best-friend first. Builder previews when you ask.</div>
     </div>
     <div class="badgeRow">
       <div class="badge">Plan: <strong id="planBadge">Free</strong></div>
@@ -175,7 +183,9 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
           <div class="cardTitle">Chat</div>
           <div class="cardHint">Enter to send • Shift+Enter for a new line</div>
         </div>
-        <button class="secondaryBtn" id="clearBtn" type="button">Clear</button>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button class="secondaryBtn" id="clearBtn" type="button">Clear</button>
+        </div>
       </div>
 
       <div id="chat" class="chat"></div>
@@ -197,11 +207,11 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
 
       <div class="side">
         <div class="kv"><span>Last intent</span><strong id="intentKV">—</strong></div>
-        <div class="kv"><span>Project/topic</span><strong id="topicKV">—</strong></div>
-        <div class="kv"><span>Preview modules</span><strong id="modulesKV">—</strong></div>
+        <div class="kv"><span>Topic</span><strong id="topicKV">—</strong></div>
+        <div class="kv"><span>Next step</span><strong id="nextKV">—</strong></div>
 
         <div class="small">
-          Tip: “switch topics” resets pending questions and stages.
+          Tip: “switch topics” resets the flow cleanly.
         </div>
 
         <hr class="sep" />
@@ -219,7 +229,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
     <h3>That’s a Pro action</h3>
     <p>
       I can do that — but in the Free plan I keep it light. Toggle Pro to simulate paid upgrades.
-      (Payment wiring comes later; this is UI + logic gate.)
+      (Payment wiring comes later; this is just a logic gate + UI.)
     </p>
     <div class="row">
       <button class="secondaryBtn" id="closeModalBtn" type="button">Not now</button>
@@ -232,24 +242,32 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
 </div>
 
 <script>
+/* =========================
+   STATE
+========================= */
 const state = {
-  plan: "free",
-  mode: "friend",
-  focus: "",                 // vent | solve | build
-  domain: "",                // physical | digital | general
-  pending: "",               // home_story | home_bedplan | home_lotwidth | app_user | app_core | app_platform
+  plan: "free",            // free | pro
+  mode: "friend",          // friend | builder
+  focus: "",               // vent | solve | build
+  domain: "",              // physical | digital | general
   expectingLaneChoice: false,
-  lastSimoKey: "",
-  history: [],
+
+  // "pending" is the key to keeping flow from brainfarting
+  pending: "",             // home_story | home_bedplan | home_lotwidth | home_garage | app_user | app_core | app_platform | app_feature
+
   memory: {
     lastIntent: "",
-    lastTopic: "",
-    lastPreviewSpec: null,
-    home: { story:"", bedplan:"", lotWidth:"" },
-    app:  { user:"", core:"", platform:"" }
+    topic: "",
+    next: "",
+    lastPreviewType: "",   // home | app
+    home: { sqft:"", beds:"", baths:"", garage:"", style:"modern", story:"", bedplan:"", lotWidth:"", garageType:"" },
+    app:  { user:"", core:"", platform:"", feature:"" }
   }
 };
 
+/* =========================
+   DOM
+========================= */
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
@@ -264,13 +282,16 @@ const previewBadge = document.getElementById("previewBadge");
 
 const intentKV = document.getElementById("intentKV");
 const topicKV = document.getElementById("topicKV");
-const modulesKV = document.getElementById("modulesKV");
+const nextKV = document.getElementById("nextKV");
 const previewArea = document.getElementById("previewArea");
 
 const modalBackdrop = document.getElementById("modalBackdrop");
 const closeModalBtn = document.getElementById("closeModalBtn");
 const enableProBtn = document.getElementById("enableProBtn");
 
+/* =========================
+   UTILS
+========================= */
 function escapeHtml(str){
   return String(str)
     .replaceAll("&","&amp;")
@@ -279,7 +300,6 @@ function escapeHtml(str){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-function nowTs(){ return new Date().toISOString(); }
 
 function setBadges(){
   planBadge.textContent = state.plan === "pro" ? "Pro" : "Free";
@@ -287,19 +307,14 @@ function setBadges(){
   focusBadge.textContent = state.focus ? state.focus.toUpperCase() : "—";
   domainBadge.textContent = state.domain ? state.domain.toUpperCase() : "—";
 }
-function setContextCards(){
+
+function setSide(){
   intentKV.textContent = state.memory.lastIntent || "—";
-  topicKV.textContent = state.memory.lastTopic || "—";
-  modulesKV.textContent = state.memory.lastPreviewSpec?.modules?.length
-    ? state.memory.lastPreviewSpec.modules.join(", ")
-    : "—";
+  topicKV.textContent = state.memory.topic || "—";
+  nextKV.textContent = state.memory.next || "—";
 }
-function openModal(){ modalBackdrop.style.display = "flex"; }
-function closeModal(){ modalBackdrop.style.display = "none"; }
 
-function addMessage(role, text, key=""){
-  state.history.push({ role, text, ts: nowTs() });
-
+function addMessage(role, text){
   const msg = document.createElement("div");
   msg.className = "msg " + (role === "user" ? "user" : "simo");
 
@@ -315,11 +330,17 @@ function addMessage(role, text, key=""){
   msg.appendChild(bubble);
   chatEl.appendChild(msg);
   chatEl.scrollTop = chatEl.scrollHeight;
-
-  if (role === "simo" && key) state.lastSimoKey = key;
 }
 
-/* ---------- Intent + switching topics ---------- */
+function openModal(){ modalBackdrop.style.display = "flex"; }
+function closeModal(){ modalBackdrop.style.display = "none"; }
+
+function isProAction(text){
+  const t = (text || "").toLowerCase();
+  // keep this tight: only "export-like" actions
+  return /(export|download|pdf|docx|pptx|connect|api key|billing|stripe)/i.test(t);
+}
+
 function isSwitchTopics(text){
   const t = (text || "").toLowerCase();
   return (
@@ -332,19 +353,28 @@ function isSwitchTopics(text){
   );
 }
 
+function detectDomain(text){
+  const t = (text || "").toLowerCase();
+  const physical = ["home","house","layout","floor plan","blueprint","garage","bedroom","bath","sq ft","square feet","lot","ranch","two-story","2 story","upstairs","downstairs"];
+  const digital  = ["app","website","web app","saas","software","ui","ux","screen","dashboard","api","database"];
+  let p=0,d=0;
+  for (const w of physical) if (t.includes(w)) p++;
+  for (const w of digital) if (t.includes(w)) d++;
+  if (p >= 2 && p >= d) return "physical";
+  if (d >= 2 && d > p) return "digital";
+  return "general";
+}
+
 function detectIntent(text){
   const t = (text || "").toLowerCase().trim();
 
   if (isSwitchTopics(t)) return "switch_topics";
 
-  // "where's the layout" should re-show preview
-  if ((t.includes("where") || t.includes("wheres") || t.includes("where's")) && t.includes("layout")) return "preview";
-
-  if (/\bshow me\b/.test(t) && (t.includes("layout") || t.includes("floor plan") || t.includes("home") || t.includes("house") || t.includes("mockup") || t.includes("preview") || t.includes("wireframe"))) return "preview";
-  if (/(preview|mockup|wireframe)\b/i.test(text)) return "preview";
+  if ((t.includes("where") || t.includes("wheres") || t.includes("where's")) && (t.includes("layout") || t.includes("preview"))) return "preview";
+  if (t.includes("show me") && (t.includes("layout") || t.includes("floor plan") || t.includes("preview") || t.includes("mockup") || t.includes("wireframe"))) return "preview";
+  if (/(preview|mockup|wireframe)/i.test(text)) return "preview";
 
   if (/\b(app|software|saas|website|web app)\b/.test(t)) return "app_request";
-
   if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained|fighting|fight|go away|leave me alone)/i.test(text)) return "vent";
 
   if (/\bvent(ing)?\b/.test(t)) return "lane_vent";
@@ -354,36 +384,25 @@ function detectIntent(text){
   return "chat";
 }
 
-function detectDomain(text){
-  const t = (text || "").toLowerCase();
-  const physicalHits = ["home","house","floor plan","layout","blueprint","garage","bedroom","bath","sq ft","square feet","lot","ranch","two-story","2 story","upstairs","downstairs"];
-  const digitalHits = ["app","website","web app","saas","software","ui","ux","screen","dashboard","api","database"];
-  let p=0, d=0;
-  for (const w of physicalHits) if (t.includes(w)) p++;
-  for (const w of digitalHits) if (t.includes(w)) d++;
-  if (p >= 2 && p >= d) return "physical";
-  if (d >= 2 && d > p) return "digital";
-  return "general";
-}
-
-function cleanTopic(s){
-  return (s || "")
-    .replace(/[?.!]+$/g, "")
-    .replace(/\b(show me|a|an|the|quick|simple|one-page|ui|mockup|preview)\b/ig, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-function shorten(s){ return s.length > 56 ? (s.slice(0,56).trim()+"…") : s; }
 function inferTopic(text){
   const raw = (text || "").trim();
-  const m = raw.match(/(?:show me|preview|mockup|layout|floor plan)\s+(?:a|an|the)?\s*(.+)$/i);
-  return shorten(cleanTopic(m && m[1] ? m[1] : raw));
+  if (!raw) return "";
+  // light cleanup
+  return raw
+    .replace(/[?.!]+$/g,"")
+    .replace(/\b(show me|please|plz|a|an|the)\b/ig,"")
+    .replace(/\s+/g," ")
+    .trim()
+    .slice(0, 72);
 }
 
+/* =========================
+   PREVIEWS
+========================= */
 function renderHomePreview(title, notes){
-  const story = state.memory.home.story || "—";
-  const bedplan = state.memory.home.bedplan || "—";
-  const lot = state.memory.home.lotWidth || "—";
+  const H = state.memory.home;
+  state.memory.lastPreviewType = "home";
+  previewBadge.textContent = "Shown";
 
   previewArea.innerHTML = `
     <div class="previewCard">
@@ -392,52 +411,68 @@ function renderHomePreview(title, notes){
           <h3>${escapeHtml(title)}</h3>
           <div class="previewSub">${escapeHtml(notes)}</div>
         </div>
-        <div class="tag">Floor Plan</div>
+        <div class="tag">Home Layout</div>
       </div>
 
       <div class="pillRow">
-        <div class="pill">Story: ${escapeHtml(story)}</div>
-        <div class="pill">Beds plan: ${escapeHtml(bedplan)}</div>
-        <div class="pill">Lot width: ${escapeHtml(lot)}</div>
+        <div class="pill">Style: ${escapeHtml(H.style || "modern")}</div>
+        <div class="pill">Sqft: ${escapeHtml(H.sqft || "—")}</div>
+        <div class="pill">Beds: ${escapeHtml(H.beds || "—")}</div>
+        <div class="pill">Garage: ${escapeHtml(H.garage || "—")}</div>
+        <div class="pill">Story: ${escapeHtml(H.story || "—")}</div>
       </div>
 
       <div class="blockTitle">Concept layout (not to scale)</div>
+
       <div class="box">
         <div style="display:grid;gap:10px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="box" style="background:#fff;">Bedroom 2</div>
             <div class="box" style="background:#fff;">Bedroom 3</div>
           </div>
-          <div class="box" style="background:#fff;">Bath + Laundry</div>
-          <div class="box" style="background:#fff;">Primary Suite</div>
+          <div class="box" style="background:#fff;">Bath + Laundry (central)</div>
+          <div class="box" style="background:#fff;">Primary Suite (bed + bath + closet)</div>
           <div class="box" style="background:#fff;">Open Kitchen + Dining + Living</div>
           <div class="box" style="background:#fff;">Entry / Mudroom</div>
-          <div class="box" style="background:#fff;">Attached 2-Car Garage</div>
+          <div class="box" style="background:#fff;">Attached 2-Car Garage (${escapeHtml(H.garageType || "front/side")})</div>
         </div>
+      </div>
+
+      <div class="blockTitle">Your choices so far</div>
+      <div class="box">
+        <div><strong>Bedroom plan:</strong> ${escapeHtml(H.bedplan || "—")}</div>
+        <div><strong>Lot width:</strong> ${escapeHtml(H.lotWidth || "—")}</div>
       </div>
     </div>
   `;
 }
 
-function renderAppPreview(){
-  const user = state.memory.app.user || "—";
-  const core = state.memory.app.core || "—";
-  const platform = state.memory.app.platform || "—";
+function renderAppPreview(title, notes){
+  const A = state.memory.app;
+  state.memory.lastPreviewType = "app";
+  previewBadge.textContent = "Shown";
 
   previewArea.innerHTML = `
     <div class="previewCard">
       <div class="previewTitle">
         <div>
-          <h3>Dream Home Design App — Concept</h3>
-          <div class="previewSub">User: ${escapeHtml(user)} • Core: ${escapeHtml(core)} • Platform: ${escapeHtml(platform)}</div>
+          <h3>${escapeHtml(title)}</h3>
+          <div class="previewSub">${escapeHtml(notes)}</div>
         </div>
         <div class="tag">App</div>
+      </div>
+
+      <div class="pillRow">
+        <div class="pill">User: ${escapeHtml(A.user || "—")}</div>
+        <div class="pill">Core: ${escapeHtml(A.core || "—")}</div>
+        <div class="pill">Platform: ${escapeHtml(A.platform || "—")}</div>
+        <div class="pill">First feature: ${escapeHtml(A.feature || "—")}</div>
       </div>
 
       <div class="blockTitle">Main screens</div>
       <div class="box"><strong>Start</strong><br/>Pick template • Enter dimensions • Choose style</div>
       <div class="box"><strong>Design Canvas</strong><br/>Drag rooms • Snap to grid • Resize</div>
-      <div class="box"><strong>AI Assist</strong><br/>“Make it modern” • “Add pantry”</div>
+      <div class="box"><strong>AI Assist</strong><br/>“Make it modern” • “Add pantry” • “Optimize flow”</div>
       <div class="box"><strong>Export</strong><br/>Share • PDF plan • Materials list</div>
 
       <div class="blockTitle">Preview area</div>
@@ -446,16 +481,27 @@ function renderAppPreview(){
   `;
 }
 
-function resetPending(){ state.pending = ""; }
-function resetTopicState(){
+/* =========================
+   FLOW CONTROL
+========================= */
+function resetFlow(){
+  state.mode = "friend";
   state.focus = "";
   state.domain = "";
-  state.mode = "friend";
   state.expectingLaneChoice = false;
-  state.lastSimoKey = "";
-  resetPending();
-  state.memory.home = { story:"", bedplan:"", lotWidth:"" };
-  state.memory.app = { user:"", core:"", platform:"" };
+  state.pending = "";
+  state.memory.next = "";
+  // do NOT wipe topic; user may continue naturally unless they cleared
+}
+
+function setVent(){
+  state.focus = "vent";
+  state.mode = "friend";
+  state.domain = "general";
+  state.expectingLaneChoice = false;
+  state.pending = "";
+  state.memory.next = "Tell me what happened.";
+  setBadges(); setSide();
 }
 
 function setBuild(domain){
@@ -463,55 +509,84 @@ function setBuild(domain){
   state.mode = "builder";
   state.domain = domain;
   state.expectingLaneChoice = false;
-  setBadges();
+  setBadges(); setSide();
 }
 
-/* ---------- Pending flow ---------- */
-function handlePendingAnswer(userText){
+/* =========================
+   PENDING HANDLERS (prevents brainfarts)
+========================= */
+function handlePending(userText){
   const t = (userText || "").trim().toLowerCase();
 
+  // ---- HOME ----
   if (state.pending === "home_story"){
     if (t.includes("ranch") || t.includes("single") || t.includes("one") || t.includes("1")){
       state.memory.home.story = "single-story ranch";
       state.pending = "home_lotwidth";
-      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: ranch. Next: lot width.");
-      addMessage("simo","Nice. What’s the lot width? (example: 50ft, 60ft)","home_lot_q");
+      state.memory.next = "Lot width (ex: 50ft, 60ft).";
+      renderHomePreview("Modern Home Layout", "Locked: single-story ranch. Next: lot width.");
+      addMessage("simo","Bet — ranch it is. What’s the lot width? (Example: 50ft, 60ft)");
+      setSide();
       return true;
     }
     if (t.includes("two") || t.includes("2") || t.includes("story") || t.includes("upstairs")){
       state.memory.home.story = "two-story";
       state.pending = "home_bedplan";
-      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: two-story. Next: bedroom plan.");
-      addMessage("simo","Cool — two-story. Do you want all 3 bedrooms upstairs, or primary on main?","home_bed_q");
+      state.memory.next = "Bedroom plan (all upstairs or primary on main).";
+      renderHomePreview("Modern Home Layout", "Locked: two-story. Next: bedroom plan.");
+      addMessage("simo","Cool — two-story. Do you want all 3 bedrooms upstairs, or primary on main?");
+      setSide();
       return true;
     }
-    addMessage("simo","Quick confirm: single-story ranch, or two-story?","home_story_retry");
+    addMessage("simo","Quick confirm: single-story ranch, or two-story?");
     return true;
   }
 
   if (state.pending === "home_bedplan"){
     state.memory.home.bedplan = userText.trim();
     state.pending = "home_lotwidth";
-    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Got it. Next: lot width.");
-    addMessage("simo","Perfect. What’s the lot width? (example: 50ft, 60ft)","home_lot_q2");
+    state.memory.next = "Lot width (ex: 50ft, 60ft).";
+    renderHomePreview("Modern Home Layout", "Got it. Next: lot width.");
+    addMessage("simo","Got you. What’s the lot width? (Example: 50ft, 60ft)");
+    setSide();
     return true;
   }
 
   if (state.pending === "home_lotwidth"){
     state.memory.home.lotWidth = userText.trim();
-    resetPending();
-    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Updated. Want garage front-facing or side-entry?");
-    addMessage("simo","Layout’s on the right. Garage: front-facing or side-entry?","home_garage_q");
+    state.pending = "home_garage";
+    state.memory.next = "Garage type (front-facing or side-entry).";
+    renderHomePreview("Modern Home Layout", "Updated. Next: garage type.");
+    addMessage("simo","Nice. Garage: front-facing or side-entry?");
+    setSide();
     return true;
   }
 
+  if (state.pending === "home_garage"){
+    const low = userText.toLowerCase();
+    if (low.includes("side")) state.memory.home.garageType = "side-entry";
+    else if (low.includes("front")) state.memory.home.garageType = "front-facing";
+    else state.memory.home.garageType = userText.trim();
+
+    state.pending = "";
+    state.memory.next = "Want any must-haves (pantry, office, basement)?";
+    renderHomePreview("Modern Home Layout", "Updated with your garage choice.");
+    addMessage("simo","Alright — layout’s updated. Any must-haves next? (pantry, office, basement, bigger kitchen, etc.)");
+    setSide();
+    return true;
+  }
+
+  // ---- APP ----
   if (state.pending === "app_user"){
     if (t === "a" || t.includes("homeowner")) state.memory.app.user = "homeowners";
     else if (t === "b" || t.includes("contract")) state.memory.app.user = "contractors/designers";
     else if (t === "c" || t.includes("both")) state.memory.app.user = "both";
-    else { addMessage("simo","Just reply A, B, or C (homeowners / contractors / both).","app_user_retry"); return true; }
+    else { addMessage("simo","Reply A, B, or C (homeowners / contractors / both)."); return true; }
+
     state.pending = "app_core";
-    addMessage("simo","Core experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.","app_core_q");
+    state.memory.next = "Core experience (A/B/C).";
+    addMessage("simo","Core experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.");
+    setSide();
     return true;
   }
 
@@ -519,9 +594,12 @@ function handlePendingAnswer(userText){
     if (t === "a") state.memory.app.core = "drag-and-drop floor plan";
     else if (t === "b") state.memory.app.core = "AI suggestions from prompt";
     else if (t === "c") state.memory.app.core = "templates + customize";
-    else { addMessage("simo","Reply A/B/C for the core experience.","app_core_retry"); return true; }
+    else { addMessage("simo","Reply A/B/C for the core experience."); return true; }
+
     state.pending = "app_platform";
-    addMessage("simo","Platform:\n(A) mobile first\n(B) web first\n(C) both\nReply A/B/C.","app_platform_q");
+    state.memory.next = "Platform (A/B/C).";
+    addMessage("simo","Platform:\n(A) mobile first\n(B) web first\n(C) both\nReply A/B/C.");
+    setSide();
     return true;
   }
 
@@ -529,160 +607,209 @@ function handlePendingAnswer(userText){
     if (t === "a") state.memory.app.platform = "mobile first";
     else if (t === "b") state.memory.app.platform = "web first";
     else if (t === "c") state.memory.app.platform = "both";
-    else { addMessage("simo","Reply A/B/C for platform.","app_platform_retry"); return true; }
-    resetPending();
-    previewBadge.textContent = "Shown";
-    renderAppPreview();
-    setContextCards();
-    addMessage("simo","Preview’s on the right. What’s the first feature you want users to touch?","app_feature1");
+    else { addMessage("simo","Reply A/B/C for platform."); return true; }
+
+    state.pending = "app_feature";
+    state.memory.next = "First feature users touch.";
+    renderAppPreview("Dream Home Design App — Concept", "Preview based on your answers so far.");
+    addMessage("simo","Preview’s on the right. What’s the first feature you want users to touch?");
+    setSide();
+    return true;
+  }
+
+  if (state.pending === "app_feature"){
+    state.memory.app.feature = userText.trim();
+    state.pending = "";
+    state.memory.next = "Free vs paid (what’s locked behind Pro?).";
+    renderAppPreview("Dream Home Design App — Concept", "Updated with your first feature.");
+    addMessage("simo","Nice. Quick money question: what’s free, and what becomes Pro? (export PDF, cost estimator, AI styles, etc.)");
+    setSide();
     return true;
   }
 
   return false;
 }
 
-/* ---------- Pro gating ---------- */
-function isProAction(text){
-  const t = (text || "").toLowerCase();
-  if (/(export|download|pdf|docx|pptx)/i.test(t)) return true;
-  if (/(connect|api key|openai|billing|stripe)/i.test(t)) return true;
-  return false;
-}
-
-/* ---------- Main reply ---------- */
+/* =========================
+   MAIN BRAIN
+========================= */
 function simoReply(userText){
   const intent = detectIntent(userText);
   state.memory.lastIntent = intent;
 
-  // Handle switch topics anytime
+  // switch topics ALWAYS works
   if (intent === "switch_topics"){
-    resetTopicState();
+    resetFlow();
     setBadges();
-    setContextCards();
-    addMessage("simo","Got you — switching topics. What are we doing: venting, solving, or building?","ask_lane");
+    state.memory.next = "Pick a lane (vent / solve / build).";
+    setSide();
+    addMessage("simo","Got you — switching topics. What are we doing: venting, solving, or building?");
     state.expectingLaneChoice = true;
     return;
   }
 
-  // If we are in vent focus, NEVER ask lane again. Just stay in vent.
+  // vent-lock: if we’re in vent focus, do NOT ask lane again
   if (state.focus === "vent"){
-    // still allow explicit lane changes
-    if ((userText || "").toLowerCase().includes("solving")){ state.focus="solve"; state.mode="builder"; setBadges(); addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start"); return; }
-    if ((userText || "").toLowerCase().includes("building")){ state.focus="build"; state.mode="builder"; setBadges(); addMessage("simo","Alright — build. What are we making?","build_start"); return; }
+    const low = (userText || "").toLowerCase();
 
-    // normal vent response
-    addMessage("simo","Damn. Tell me what happened — what set it off this time?","vent_follow");
-    return;
-  }
-
-  // Pending answers
-  if (state.pending){
-    handlePendingAnswer(userText);
-    setBadges();
-    setContextCards();
-    return;
-  }
-
-  // Update domain + topic
-  state.domain = detectDomain(userText);
-  const topic = inferTopic(userText);
-  if (topic) state.memory.lastTopic = topic;
-
-  // Pro gating
-  if (state.plan !== "pro" && isProAction(userText)){
-    addMessage("simo",
-      "I can do that — but that’s a paid-upgrade type action.\nToggle Pro (top right) and I’ll treat it like the upgraded plan.",
-      "pro_gate"
-    );
-    openModal();
-    setBadges();
-    setContextCards();
-    return;
-  }
-
-  // If expecting lane choice, allow direct app/home requests without blocking
-  if (state.expectingLaneChoice){
-    const t = (userText || "").toLowerCase();
-    if (t.includes("vent")){
-      state.expectingLaneChoice = false;
-      state.focus = "vent";
-      state.mode = "friend";
-      setBadges();
-      addMessage("simo","Alright. Vent. What happened?","vent_start");
+    // allow explicit lane changes without "switch topics"
+    if (low.includes("solving") || low.includes("problem solving")){
+      state.focus = "solve";
+      state.mode = "builder";
+      state.memory.next = "Goal + blocker.";
+      setBadges(); setSide();
+      addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?");
       return;
     }
-    if (t.includes("solve") || t.includes("problem")){
+    if (low.includes("building") || low.includes("build")){
+      state.focus = "build";
+      state.mode = "builder";
+      state.memory.next = "What are we building?";
+      setBadges(); setSide();
+      addMessage("simo","Alright — build mode. What are we making?");
+      return;
+    }
+
+    // stay in vent, respond like a best friend
+    state.memory.next = "Keep venting / what triggered it.";
+    setSide();
+    addMessage("simo","Damn… I’m here. What kicked it off this time — like the first 30 seconds of the fight?");
+    return;
+  }
+
+  // pending answer routing (prevents brainfarts)
+  if (state.pending){
+    const handled = handlePending(userText);
+    setBadges(); setSide();
+    if (handled) return;
+  }
+
+  // update domain + topic memory
+  state.domain = detectDomain(userText);
+  const topic = inferTopic(userText);
+  if (topic) state.memory.topic = topic;
+
+  // pro gating (only for export/connect type stuff)
+  if (state.plan !== "pro" && isProAction(userText)){
+    addMessage("simo","I can do that — but that’s a Pro-type action. Toggle Pro (top right) to simulate the upgrade.");
+    openModal();
+    setBadges(); setSide();
+    return;
+  }
+
+  // if expecting lane choice, allow direct requests to take over (no blocking)
+  if (state.expectingLaneChoice){
+    const low = (userText || "").toLowerCase();
+
+    if (low.includes("vent")){
+      state.expectingLaneChoice = false;
+      setVent();
+      addMessage("simo","Alright. Vent. What happened?");
+      return;
+    }
+    if (low.includes("solve") || low.includes("problem")){
       state.expectingLaneChoice = false;
       state.focus = "solve";
       state.mode = "builder";
-      setBadges();
-      addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start");
+      state.memory.next = "Goal + blocker.";
+      setBadges(); setSide();
+      addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?");
       return;
     }
-    if (t.includes("build") || t.includes("create") || t.includes("design")){
+    if (low.includes("build") || low.includes("create") || low.includes("design")){
       state.expectingLaneChoice = false;
       state.focus = "build";
       state.mode = "builder";
-      setBadges();
-      addMessage("simo","Alright — build. What are we making?","build_start");
+      state.memory.next = "What are we building?";
+      setBadges(); setSide();
+      addMessage("simo","Alright — build. What are we making?");
       return;
     }
-    if (/\b(app|software|saas|website|web app)\b/.test(t)){
+
+    // if they type an app request while lane prompt is up
+    if (/\b(app|software|saas|website|web app)\b/.test(low)){
       state.expectingLaneChoice = false;
       setBuild("digital");
       state.pending = "app_user";
-      addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
+      state.memory.next = "App user (A/B/C).";
+      addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.");
+      setSide();
       return;
     }
-    // otherwise continue normally
-    state.expectingLaneChoice = false;
+
+    // if they type a home/layout request while lane prompt is up
+    if (low.includes("home") || low.includes("layout") || low.includes("floor plan") || low.includes("house")){
+      state.expectingLaneChoice = false;
+      // treat as preview request
+      // fallthrough below
+    }
   }
 
-  // Preview
+  // intent: preview
   if (intent === "preview"){
     const d = detectDomain(userText);
-    if (d === "physical"){
+    if (d === "physical" || state.memory.lastPreviewType === "home"){
       setBuild("physical");
-      state.memory.lastPreviewSpec = { title: "Home Layout", modules:["floor plan"], notes:"Choose ranch or two-story." };
-      previewBadge.textContent = "Shown";
-      renderHomePreview("Home Layout", "Choose: single-story ranch or two-story.");
-      setContextCards();
+
+      // extract some quick specs if present
+      const low = userText.toLowerCase();
+      if (low.includes("1500")) state.memory.home.sqft = "1500";
+      if (low.includes("3") && low.includes("bed")) state.memory.home.beds = "3";
+      if (low.includes("2") && low.includes("car")) state.memory.home.garage = "2-car";
+
       state.pending = "home_story";
-      addMessage("simo","Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?","home_story_q");
-      return;
-    } else {
-      setBuild("digital");
-      state.pending = "app_user";
-      addMessage("simo","Want this for (A) homeowners (B) contractors/designers (C) both?","app_user_hint");
+      state.memory.next = "Pick story (ranch or two-story).";
+      renderHomePreview("Modern Home Layout", "Preview’s on the right. Pick: single-story ranch or two-story.");
+      addMessage("simo","Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?");
+      setSide();
       return;
     }
+
+    // otherwise app preview starter
+    setBuild("digital");
+    state.pending = "app_user";
+    state.memory.next = "App user (A/B/C).";
+    addMessage("simo","Want this for (A) homeowners (B) contractors/designers (C) both? Reply A/B/C.");
+    setSide();
+    return;
   }
 
-  // App request
+  // app request
   if (intent === "app_request"){
     setBuild("digital");
     state.pending = "app_user";
-    addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
+    state.memory.next = "App user (A/B/C).";
+    addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.");
+    setSide();
     return;
   }
 
-  // Vent detected
+  // vent detected (auto-switch to friend mode)
   if (intent === "vent"){
-    state.focus = "vent";
-    state.mode = "friend";
-    setBadges();
-    addMessage("simo","I’m here. What happened?","vent_start2");
+    setVent();
+    addMessage("simo","I’m here. Talk to me — what happened?");
     return;
   }
 
-  // Default: ask lane once
+  // home/layout detected but they didn't say show me
+  if (detectDomain(userText) === "physical" && (userText.toLowerCase().includes("home") || userText.toLowerCase().includes("layout") || userText.toLowerCase().includes("floor plan"))){
+    setBuild("physical");
+    state.memory.next = "Say 'show me the layout'.";
+    setSide();
+    addMessage("simo","Say: “show me the layout” and I’ll drop the floor plan preview on the right.");
+    return;
+  }
+
+  // default: best friend lane question (once)
   state.expectingLaneChoice = true;
-  addMessage("simo","What do you want right now: venting, solving, or building?","ask_lane");
-  setBadges();
-  setContextCards();
+  state.memory.next = "Pick a lane (vent / solve / build).";
+  setSide();
+  addMessage("simo","What do you want right now: venting, solving, or building?");
 }
 
-/* ---------- Sending ---------- */
+/* =========================
+   SEND (buttons/enter)
+========================= */
 function sendMessage(){
   const text = inputEl.value.trim();
   if (!text) return;
@@ -690,6 +817,7 @@ function sendMessage(){
   inputEl.value = "";
   simoReply(text);
 }
+
 sendBtn.addEventListener("click", sendMessage);
 inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey){
@@ -698,20 +826,31 @@ inputEl.addEventListener("keydown", (e) => {
   }
 });
 
-/* ---------- Buttons ---------- */
+/* =========================
+   UI BUTTONS
+========================= */
 clearBtn.addEventListener("click", () => {
-  state.history = [];
-  resetTopicState();
-  state.memory.lastIntent = "";
-  state.memory.lastTopic = "";
-  state.memory.lastPreviewSpec = null;
-
   chatEl.innerHTML = "";
   previewArea.innerHTML = `<div class="small">No preview yet. Ask for one.</div>`;
   previewBadge.textContent = "Ready";
-  setContextCards();
-  setBadges();
-  addMessage("simo", "Clean slate. I’m still here. What’s up?", "clean_slate");
+
+  // reset everything, including topic memory
+  state.plan = state.plan; // keep plan
+  state.mode = "friend";
+  state.focus = "";
+  state.domain = "";
+  state.expectingLaneChoice = false;
+  state.pending = "";
+
+  state.memory.lastIntent = "";
+  state.memory.topic = "";
+  state.memory.next = "";
+  state.memory.lastPreviewType = "";
+  state.memory.home = { sqft:"", beds:"", baths:"", garage:"", style:"modern", story:"", bedplan:"", lotWidth:"", garageType:"" };
+  state.memory.app  = { user:"", core:"", platform:"", feature:"" };
+
+  setBadges(); setSide();
+  addMessage("simo","Clean slate. I’m still here. What’s up?");
 });
 
 togglePlanBtn.addEventListener("click", () => {
@@ -727,16 +866,14 @@ enableProBtn.addEventListener("click", () => {
   state.plan = "pro";
   setBadges();
   closeModal();
-  addMessage("simo","Alright — Pro is on. Now tell me exactly what you want me to generate.","pro_on");
+  addMessage("simo","Alright — Pro is on. Tell me what you want me to generate.");
 });
 
-/* ---------- Boot ---------- */
-setBadges();
-setContextCards();
-addMessage("simo",
-  "Hey. I’m here.\nIf you want visuals, say: “show me…” and include what you want on it.",
-  "boot"
-);
+/* =========================
+   BOOT
+========================= */
+setBadges(); setSide();
+addMessage("simo","Hey. I’m here.\nIf you want visuals, say: “show me…” and include what you want on it.");
 </script>
 </body>
 </html>
