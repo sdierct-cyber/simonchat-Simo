@@ -93,6 +93,29 @@ button:hover{
   padding:20px;
   border-radius:12px;
 }
+.pillRow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:8px 0 12px;
+}
+.pill{
+  background:#eef2ff;
+  border:1px solid #c7d2fe;
+  border-radius:999px;
+  padding:6px 10px;
+  font-size:12px;
+}
+.card{
+  border:1px solid #ddd;
+  padding:10px;
+  border-radius:10px;
+  margin-bottom:8px;
+}
+.grayBox{
+  background:#e5e7eb;
+  border-radius:10px;
+}
 </style>
 </head>
 <body>
@@ -115,6 +138,8 @@ const chat = document.getElementById("chat");
 const input = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 
+let lastUserMessage = "";
+
 function addMessage(text, type){
   const div = document.createElement("div");
   div.className = "msg " + type;
@@ -123,69 +148,122 @@ function addMessage(text, type){
   chat.scrollTop = chat.scrollHeight;
 }
 
-function simoReply(userText){
+// Very light “topic hint” from the user’s own words.
+// This does NOT lock to a niche topic; it just titles the mockup.
+function inferPreviewTitle(fromText){
+  const cleaned = (fromText || "").trim();
+  if(!cleaned) return "Your Idea";
+  // Keep it short
+  const short = cleaned.length > 48 ? cleaned.slice(0, 48).trim() + "…" : cleaned;
+  // Remove common trigger phrases to avoid “show me a preview…” as title
+  return short
+    .replace(/show me (a|the) (quick )?(preview|mockup)( of)?/i, "")
+    .replace(/preview|mockup/i, "")
+    .trim() || "Your Idea";
+}
 
+function simoReply(userText){
   const lower = userText.toLowerCase();
 
   // --- Preview Trigger ---
   if(lower.includes("show me a preview") || lower.includes("mockup")){
-    addMessage("Alright. Here’s a quick visual concept:", "simo");
-    showPreview();
+    addMessage("Alright. Here’s a quick visual template (generic) — tell me what you want changed.", "simo");
+    showPreview(lastUserMessage);
     return;
   }
 
   // --- Best Friend Mode ---
   if(lower.includes("stressed") || lower.includes("tired") || lower.includes("argument")){
-    addMessage("Yeah… that sounds heavy. What’s actually draining you — the situation or how it keeps repeating?", "simo");
+    addMessage("Yeah… that’s a lot. What’s the part that keeps setting you off — the topic, or the way it loops?", "simo");
     return;
   }
 
+  // --- Builder Nudge ---
   if(lower.includes("build") || lower.includes("create") || lower.includes("design")){
-    addMessage("Alright. We can build it. Tell me what features you want first.", "simo");
+    addMessage("Cool. Give me the goal in one sentence, then your top 3 must-haves.", "simo");
     return;
   }
 
   // --- Default ---
-  addMessage("I’m here. Go deeper — what’s really on your mind?", "simo");
+  addMessage("I’m here. Don’t filter it — what’s actually going on?", "simo");
 }
 
-function showPreview(){
+function showPreview(contextText){
+  const title = inferPreviewTitle(contextText);
+
   const preview = document.createElement("div");
   preview.className = "previewCard";
+
+  // Generic template: no driveway/garage/any niche domain.
   preview.innerHTML = `
-    <h3>App Preview Mockup</h3>
-    <p><strong>Search Bar</strong></p>
-    <div style="background:#eee;padding:8px;border-radius:6px;margin-bottom:10px;">Search location...</div>
-
-    <p><strong>Listing Cards</strong></p>
-    <div style="border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:8px;">
-      Driveway Space — $80/month<br>
-      Available Now
+    <h3 style="margin:0 0 6px;">UI Mockup Template</h3>
+    <div style="font-size:13px;color:#444;margin-bottom:10px;">
+      <strong>Concept:</strong> ${escapeHtml(title)}
     </div>
 
-    <div style="border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:8px;">
-      Garage Spot — $120/month<br>
-      Available March 1
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:700;margin-bottom:6px;">Search / Input</div>
+      <div class="card" style="background:#f3f4f6;">
+        Type here… (search, prompt, or query)
+      </div>
+
+      <div class="pillRow">
+        <span class="pill">Filter A</span>
+        <span class="pill">Filter B</span>
+        <span class="pill">Filter C</span>
+      </div>
     </div>
 
-    <p><strong>Map Placeholder</strong></p>
-    <div style="background:#ddd;height:120px;border-radius:8px;"></div>
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:700;margin-bottom:6px;">Results / Items</div>
+      <div class="card">
+        <strong>Item One</strong><br/>
+        Small description • Price/Status • CTA
+      </div>
+      <div class="card">
+        <strong>Item Two</strong><br/>
+        Small description • Price/Status • CTA
+      </div>
+      <div class="card">
+        <strong>Item Three</strong><br/>
+        Small description • Price/Status • CTA
+      </div>
+    </div>
 
-    <p style="margin-top:10px;"><strong>Booking Panel</strong></p>
-    <div style="background:#f5f5f5;padding:10px;border-radius:8px;">
-      Select dates<br>
-      Confirm Booking
+    <div style="margin-bottom:10px;">
+      <div style="font-weight:700;margin-bottom:6px;">Main Visual / Map / Image Area</div>
+      <div class="grayBox" style="height:130px;"></div>
+    </div>
+
+    <div>
+      <div style="font-weight:700;margin-bottom:6px;">Action Panel</div>
+      <div class="card" style="background:#f9fafb;">
+        Primary action button / Checkout / Submit / Book / Save
+      </div>
     </div>
   `;
+
   chat.appendChild(preview);
   chat.scrollTop = chat.scrollHeight;
+}
+
+// Prevent HTML injection because we echo user text into the preview title
+function escapeHtml(str){
+  return String(str)
+    .replaceAll("&","&amp;")
+    .replaceAll("<","&lt;")
+    .replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;")
+    .replaceAll("'","&#039;");
 }
 
 function sendMessage(){
   const text = input.value.trim();
   if(!text) return;
 
-  addMessage(text, "user");
+  lastUserMessage = text;
+
+  addMessage(escapeHtml(text), "user");
   input.value = "";
   simoReply(text);
 }
