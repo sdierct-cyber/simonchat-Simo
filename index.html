@@ -1,698 +1,206 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
-  <style>
-    :root{
-      --bg:#0b1020; --panel:#0f1730; --panel2:#0c1329;
-      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
-      --btn:#2a66ff; --btn2:#1f4dd6; --bad:#ff4d4d; --good:#39d98a;
-      --shadow: 0 12px 40px rgba(0,0,0,.35);
-      --r:16px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
-      color:var(--text);
-    }
-    .wrap{max-width:1100px;margin:0 auto;padding:18px 18px 28px}
-    .top{
-      display:flex; gap:12px; align-items:center; justify-content:space-between;
-      margin-bottom:14px;
-    }
-    .brand{
-      display:flex; gap:10px; align-items:center;
-    }
-    .logo{
-      width:44px;height:44px;border-radius:14px;
-      background:linear-gradient(135deg, #2a66ff, #39d98a);
-      box-shadow: var(--shadow);
-    }
-    .title{
-      display:flex;flex-direction:column;line-height:1.1
-    }
-    .title h1{font-size:18px;margin:0}
-    .title .sub{font-size:12px;color:var(--muted)}
-    .actions{display:flex; gap:8px; align-items:center}
-    button{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-      color:var(--text);
-      padding:10px 12px;
-      border-radius:12px;
-      cursor:pointer;
-      transition:.15s transform ease, .15s background ease;
-      user-select:none;
-    }
-    button:hover{transform:translateY(-1px); background:rgba(255,255,255,.09)}
-    button.primary{
-      border-color:rgba(42,102,255,.45);
-      background:linear-gradient(180deg, var(--btn), var(--btn2));
-      box-shadow: 0 10px 26px rgba(42,102,255,.22);
-    }
-    button.danger{border-color:rgba(255,77,77,.35); color:#ffd6d6}
-    .grid{
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap:14px;
-    }
-    @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
-    }
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius: var(--r);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .cardHead{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:12px 12px;
-      border-bottom:1px solid var(--line);
-      background:rgba(0,0,0,.10);
-    }
-    .cardHead .label{
-      font-size:13px; color:var(--muted)
-    }
-    .chat{
-      height: 520px;
-      overflow:auto;
-      padding:14px;
-      scroll-behavior:smooth;
-    }
-    .msg{
-      display:flex;
-      margin:10px 0;
-      gap:10px;
-      align-items:flex-start;
-    }
-    .bubble{
-      max-width: 86%;
-      padding:10px 12px;
-      border-radius: 14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      white-space:pre-wrap;
-      word-wrap:break-word;
-    }
-    .me .bubble{
-      margin-left:auto;
-      background:rgba(42,102,255,.16);
-      border-color:rgba(42,102,255,.35);
-    }
-    .who{
-      font-size:11px;
-      color:var(--muted);
-      margin-bottom:4px;
-    }
-    .inputBar{
-      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-    }
-    textarea{
-      width:100%;
-      resize:none;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      padding:10px 12px;
-      min-height:44px;
-      max-height:140px;
-      outline:none;
-      font: inherit;
-      line-height:1.25;
-    }
-    .sendCol{display:flex; flex-direction:column; gap:8px}
-    .hint{font-size:11px;color:var(--muted); margin-top:6px}
-    .preview{
-      height: 520px;
-      overflow:auto;
-      padding:14px;
-      background:linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
-    }
-    .pillRow{
-      display:flex; flex-wrap:wrap; gap:8px; margin-top:8px
-    }
-    .pill{
-      font-size:12px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-      color:var(--muted);
-      cursor:pointer;
-    }
-    .pill:hover{background:rgba(255,255,255,.09); color:var(--text)}
-    .hr{height:1px;background:var(--line); margin:12px 0}
-    .mono{
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-      font-size:12px;
-      color:#dbe6ff;
-      background:rgba(0,0,0,.18);
-      border:1px solid var(--line);
-      border-radius:14px;
-      padding:10px 12px;
-      overflow:auto;
-    }
-    .notice{
-      font-size:12px;
-      color:var(--muted);
-      border:1px dashed rgba(255,255,255,.18);
-      border-radius:14px;
-      padding:10px 12px;
-      background:rgba(0,0,0,.10);
-    }
-    iframe{
-      width:100%;
-      height: 420px;
-      border:1px solid var(--line);
-      border-radius:14px;
-      background:#fff;
-    }
-    .tiny{font-size:11px;color:var(--muted)}
-  </style>
-</head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simo</title>
 
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div class="brand">
-        <div class="logo"></div>
-        <div class="title">
-          <h1>Simo</h1>
-          <div class="sub">Best friend vibes — builder tools when you ask.</div>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button id="resetBtn" class="danger" title="Clear chat + reset topic memory">Reset</button>
-        <button id="settingsBtn" title="Configure API endpoint (optional)">Settings</button>
-        <button id="demoBtn" class="primary" title="Try a preview request">Try preview</button>
-      </div>
-    </div>
-
-    <div class="grid">
-      <!-- Chat -->
-      <div class="card">
-        <div class="cardHead">
-          <div class="label">Chat</div>
-          <div class="tiny" id="modeText">Mode: best-friend</div>
-        </div>
-
-        <div class="chat" id="chat"></div>
-
-        <div class="inputBar">
-          <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
-          <div class="sendCol">
-            <button id="sendBtn" class="primary">Send</button>
-            <div class="hint">Enter = send • Shift+Enter = new line</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Preview -->
-      <div class="card">
-        <div class="cardHead">
-          <div class="label">Preview / Builder</div>
-          <div class="tiny" id="topicText">Topic: none</div>
-        </div>
-
-        <div class="preview" id="preview">
-          <div class="notice">
-            Ask for a “preview”, “mockup”, “UI”, “wireframe”, or “generate code” and I’ll show something here.
-            <div class="pillRow">
-              <div class="pill" data-prompt="Show me a preview of a bakery app (one-page mockup)">Bakery app preview</div>
-              <div class="pill" data-prompt="Show me a preview of a space renting app (driveway/extra space) UI mockup">Space renting preview</div>
-              <div class="pill" data-prompt="Make a one-page UI mockup for a hair salon booking app">Salon booking preview</div>
-              <div class="pill" data-prompt="Generate a simple landing page mockup for a bakery with order pickup">Landing page preview</div>
-            </div>
-          </div>
-
-          <div class="hr"></div>
-
-          <div class="tiny">Last generated code (if any):</div>
-          <div class="mono" id="codeOut">—</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-<script>
-(() => {
-  // =========================
-  // DOM
-  // =========================
-  const chatEl = document.getElementById("chat");
-  const inputEl = document.getElementById("input");
-  const sendBtn = document.getElementById("sendBtn");
-  const resetBtn = document.getElementById("resetBtn");
-  const settingsBtn = document.getElementById("settingsBtn");
-  const demoBtn = document.getElementById("demoBtn");
-  const previewEl = document.getElementById("preview");
-  const codeOutEl = document.getElementById("codeOut");
-  const modeTextEl = document.getElementById("modeText");
-  const topicTextEl = document.getElementById("topicText");
-
-  // =========================
-  // State (topic memory + mode)
-  // =========================
-  const state = {
-    lastTopic: null,
-    lastUserIntent: null,  // "preview" | "code" | "chat"
-    mode: "best-friend",   // UI label only
-    // Optional: connect your backend endpoint here in Settings.
-    apiUrl: localStorage.getItem("SIMO_API_URL") || "",
-  };
-
-  function setMode(mode){
-    state.mode = mode;
-    modeTextEl.textContent = "Mode: " + mode;
-  }
-  function setTopic(topic){
-    state.lastTopic = topic;
-    topicTextEl.textContent = "Topic: " + (topic || "none");
-  }
-
-  // =========================
-  // Helpers
-  // =========================
-  function esc(s){
-    return (s ?? "").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-    }[m]));
-  }
-
-  function addMsg(who, text){
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (who === "You" ? "me" : "simo");
-    const b = document.createElement("div");
-    b.className = "bubble";
-    b.innerHTML = `<div class="who">${esc(who)}</div>${esc(text)}`;
-    wrap.appendChild(b);
-    chatEl.appendChild(wrap);
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
-
-  function autoGrowTextarea(){
-    inputEl.style.height = "auto";
-    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + "px";
-  }
-
-  // Generic “topic” extraction WITHOUT hardcoding topics.
-  // We don’t try to be perfect; we just need a stable anchor.
-  function extractTopic(userText){
-    const t = (userText || "").trim().toLowerCase();
-
-    // Remove common trigger words so we keep the "thing" they're asking about.
-    const cleaned = t
-      .replace(/\b(show|make|create|build|generate|design|draw)\b/g, "")
-      .replace(/\b(a|an|the|me|us|my|your)\b/g, "")
-      .replace(/\b(preview|mockup|ui|wireframe|prototype|landing page|page|screen)\b/g, "")
-      .replace(/\b(app|website|site)\b/g, "")
-      .replace(/[^\w\s-]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // If cleaned is empty, fall back to a short slice of original.
-    if (!cleaned) {
-      return (userText || "").trim().slice(0, 48) || null;
-    }
-
-    // Keep it short and human.
-    return cleaned.slice(0, 64);
-  }
-
-  function isAllTheAbove(userText){
-    const t = (userText || "").trim().toLowerCase();
-    return t === "all the above" || t === "all of the above" || t === "everything above" || t === "all that" || t === "yes" || t === "yup";
-  }
-
-  function isBuilderAsk(userText){
-    const t = (userText || "").toLowerCase();
-    return /preview|mockup|wireframe|ui\b|prototype|generate code|html|css|landing page|screen|demo/.test(t);
-  }
-
-  // =========================
-  // Preview generator (topic-agnostic)
-  // =========================
-  function generateOnePageMockup(topicRaw){
-    const topic = (topicRaw || "your app").trim();
-    const title = topic.replace(/\b\w/g, c => c.toUpperCase());
-
-    // A clean, generic one-page mockup for ANY topic.
-    // Uses placeholders, cards, filters, and a right-side panel.
-    const html = `
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${esc(title)} — Mockup</title>
 <style>
-  :root{--bg:#0b1020;--card:#101a35;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--btn:#2a66ff}
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;background:radial-gradient(900px 500px at 20% 0%, #162a66 0%, var(--bg) 55%);color:var(--text)}
-  .wrap{max-width:980px;margin:0 auto;padding:18px}
-  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-  .brand{font-weight:700}
-  .search{flex:1;display:flex;gap:10px;align-items:center}
-  input{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none}
-  .btn{padding:10px 12px;border-radius:14px;border:1px solid rgba(42,102,255,.45);background:linear-gradient(180deg, var(--btn), #1f4dd6);color:#fff}
-  .grid{display:grid;grid-template-columns: 1.2fr .8fr;gap:12px}
-  @media (max-width: 860px){.grid{grid-template-columns:1fr}}
-  .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid var(--line);border-radius:18px;padding:12px}
-  .muted{color:var(--muted);font-size:12px}
-  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-  .chip{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06)}
-  .list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
-  .item{display:flex;gap:10px;align-items:flex-start}
-  .thumb{width:54px;height:54px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid var(--line)}
-  .meta{flex:1}
-  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .price{font-weight:700}
-  .pill{font-size:11px;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
-  .map{height:160px;border-radius:16px;border:1px dashed rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;color:var(--muted);background:rgba(0,0,0,.12);margin-top:12px}
-  .field{margin-top:10px}
-  .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-  select{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none}
+:root{
+  --bg:#0b1020;
+  --panel:#121933;
+  --text:#eaf0ff;
+  --muted:#9fb0ff;
+  --accent:#2a66ff;
+  --accent2:#1f4dd6;
+  --line:rgba(255,255,255,.08);
+}
+
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+  color:var(--text);
+}
+
+.wrap{
+  max-width:900px;
+  margin:0 auto;
+  padding:20px;
+}
+
+.header{
+  font-size:22px;
+  font-weight:600;
+  margin-bottom:12px;
+}
+
+.chat{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:15px;
+  height:420px;
+  overflow-y:auto;
+  margin-bottom:12px;
+}
+
+.msg{
+  margin-bottom:12px;
+  line-height:1.5;
+}
+
+.user{ color:#fff; }
+.simo{ color:var(--muted); }
+
+.inputRow{
+  display:flex;
+  gap:8px;
+}
+
+textarea{
+  flex:1;
+  resize:none;
+  height:52px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#0e1530;
+  color:white;
+  padding:10px;
+  font-size:14px;
+}
+
+button{
+  background:var(--accent);
+  border:none;
+  color:white;
+  padding:0 18px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+}
+
+button:hover{
+  background:var(--accent2);
+}
+
+.previewCard{
+  margin-top:15px;
+  background:white;
+  color:black;
+  padding:20px;
+  border-radius:12px;
+}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div class="brand">${esc(title)} <span class="muted">• One-page mockup</span></div>
-      <button class="btn">Book / Order</button>
-    </div>
 
-    <div class="search">
-      <input placeholder="Search ${esc(topic)}…"/>
-    </div>
+<div class="wrap">
+  <div class="header">Hey — I’m Simo. What’s going on?</div>
 
-    <div class="chips">
-      <div class="chip">Popular</div>
-      <div class="chip">Near me</div>
-      <div class="chip">Top rated</div>
-      <div class="chip">Under $25</div>
-      <div class="chip">Available today</div>
-    </div>
-
-    <div class="grid" style="margin-top:12px">
-      <div class="card">
-        <div class="row">
-          <div style="font-weight:700">Listings</div>
-          <div class="muted">3 results</div>
-        </div>
-
-        <div class="list">
-          <div class="item">
-            <div class="thumb"></div>
-            <div class="meta">
-              <div class="row">
-                <div style="font-weight:650">${esc(title)} Option A</div>
-                <div class="price">$19</div>
-              </div>
-              <div class="muted">Fast turnaround • Great reviews • Pickup/booking available</div>
-              <div class="row" style="margin-top:8px">
-                <div class="pill">Today</div>
-                <div class="pill">2 slots left</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="thumb"></div>
-            <div class="meta">
-              <div class="row">
-                <div style="font-weight:650">${esc(title)} Option B</div>
-                <div class="price">$29</div>
-              </div>
-              <div class="muted">Premium option • Customization • Add-ons</div>
-              <div class="row" style="margin-top:8px">
-                <div class="pill">Tomorrow</div>
-                <div class="pill">Custom</div>
-              </div>
-            </div>
-          </div>
-
-          <div class="item">
-            <div class="thumb"></div>
-            <div class="meta">
-              <div class="row">
-                <div style="font-weight:650">${esc(title)} Option C</div>
-                <div class="price">$12</div>
-              </div>
-              <div class="muted">Budget pick • Simple • Reliable</div>
-              <div class="row" style="margin-top:8px">
-                <div class="pill">This week</div>
-                <div class="pill">Limited</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="map">Map / Gallery placeholder</div>
-      </div>
-
-      <div class="card">
-        <div style="font-weight:700">Booking / Order Panel</div>
-        <div class="muted" style="margin-top:6px">Pick options, date/time, and confirm.</div>
-
-        <div class="field">
-          <div class="label">Select item</div>
-          <select>
-            <option>${esc(title)} Option A</option>
-            <option>${esc(title)} Option B</option>
-            <option>${esc(title)} Option C</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <div class="label">Date</div>
-          <input placeholder="Choose a date"/>
-        </div>
-
-        <div class="field">
-          <div class="label">Notes</div>
-          <input placeholder="Any details? (dietary, size, time, etc.)"/>
-        </div>
-
-        <div class="field">
-          <button class="btn" style="width:100%">Confirm</button>
-        </div>
-
-        <div class="muted" style="margin-top:10px">
-          This is a mockup preview. Next step is turning it into a real app flow + backend.
-        </div>
-      </div>
-    </div>
+  <div id="chat" class="chat">
+    <div class="msg simo">I’m here. Vent. Build. Think. Whatever’s in your head.</div>
   </div>
-</body>
-</html>`.trim();
 
-    return html;
+  <div class="inputRow">
+    <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for new line)"></textarea>
+    <button id="sendBtn">Send</button>
+  </div>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const sendBtn = document.getElementById("sendBtn");
+
+function addMessage(text, type){
+  const div = document.createElement("div");
+  div.className = "msg " + type;
+  div.innerHTML = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function simoReply(userText){
+
+  const lower = userText.toLowerCase();
+
+  // --- Preview Trigger ---
+  if(lower.includes("show me a preview") || lower.includes("mockup")){
+    addMessage("Alright. Here’s a quick visual concept:", "simo");
+    showPreview();
+    return;
   }
 
-  function renderPreview(html){
-    // show iframe + code
-    const existingIframes = previewEl.querySelectorAll("iframe");
-    existingIframes.forEach(x => x.remove());
-
-    const iframe = document.createElement("iframe");
-    iframe.setAttribute("sandbox", "allow-forms allow-scripts allow-same-origin");
-    previewEl.insertBefore(iframe, previewEl.querySelector(".hr"));
-
-    // Write content
-    const doc = iframe.contentWindow.document;
-    doc.open();
-    doc.write(html);
-    doc.close();
-
-    codeOutEl.textContent = html;
+  // --- Best Friend Mode ---
+  if(lower.includes("stressed") || lower.includes("tired") || lower.includes("argument")){
+    addMessage("Yeah… that sounds heavy. What’s actually draining you — the situation or how it keeps repeating?", "simo");
+    return;
   }
 
-  // =========================
-  // Optional API call (if you have one)
-  // =========================
-  async function callApi(userText, context){
-    if (!state.apiUrl) return null;
-
-    // Expected API contract (simple):
-    // POST { message, context } => { reply, preview_html? }
-    // If your API differs, we’ll adapt later—this won’t break the UI.
-    const res = await fetch(state.apiUrl, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ message: userText, context })
-    });
-
-    if (!res.ok) throw new Error("API error: " + res.status);
-    const data = await res.json();
-    return data;
+  if(lower.includes("build") || lower.includes("create") || lower.includes("design")){
+    addMessage("Alright. We can build it. Tell me what features you want first.", "simo");
+    return;
   }
 
-  // =========================
-  // Main brain router
-  // =========================
-  async function handleSend(){
-    const raw = inputEl.value;
-    const text = (raw || "").trim();
-    if (!text) return;
+  // --- Default ---
+  addMessage("I’m here. Go deeper — what’s really on your mind?", "simo");
+}
 
-    inputEl.value = "";
-    autoGrowTextarea();
-    addMsg("You", text);
+function showPreview(){
+  const preview = document.createElement("div");
+  preview.className = "previewCard";
+  preview.innerHTML = `
+    <h3>App Preview Mockup</h3>
+    <p><strong>Search Bar</strong></p>
+    <div style="background:#eee;padding:8px;border-radius:6px;margin-bottom:10px;">Search location...</div>
 
-    // Builder intent
-    let wantsBuilder = isBuilderAsk(text);
+    <p><strong>Listing Cards</strong></p>
+    <div style="border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:8px;">
+      Driveway Space — $80/month<br>
+      Available Now
+    </div>
 
-    // “All the above” should continue last topic and last intent.
-    let effectiveText = text;
-    if (isAllTheAbove(text) && state.lastTopic) {
-      // Continue what we were doing, don’t reset topic.
-      wantsBuilder = (state.lastUserIntent === "preview" || state.lastUserIntent === "code") ? true : wantsBuilder;
-      effectiveText = `Expand and complete the last request about: ${state.lastTopic}. Include the full set of features mentioned earlier, and show a rough preview.`;
-    }
+    <div style="border:1px solid #ccc;padding:10px;border-radius:8px;margin-bottom:8px;">
+      Garage Spot — $120/month<br>
+      Available March 1
+    </div>
 
-    // Determine topic (only update when user provides a real new direction)
-    if (!isAllTheAbove(text)) {
-      const topic = extractTopic(text);
-      if (topic) setTopic(topic);
-    }
+    <p><strong>Map Placeholder</strong></p>
+    <div style="background:#ddd;height:120px;border-radius:8px;"></div>
 
-    // If builder requested: generate preview locally (topic-agnostic).
-    if (wantsBuilder) {
-      setMode("builder");
-      state.lastUserIntent = "preview";
+    <p style="margin-top:10px;"><strong>Booking Panel</strong></p>
+    <div style="background:#f5f5f5;padding:10px;border-radius:8px;">
+      Select dates<br>
+      Confirm Booking
+    </div>
+  `;
+  chat.appendChild(preview);
+  chat.scrollTop = chat.scrollHeight;
+}
 
-      const t = state.lastTopic || extractTopic(text) || "your app";
-      addMsg("Simo", `Alright — builder mode. Here’s a quick first-draft mockup for **${t}**. If you want, I can turn this into a real multi-page flow next.`);
+function sendMessage(){
+  const text = input.value.trim();
+  if(!text) return;
 
-      const html = generateOnePageMockup(t);
-      renderPreview(html);
-      return;
-    }
+  addMessage(text, "user");
+  input.value = "";
+  simoReply(text);
+}
 
-    // Otherwise: best friend mode.
-    setMode("best-friend");
-    state.lastUserIntent = "chat";
+// Button Click
+sendBtn.addEventListener("click", sendMessage);
 
-    // If you have an API, use it. If not, fall back locally.
-    try{
-      const context = {
-        lastTopic: state.lastTopic,
-        mode: state.mode
-      };
-
-      const apiData = await callApi(text, context);
-      if (apiData && typeof apiData.reply === "string") {
-        addMsg("Simo", apiData.reply);
-
-        if (apiData.preview_html && typeof apiData.preview_html === "string") {
-          renderPreview(apiData.preview_html);
-          state.lastUserIntent = "preview";
-          setMode("builder");
-        }
-        return;
-      }
-    } catch (e) {
-      // Don’t spam errors in chat; keep it smooth.
-      console.warn(e);
-    }
-
-    // Local fallback (safe, consistent, no random topic switching)
-    const low = text.toLowerCase();
-
-    if (low === "hi" || low === "hello" || low === "hey") {
-      addMsg("Simo", "Hey — I’m here. What’s going on?");
-      return;
-    }
-
-    // Simple math support (tiny but useful)
-    if (/^\s*\d+\s*[\+\-\*\/]\s*\d+\s*$/.test(text)) {
-      try{
-        // Safe-ish eval for simple expression only
-        const v = Function(`"use strict"; return (${text});`)();
-        addMsg("Simo", `${text} = ${v}`);
-      } catch {
-        addMsg("Simo", "I can do that — paste it again like `217*22`.");
-      }
-      return;
-    }
-
-    // If user asks for “all the above” but we have no topic
-    if (isAllTheAbove(text) && !state.lastTopic) {
-      addMsg("Simo", "All of what, exactly? Paste the last thing you want me to expand and I’ll run with it.");
-      return;
-    }
-
-    // Friendly general fallback that doesn't invent a new topic.
-    addMsg("Simo", "Got you. Say what you want next — if you want a preview/mockup, literally say “show me a preview” and I’ll build it on the right.");
+// Enter Key
+input.addEventListener("keydown", function(e){
+  if(e.key === "Enter" && !e.shiftKey){
+    e.preventDefault();
+    sendMessage();
   }
-
-  // =========================
-  // Events (bulletproof)
-  // =========================
-  sendBtn.addEventListener("click", handleSend);
-
-  inputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  });
-
-  inputEl.addEventListener("input", autoGrowTextarea);
-
-  resetBtn.addEventListener("click", () => {
-    chatEl.innerHTML = "";
-    codeOutEl.textContent = "—";
-    setTopic(null);
-    setMode("best-friend");
-    state.lastUserIntent = null;
-    // remove preview iframe
-    previewEl.querySelectorAll("iframe").forEach(x => x.remove());
-    addMsg("Simo", "Reset. I’m back. What’s going on?");
-  });
-
-  settingsBtn.addEventListener("click", () => {
-    const current = state.apiUrl || "";
-    const next = prompt(
-      "Optional: paste your API endpoint URL (POST JSON {message,context} -> {reply, preview_html?}).\n\nLeave blank to use local brain.",
-      current
-    );
-    if (next === null) return;
-    state.apiUrl = (next || "").trim();
-    localStorage.setItem("SIMO_API_URL", state.apiUrl);
-    addMsg("Simo", state.apiUrl ? "Alright. API connected. I’ll use it when available." : "No API. I’ll run local builder previews.");
-  });
-
-  demoBtn.addEventListener("click", () => {
-    inputEl.value = "Show me a preview of a bakery app (one-page mockup)";
-    autoGrowTextarea();
-    inputEl.focus();
-  });
-
-  // Pills
-  previewEl.addEventListener("click", (e) => {
-    const pill = e.target.closest(".pill");
-    if (!pill) return;
-    const p = pill.getAttribute("data-prompt");
-    if (!p) return;
-    inputEl.value = p;
-    autoGrowTextarea();
-    inputEl.focus();
-  });
-
-  // Boot message
-  addMsg("Simo", "Hey — I’m Simo. What’s going on?");
-  autoGrowTextarea();
-})();
+});
 </script>
+
 </body>
 </html>
