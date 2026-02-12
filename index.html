@@ -245,7 +245,7 @@ const state = {
     lastIntent: "",
     lastTopic: "",
     lastPreviewSpec: null,
-    home: { story:"", bedplan:"", lotWidth:"", garage:"", sqft:"", beds:"", baths:"" },
+    home: { story:"", bedplan:"", lotWidth:"" },
     app:  { user:"", core:"", platform:"" }
   }
 };
@@ -319,51 +319,51 @@ function addMessage(role, text, key=""){
   if (role === "simo" && key) state.lastSimoKey = key;
 }
 
-/* ---------- Domain + intent ---------- */
+/* ---------- Intent + switching topics ---------- */
+function isSwitchTopics(text){
+  const t = (text || "").toLowerCase();
+  return (
+    t.includes("switch topics") ||
+    t.includes("switch topic") ||
+    t.includes("new topic") ||
+    t.includes("change topic") ||
+    t.includes("can we switch topics") ||
+    t.includes("can we switch topic")
+  );
+}
+
+function detectIntent(text){
+  const t = (text || "").toLowerCase().trim();
+
+  if (isSwitchTopics(t)) return "switch_topics";
+
+  // "where's the layout" should re-show preview
+  if ((t.includes("where") || t.includes("wheres") || t.includes("where's")) && t.includes("layout")) return "preview";
+
+  if (/\bshow me\b/.test(t) && (t.includes("layout") || t.includes("floor plan") || t.includes("home") || t.includes("house") || t.includes("mockup") || t.includes("preview") || t.includes("wireframe"))) return "preview";
+  if (/(preview|mockup|wireframe)\b/i.test(text)) return "preview";
+
+  if (/\b(app|software|saas|website|web app)\b/.test(t)) return "app_request";
+
+  if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained|fighting|fight|go away|leave me alone)/i.test(text)) return "vent";
+
+  if (/\bvent(ing)?\b/.test(t)) return "lane_vent";
+  if (/\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
+  if (/\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
+
+  return "chat";
+}
+
 function detectDomain(text){
   const t = (text || "").toLowerCase();
-  const physicalHits = [
-    "home","house","floor plan","layout","blueprint","garage","bedroom","bath",
-    "sq ft","square feet","kitchen","living room","foundation","lot","roof",
-    "ranch","two-story","2 story","story","upstairs","downstairs"
-  ];
-  const digitalHits = [
-    "app","website","web app","saas","software","ui","ux","screen","dashboard",
-    "login","api","database","frontend","backend"
-  ];
+  const physicalHits = ["home","house","floor plan","layout","blueprint","garage","bedroom","bath","sq ft","square feet","lot","ranch","two-story","2 story","upstairs","downstairs"];
+  const digitalHits = ["app","website","web app","saas","software","ui","ux","screen","dashboard","api","database"];
   let p=0, d=0;
   for (const w of physicalHits) if (t.includes(w)) p++;
   for (const w of digitalHits) if (t.includes(w)) d++;
   if (p >= 2 && p >= d) return "physical";
   if (d >= 2 && d > p) return "digital";
   return "general";
-}
-
-function detectIntent(text){
-  const t = (text || "").toLowerCase().trim();
-
-  if (/^(switch topics|new topic|change topic|switch topic)$/i.test(t)) return "switch_topics";
-
-  // "where's the layout" / "wheres the layout" should re-show preview
-  if ((t.includes("where") || t.includes("wheres") || t.includes("where's")) && t.includes("layout")) return "preview";
-
-  if (/\bshow me\b/.test(t) && (t.includes("layout") || t.includes("floor plan") || t.includes("home") || t.includes("house") || t.includes("mockup") || t.includes("preview") || t.includes("wireframe"))) return "preview";
-  if (/(preview|mockup|wireframe)\b/i.test(text)) return "preview";
-
-  if (/(write|draft|email|resume|cover letter|bio|script|story|book)/i.test(text)) return "write";
-  if (/(code|html|css|js|javascript|react|bug|fix|error)/i.test(text)) return "code";
-
-  if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained)/i.test(text)) return "vent";
-
-  // lane words
-  if (/\bvent(ing)?\b/.test(t)) return "lane_vent";
-  if (/\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
-  if (/\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
-
-  // app intent
-  if (/\b(app|software|saas|website|web app)\b/.test(t)) return "app_request";
-
-  return "chat";
 }
 
 function cleanTopic(s){
@@ -373,19 +373,13 @@ function cleanTopic(s){
     .replace(/\s+/g, " ")
     .trim();
 }
-function shorten(s){
-  if (!s) return "";
-  return s.length > 56 ? (s.slice(0, 56).trim() + "…") : s;
-}
+function shorten(s){ return s.length > 56 ? (s.slice(0,56).trim()+"…") : s; }
 function inferTopic(text){
   const raw = (text || "").trim();
-  if (!raw) return "";
   const m = raw.match(/(?:show me|preview|mockup|layout|floor plan)\s+(?:a|an|the)?\s*(.+)$/i);
-  if (m && m[1]) return shorten(cleanTopic(m[1]));
-  return shorten(raw);
+  return shorten(cleanTopic(m && m[1] ? m[1] : raw));
 }
 
-/* ---------- Preview rendering ---------- */
 function renderHomePreview(title, notes){
   const story = state.memory.home.story || "—";
   const bedplan = state.memory.home.bedplan || "—";
@@ -402,35 +396,24 @@ function renderHomePreview(title, notes){
       </div>
 
       <div class="pillRow">
-        <div class="pill">Style: modern</div>
         <div class="pill">Story: ${escapeHtml(story)}</div>
         <div class="pill">Beds plan: ${escapeHtml(bedplan)}</div>
         <div class="pill">Lot width: ${escapeHtml(lot)}</div>
       </div>
 
-      <div class="blockTitle">Simple concept layout (not to scale)</div>
+      <div class="blockTitle">Concept layout (not to scale)</div>
       <div class="box">
         <div style="display:grid;gap:10px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div class="box" style="background:#fff;">Bedroom 2</div>
             <div class="box" style="background:#fff;">Bedroom 3</div>
           </div>
-          <div class="box" style="background:#fff;">Bath + Laundry (central)</div>
-          <div class="box" style="background:#fff;">Primary Suite (bed + bath + closet)</div>
-          <div style="display:grid;grid-template-columns:1.3fr .7fr;gap:10px;">
-            <div class="box" style="background:#fff;">Open Kitchen + Dining + Living</div>
-            <div class="box" style="background:#fff;">Entry / Mudroom</div>
-          </div>
-          <div class="box" style="background:#fff;">Attached 2-Car Garage (front/side)</div>
+          <div class="box" style="background:#fff;">Bath + Laundry</div>
+          <div class="box" style="background:#fff;">Primary Suite</div>
+          <div class="box" style="background:#fff;">Open Kitchen + Dining + Living</div>
+          <div class="box" style="background:#fff;">Entry / Mudroom</div>
+          <div class="box" style="background:#fff;">Attached 2-Car Garage</div>
         </div>
-      </div>
-
-      <div class="blockTitle">Next refinements</div>
-      <div class="pillRow">
-        <div class="pill">kitchen size</div>
-        <div class="pill">pantry</div>
-        <div class="pill">mudroom</div>
-        <div class="pill">basement?</div>
       </div>
     </div>
   `;
@@ -454,8 +437,8 @@ function renderAppPreview(){
       <div class="blockTitle">Main screens</div>
       <div class="box"><strong>Start</strong><br/>Pick template • Enter dimensions • Choose style</div>
       <div class="box"><strong>Design Canvas</strong><br/>Drag rooms • Snap to grid • Resize</div>
-      <div class="box"><strong>AI Assist</strong><br/>“Make it modern” • “Add pantry” • “Optimize flow”</div>
-      <div class="box"><strong>Export</strong><br/>Share link • PDF plan • Materials list</div>
+      <div class="box"><strong>AI Assist</strong><br/>“Make it modern” • “Add pantry”</div>
+      <div class="box"><strong>Export</strong><br/>Share • PDF plan • Materials list</div>
 
       <div class="blockTitle">Preview area</div>
       <div class="grayBox"></div>
@@ -463,7 +446,6 @@ function renderAppPreview(){
   `;
 }
 
-/* ---------- Flow helpers ---------- */
 function resetPending(){ state.pending = ""; }
 function resetTopicState(){
   state.focus = "";
@@ -472,11 +454,11 @@ function resetTopicState(){
   state.expectingLaneChoice = false;
   state.lastSimoKey = "";
   resetPending();
-  state.memory.home = { story:"", bedplan:"", lotWidth:"", garage:"", sqft:"", beds:"", baths:"" };
+  state.memory.home = { story:"", bedplan:"", lotWidth:"" };
   state.memory.app = { user:"", core:"", platform:"" };
 }
 
-function setFocusBuild(domain){
+function setBuild(domain){
   state.focus = "build";
   state.mode = "builder";
   state.domain = domain;
@@ -484,23 +466,22 @@ function setFocusBuild(domain){
   setBadges();
 }
 
-/* ---------- Pending answer router ---------- */
+/* ---------- Pending flow ---------- */
 function handlePendingAnswer(userText){
   const t = (userText || "").trim().toLowerCase();
 
-  // HOME: choose story
   if (state.pending === "home_story"){
     if (t.includes("ranch") || t.includes("single") || t.includes("one") || t.includes("1")){
       state.memory.home.story = "single-story ranch";
       state.pending = "home_lotwidth";
-      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: single-story ranch. Next: lot width.");
+      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: ranch. Next: lot width.");
       addMessage("simo","Nice. What’s the lot width? (example: 50ft, 60ft)","home_lot_q");
       return true;
     }
     if (t.includes("two") || t.includes("2") || t.includes("story") || t.includes("upstairs")){
       state.memory.home.story = "two-story";
       state.pending = "home_bedplan";
-      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: two-story. Next: bedroom placement.");
+      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: two-story. Next: bedroom plan.");
       addMessage("simo","Cool — two-story. Do you want all 3 bedrooms upstairs, or primary on main?","home_bed_q");
       return true;
     }
@@ -508,9 +489,7 @@ function handlePendingAnswer(userText){
     return true;
   }
 
-  // HOME: bedroom plan
   if (state.pending === "home_bedplan"){
-    // accept anything as bedplan
     state.memory.home.bedplan = userText.trim();
     state.pending = "home_lotwidth";
     renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Got it. Next: lot width.");
@@ -518,52 +497,39 @@ function handlePendingAnswer(userText){
     return true;
   }
 
-  // HOME: lot width
   if (state.pending === "home_lotwidth"){
     state.memory.home.lotWidth = userText.trim();
     resetPending();
-    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Updated with your lot width. Want garage front-facing or side-entry?");
-    addMessage("simo","Layout updated on the right. Garage: front-facing or side-entry?","home_garage_q");
+    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Updated. Want garage front-facing or side-entry?");
+    addMessage("simo","Layout’s on the right. Garage: front-facing or side-entry?","home_garage_q");
     return true;
   }
 
-  // APP: user choice A/B/C
   if (state.pending === "app_user"){
     if (t === "a" || t.includes("homeowner")) state.memory.app.user = "homeowners";
     else if (t === "b" || t.includes("contract")) state.memory.app.user = "contractors/designers";
     else if (t === "c" || t.includes("both")) state.memory.app.user = "both";
-    else {
-      addMessage("simo","Just reply A, B, or C (homeowners / contractors / both).","app_user_retry");
-      return true;
-    }
+    else { addMessage("simo","Just reply A, B, or C (homeowners / contractors / both).","app_user_retry"); return true; }
     state.pending = "app_core";
     addMessage("simo","Core experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.","app_core_q");
     return true;
   }
 
-  // APP: core A/B/C
   if (state.pending === "app_core"){
     if (t === "a") state.memory.app.core = "drag-and-drop floor plan";
     else if (t === "b") state.memory.app.core = "AI suggestions from prompt";
     else if (t === "c") state.memory.app.core = "templates + customize";
-    else {
-      addMessage("simo","Reply A/B/C for the core experience.","app_core_retry");
-      return true;
-    }
+    else { addMessage("simo","Reply A/B/C for the core experience.","app_core_retry"); return true; }
     state.pending = "app_platform";
     addMessage("simo","Platform:\n(A) mobile first\n(B) web first\n(C) both\nReply A/B/C.","app_platform_q");
     return true;
   }
 
-  // APP: platform A/B/C
   if (state.pending === "app_platform"){
     if (t === "a") state.memory.app.platform = "mobile first";
     else if (t === "b") state.memory.app.platform = "web first";
     else if (t === "c") state.memory.app.platform = "both";
-    else {
-      addMessage("simo","Reply A/B/C for platform.","app_platform_retry");
-      return true;
-    }
+    else { addMessage("simo","Reply A/B/C for platform.","app_platform_retry"); return true; }
     resetPending();
     previewBadge.textContent = "Shown";
     renderAppPreview();
@@ -575,7 +541,7 @@ function handlePendingAnswer(userText){
   return false;
 }
 
-/* ---------- Pro gating stub ---------- */
+/* ---------- Pro gating ---------- */
 function isProAction(text){
   const t = (text || "").toLowerCase();
   if (/(export|download|pdf|docx|pptx)/i.test(t)) return true;
@@ -588,22 +554,7 @@ function simoReply(userText){
   const intent = detectIntent(userText);
   state.memory.lastIntent = intent;
 
-  // If we're waiting on a pending answer, handle it FIRST
-  if (state.pending){
-    handlePendingAnswer(userText);
-    setBadges();
-    setContextCards();
-    return;
-  }
-
-  // Update domain continuously
-  state.domain = detectDomain(userText);
-
-  // Track topic
-  const topic = inferTopic(userText);
-  if (topic) state.memory.lastTopic = topic;
-
-  // switch topics hard reset
+  // Handle switch topics anytime
   if (intent === "switch_topics"){
     resetTopicState();
     setBadges();
@@ -613,40 +564,29 @@ function simoReply(userText){
     return;
   }
 
-  // If bot is expecting lane choice, DON'T block app/home requests.
-  // Let app/home take over immediately.
-  if (state.expectingLaneChoice){
-    const t = (userText || "").toLowerCase();
-    if (/\b(app|software|saas|website|web app)\b/.test(t)){
-      state.expectingLaneChoice = false;
-      setFocusBuild("digital");
-      state.pending = "app_user";
-      addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
-      return;
-    }
-    if (t.includes("home") || t.includes("layout") || t.includes("floor plan") || t.includes("house")){
-      state.expectingLaneChoice = false;
-      // fall through to preview/build below
-    } else if (t.includes("vent")) {
-      state.expectingLaneChoice = false;
-      state.focus = "vent"; state.mode="friend";
-      setBadges();
-      addMessage("simo","Alright. Vent. What happened?","vent_start");
-      return;
-    } else if (t.includes("solve") || t.includes("problem")) {
-      state.expectingLaneChoice = false;
-      state.focus = "solve"; state.mode="builder";
-      setBadges();
-      addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start");
-      return;
-    } else if (t.includes("build") || t.includes("create") || t.includes("design")) {
-      state.expectingLaneChoice = false;
-      state.focus = "build"; state.mode="builder";
-      setBadges();
-      addMessage("simo","Alright — build. What are we making?","build_start");
-      return;
-    }
+  // If we are in vent focus, NEVER ask lane again. Just stay in vent.
+  if (state.focus === "vent"){
+    // still allow explicit lane changes
+    if ((userText || "").toLowerCase().includes("solving")){ state.focus="solve"; state.mode="builder"; setBadges(); addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start"); return; }
+    if ((userText || "").toLowerCase().includes("building")){ state.focus="build"; state.mode="builder"; setBadges(); addMessage("simo","Alright — build. What are we making?","build_start"); return; }
+
+    // normal vent response
+    addMessage("simo","Damn. Tell me what happened — what set it off this time?","vent_follow");
+    return;
   }
+
+  // Pending answers
+  if (state.pending){
+    handlePendingAnswer(userText);
+    setBadges();
+    setContextCards();
+    return;
+  }
+
+  // Update domain + topic
+  state.domain = detectDomain(userText);
+  const topic = inferTopic(userText);
+  if (topic) state.memory.lastTopic = topic;
 
   // Pro gating
   if (state.plan !== "pro" && isProAction(userText)){
@@ -660,54 +600,86 @@ function simoReply(userText){
     return;
   }
 
-  // Preview intent
+  // If expecting lane choice, allow direct app/home requests without blocking
+  if (state.expectingLaneChoice){
+    const t = (userText || "").toLowerCase();
+    if (t.includes("vent")){
+      state.expectingLaneChoice = false;
+      state.focus = "vent";
+      state.mode = "friend";
+      setBadges();
+      addMessage("simo","Alright. Vent. What happened?","vent_start");
+      return;
+    }
+    if (t.includes("solve") || t.includes("problem")){
+      state.expectingLaneChoice = false;
+      state.focus = "solve";
+      state.mode = "builder";
+      setBadges();
+      addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start");
+      return;
+    }
+    if (t.includes("build") || t.includes("create") || t.includes("design")){
+      state.expectingLaneChoice = false;
+      state.focus = "build";
+      state.mode = "builder";
+      setBadges();
+      addMessage("simo","Alright — build. What are we making?","build_start");
+      return;
+    }
+    if (/\b(app|software|saas|website|web app)\b/.test(t)){
+      state.expectingLaneChoice = false;
+      setBuild("digital");
+      state.pending = "app_user";
+      addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
+      return;
+    }
+    // otherwise continue normally
+    state.expectingLaneChoice = false;
+  }
+
+  // Preview
   if (intent === "preview"){
-    // If we already have a home preview spec, re-render it instead of getting stuck
-    const domainNow = detectDomain(userText);
-    if (domainNow === "physical" || (state.memory.lastPreviewSpec?.modules || []).includes("floor plan")){
-      setFocusBuild("physical");
-      state.memory.lastPreviewSpec = {
-        title: state.memory.lastPreviewSpec?.title || ("Home Layout: " + (state.memory.lastTopic || "Modern Home")),
-        modules: ["floor plan","rooms","notes"],
-        notes: "Simple concept layout. Choose: single-story ranch or two-story."
-      };
+    const d = detectDomain(userText);
+    if (d === "physical"){
+      setBuild("physical");
+      state.memory.lastPreviewSpec = { title: "Home Layout", modules:["floor plan"], notes:"Choose ranch or two-story." };
       previewBadge.textContent = "Shown";
-      renderHomePreview(state.memory.lastPreviewSpec.title, state.memory.lastPreviewSpec.notes);
+      renderHomePreview("Home Layout", "Choose: single-story ranch or two-story.");
       setContextCards();
       state.pending = "home_story";
       addMessage("simo","Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?","home_story_q");
       return;
+    } else {
+      setBuild("digital");
+      state.pending = "app_user";
+      addMessage("simo","Want this for (A) homeowners (B) contractors/designers (C) both?","app_user_hint");
+      return;
     }
-
-    // Otherwise just show app preview starter
-    setFocusBuild("digital");
-    previewBadge.textContent = "Shown";
-    renderAppPreview();
-    setContextCards();
-    addMessage("simo","Preview’s on the right. Want this for homeowners, contractors, or both? (A/B/C)","app_user_hint");
-    state.pending = "app_user";
-    return;
   }
 
-  // App request (even if they didn't say “preview”)
+  // App request
   if (intent === "app_request"){
-    setFocusBuild("digital");
+    setBuild("digital");
     state.pending = "app_user";
     addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
     return;
   }
 
-  // If they mention home/layout generally, guide them toward preview
-  const low = (userText || "").toLowerCase();
-  if (detectDomain(userText) === "physical" && (low.includes("home") || low.includes("layout") || low.includes("floor plan") || low.includes("house"))){
-    setFocusBuild("physical");
-    addMessage("simo","Say: “show me the layout” and I’ll drop the floor plan preview on the right.","nudge_layout");
+  // Vent detected
+  if (intent === "vent"){
+    state.focus = "vent";
+    state.mode = "friend";
+    setBadges();
+    addMessage("simo","I’m here. What happened?","vent_start2");
     return;
   }
 
-  // If nothing matched, ask lane once (and set expectingLaneChoice)
+  // Default: ask lane once
   state.expectingLaneChoice = true;
   addMessage("simo","What do you want right now: venting, solving, or building?","ask_lane");
+  setBadges();
+  setContextCards();
 }
 
 /* ---------- Sending ---------- */
