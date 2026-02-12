@@ -273,6 +273,7 @@ const state = {
   domain: "",              // physical | digital | general
   expectingLaneChoice: false,
   lastSimoKey: "",
+  buildStage: 0,           // prevents repeating prompts in digital build
   history: [],
   memory: {
     lastIntent: "",
@@ -351,15 +352,13 @@ function addMessage(role, text, key=""){
   if (role === "simo" && key) state.lastSimoKey = key;
 }
 
-/* =========
-   Domain detection (prevents “first screen” for homes, etc.)
-========= */
+/* Domain detection */
 function detectDomain(text){
   const t = (text || "").toLowerCase();
 
   const physicalHits = [
     "home","house","floor plan","layout","blueprint","garage","bedroom","bath","sq ft","square feet",
-    "kitchen","living room","driveway","roof","foundation","lot","plan","modern home"
+    "kitchen","living room","foundation","lot","roof","modern home"
   ];
   const digitalHits = [
     "app","website","web app","saas","software","ui","ux","screen","dashboard","login","api","database","frontend","backend"
@@ -374,9 +373,7 @@ function detectDomain(text){
   return "general";
 }
 
-/* =========
-   Intent detection
-========= */
+/* Intent detection */
 function detectIntent(text){
   const t = text.toLowerCase().trim();
 
@@ -386,18 +383,14 @@ function detectIntent(text){
   if (/(switch to|lets|let's)\s+(solve|solving|problem solve|problem solving)/i.test(text) || /\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
   if (/(switch to|lets|let's)\s+(build|building|create|design)/i.test(text) || /\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
 
-  // “show me…” should often trigger preview even without the word preview/mockup
   if (/\bshow me\b/.test(t) && (t.includes("layout") || t.includes("floor plan") || t.includes("home") || t.includes("house") || t.includes("mockup") || t.includes("preview") || t.includes("wireframe"))) return "preview";
-
   if (/(preview|mockup|wireframe)\b/i.test(text)) return "preview";
+
   if (/(write|draft|email|resume|cover letter|bio|script|story|book)/i.test(text)) return "write";
   if (/(code|html|css|js|javascript|react|bug|fix|error)/i.test(text)) return "code";
-  if (/(design|ui|ux|layout|wireframe)/i.test(text)) return "design";
   if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained)/i.test(text)) return "vent";
 
-  // “help me with my idea” leans solve/build
   if (/(help me|idea|plan|how do i)/i.test(text)) return "solve";
-
   return "chat";
 }
 
@@ -422,14 +415,11 @@ function inferTopic(text){
   return shorten(raw);
 }
 
-/* =========
-   Preview modules
-========= */
+/* Preview modules */
 function parsePreviewModules(text){
   const t = (text || "").toLowerCase();
   const modules = [];
 
-  // Physical design modules
   if (t.includes("floor plan") || t.includes("layout") || t.includes("home") || t.includes("house")) {
     modules.push("floor plan");
     if (t.includes("garage")) modules.push("garage");
@@ -439,14 +429,11 @@ function parsePreviewModules(text){
     return [...new Set(modules)];
   }
 
-  // Digital / generic modules
   if (t.includes("search")) modules.push("search");
   if (t.includes("filter") || t.includes("chip")) modules.push("filters");
   if (t.includes("card") || t.includes("listing") || t.includes("results")) modules.push("cards");
   if (t.includes("map") || t.includes("image") || t.includes("visual")) modules.push("map");
   if (t.includes("booking") || t.includes("checkout") || t.includes("reserve") || t.includes("submit")) modules.push("action panel");
-  if (t.includes("profile")) modules.push("profile");
-  if (t.includes("settings")) modules.push("settings");
 
   if (modules.length === 0) modules.push("search","filters","cards","map","action panel");
   return [...new Set(modules)];
@@ -457,7 +444,6 @@ function renderPreview(spec){
   const modules = spec.modules || [];
   const notes = spec.notes || "Tell me what to adjust.";
 
-  // Physical floor plan mockup
   if (modules.includes("floor plan")){
     previewArea.innerHTML = `
       <div class="previewCard">
@@ -498,9 +484,8 @@ function renderPreview(spec){
     return;
   }
 
-  // Digital / generic template preview
-  const parts = [];
-  parts.push(`
+  // generic digital preview
+  previewArea.innerHTML = `
     <div class="previewCard">
       <div class="previewTitle">
         <div>
@@ -509,47 +494,30 @@ function renderPreview(spec){
         </div>
         <div class="tag">Preview</div>
       </div>
-  `);
 
-  if (modules.includes("search")){
-    parts.push(`<div class="blockTitle">Search / Input</div><div class="box">Type here…</div>`);
-  }
-  if (modules.includes("filters")){
-    parts.push(`
+      <div class="blockTitle">Search / Input</div>
+      <div class="box">Type here…</div>
+
       <div class="blockTitle">Filters</div>
       <div class="pillRow">
         <div class="pill">Filter A</div><div class="pill">Filter B</div><div class="pill">Filter C</div>
       </div>
-    `);
-  }
-  if (modules.includes("cards")){
-    parts.push(`
+
       <div class="blockTitle">Results / Cards</div>
       <div class="box"><strong>Item One</strong><br/>Short description • status/price • CTA</div>
       <div class="box"><strong>Item Two</strong><br/>Short description • status/price • CTA</div>
       <div class="box"><strong>Item Three</strong><br/>Short description • status/price • CTA</div>
-    `);
-  }
-  if (modules.includes("map")){
-    parts.push(`<div class="blockTitle">Main Visual / Map / Image Area</div><div class="grayBox"></div>`);
-  }
-  if (modules.includes("action panel")){
-    parts.push(`<div class="blockTitle">Action Panel</div><div class="box">Primary action: Book / Submit / Checkout / Save</div>`);
-  }
-  if (modules.includes("profile")){
-    parts.push(`<div class="blockTitle">Profile</div><div class="box">Avatar • Name • Bio • Saved items</div>`);
-  }
-  if (modules.includes("settings")){
-    parts.push(`<div class="blockTitle">Settings</div><div class="box">Notifications • Privacy • Account</div>`);
-  }
 
-  parts.push(`</div>`);
-  previewArea.innerHTML = parts.join("");
+      <div class="blockTitle">Main Visual / Area</div>
+      <div class="grayBox"></div>
+
+      <div class="blockTitle">Action Panel</div>
+      <div class="box">Primary action: Submit / Save / Checkout</div>
+    </div>
+  `;
 }
 
-/* =========
-   Pro gating stubs
-========= */
+/* Pro gating stubs */
 function isProAction(text){
   const t = text.toLowerCase();
   if (/(generate|create|build).*(full|complete).*(code|website|app)/i.test(text)) return true;
@@ -559,11 +527,9 @@ function isProAction(text){
   return false;
 }
 
-/* =========
-   Focus helpers
-========= */
+/* Focus helpers */
 function setFocus(f){
-  state.focus = f; // vent | solve | build
+  state.focus = f;
   state.expectingLaneChoice = false;
   setBadges();
 }
@@ -579,42 +545,44 @@ function handleLaneChoice(intent){
   return false;
 }
 
+/* NEW: stage-based build prompts for digital so it doesn't repeat */
+function promptDigitalBuildNext(){
+  state.mode = "builder";
+  setBadges();
+
+  if (state.buildStage === 0){
+    state.buildStage = 1;
+    addMessage(
+      "simo",
+      "Alright — app build.\nWho’s the main user?\nPick one: (A) homeowners (B) contractors/designers (C) both.\nThen tell me the #1 feature you want.",
+      "digital_stage1"
+    );
+    return;
+  }
+
+  if (state.buildStage === 1){
+    state.buildStage = 2;
+    addMessage(
+      "simo",
+      "Nice. Core experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.",
+      "digital_stage2"
+    );
+    return;
+  }
+
+  state.buildStage = 3;
+  addMessage(
+    "simo",
+    "Cool — last setup:\n1) mobile or web first?\n2) what’s free plan include?\n3) what’s paid plan include?\nSay it rough — we’ll refine.",
+    "digital_stage3"
+  );
+}
+
 function nextPromptForFocus(){
   if (state.focus === "vent"){
     state.mode = "friend";
     setBadges();
     addMessage("simo","Alright — vent. What happened, and what part hit you the hardest?","vent_prompt");
-    return;
-  }
-
-  // BUILD prompt changes based on domain
-  if (state.focus === "build"){
-    state.mode = "builder";
-    setBadges();
-
-    if (state.domain === "physical"){
-      addMessage(
-        "simo",
-        "Alright — we’re building this (physical design).\nGive me:\n1) square footage target\n2) beds/baths\n3) garage (attached? front or side?)\nThen say “show me the layout” and I’ll drop a floor-plan preview on the right.",
-        "build_physical_prompt"
-      );
-      return;
-    }
-
-    if (state.domain === "digital"){
-      addMessage(
-        "simo",
-        "Alright — we’re building (digital).\nWhat is it, who’s it for, and your top 3 must-haves?",
-        "build_digital_prompt"
-      );
-      return;
-    }
-
-    addMessage(
-      "simo",
-      "Alright — we’re building.\nWhat is it, who’s it for, and your top 3 must-haves?",
-      "build_general_prompt"
-    );
     return;
   }
 
@@ -628,27 +596,51 @@ function nextPromptForFocus(){
     );
     return;
   }
+
+  if (state.focus === "build"){
+    // Physical build prompt
+    if (state.domain === "physical"){
+      state.mode = "builder";
+      setBadges();
+      addMessage(
+        "simo",
+        "Alright — home design.\nGive me:\n1) square footage target\n2) beds/baths\n3) garage (attached? front or side?)\nThen say “show me the layout” and I’ll drop a floor-plan preview on the right.",
+        "build_physical_prompt"
+      );
+      return;
+    }
+
+    // Digital build prompt (stage-based)
+    if (state.domain === "digital"){
+      promptDigitalBuildNext();
+      return;
+    }
+
+    // General fallback
+    state.mode = "builder";
+    setBadges();
+    addMessage("simo","Alright — we’re building.\nWhat is it, who’s it for, and your top 3 must-haves?","build_general_prompt");
+  }
 }
 
-/* =========
-   Main reply
-========= */
+/* Main reply */
 function simoReply(userText){
   const intent = detectIntent(userText);
   state.memory.lastIntent = intent;
 
-  // domain updates on ANY message
+  // Update domain continuously
   state.domain = detectDomain(userText);
 
   const topic = inferTopic(userText);
   if (topic) state.memory.lastTopic = topic;
 
-  // Switch topics hard reset
+  // switch topics hard reset
   if (intent === "switch_topics"){
     state.focus = "";
     state.mode = "friend";
     state.expectingLaneChoice = false;
     state.lastSimoKey = "";
+    state.buildStage = 0;
     setBadges();
     setContextCards();
     addMessage("simo","Got you — switching topics. Venting, solving, or building?","ask_lane");
@@ -656,28 +648,25 @@ function simoReply(userText){
     return;
   }
 
-  // Lane choice
+  // lane choice
   if (handleLaneChoice(intent)){
     setContextCards();
     nextPromptForFocus();
     return;
   }
 
-  // Preview (including “show me…” triggers)
+  // preview (includes “show me…” triggers)
   if (intent === "preview"){
     const modules = parsePreviewModules(userText);
-
     const baseTitle = state.memory.lastTopic ? state.memory.lastTopic : "Preview";
-    const title = (state.domain === "physical")
-      ? `Home Layout: ${baseTitle}`
-      : `Mockup: ${baseTitle}`;
+    const title = (state.domain === "physical") ? `Home Layout: ${baseTitle}` : `Mockup: ${baseTitle}`;
 
     state.memory.lastPreviewSpec = {
       title,
       modules,
       notes: (state.domain === "physical")
         ? "Simple concept layout. Tell me if you want single-story vs two-story and your lot width."
-        : "Tell me what you want changed (sections, layout, flow)."
+        : "Generic app mockup. Tell me what sections you want (search, cards, onboarding, etc.)."
     };
 
     previewBadge.textContent = "Shown";
@@ -685,16 +674,17 @@ function simoReply(userText){
     setContextCards();
     setBadges();
 
-    addMessage("simo",
+    addMessage(
+      "simo",
       (state.domain === "physical")
-        ? "Preview’s on the right. Want this as single-story ranch, or two-story with the bedrooms upstairs?"
-        : "Preview’s on the right. What should I tweak first — layout, features, or flow?",
+        ? "Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?"
+        : "Preview’s on the right. Want onboarding + a dashboard, or keep it one page?",
       "preview_next"
     );
     return;
   }
 
-  // Pro gating
+  // pro gating
   if (state.plan !== "pro" && isProAction(userText)){
     addMessage("simo",
       "I can do that — but that’s a paid-upgrade type action.\nToggle Pro (top right) and I’ll treat it like the upgraded plan.",
@@ -706,39 +696,38 @@ function simoReply(userText){
     return;
   }
 
-  // If user says hello, respond human
-  if (/^(hello|hi|hey|hello\?)$/i.test(userText.trim())){
-    if (state.focus){
-      addMessage("simo", `Hey. I’m here. We’re in ${state.focus.toUpperCase()} — keep going?`, "hello_focus");
-    } else {
-      addMessage("simo", "Hey. I’m here. What do you need right now?", "hello_plain");
-    }
-    setContextCards();
+  // If they ask about an APP explicitly, automatically go build+digital and move stages
+  if (/(\bapp\b|\bsoftware\b|\bsaas\b|\bwebsite\b|\bweb app\b)/i.test(userText)){
+    setFocus("build");
+    state.domain = "digital";
     setBadges();
+    setContextCards();
+    // advance digital stages instead of repeating the same question
+    promptDigitalBuildNext();
     return;
   }
 
-  // If we already have focus, keep moving with domain-correct prompts
+  // If they ask about a HOME explicitly, auto build+physical
+  if (state.domain === "physical" && /(home|house|layout|floor plan|design)/i.test(userText)){
+    setFocus("build");
+    setBadges();
+    setContextCards();
+    addMessage(
+      "simo",
+      "Got you — home design.\nQuick: single-story or two-story? And is the garage front or side?\nThen say “show me the layout.”",
+      "auto_build_physical"
+    );
+    return;
+  }
+
+  // If we already have focus, keep moving without repeating identical questions
   if (state.focus){
     setContextCards();
     setBadges();
 
-    if (state.focus === "build"){
-      if (state.domain === "physical"){
-        addMessage("simo",
-          "Cool. For the home:\n• single-story or two-story?\n• approximate lot width?\n• do you want the garage on the left, right, or front?\nThen say: “show me the layout” and I’ll generate a floor plan preview.",
-          "build_physical_continue"
-        );
-        return;
-      }
-      if (state.domain === "digital"){
-        addMessage("simo",
-          "Alright. For the app/site:\n• the main goal\n• your 3 must-haves\n• who the user is\nThen I’ll sketch the flow (and you can ask for a preview).",
-          "build_digital_continue"
-        );
-        return;
-      }
-      addMessage("simo","Alright — what’s the goal and your top 3 must-haves?","build_general_continue");
+    if (state.focus === "build" && state.domain === "digital"){
+      // keep progressing stages
+      promptDigitalBuildNext();
       return;
     }
 
@@ -756,27 +745,13 @@ function simoReply(userText){
     }
   }
 
-  // Otherwise, decide likely focus from domain/keywords (and ask once if unsure)
-  if (state.domain === "physical" && /(home|house|layout|floor plan|design)/i.test(userText)){
-    setFocus("build");
-    setBadges();
-    setContextCards();
-    addMessage("simo",
-      "Got you — home design. Quick setup:\n1) 1500 sq ft target still?\n2) beds/baths\n3) garage attached (left/right/front)\nThen tell me: “show me the layout.”",
-      "auto_build_physical"
-    );
-    return;
-  }
-
-  // If nothing else: ask lane once
+  // default: ask lane once
   setContextCards();
   setBadges();
   askLaneOnce();
 }
 
-/* =========
-   Sending
-========= */
+/* Sending */
 function sendMessage(){
   const text = inputEl.value.trim();
   if (!text) return;
@@ -793,15 +768,14 @@ inputEl.addEventListener("keydown", (e) => {
   }
 });
 
-/* =========
-   Buttons / UI
-========= */
+/* Buttons */
 clearBtn.addEventListener("click", () => {
   state.history = [];
   state.focus = "";
   state.domain = "";
   state.expectingLaneChoice = false;
   state.lastSimoKey = "";
+  state.buildStage = 0;
   state.memory.lastIntent = "";
   state.memory.lastTopic = "";
   state.memory.lastPreviewSpec = null;
@@ -831,9 +805,7 @@ enableProBtn.addEventListener("click", () => {
   addMessage("simo","Alright — Pro is on. Now tell me exactly what you want me to generate.","pro_on");
 });
 
-/* =========
-   Boot
-========= */
+/* Boot */
 setBadges();
 setContextCards();
 addMessage("simo",
