@@ -17,26 +17,17 @@
   --accent2:#1f4dd6;
   --warn:#ffcc66;
 }
-
 *{box-sizing:border-box}
-
 body{
   margin:0;
   font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
   background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
   color:var(--text);
 }
-
 .wrap{max-width:980px;margin:0 auto;padding:18px}
-
-.top{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:12px;margin-bottom:12px;
-}
-
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
 .brand{font-size:22px;font-weight:700;letter-spacing:.2px}
 .sub{font-size:12px;color:var(--muted);margin-top:2px}
-
 .badgeRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .badge{
   font-size:12px;color:var(--muted);
@@ -44,21 +35,14 @@ body{
   background:rgba(255,255,255,.04);
 }
 .badge strong{color:var(--text);font-weight:700}
-
-.grid{
-  display:grid;
-  grid-template-columns: 1.2fr .8fr;
-  gap:12px;
-}
-@media (max-width: 920px){ .grid{grid-template-columns: 1fr} }
-
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:12px}
+@media (max-width: 920px){ .grid{grid-template-columns:1fr} }
 .card{
   background:rgba(255,255,255,.03);
   border:1px solid var(--line);
   border-radius:14px;
   overflow:hidden;
 }
-
 .cardHeader{
   padding:12px 12px 10px;
   border-bottom:1px solid var(--line);
@@ -66,14 +50,11 @@ body{
 }
 .cardTitle{font-weight:700}
 .cardHint{color:var(--muted);font-size:12px}
-
 .chat{height:520px;overflow:auto;padding:12px}
-
 .msg{margin:0 0 12px 0;line-height:1.5;font-size:14px}
 .msg .who{display:inline-block;font-weight:700;margin-right:8px}
 .msg.user .who{color:#fff}
 .msg.simo .who{color:var(--muted)}
-
 .bubble{
   display:inline-block;
   padding:10px 12px;
@@ -87,14 +68,12 @@ body{
   background:rgba(42,102,255,.10);
   border-color:rgba(42,102,255,.25);
 }
-
 .controls{
   padding:12px;
   border-top:1px solid var(--line);
   display:flex;gap:8px;align-items:flex-end;
   background:rgba(0,0,0,.10);
 }
-
 textarea{
   flex:1;height:52px;resize:none;
   border-radius:12px;border:1px solid var(--line);
@@ -103,22 +82,18 @@ textarea{
   padding:10px 12px;
   font-size:14px;outline:none;
 }
-
 button{
   border:none;padding:12px 14px;border-radius:12px;
   font-weight:800;cursor:pointer;color:#fff;background:var(--accent);
 }
 button:hover{background:var(--accent2)}
-
 .secondaryBtn{
   background:rgba(255,255,255,.06);
   border:1px solid var(--line);
   color:var(--text);
 }
 .secondaryBtn:hover{background:rgba(255,255,255,.10)}
-
 .side{padding:12px}
-
 .kv{
   display:flex;justify-content:space-between;gap:10px;
   padding:10px 10px;border:1px solid var(--line);
@@ -127,41 +102,32 @@ button:hover{background:var(--accent2)}
 }
 .kv span{color:var(--muted)}
 .small{color:var(--muted);font-size:12px;line-height:1.4}
-
 hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
-
 .previewWrap{padding:12px}
-
 .previewCard{
   background:#fff;color:#111;
   border-radius:14px;padding:14px;
   border:1px solid rgba(0,0,0,.10);
 }
-
-.previewTitle{
-  display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
-}
+.previewTitle{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .previewTitle h3{margin:0;font-size:16px}
 .previewTitle .tag{
   font-size:11px;padding:6px 10px;border-radius:999px;
   border:1px solid rgba(0,0,0,.12);
   background:#f3f4f6;
 }
-
 .previewSub{color:#444;font-size:12px;margin:6px 0 10px}
 .pillRow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
 .pill{
   font-size:11px;padding:6px 10px;border-radius:999px;
   border:1px solid #c7d2fe;background:#eef2ff;
 }
-
 .blockTitle{font-size:12px;font-weight:800;margin:12px 0 8px;color:#222}
 .box{
   border:1px solid #e5e7eb;border-radius:12px;
   padding:10px;background:#f9fafb;margin-bottom:8px;
 }
 .grayBox{height:140px;background:#e5e7eb;border-radius:12px}
-
 .modalBackdrop{
   position:fixed;inset:0;background:rgba(0,0,0,.55);
   display:none;align-items:center;justify-content:center;
@@ -224,7 +190,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
       <div class="cardHeader">
         <div>
           <div class="cardTitle">Preview</div>
-          <div class="cardHint">Say “show me…” + what you want on it</div>
+          <div class="cardHint">Say “show me…” + what you want</div>
         </div>
         <button class="secondaryBtn" id="togglePlanBtn" type="button">Toggle Pro</button>
       </div>
@@ -235,7 +201,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
         <div class="kv"><span>Preview modules</span><strong id="modulesKV">—</strong></div>
 
         <div class="small">
-          Tip: “switch topics” resets the lane + pending questions.
+          Tip: “switch topics” resets pending questions and stages.
         </div>
 
         <hr class="sep" />
@@ -269,26 +235,24 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:12px 0}
 const state = {
   plan: "free",
   mode: "friend",
-  focus: "",                  // vent | solve | build
-  domain: "",                 // physical | digital | general
-  pending: "",                // home_story | app_user | app_core | app_platform
+  focus: "",                 // vent | solve | build
+  domain: "",                // physical | digital | general
+  pending: "",               // home_story | home_bedplan | home_lotwidth | app_user | app_core | app_platform
   expectingLaneChoice: false,
   lastSimoKey: "",
-  buildStage: 0,              // digital app stages
   history: [],
   memory: {
     lastIntent: "",
     lastTopic: "",
     lastPreviewSpec: null,
-    home: { story:"", garage:"", beds:"", baths:"", sqft:"" },
-    app:  { user:"", core:"", platform:"", free:"", paid:"", feature1:"" }
+    home: { story:"", bedplan:"", lotWidth:"", garage:"", sqft:"", beds:"", baths:"" },
+    app:  { user:"", core:"", platform:"" }
   }
 };
 
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
-
 const clearBtn = document.getElementById("clearBtn");
 const togglePlanBtn = document.getElementById("togglePlanBtn");
 
@@ -355,50 +319,55 @@ function addMessage(role, text, key=""){
   if (role === "simo" && key) state.lastSimoKey = key;
 }
 
-/* Domain detection */
+/* ---------- Domain + intent ---------- */
 function detectDomain(text){
   const t = (text || "").toLowerCase();
-
   const physicalHits = [
-    "home","house","floor plan","layout","blueprint","garage","bedroom","bath","sq ft","square feet",
-    "kitchen","living room","foundation","lot","roof","modern home","ranch","two-story","story"
+    "home","house","floor plan","layout","blueprint","garage","bedroom","bath",
+    "sq ft","square feet","kitchen","living room","foundation","lot","roof",
+    "ranch","two-story","2 story","story","upstairs","downstairs"
   ];
   const digitalHits = [
-    "app","website","web app","saas","software","ui","ux","screen","dashboard","login","api","database","frontend","backend"
+    "app","website","web app","saas","software","ui","ux","screen","dashboard",
+    "login","api","database","frontend","backend"
   ];
-
   let p=0, d=0;
   for (const w of physicalHits) if (t.includes(w)) p++;
   for (const w of digitalHits) if (t.includes(w)) d++;
-
   if (p >= 2 && p >= d) return "physical";
   if (d >= 2 && d > p) return "digital";
   return "general";
 }
 
-/* Intent detection */
 function detectIntent(text){
-  const t = text.toLowerCase().trim();
+  const t = (text || "").toLowerCase().trim();
 
   if (/^(switch topics|new topic|change topic|switch topic)$/i.test(t)) return "switch_topics";
 
-  if (/(switch to|lets|let's)\s+(vent|venting)/i.test(text) || /\bvent(ing)?\b/.test(t)) return "lane_vent";
-  if (/(switch to|lets|let's)\s+(solve|solving|problem solve|problem solving)/i.test(text) || /\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
-  if (/(switch to|lets|let's)\s+(build|building|create|design)/i.test(text) || /\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
+  // "where's the layout" / "wheres the layout" should re-show preview
+  if ((t.includes("where") || t.includes("wheres") || t.includes("where's")) && t.includes("layout")) return "preview";
 
   if (/\bshow me\b/.test(t) && (t.includes("layout") || t.includes("floor plan") || t.includes("home") || t.includes("house") || t.includes("mockup") || t.includes("preview") || t.includes("wireframe"))) return "preview";
   if (/(preview|mockup|wireframe)\b/i.test(text)) return "preview";
 
   if (/(write|draft|email|resume|cover letter|bio|script|story|book)/i.test(text)) return "write";
   if (/(code|html|css|js|javascript|react|bug|fix|error)/i.test(text)) return "code";
+
   if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained)/i.test(text)) return "vent";
 
-  if (/(help me|idea|plan|how do i)/i.test(text)) return "solve";
+  // lane words
+  if (/\bvent(ing)?\b/.test(t)) return "lane_vent";
+  if (/\b(problem\s*solv|solv(ing|e))\b/.test(t)) return "lane_solve";
+  if (/\b(build(ing)?|create|design)\b/.test(t)) return "lane_build";
+
+  // app intent
+  if (/\b(app|software|saas|website|web app)\b/.test(t)) return "app_request";
+
   return "chat";
 }
 
 function cleanTopic(s){
-  return s
+  return (s || "")
     .replace(/[?.!]+$/g, "")
     .replace(/\b(show me|a|an|the|quick|simple|one-page|ui|mockup|preview)\b/ig, "")
     .replace(/\s+/g, " ")
@@ -411,32 +380,17 @@ function shorten(s){
 function inferTopic(text){
   const raw = (text || "").trim();
   if (!raw) return "";
-  const m1 = raw.match(/(?:preview|mockup|layout|floor plan)\s+(?:of|for)\s+(.+)$/i);
-  if (m1 && m1[1]) return shorten(cleanTopic(m1[1]));
-  const m2 = raw.match(/(?:build|create|design)\s+(?:me|a|an)\s+(.+)$/i);
-  if (m2 && m2[1]) return shorten(cleanTopic(m2[1]));
+  const m = raw.match(/(?:show me|preview|mockup|layout|floor plan)\s+(?:a|an|the)?\s*(.+)$/i);
+  if (m && m[1]) return shorten(cleanTopic(m[1]));
   return shorten(raw);
 }
 
-/* Preview modules */
-function parsePreviewModules(text){
-  const t = (text || "").toLowerCase();
-  const modules = [];
-
-  if (t.includes("floor plan") || t.includes("layout") || t.includes("home") || t.includes("house")) {
-    modules.push("floor plan");
-    if (t.includes("garage")) modules.push("garage");
-    modules.push("rooms");
-    modules.push("dimensions");
-    modules.push("notes");
-    return [...new Set(modules)];
-  }
-
-  modules.push("search","filters","cards","map","action panel");
-  return [...new Set(modules)];
-}
-
+/* ---------- Preview rendering ---------- */
 function renderHomePreview(title, notes){
+  const story = state.memory.home.story || "—";
+  const bedplan = state.memory.home.bedplan || "—";
+  const lot = state.memory.home.lotWidth || "—";
+
   previewArea.innerHTML = `
     <div class="previewCard">
       <div class="previewTitle">
@@ -447,7 +401,14 @@ function renderHomePreview(title, notes){
         <div class="tag">Floor Plan</div>
       </div>
 
-      <div class="blockTitle">Simple layout concept (not to scale)</div>
+      <div class="pillRow">
+        <div class="pill">Style: modern</div>
+        <div class="pill">Story: ${escapeHtml(story)}</div>
+        <div class="pill">Beds plan: ${escapeHtml(bedplan)}</div>
+        <div class="pill">Lot width: ${escapeHtml(lot)}</div>
+      </div>
+
+      <div class="blockTitle">Simple concept layout (not to scale)</div>
       <div class="box">
         <div style="display:grid;gap:10px;">
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -460,195 +421,137 @@ function renderHomePreview(title, notes){
             <div class="box" style="background:#fff;">Open Kitchen + Dining + Living</div>
             <div class="box" style="background:#fff;">Entry / Mudroom</div>
           </div>
-          <div class="box" style="background:#fff;">Attached 2-Car Garage (${escapeHtml(state.memory.home.garage || "front/side")})</div>
+          <div class="box" style="background:#fff;">Attached 2-Car Garage (front/side)</div>
         </div>
       </div>
 
-      <div class="blockTitle">Quick questions to refine</div>
+      <div class="blockTitle">Next refinements</div>
       <div class="pillRow">
-        <div class="pill">lot width/depth?</div>
-        <div class="pill">garage front or side?</div>
-        <div class="pill">open concept level?</div>
+        <div class="pill">kitchen size</div>
+        <div class="pill">pantry</div>
+        <div class="pill">mudroom</div>
         <div class="pill">basement?</div>
       </div>
     </div>
   `;
 }
 
-function renderPreview(spec){
-  const title = spec.title || "Preview";
-  const modules = spec.modules || [];
-  const notes = spec.notes || "Tell me what to adjust.";
+function renderAppPreview(){
+  const user = state.memory.app.user || "—";
+  const core = state.memory.app.core || "—";
+  const platform = state.memory.app.platform || "—";
 
-  if (modules.includes("floor plan")){
-    renderHomePreview(title, notes);
-    return;
-  }
-
-  // generic digital preview template
   previewArea.innerHTML = `
     <div class="previewCard">
       <div class="previewTitle">
         <div>
-          <h3>${escapeHtml(title)}</h3>
-          <div class="previewSub">${escapeHtml(notes)}</div>
+          <h3>Dream Home Design App — Concept</h3>
+          <div class="previewSub">User: ${escapeHtml(user)} • Core: ${escapeHtml(core)} • Platform: ${escapeHtml(platform)}</div>
         </div>
-        <div class="tag">Preview</div>
+        <div class="tag">App</div>
       </div>
 
-      <div class="blockTitle">Home Design App (concept UI)</div>
-      <div class="box"><strong>Start Designing</strong><br/>Choose template • Set dimensions • Style</div>
-      <div class="box"><strong>Canvas</strong><br/>Drag rooms • Resize • Snap to grid</div>
-      <div class="box"><strong>AI Assist</strong><br/>“Make this more modern” • “Add pantry”</div>
-      <div class="box"><strong>Export</strong><br/>Share • PDF floor plan • Materials list</div>
+      <div class="blockTitle">Main screens</div>
+      <div class="box"><strong>Start</strong><br/>Pick template • Enter dimensions • Choose style</div>
+      <div class="box"><strong>Design Canvas</strong><br/>Drag rooms • Snap to grid • Resize</div>
+      <div class="box"><strong>AI Assist</strong><br/>“Make it modern” • “Add pantry” • “Optimize flow”</div>
+      <div class="box"><strong>Export</strong><br/>Share link • PDF plan • Materials list</div>
 
-      <div class="blockTitle">Main Area</div>
+      <div class="blockTitle">Preview area</div>
       <div class="grayBox"></div>
     </div>
   `;
 }
 
-/* Pro gating stubs */
-function isProAction(text){
-  const t = text.toLowerCase();
-  if (/(export|download|pdf|docx|pptx)/i.test(text)) return true;
-  if (/(connect|api key|openai|billing|stripe)/i.test(text)) return true;
-  return false;
+/* ---------- Flow helpers ---------- */
+function resetPending(){ state.pending = ""; }
+function resetTopicState(){
+  state.focus = "";
+  state.domain = "";
+  state.mode = "friend";
+  state.expectingLaneChoice = false;
+  state.lastSimoKey = "";
+  resetPending();
+  state.memory.home = { story:"", bedplan:"", lotWidth:"", garage:"", sqft:"", beds:"", baths:"" };
+  state.memory.app = { user:"", core:"", platform:"" };
 }
 
-/* Focus helpers */
-function setFocus(f){
-  state.focus = f;
+function setFocusBuild(domain){
+  state.focus = "build";
+  state.mode = "builder";
+  state.domain = domain;
   state.expectingLaneChoice = false;
   setBadges();
 }
-function resetPending(){
-  state.pending = "";
-}
-function resetBuildStages(){
-  state.buildStage = 0;
-  state.memory.app = { user:"", core:"", platform:"", free:"", paid:"", feature1:"" };
-}
 
-function askLaneOnce(){
-  if (state.lastSimoKey === "ask_lane") return;
-  state.expectingLaneChoice = true;
-  addMessage("simo", "What do you want right now: venting, solving, or building?", "ask_lane");
-}
-function handleLaneChoice(intent){
-  if (intent === "lane_vent"){ setFocus("vent"); return true; }
-  if (intent === "lane_solve"){ setFocus("solve"); return true; }
-  if (intent === "lane_build"){ setFocus("build"); return true; }
-  return false;
-}
+/* ---------- Pending answer router ---------- */
+function handlePendingAnswer(userText){
+  const t = (userText || "").trim().toLowerCase();
 
-/* Pending handlers */
-function handlePending(userText){
-  const t = userText.trim().toLowerCase();
-
-  // HOME: story choice
+  // HOME: choose story
   if (state.pending === "home_story"){
-    if (t.includes("ranch") || t.includes("single") || t.includes("one")){
+    if (t.includes("ranch") || t.includes("single") || t.includes("one") || t.includes("1")){
       state.memory.home.story = "single-story ranch";
-      resetPending();
-      setFocus("build");
-      state.domain = "physical";
-      setBadges();
-
-      // Update preview notes to reflect the answer
-      if (state.memory.lastPreviewSpec?.modules?.includes("floor plan")){
-        renderHomePreview(state.memory.lastPreviewSpec.title, "Locked: single-story ranch. Next: lot width + garage position.");
-      }
-
-      addMessage("simo",
-        "Bet — ranch it is.\nTwo quick ones:\n1) approx lot width? (ex: 50ft, 60ft)\n2) garage: front-facing or side-entry?",
-        "home_refine"
-      );
+      state.pending = "home_lotwidth";
+      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: single-story ranch. Next: lot width.");
+      addMessage("simo","Nice. What’s the lot width? (example: 50ft, 60ft)","home_lot_q");
       return true;
     }
     if (t.includes("two") || t.includes("2") || t.includes("story") || t.includes("upstairs")){
       state.memory.home.story = "two-story";
-      resetPending();
-      setFocus("build");
-      state.domain = "physical";
-      setBadges();
-
-      if (state.memory.lastPreviewSpec?.modules?.includes("floor plan")){
-        renderHomePreview(state.memory.lastPreviewSpec.title, "Locked: two-story. Next: which rooms upstairs + lot width.");
-      }
-
-      addMessage("simo",
-        "Cool — two-story.\nDo you want all 3 bedrooms upstairs, or primary on main?\nAnd what’s the lot width?",
-        "home_refine2"
-      );
+      state.pending = "home_bedplan";
+      renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Locked: two-story. Next: bedroom placement.");
+      addMessage("simo","Cool — two-story. Do you want all 3 bedrooms upstairs, or primary on main?","home_bed_q");
       return true;
     }
+    addMessage("simo","Quick confirm: single-story ranch, or two-story?","home_story_retry");
+    return true;
+  }
 
-    // Not recognized — re-ask (once) without dumping into lane prompt
-    addMessage("simo", "Quick confirm: single-story ranch, or two-story?", "home_story_retry");
+  // HOME: bedroom plan
+  if (state.pending === "home_bedplan"){
+    // accept anything as bedplan
+    state.memory.home.bedplan = userText.trim();
+    state.pending = "home_lotwidth";
+    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Got it. Next: lot width.");
+    addMessage("simo","Perfect. What’s the lot width? (example: 50ft, 60ft)","home_lot_q2");
+    return true;
+  }
+
+  // HOME: lot width
+  if (state.pending === "home_lotwidth"){
+    state.memory.home.lotWidth = userText.trim();
+    resetPending();
+    renderHomePreview(state.memory.lastPreviewSpec?.title || "Home Layout", "Updated with your lot width. Want garage front-facing or side-entry?");
+    addMessage("simo","Layout updated on the right. Garage: front-facing or side-entry?","home_garage_q");
     return true;
   }
 
   // APP: user choice A/B/C
   if (state.pending === "app_user"){
-    if (t === "a" || t.includes("homeowner")){
-      state.memory.app.user = "homeowners";
-      resetPending();
-      state.buildStage = 2;
-      state.pending = "app_core";
-      addMessage("simo",
-        "Homeowners — got it.\nCore experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.",
-        "app_core_q"
-      );
+    if (t === "a" || t.includes("homeowner")) state.memory.app.user = "homeowners";
+    else if (t === "b" || t.includes("contract")) state.memory.app.user = "contractors/designers";
+    else if (t === "c" || t.includes("both")) state.memory.app.user = "both";
+    else {
+      addMessage("simo","Just reply A, B, or C (homeowners / contractors / both).","app_user_retry");
       return true;
     }
-    if (t === "b" || t.includes("contract")){
-      state.memory.app.user = "contractors/designers";
-      resetPending();
-      state.buildStage = 2;
-      state.pending = "app_core";
-      addMessage("simo",
-        "Contractors/designers — got it.\nCore experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.",
-        "app_core_q"
-      );
-      return true;
-    }
-    if (t === "c" || t.includes("both")){
-      state.memory.app.user = "both";
-      resetPending();
-      state.buildStage = 2;
-      state.pending = "app_core";
-      addMessage("simo",
-        "Both — got it.\nCore experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.",
-        "app_core_q"
-      );
-      return true;
-    }
-
-    addMessage("simo","Just reply A, B, or C (homeowners / contractors / both).","app_user_retry");
+    state.pending = "app_core";
+    addMessage("simo","Core experience:\n(A) drag-and-drop floor plan\n(B) AI suggestions from a prompt\n(C) templates + customize\nReply A/B/C.","app_core_q");
     return true;
   }
 
-  // APP: core experience A/B/C
+  // APP: core A/B/C
   if (state.pending === "app_core"){
-    if (t === "a"){
-      state.memory.app.core = "drag-and-drop floor plan";
-    } else if (t === "b"){
-      state.memory.app.core = "AI suggestions from prompt";
-    } else if (t === "c"){
-      state.memory.app.core = "templates + customize";
-    } else {
+    if (t === "a") state.memory.app.core = "drag-and-drop floor plan";
+    else if (t === "b") state.memory.app.core = "AI suggestions from prompt";
+    else if (t === "c") state.memory.app.core = "templates + customize";
+    else {
       addMessage("simo","Reply A/B/C for the core experience.","app_core_retry");
       return true;
     }
-
-    resetPending();
-    state.buildStage = 3;
     state.pending = "app_platform";
-    addMessage("simo",
-      "Nice.\nNext: platform.\n(A) mobile first\n(B) web first\n(C) both\nReply A/B/C.",
-      "app_platform_q"
-    );
+    addMessage("simo","Platform:\n(A) mobile first\n(B) web first\n(C) both\nReply A/B/C.","app_platform_q");
     return true;
   }
 
@@ -661,174 +564,153 @@ function handlePending(userText){
       addMessage("simo","Reply A/B/C for platform.","app_platform_retry");
       return true;
     }
-
     resetPending();
-    // Show a preview automatically now that we have enough
-    state.domain = "digital";
-    setFocus("build");
-    setBadges();
-
-    state.memory.lastPreviewSpec = {
-      title: "Dream Home Design App — Concept",
-      modules: ["search","filters","cards","map","action panel"],
-      notes: `User: ${state.memory.app.user} • Core: ${state.memory.app.core} • Platform: ${state.memory.app.platform}`
-    };
     previewBadge.textContent = "Shown";
-    renderPreview(state.memory.lastPreviewSpec);
+    renderAppPreview();
     setContextCards();
-
-    addMessage("simo",
-      "Preview’s on the right.\nNow tell me the #1 feature you want first (ex: room snapping, AI styles, cost estimator).",
-      "app_feature1"
-    );
+    addMessage("simo","Preview’s on the right. What’s the first feature you want users to touch?","app_feature1");
     return true;
   }
 
   return false;
 }
 
-/* Main reply */
+/* ---------- Pro gating stub ---------- */
+function isProAction(text){
+  const t = (text || "").toLowerCase();
+  if (/(export|download|pdf|docx|pptx)/i.test(t)) return true;
+  if (/(connect|api key|openai|billing|stripe)/i.test(t)) return true;
+  return false;
+}
+
+/* ---------- Main reply ---------- */
 function simoReply(userText){
   const intent = detectIntent(userText);
   state.memory.lastIntent = intent;
 
-  // Update domain continuously
-  state.domain = detectDomain(userText);
-
-  const topic = inferTopic(userText);
-  if (topic) state.memory.lastTopic = topic;
-
-  // If we're waiting for an answer to a pending question, handle it first
+  // If we're waiting on a pending answer, handle it FIRST
   if (state.pending){
-    const handled = handlePending(userText);
+    handlePendingAnswer(userText);
     setBadges();
     setContextCards();
     return;
   }
 
+  // Update domain continuously
+  state.domain = detectDomain(userText);
+
+  // Track topic
+  const topic = inferTopic(userText);
+  if (topic) state.memory.lastTopic = topic;
+
   // switch topics hard reset
   if (intent === "switch_topics"){
-    state.focus = "";
-    state.mode = "friend";
-    state.expectingLaneChoice = false;
-    state.lastSimoKey = "";
-    resetPending();
-    resetBuildStages();
+    resetTopicState();
     setBadges();
     setContextCards();
-    addMessage("simo","Got you — switching topics. Venting, solving, or building?","ask_lane");
+    addMessage("simo","Got you — switching topics. What are we doing: venting, solving, or building?","ask_lane");
     state.expectingLaneChoice = true;
     return;
   }
 
-  // lane choice
-  if (handleLaneChoice(intent)){
-    state.mode = (state.focus === "vent") ? "friend" : "builder";
-    setBadges();
-    setContextCards();
-
-    if (state.focus === "vent"){
+  // If bot is expecting lane choice, DON'T block app/home requests.
+  // Let app/home take over immediately.
+  if (state.expectingLaneChoice){
+    const t = (userText || "").toLowerCase();
+    if (/\b(app|software|saas|website|web app)\b/.test(t)){
+      state.expectingLaneChoice = false;
+      setFocusBuild("digital");
+      state.pending = "app_user";
+      addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
+      return;
+    }
+    if (t.includes("home") || t.includes("layout") || t.includes("floor plan") || t.includes("house")){
+      state.expectingLaneChoice = false;
+      // fall through to preview/build below
+    } else if (t.includes("vent")) {
+      state.expectingLaneChoice = false;
+      state.focus = "vent"; state.mode="friend";
+      setBadges();
       addMessage("simo","Alright. Vent. What happened?","vent_start");
       return;
-    }
-    if (state.focus === "solve"){
+    } else if (t.includes("solve") || t.includes("problem")) {
+      state.expectingLaneChoice = false;
+      state.focus = "solve"; state.mode="builder";
+      setBadges();
       addMessage("simo","Alright — solve mode. What’s the goal and what’s blocking you?","solve_start");
       return;
-    }
-    if (state.focus === "build"){
+    } else if (t.includes("build") || t.includes("create") || t.includes("design")) {
+      state.expectingLaneChoice = false;
+      state.focus = "build"; state.mode="builder";
+      setBadges();
       addMessage("simo","Alright — build. What are we making?","build_start");
       return;
     }
   }
 
-  // preview (includes “show me…” triggers)
-  if (intent === "preview"){
-    // showing a home preview should put us in build+physical and set a pending follow-up question
-    if (state.domain === "physical"){
-      setFocus("build");
-      state.mode = "builder";
-      state.domain = "physical";
-      setBadges();
-
-      const modules = parsePreviewModules(userText);
-      const baseTitle = state.memory.lastTopic ? state.memory.lastTopic : "Home Layout";
-      const title = `Home Layout: ${baseTitle}`;
-
-      state.memory.lastPreviewSpec = {
-        title,
-        modules,
-        notes: "Simple concept layout. Tell me: single-story ranch, or two-story?"
-      };
-
-      previewBadge.textContent = "Shown";
-      renderPreview(state.memory.lastPreviewSpec);
-      setContextCards();
-
-      // set pending so "ranch" is understood
-      state.pending = "home_story";
-      addMessage("simo","Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?","home_story_q");
-      return;
-    }
-
-    // digital preview request
-    setFocus("build");
-    state.mode = "builder";
-    state.domain = "digital";
-    setBadges();
-
-    state.memory.lastPreviewSpec = {
-      title: "App Preview (generic)",
-      modules: ["search","filters","cards","map","action panel"],
-      notes: "Tell me who the user is and what the main action is."
-    };
-
-    previewBadge.textContent = "Shown";
-    renderPreview(state.memory.lastPreviewSpec);
-    setContextCards();
-
-    addMessage("simo","Preview’s on the right. Who’s the main user, and what’s the main action?","digital_preview_q");
-    return;
-  }
-
-  // pro gating
+  // Pro gating
   if (state.plan !== "pro" && isProAction(userText)){
     addMessage("simo",
       "I can do that — but that’s a paid-upgrade type action.\nToggle Pro (top right) and I’ll treat it like the upgraded plan.",
       "pro_gate"
     );
     openModal();
-    setContextCards();
     setBadges();
+    setContextCards();
     return;
   }
 
-  // If user asks for an app build, kick off staged flow immediately
-  if (/(\bapp\b|\bsoftware\b|\bsaas\b|\bwebsite\b|\bweb app\b)/i.test(userText)){
-    setFocus("build");
-    state.mode = "builder";
-    state.domain = "digital";
-    setBadges();
-    resetPending();
+  // Preview intent
+  if (intent === "preview"){
+    // If we already have a home preview spec, re-render it instead of getting stuck
+    const domainNow = detectDomain(userText);
+    if (domainNow === "physical" || (state.memory.lastPreviewSpec?.modules || []).includes("floor plan")){
+      setFocusBuild("physical");
+      state.memory.lastPreviewSpec = {
+        title: state.memory.lastPreviewSpec?.title || ("Home Layout: " + (state.memory.lastTopic || "Modern Home")),
+        modules: ["floor plan","rooms","notes"],
+        notes: "Simple concept layout. Choose: single-story ranch or two-story."
+      };
+      previewBadge.textContent = "Shown";
+      renderHomePreview(state.memory.lastPreviewSpec.title, state.memory.lastPreviewSpec.notes);
+      setContextCards();
+      state.pending = "home_story";
+      addMessage("simo","Preview’s on the right. Want single-story ranch, or two-story with bedrooms upstairs?","home_story_q");
+      return;
+    }
 
-    // start staged questions
-    state.buildStage = 1;
+    // Otherwise just show app preview starter
+    setFocusBuild("digital");
+    previewBadge.textContent = "Shown";
+    renderAppPreview();
+    setContextCards();
+    addMessage("simo","Preview’s on the right. Want this for homeowners, contractors, or both? (A/B/C)","app_user_hint");
     state.pending = "app_user";
-    addMessage(
-      "simo",
-      "Alright — app build.\nWho’s the main user?\nPick one: (A) homeowners (B) contractors/designers (C) both.",
-      "app_user_q"
-    );
-    setContextCards();
     return;
   }
 
-  // Default: ask lane once (and don’t loop)
-  setBadges();
-  setContextCards();
-  askLaneOnce();
+  // App request (even if they didn't say “preview”)
+  if (intent === "app_request"){
+    setFocusBuild("digital");
+    state.pending = "app_user";
+    addMessage("simo","Alright — app build.\nWho’s the main user?\n(A) homeowners (B) contractors/designers (C) both\nReply A/B/C.","app_user_q");
+    return;
+  }
+
+  // If they mention home/layout generally, guide them toward preview
+  const low = (userText || "").toLowerCase();
+  if (detectDomain(userText) === "physical" && (low.includes("home") || low.includes("layout") || low.includes("floor plan") || low.includes("house"))){
+    setFocusBuild("physical");
+    addMessage("simo","Say: “show me the layout” and I’ll drop the floor plan preview on the right.","nudge_layout");
+    return;
+  }
+
+  // If nothing matched, ask lane once (and set expectingLaneChoice)
+  state.expectingLaneChoice = true;
+  addMessage("simo","What do you want right now: venting, solving, or building?","ask_lane");
 }
 
-/* Sending */
+/* ---------- Sending ---------- */
 function sendMessage(){
   const text = inputEl.value.trim();
   if (!text) return;
@@ -836,7 +718,6 @@ function sendMessage(){
   inputEl.value = "";
   simoReply(text);
 }
-
 sendBtn.addEventListener("click", sendMessage);
 inputEl.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey){
@@ -845,27 +726,19 @@ inputEl.addEventListener("keydown", (e) => {
   }
 });
 
-/* Buttons */
+/* ---------- Buttons ---------- */
 clearBtn.addEventListener("click", () => {
   state.history = [];
-  state.focus = "";
-  state.domain = "";
-  state.mode = "friend";
-  state.expectingLaneChoice = false;
-  state.lastSimoKey = "";
-  resetPending();
-  resetBuildStages();
+  resetTopicState();
   state.memory.lastIntent = "";
   state.memory.lastTopic = "";
   state.memory.lastPreviewSpec = null;
-  state.memory.home = { story:"", garage:"", beds:"", baths:"", sqft:"" };
 
   chatEl.innerHTML = "";
   previewArea.innerHTML = `<div class="small">No preview yet. Ask for one.</div>`;
   previewBadge.textContent = "Ready";
   setContextCards();
   setBadges();
-
   addMessage("simo", "Clean slate. I’m still here. What’s up?", "clean_slate");
 });
 
@@ -885,7 +758,7 @@ enableProBtn.addEventListener("click", () => {
   addMessage("simo","Alright — Pro is on. Now tell me exactly what you want me to generate.","pro_on");
 });
 
-/* Boot */
+/* ---------- Boot ---------- */
 setBadges();
 setContextCards();
 addMessage("simo",
