@@ -6,97 +6,177 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
-      --line:rgba(255,255,255,.10);
-      --btn:#2a66ff; --btn2:#1f4dd6;
-      --bad:#ff4d4d; --good:#39d98a;
+      --bg:#0b1020; --panel:#0f1730; --panel2:#0c1329;
+      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
+      --btn:#2a66ff; --btn2:#1f4dd6; --bad:#ff4d4d; --good:#39d98a;
+      --shadow: 0 12px 40px rgba(0,0,0,.35);
+      --r:16px;
     }
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    .wrap{max-width:980px;margin:0 auto;padding:18px}
-    .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
-    .brand{display:flex;align-items:center;gap:10px}
-    .logo{width:40px;height:40px;border-radius:14px;background:linear-gradient(145deg,#2a66ff,#5aa5ff);box-shadow:0 12px 30px rgba(42,102,255,.25)}
-    .title{font-size:16px;font-weight:800;line-height:1.1}
-    .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-    .pill{
-      font-size:12px;padding:8px 10px;border:1px solid var(--line);border-radius:999px;
-      background:rgba(255,255,255,.04);color:var(--muted);display:flex;gap:10px;align-items:center;
-      white-space:nowrap;
+    .wrap{max-width:1100px;margin:0 auto;padding:18px 18px 28px}
+    .top{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      margin-bottom:14px;
     }
-    .dot{width:8px;height:8px;border-radius:50%}
-    .dot.good{background:var(--good)}
-    .dot.bad{background:var(--bad)}
-    .card{
-      border:1px solid var(--line);border-radius:18px;overflow:hidden;
-      background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
-      box-shadow:0 16px 50px rgba(0,0,0,.28)
+    .brand{
+      display:flex; gap:10px; align-items:center;
     }
-    .head{
-      padding:12px 14px;border-bottom:1px solid var(--line);background:rgba(255,255,255,.02);
-      display:flex;align-items:center;justify-content:space-between;gap:12px
+    .logo{
+      width:44px;height:44px;border-radius:14px;
+      background:linear-gradient(135deg, #2a66ff, #39d98a);
+      box-shadow: var(--shadow);
     }
-    .head h2{margin:0;font-size:13px;letter-spacing:.2px}
-    .mini{font-size:12px;color:var(--muted)}
-    .stamp{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
-    .chat{
-      height:520px;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:10px;
-      background:linear-gradient(180deg,rgba(0,0,0,.08),rgba(0,0,0,.12))
+    .title{
+      display:flex;flex-direction:column;line-height:1.1
     }
-    .msg{max-width:82%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);white-space:pre-wrap}
-    .msg.you{align-self:flex-end;background:rgba(42,102,255,.18);border-color:rgba(42,102,255,.25)}
-    .msg.simo{align-self:flex-start;background:rgba(255,255,255,.05)}
-    .row{display:flex;gap:10px;padding:12px;border-top:1px solid var(--line);background:rgba(255,255,255,.02)}
-    textarea{
-      flex:1;resize:none;min-height:44px;max-height:140px;padding:10px 12px;border-radius:14px;
-      border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none
-    }
+    .title h1{font-size:18px;margin:0}
+    .title .sub{font-size:12px;color:var(--muted)}
+    .actions{display:flex; gap:8px; align-items:center}
     button{
-      border:0;border-radius:14px;padding:0 14px;min-width:110px;font-weight:800;
-      background:linear-gradient(180deg,var(--btn),var(--btn2));color:white;cursor:pointer;
-      box-shadow:0 12px 26px rgba(42,102,255,.25)
-    }
-    button:disabled{opacity:.55;cursor:not-allowed}
-    .ghostBtn{
-      min-width:120px;
-      background:rgba(255,255,255,.10);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
       color:var(--text);
-      border:1px solid rgba(255,255,255,.14);
-      box-shadow:none;
-    }
-    .ghostBtn:hover{background:rgba(255,255,255,.14)}
-    /* Preview modal */
-    #previewModal{
-      position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-      background:rgba(0,0,0,.65); padding:18px; z-index:9999;
-    }
-    #previewModal .panel{
-      width:min(1000px, 96vw); height:min(680px, 92vh);
-      background:rgba(20,30,60,.96);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:18px; overflow:hidden;
-      box-shadow:0 24px 70px rgba(0,0,0,.55);
-      display:flex; flex-direction:column;
-    }
-    #previewModal .bar{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:12px 14px; border-bottom:1px solid rgba(255,255,255,.12);
-    }
-    #previewModal select{
-      background:rgba(255,255,255,.08);
-      color:#eaf0ff;
-      border:1px solid rgba(255,255,255,.14);
+      padding:10px 12px;
       border-radius:12px;
-      padding:8px 10px;
+      cursor:pointer;
+      transition:.15s transform ease, .15s background ease;
+      user-select:none;
     }
-    #previewModal iframe{
-      flex:1; width:100%; border:0; background:#0b1020;
+    button:hover{transform:translateY(-1px); background:rgba(255,255,255,.09)}
+    button.primary{
+      border-color:rgba(42,102,255,.45);
+      background:linear-gradient(180deg, var(--btn), var(--btn2));
+      box-shadow: 0 10px 26px rgba(42,102,255,.22);
     }
+    button.danger{border-color:rgba(255,77,77,.35); color:#ffd6d6}
+    .grid{
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+    }
+    .card{
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+    }
+    .cardHead{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 12px;
+      border-bottom:1px solid var(--line);
+      background:rgba(0,0,0,.10);
+    }
+    .cardHead .label{
+      font-size:13px; color:var(--muted)
+    }
+    .chat{
+      height: 520px;
+      overflow:auto;
+      padding:14px;
+      scroll-behavior:smooth;
+    }
+    .msg{
+      display:flex;
+      margin:10px 0;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .bubble{
+      max-width: 86%;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      white-space:pre-wrap;
+      word-wrap:break-word;
+    }
+    .me .bubble{
+      margin-left:auto;
+      background:rgba(42,102,255,.16);
+      border-color:rgba(42,102,255,.35);
+    }
+    .who{
+      font-size:11px;
+      color:var(--muted);
+      margin-bottom:4px;
+    }
+    .inputBar{
+      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
+      background:rgba(0,0,0,.12);
+    }
+    textarea{
+      width:100%;
+      resize:none;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      padding:10px 12px;
+      min-height:44px;
+      max-height:140px;
+      outline:none;
+      font: inherit;
+      line-height:1.25;
+    }
+    .sendCol{display:flex; flex-direction:column; gap:8px}
+    .hint{font-size:11px;color:var(--muted); margin-top:6px}
+    .preview{
+      height: 520px;
+      overflow:auto;
+      padding:14px;
+      background:linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.22));
+    }
+    .pillRow{
+      display:flex; flex-wrap:wrap; gap:8px; margin-top:8px
+    }
+    .pill{
+      font-size:12px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      color:var(--muted);
+      cursor:pointer;
+    }
+    .pill:hover{background:rgba(255,255,255,.09); color:var(--text)}
+    .hr{height:1px;background:var(--line); margin:12px 0}
+    .mono{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:12px;
+      color:#dbe6ff;
+      background:rgba(0,0,0,.18);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:10px 12px;
+      overflow:auto;
+    }
+    .notice{
+      font-size:12px;
+      color:var(--muted);
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:14px;
+      padding:10px 12px;
+      background:rgba(0,0,0,.10);
+    }
+    iframe{
+      width:100%;
+      height: 420px;
+      border:1px solid var(--line);
+      border-radius:14px;
+      background:#fff;
+    }
+    .tiny{font-size:11px;color:var(--muted)}
   </style>
 </head>
 
@@ -104,346 +184,515 @@
   <div class="wrap">
     <div class="top">
       <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
-        <div>
-          <div class="title">Simo</div>
-          <div class="sub">Core chat (stable) — preview is isolated (won’t break chat)</div>
+        <div class="logo"></div>
+        <div class="title">
+          <h1>Simo</h1>
+          <div class="sub">Best friend vibes — builder tools when you ask.</div>
         </div>
       </div>
 
-      <div class="right">
-        <button id="previewBtn" type="button" class="ghostBtn">Preview</button>
-
-        <div class="pill">
-          <span class="dot bad" id="dot"></span>
-          <span id="status">Offline (not calling API)</span>
-        </div>
+      <div class="actions">
+        <button id="resetBtn" class="danger" title="Clear chat + reset topic memory">Reset</button>
+        <button id="settingsBtn" title="Configure API endpoint (optional)">Settings</button>
+        <button id="demoBtn" class="primary" title="Try a preview request">Try preview</button>
       </div>
     </div>
 
-    <div class="card">
-      <div class="head">
-        <h2>Chat</h2>
-        <div class="mini stamp">BUILD: SIMO_CORE_V1_2026-02-11B + PREVIEW_MODAL_V2 (NO DUP LISTENERS)</div>
+    <div class="grid">
+      <!-- Chat -->
+      <div class="card">
+        <div class="cardHead">
+          <div class="label">Chat</div>
+          <div class="tiny" id="modeText">Mode: best-friend</div>
+        </div>
+
+        <div class="chat" id="chat"></div>
+
+        <div class="inputBar">
+          <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for a new line)"></textarea>
+          <div class="sendCol">
+            <button id="sendBtn" class="primary">Send</button>
+            <div class="hint">Enter = send • Shift+Enter = new line</div>
+          </div>
+        </div>
       </div>
 
-      <div class="chat" id="chat"></div>
+      <!-- Preview -->
+      <div class="card">
+        <div class="cardHead">
+          <div class="label">Preview / Builder</div>
+          <div class="tiny" id="topicText">Topic: none</div>
+        </div>
 
-      <div class="row">
-        <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter new line)"></textarea>
-        <button id="send" type="button">Send</button>
+        <div class="preview" id="preview">
+          <div class="notice">
+            Ask for a “preview”, “mockup”, “UI”, “wireframe”, or “generate code” and I’ll show something here.
+            <div class="pillRow">
+              <div class="pill" data-prompt="Show me a preview of a bakery app (one-page mockup)">Bakery app preview</div>
+              <div class="pill" data-prompt="Show me a preview of a space renting app (driveway/extra space) UI mockup">Space renting preview</div>
+              <div class="pill" data-prompt="Make a one-page UI mockup for a hair salon booking app">Salon booking preview</div>
+              <div class="pill" data-prompt="Generate a simple landing page mockup for a bakery with order pickup">Landing page preview</div>
+            </div>
+          </div>
+
+          <div class="hr"></div>
+
+          <div class="tiny">Last generated code (if any):</div>
+          <div class="mono" id="codeOut">—</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- PREVIEW MODAL (frontend-only; does NOT touch chat handlers) -->
-  <div id="previewModal" aria-hidden="true">
-    <div class="panel" role="dialog" aria-modal="true" aria-label="App Preview">
-      <div class="bar">
-        <div style="font-weight:900;">App Preview</div>
-        <div style="display:flex; gap:10px; align-items:center;">
-          <select id="previewSelect" aria-label="Select preview">
-            <option value="space">Space Renting (Driveway/Extra Space)</option>
-            <option value="bakery">Bakery App (Menu + Order)</option>
-            <option value="landing">Simple Landing Page</option>
+<script>
+(() => {
+  // =========================
+  // DOM
+  // =========================
+  const chatEl = document.getElementById("chat");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const resetBtn = document.getElementById("resetBtn");
+  const settingsBtn = document.getElementById("settingsBtn");
+  const demoBtn = document.getElementById("demoBtn");
+  const previewEl = document.getElementById("preview");
+  const codeOutEl = document.getElementById("codeOut");
+  const modeTextEl = document.getElementById("modeText");
+  const topicTextEl = document.getElementById("topicText");
+
+  // =========================
+  // State (topic memory + mode)
+  // =========================
+  const state = {
+    lastTopic: null,
+    lastUserIntent: null,  // "preview" | "code" | "chat"
+    mode: "best-friend",   // UI label only
+    // Optional: connect your backend endpoint here in Settings.
+    apiUrl: localStorage.getItem("SIMO_API_URL") || "",
+  };
+
+  function setMode(mode){
+    state.mode = mode;
+    modeTextEl.textContent = "Mode: " + mode;
+  }
+  function setTopic(topic){
+    state.lastTopic = topic;
+    topicTextEl.textContent = "Topic: " + (topic || "none");
+  }
+
+  // =========================
+  // Helpers
+  // =========================
+  function esc(s){
+    return (s ?? "").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+  }
+
+  function addMsg(who, text){
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (who === "You" ? "me" : "simo");
+    const b = document.createElement("div");
+    b.className = "bubble";
+    b.innerHTML = `<div class="who">${esc(who)}</div>${esc(text)}`;
+    wrap.appendChild(b);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function autoGrowTextarea(){
+    inputEl.style.height = "auto";
+    inputEl.style.height = Math.min(inputEl.scrollHeight, 140) + "px";
+  }
+
+  // Generic “topic” extraction WITHOUT hardcoding topics.
+  // We don’t try to be perfect; we just need a stable anchor.
+  function extractTopic(userText){
+    const t = (userText || "").trim().toLowerCase();
+
+    // Remove common trigger words so we keep the "thing" they're asking about.
+    const cleaned = t
+      .replace(/\b(show|make|create|build|generate|design|draw)\b/g, "")
+      .replace(/\b(a|an|the|me|us|my|your)\b/g, "")
+      .replace(/\b(preview|mockup|ui|wireframe|prototype|landing page|page|screen)\b/g, "")
+      .replace(/\b(app|website|site)\b/g, "")
+      .replace(/[^\w\s-]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    // If cleaned is empty, fall back to a short slice of original.
+    if (!cleaned) {
+      return (userText || "").trim().slice(0, 48) || null;
+    }
+
+    // Keep it short and human.
+    return cleaned.slice(0, 64);
+  }
+
+  function isAllTheAbove(userText){
+    const t = (userText || "").trim().toLowerCase();
+    return t === "all the above" || t === "all of the above" || t === "everything above" || t === "all that" || t === "yes" || t === "yup";
+  }
+
+  function isBuilderAsk(userText){
+    const t = (userText || "").toLowerCase();
+    return /preview|mockup|wireframe|ui\b|prototype|generate code|html|css|landing page|screen|demo/.test(t);
+  }
+
+  // =========================
+  // Preview generator (topic-agnostic)
+  // =========================
+  function generateOnePageMockup(topicRaw){
+    const topic = (topicRaw || "your app").trim();
+    const title = topic.replace(/\b\w/g, c => c.toUpperCase());
+
+    // A clean, generic one-page mockup for ANY topic.
+    // Uses placeholders, cards, filters, and a right-side panel.
+    const html = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${esc(title)} — Mockup</title>
+<style>
+  :root{--bg:#0b1020;--card:#101a35;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--btn:#2a66ff}
+  *{box-sizing:border-box} body{margin:0;font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial;background:radial-gradient(900px 500px at 20% 0%, #162a66 0%, var(--bg) 55%);color:var(--text)}
+  .wrap{max-width:980px;margin:0 auto;padding:18px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+  .brand{font-weight:700}
+  .search{flex:1;display:flex;gap:10px;align-items:center}
+  input{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none}
+  .btn{padding:10px 12px;border-radius:14px;border:1px solid rgba(42,102,255,.45);background:linear-gradient(180deg, var(--btn), #1f4dd6);color:#fff}
+  .grid{display:grid;grid-template-columns: 1.2fr .8fr;gap:12px}
+  @media (max-width: 860px){.grid{grid-template-columns:1fr}}
+  .card{background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border:1px solid var(--line);border-radius:18px;padding:12px}
+  .muted{color:var(--muted);font-size:12px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{font-size:12px;padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.06)}
+  .list{display:flex;flex-direction:column;gap:10px;margin-top:12px}
+  .item{display:flex;gap:10px;align-items:flex-start}
+  .thumb{width:54px;height:54px;border-radius:14px;background:rgba(255,255,255,.08);border:1px solid var(--line)}
+  .meta{flex:1}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .price{font-weight:700}
+  .pill{font-size:11px;padding:5px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+  .map{height:160px;border-radius:16px;border:1px dashed rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;color:var(--muted);background:rgba(0,0,0,.12);margin-top:12px}
+  .field{margin-top:10px}
+  .label{font-size:12px;color:var(--muted);margin-bottom:6px}
+  select{width:100%;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.18);color:var(--text);outline:none}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">${esc(title)} <span class="muted">• One-page mockup</span></div>
+      <button class="btn">Book / Order</button>
+    </div>
+
+    <div class="search">
+      <input placeholder="Search ${esc(topic)}…"/>
+    </div>
+
+    <div class="chips">
+      <div class="chip">Popular</div>
+      <div class="chip">Near me</div>
+      <div class="chip">Top rated</div>
+      <div class="chip">Under $25</div>
+      <div class="chip">Available today</div>
+    </div>
+
+    <div class="grid" style="margin-top:12px">
+      <div class="card">
+        <div class="row">
+          <div style="font-weight:700">Listings</div>
+          <div class="muted">3 results</div>
+        </div>
+
+        <div class="list">
+          <div class="item">
+            <div class="thumb"></div>
+            <div class="meta">
+              <div class="row">
+                <div style="font-weight:650">${esc(title)} Option A</div>
+                <div class="price">$19</div>
+              </div>
+              <div class="muted">Fast turnaround • Great reviews • Pickup/booking available</div>
+              <div class="row" style="margin-top:8px">
+                <div class="pill">Today</div>
+                <div class="pill">2 slots left</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="thumb"></div>
+            <div class="meta">
+              <div class="row">
+                <div style="font-weight:650">${esc(title)} Option B</div>
+                <div class="price">$29</div>
+              </div>
+              <div class="muted">Premium option • Customization • Add-ons</div>
+              <div class="row" style="margin-top:8px">
+                <div class="pill">Tomorrow</div>
+                <div class="pill">Custom</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="item">
+            <div class="thumb"></div>
+            <div class="meta">
+              <div class="row">
+                <div style="font-weight:650">${esc(title)} Option C</div>
+                <div class="price">$12</div>
+              </div>
+              <div class="muted">Budget pick • Simple • Reliable</div>
+              <div class="row" style="margin-top:8px">
+                <div class="pill">This week</div>
+                <div class="pill">Limited</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="map">Map / Gallery placeholder</div>
+      </div>
+
+      <div class="card">
+        <div style="font-weight:700">Booking / Order Panel</div>
+        <div class="muted" style="margin-top:6px">Pick options, date/time, and confirm.</div>
+
+        <div class="field">
+          <div class="label">Select item</div>
+          <select>
+            <option>${esc(title)} Option A</option>
+            <option>${esc(title)} Option B</option>
+            <option>${esc(title)} Option C</option>
           </select>
+        </div>
 
-          <button id="closePreviewBtn" type="button" class="ghostBtn" style="min-width:140px;">
-            Back to chat
-          </button>
+        <div class="field">
+          <div class="label">Date</div>
+          <input placeholder="Choose a date"/>
+        </div>
+
+        <div class="field">
+          <div class="label">Notes</div>
+          <input placeholder="Any details? (dietary, size, time, etc.)"/>
+        </div>
+
+        <div class="field">
+          <button class="btn" style="width:100%">Confirm</button>
+        </div>
+
+        <div class="muted" style="margin-top:10px">
+          This is a mockup preview. Next step is turning it into a real app flow + backend.
         </div>
       </div>
-
-      <iframe id="previewFrame" title="Preview"></iframe>
     </div>
   </div>
+</body>
+</html>`.trim();
 
-  <script>
-    // ==========================
-    // SIMO CORE (STABLE)
-    // ==========================
-    const chat = document.getElementById("chat");
-    const input = document.getElementById("input");
-    const send = document.getElementById("send");
-    const dot = document.getElementById("dot");
-    const status = document.getElementById("status");
+    return html;
+  }
 
-    function add(role, text) {
-      const d = document.createElement("div");
-      d.className = "msg " + (role === "you" ? "you" : "simo");
-      d.textContent = text;
-      chat.appendChild(d);
-      chat.scrollTop = chat.scrollHeight;
-    }
+  function renderPreview(html){
+    // show iframe + code
+    const existingIframes = previewEl.querySelectorAll("iframe");
+    existingIframes.forEach(x => x.remove());
 
-    function setOnline(on, text){
-      dot.classList.remove("good","bad");
-      dot.classList.add(on ? "good" : "bad");
-      status.textContent = text;
-    }
+    const iframe = document.createElement("iframe");
+    iframe.setAttribute("sandbox", "allow-forms allow-scripts allow-same-origin");
+    previewEl.insertBefore(iframe, previewEl.querySelector(".hr"));
 
-    function autoGrow() {
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 140) + "px";
-    }
+    // Write content
+    const doc = iframe.contentWindow.document;
+    doc.open();
+    doc.write(html);
+    doc.close();
 
-    async function callBackend(message){
-      const res = await fetch("/api/simon", {
-        method: "POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ message })
-      });
+    codeOutEl.textContent = html;
+  }
 
-      if (!res.ok) {
-        const t = await res.text().catch(()=> "");
-        throw new Error(`API HTTP ${res.status} ${res.statusText}${t ? " — " + t.slice(0,140) : ""}`);
-      }
+  // =========================
+  // Optional API call (if you have one)
+  // =========================
+  async function callApi(userText, context){
+    if (!state.apiUrl) return null;
 
-      const data = await res.json().catch(()=> ({}));
-      return data.reply || data.text || "Hey — I’m Simo. What’s going on?";
-    }
-
-    // ==========================
-    // PREVIEW MODAL (ISOLATED)
-    // ==========================
-    const previewModal = document.getElementById("previewModal");
-    const previewBtn = document.getElementById("previewBtn");
-    const closePreviewBtn = document.getElementById("closePreviewBtn");
-    const previewSelect = document.getElementById("previewSelect");
-    const previewFrame = document.getElementById("previewFrame");
-
-    const templates = {
-      space: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>SpaceRent — Preview</title>
-        <style>
-          body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff}
-          .wrap{max-width:1000px;margin:0 auto;padding:16px}
-          .grid{display:grid;grid-template-columns:1.1fr .9fr;gap:14px}
-          @media(max-width:900px){.grid{grid-template-columns:1fr}}
-          .card{border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(255,255,255,.05);overflow:hidden}
-          .head{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);font-weight:900}
-          .pad{padding:12px 14px}
-          .row{display:flex;gap:10px;flex-wrap:wrap}
-          input{flex:1;min-width:220px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#eaf0ff}
-          .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-size:12px}
-          .list{display:flex;flex-direction:column;gap:10px}
-          .item{border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;background:rgba(0,0,0,.18)}
-          .price{font-weight:950}
-          .muted{color:rgba(234,240,255,.70);font-size:12px}
-          .map{height:220px;border-top:1px solid rgba(255,255,255,.10);background:linear-gradient(135deg,rgba(42,102,255,.25),rgba(0,0,0,.2));
-               display:flex;align-items:center;justify-content:center;color:rgba(234,240,255,.80)}
-          button{padding:10px 12px;border-radius:12px;border:0;background:linear-gradient(180deg,#2a66ff,#1f4dd6);color:#fff;font-weight:900;cursor:pointer}
-        </style></head>
-        <body><div class="wrap">
-          <div class="card">
-            <div class="head">Search</div>
-            <div class="pad">
-              <div class="row">
-                <input placeholder="Search city / ZIP (e.g., 48044)" />
-                <button>Search</button>
-              </div>
-              <div class="row" style="margin-top:10px">
-                <div class="chip">Driveway</div><div class="chip">Garage</div><div class="chip">Storage</div>
-                <div class="chip">Under $10/day</div><div class="chip">EV-friendly</div>
-              </div>
-            </div>
-            <div class="grid" style="padding:14px">
-              <div class="card">
-                <div class="head">Listings</div>
-                <div class="pad list">
-                  <div class="item"><div class="price">$8/day · Driveway Spot</div><div class="muted">0.4 mi · Available today · 6am–10pm</div></div>
-                  <div class="item"><div class="price">$12/day · Covered Spot</div><div class="muted">1.2 mi · Available Fri–Sun · 24/7 access</div></div>
-                  <div class="item"><div class="price">$20/day · Storage Corner</div><div class="muted">2.0 mi · Weekly only · Secure area</div></div>
-                </div>
-              </div>
-              <div class="card">
-                <div class="head">Booking</div>
-                <div class="pad">
-                  <div class="muted">Selected: Driveway Spot</div>
-                  <div class="row" style="margin-top:10px">
-                    <input placeholder="Start date" />
-                    <input placeholder="End date" />
-                  </div>
-                  <div class="row" style="margin-top:10px">
-                    <button style="width:100%">Reserve</button>
-                  </div>
-                  <div class="muted" style="margin-top:10px">Map placeholder:</div>
-                </div>
-                <div class="map">MAP (Preview)</div>
-              </div>
-            </div>
-          </div>
-        </div></body></html>`,
-
-      bakery: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Bakery — Preview</title>
-        <style>
-          body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff}
-          .wrap{max-width:980px;margin:0 auto;padding:16px}
-          .grid{display:grid;grid-template-columns:1fr .9fr;gap:14px}
-          @media(max-width:900px){.grid{grid-template-columns:1fr}}
-          .card{border:1px solid rgba(255,255,255,.12);border-radius:16px;background:rgba(255,255,255,.05);overflow:hidden}
-          .head{padding:12px 14px;border-bottom:1px solid rgba(255,255,255,.10);font-weight:950}
-          .pad{padding:12px 14px}
-          .row{display:flex;gap:10px;flex-wrap:wrap}
-          input{flex:1;min-width:220px;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.25);color:#eaf0ff}
-          .chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-          .chip{padding:8px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);font-size:12px}
-          .menu{display:flex;flex-direction:column;gap:10px}
-          .item{border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:12px;background:rgba(0,0,0,.18);display:flex;justify-content:space-between;gap:10px;align-items:center}
-          .name{font-weight:950}
-          .muted{color:rgba(234,240,255,.70);font-size:12px}
-          button{padding:10px 12px;border-radius:12px;border:0;background:linear-gradient(180deg,#2a66ff,#1f4dd6);color:#fff;font-weight:900;cursor:pointer}
-          .total{display:flex;justify-content:space-between;align-items:center;margin-top:10px}
-        </style></head>
-        <body><div class="wrap">
-          <div class="card">
-            <div class="head">Bakery App Preview</div>
-            <div class="pad">
-              <div class="row">
-                <input placeholder="Search items (croissant, sourdough…)" />
-                <button>Search</button>
-              </div>
-              <div class="chips">
-                <div class="chip">Bread</div><div class="chip">Pastries</div><div class="chip">Cakes</div><div class="chip">Coffee</div><div class="chip">Gluten-free</div>
-              </div>
-            </div>
-
-            <div class="grid" style="padding:14px">
-              <div class="card">
-                <div class="head">Menu</div>
-                <div class="pad menu">
-                  <div class="item"><div><div class="name">Sourdough Loaf</div><div class="muted">Fresh daily · 2lb</div></div><div><div class="name">$8</div><button style="margin-top:6px">Add</button></div></div>
-                  <div class="item"><div><div class="name">Butter Croissant</div><div class="muted">Flaky · best-seller</div></div><div><div class="name">$4</div><button style="margin-top:6px">Add</button></div></div>
-                  <div class="item"><div><div class="name">Chocolate Cake Slice</div><div class="muted">Rich · dark cocoa</div></div><div><div class="name">$6</div><button style="margin-top:6px">Add</button></div></div>
-                </div>
-              </div>
-
-              <div class="card">
-                <div class="head">Cart</div>
-                <div class="pad">
-                  <div class="muted">2 items</div>
-                  <div class="item" style="margin-top:10px"><div><div class="name">Sourdough Loaf</div><div class="muted">Qty: 1</div></div><div class="name">$8</div></div>
-                  <div class="item"><div><div class="name">Butter Croissant</div><div class="muted">Qty: 1</div></div><div class="name">$4</div></div>
-                  <div class="total"><div class="name">Total</div><div class="name">$12</div></div>
-                  <button style="width:100%;margin-top:10px">Checkout</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div></body></html>`,
-
-      landing: `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-        <title>Landing — Preview</title>
-        <style>
-          body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff}
-          .hero{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;
-            background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, #0b1020 55%);}
-          .card{max-width:820px;border:1px solid rgba(255,255,255,.12);border-radius:20px;background:rgba(255,255,255,.05);padding:18px}
-          .h{font-size:34px;font-weight:950;line-height:1.05;margin:0}
-          .p{color:rgba(234,240,255,.75);margin:10px 0 16px;line-height:1.4}
-          button{padding:12px 14px;border-radius:14px;border:0;background:linear-gradient(180deg,#2a66ff,#1f4dd6);color:#fff;font-weight:900;cursor:pointer}
-        </style></head>
-        <body><div class="hero"><div class="card">
-          <h1 class="h">Make what’s in your head real.</h1>
-          <div class="p">Simo is your guide. Builder tools show up when you need them.</div>
-          <button>Start</button>
-        </div></div></body></html>`
-    };
-
-    function renderPreview(kind){
-      previewFrame.srcdoc = templates[kind] || templates.space;
-    }
-
-    function openPreview(){
-      renderPreview(previewSelect.value);
-      previewModal.style.display = "flex";
-      previewModal.setAttribute("aria-hidden","false");
-      if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
-    }
-
-    function closePreview(){
-      previewModal.style.display = "none";
-      previewModal.setAttribute("aria-hidden","true");
-      input.focus();
-    }
-
-    previewBtn.addEventListener("click", openPreview);
-    closePreviewBtn.addEventListener("click", closePreview);
-
-    previewModal.addEventListener("click", (e) => {
-      if (e.target === previewModal) closePreview();
+    // Expected API contract (simple):
+    // POST { message, context } => { reply, preview_html? }
+    // If your API differs, we’ll adapt later—this won’t break the UI.
+    const res = await fetch(state.apiUrl, {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ message: userText, context })
     });
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && previewModal.style.display === "flex") closePreview();
-    });
+    if (!res.ok) throw new Error("API error: " + res.status);
+    const data = await res.json();
+    return data;
+  }
 
-    previewSelect.addEventListener("change", () => renderPreview(previewSelect.value));
+  // =========================
+  // Main brain router
+  // =========================
+  async function handleSend(){
+    const raw = inputEl.value;
+    const text = (raw || "").trim();
+    if (!text) return;
 
-    // ==========================
-    // ONE SEND FUNCTION (NO DUP LISTENERS)
-    // ==========================
-    function isPreviewCommand(raw){
-      const lower = (raw || "").trim().toLowerCase();
-      return (
-        lower === "preview" ||
-        lower === "show preview" ||
-        lower.includes("app preview")
-      );
+    inputEl.value = "";
+    autoGrowTextarea();
+    addMsg("You", text);
+
+    // Builder intent
+    let wantsBuilder = isBuilderAsk(text);
+
+    // “All the above” should continue last topic and last intent.
+    let effectiveText = text;
+    if (isAllTheAbove(text) && state.lastTopic) {
+      // Continue what we were doing, don’t reset topic.
+      wantsBuilder = (state.lastUserIntent === "preview" || state.lastUserIntent === "code") ? true : wantsBuilder;
+      effectiveText = `Expand and complete the last request about: ${state.lastTopic}. Include the full set of features mentioned earlier, and show a rough preview.`;
     }
 
-    async function handleSend(){
-      const raw = (input.value || "").trim();
-      if (!raw) return;
+    // Determine topic (only update when user provides a real new direction)
+    if (!isAllTheAbove(text)) {
+      const topic = extractTopic(text);
+      if (topic) setTopic(topic);
+    }
 
-      // Preview commands never call API
-      if (isPreviewCommand(raw)) {
-        add("you", raw);
-        input.value = "";
-        autoGrow();
-        add("simo", "Alright — opening a preview.");
-        openPreview();
+    // If builder requested: generate preview locally (topic-agnostic).
+    if (wantsBuilder) {
+      setMode("builder");
+      state.lastUserIntent = "preview";
+
+      const t = state.lastTopic || extractTopic(text) || "your app";
+      addMsg("Simo", `Alright — builder mode. Here’s a quick first-draft mockup for **${t}**. If you want, I can turn this into a real multi-page flow next.`);
+
+      const html = generateOnePageMockup(t);
+      renderPreview(html);
+      return;
+    }
+
+    // Otherwise: best friend mode.
+    setMode("best-friend");
+    state.lastUserIntent = "chat";
+
+    // If you have an API, use it. If not, fall back locally.
+    try{
+      const context = {
+        lastTopic: state.lastTopic,
+        mode: state.mode
+      };
+
+      const apiData = await callApi(text, context);
+      if (apiData && typeof apiData.reply === "string") {
+        addMsg("Simo", apiData.reply);
+
+        if (apiData.preview_html && typeof apiData.preview_html === "string") {
+          renderPreview(apiData.preview_html);
+          state.lastUserIntent = "preview";
+          setMode("builder");
+        }
         return;
       }
-
-      add("you", raw);
-      input.value = "";
-      autoGrow();
-      send.disabled = true;
-
-      try{
-        setOnline(true, "Calling API…");
-        const reply = await callBackend(raw);
-        add("simo", reply);
-        setOnline(true, "Online");
-      } catch(e){
-        add("simo",
-          `UI is working, but backend failed:\n${e.message}\n\nThat means /api/simon isn’t reachable from this deploy.`
-        );
-        setOnline(false, "Backend error");
-      } finally {
-        send.disabled = false;
-        input.focus();
-      }
+    } catch (e) {
+      // Don’t spam errors in chat; keep it smooth.
+      console.warn(e);
     }
 
-    // Attach listeners ONCE
-    send.addEventListener("click", handleSend);
+    // Local fallback (safe, consistent, no random topic switching)
+    const low = text.toLowerCase();
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        handleSend();
+    if (low === "hi" || low === "hello" || low === "hey") {
+      addMsg("Simo", "Hey — I’m here. What’s going on?");
+      return;
+    }
+
+    // Simple math support (tiny but useful)
+    if (/^\s*\d+\s*[\+\-\*\/]\s*\d+\s*$/.test(text)) {
+      try{
+        // Safe-ish eval for simple expression only
+        const v = Function(`"use strict"; return (${text});`)();
+        addMsg("Simo", `${text} = ${v}`);
+      } catch {
+        addMsg("Simo", "I can do that — paste it again like `217*22`.");
       }
-    });
+      return;
+    }
 
-    input.addEventListener("input", autoGrow);
+    // If user asks for “all the above” but we have no topic
+    if (isAllTheAbove(text) && !state.lastTopic) {
+      addMsg("Simo", "All of what, exactly? Paste the last thing you want me to expand and I’ll run with it.");
+      return;
+    }
 
-    // Boot
-    add("simo", "Hey — I’m Simo. What’s going on?");
-    setOnline(false, "Offline (not calling API)");
-    input.focus();
-  </script>
+    // Friendly general fallback that doesn't invent a new topic.
+    addMsg("Simo", "Got you. Say what you want next — if you want a preview/mockup, literally say “show me a preview” and I’ll build it on the right.");
+  }
+
+  // =========================
+  // Events (bulletproof)
+  // =========================
+  sendBtn.addEventListener("click", handleSend);
+
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  });
+
+  inputEl.addEventListener("input", autoGrowTextarea);
+
+  resetBtn.addEventListener("click", () => {
+    chatEl.innerHTML = "";
+    codeOutEl.textContent = "—";
+    setTopic(null);
+    setMode("best-friend");
+    state.lastUserIntent = null;
+    // remove preview iframe
+    previewEl.querySelectorAll("iframe").forEach(x => x.remove());
+    addMsg("Simo", "Reset. I’m back. What’s going on?");
+  });
+
+  settingsBtn.addEventListener("click", () => {
+    const current = state.apiUrl || "";
+    const next = prompt(
+      "Optional: paste your API endpoint URL (POST JSON {message,context} -> {reply, preview_html?}).\n\nLeave blank to use local brain.",
+      current
+    );
+    if (next === null) return;
+    state.apiUrl = (next || "").trim();
+    localStorage.setItem("SIMO_API_URL", state.apiUrl);
+    addMsg("Simo", state.apiUrl ? "Alright. API connected. I’ll use it when available." : "No API. I’ll run local builder previews.");
+  });
+
+  demoBtn.addEventListener("click", () => {
+    inputEl.value = "Show me a preview of a bakery app (one-page mockup)";
+    autoGrowTextarea();
+    inputEl.focus();
+  });
+
+  // Pills
+  previewEl.addEventListener("click", (e) => {
+    const pill = e.target.closest(".pill");
+    if (!pill) return;
+    const p = pill.getAttribute("data-prompt");
+    if (!p) return;
+    inputEl.value = p;
+    autoGrowTextarea();
+    inputEl.focus();
+  });
+
+  // Boot message
+  addMsg("Simo", "Hey — I’m Simo. What’s going on?");
+  autoGrowTextarea();
+})();
+</script>
 </body>
 </html>
