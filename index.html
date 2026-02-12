@@ -9,11 +9,13 @@
 :root{
   --bg:#0b1020;
   --panel:#121933;
+  --panel2:#0e1530;
   --text:#eaf0ff;
-  --muted:#9fb0ff;
+  --muted:#a9b6d3;
+  --line:rgba(255,255,255,.10);
   --accent:#2a66ff;
   --accent2:#1f4dd6;
-  --line:rgba(255,255,255,.08);
+  --warn:#ffcc66;
 }
 
 *{box-sizing:border-box}
@@ -25,229 +27,354 @@ body{
   color:var(--text);
 }
 
-.wrap{
-  max-width:900px;
-  margin:0 auto;
-  padding:20px;
+.wrap{max-width:980px;margin:0 auto;padding:18px}
+
+.top{
+  display:flex;align-items:center;justify-content:space-between;
+  gap:12px;margin-bottom:12px;
 }
 
-.header{
-  font-size:22px;
-  font-weight:600;
-  margin-bottom:12px;
+.brand{
+  font-size:22px;font-weight:700;letter-spacing:.2px;
+}
+.sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+.badgeRow{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.badge{
+  font-size:12px;color:var(--muted);
+  border:1px solid var(--line);padding:6px 10px;border-radius:999px;
+  background:rgba(255,255,255,.04);
+}
+.badge strong{color:var(--text);font-weight:700}
+
+.grid{
+  display:grid;
+  grid-template-columns: 1.2fr .8fr;
+  gap:12px;
 }
 
-.chat{
-  background:var(--panel);
+@media (max-width: 920px){
+  .grid{grid-template-columns: 1fr}
+}
+
+.card{
+  background:rgba(255,255,255,.03);
   border:1px solid var(--line);
   border-radius:14px;
-  padding:15px;
-  height:420px;
-  overflow-y:auto;
-  margin-bottom:12px;
+  overflow:hidden;
+}
+
+.cardHeader{
+  padding:12px 12px 10px;
+  border-bottom:1px solid var(--line);
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+}
+
+.cardTitle{font-weight:700}
+.cardHint{color:var(--muted);font-size:12px}
+
+.chat{
+  height:520px;
+  overflow:auto;
+  padding:12px;
 }
 
 .msg{
-  margin-bottom:12px;
+  margin:0 0 12px 0;
   line-height:1.5;
+  font-size:14px;
 }
 
-.user{ color:#fff; }
-.simo{ color:var(--muted); }
+.msg .who{
+  display:inline-block;
+  font-weight:700;
+  margin-right:8px;
+}
 
-.inputRow{
+.msg.user .who{color:#fff}
+.msg.simo .who{color:var(--muted)}
+
+.bubble{
+  display:inline-block;
+  padding:10px 12px;
+  border-radius:14px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.02);
+  max-width: 95%;
+  white-space:pre-wrap;
+}
+
+.msg.user .bubble{
+  background:rgba(42,102,255,.10);
+  border-color:rgba(42,102,255,.25);
+}
+
+.controls{
+  padding:12px;
+  border-top:1px solid var(--line);
   display:flex;
   gap:8px;
+  align-items:flex-end;
+  background:rgba(0,0,0,.10);
 }
 
 textarea{
   flex:1;
-  resize:none;
   height:52px;
-  border-radius:10px;
+  resize:none;
+  border-radius:12px;
   border:1px solid var(--line);
-  background:#0e1530;
-  color:white;
-  padding:10px;
+  background:var(--panel2);
+  color:var(--text);
+  padding:10px 12px;
   font-size:14px;
+  outline:none;
 }
 
 button{
-  background:var(--accent);
   border:none;
-  color:white;
-  padding:0 18px;
-  border-radius:10px;
+  padding:12px 14px;
+  border-radius:12px;
+  font-weight:800;
   cursor:pointer;
-  font-weight:600;
+  color:#fff;
+  background:var(--accent);
+}
+button:hover{background:var(--accent2)}
+
+.secondaryBtn{
+  background:rgba(255,255,255,.06);
+  border:1px solid var(--line);
+  color:var(--text);
+}
+.secondaryBtn:hover{background:rgba(255,255,255,.10)}
+
+.side{
+  padding:12px;
 }
 
-button:hover{
-  background:var(--accent2);
+.kv{
+  display:flex;justify-content:space-between;gap:10px;
+  padding:10px 10px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:rgba(255,255,255,.02);
+  margin-bottom:10px;
+  font-size:13px;
+}
+.kv span{color:var(--muted)}
+
+.small{
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.4;
+}
+
+hr.sep{
+  border:none;border-top:1px solid var(--line);
+  margin:12px 0;
+}
+
+.previewWrap{
+  padding:12px;
 }
 
 .previewCard{
-  margin-top:15px;
-  background:white;
-  color:black;
-  padding:20px;
-  border-radius:12px;
+  background:#fff;color:#111;
+  border-radius:14px;
+  padding:14px;
+  border:1px solid rgba(0,0,0,.10);
 }
-.pillRow{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin:8px 0 12px;
+
+.previewTitle{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
 }
+.previewTitle h3{margin:0;font-size:16px}
+.previewTitle .tag{
+  font-size:11px;padding:6px 10px;border-radius:999px;
+  border:1px solid rgba(0,0,0,.12);
+  background:#f3f4f6;
+}
+
+.previewSub{color:#444;font-size:12px;margin:6px 0 10px}
+
+.pillRow{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 10px}
 .pill{
-  background:#eef2ff;
+  font-size:11px;padding:6px 10px;border-radius:999px;
   border:1px solid #c7d2fe;
-  border-radius:999px;
-  padding:6px 10px;
-  font-size:12px;
+  background:#eef2ff;
 }
-.card{
-  border:1px solid #ddd;
+
+.blockTitle{
+  font-size:12px;
+  font-weight:800;
+  margin:12px 0 8px;
+  color:#222;
+}
+
+.box{
+  border:1px solid #e5e7eb;
+  border-radius:12px;
   padding:10px;
-  border-radius:10px;
+  background:#f9fafb;
   margin-bottom:8px;
 }
-.grayBox{
-  background:#e5e7eb;
-  border-radius:10px;
+
+.grayBox{height:140px;background:#e5e7eb;border-radius:12px}
+
+.modalBackdrop{
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.55);
+  display:none;
+  align-items:center;justify-content:center;
+  padding:20px;
+}
+
+.modal{
+  width:min(520px, 100%);
+  border-radius:16px;
+  border:1px solid var(--line);
+  background:rgba(18,25,51,.98);
+  padding:14px;
+}
+
+.modal h3{margin:0 0 6px 0}
+.modal p{margin:0 0 12px 0;color:var(--muted);line-height:1.45;font-size:13px}
+.modal .row{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+
+.warnLine{
+  border:1px dashed rgba(255,204,102,.45);
+  background:rgba(255,204,102,.08);
+  color:#ffe7b3;
+  padding:10px 12px;
+  border-radius:12px;
+  font-size:12px;
+  margin-top:10px;
 }
 </style>
 </head>
+
 <body>
-
 <div class="wrap">
-  <div class="header">Hey — I’m Simo. What’s going on?</div>
-
-  <div id="chat" class="chat">
-    <div class="msg simo">I’m here. Vent. Build. Think. Whatever’s in your head.</div>
+  <div class="top">
+    <div>
+      <div class="brand">Hey — I’m Simo.</div>
+      <div class="sub">Best friend vibes by default. Builder + previews when you ask.</div>
+    </div>
+    <div class="badgeRow">
+      <div class="badge">Plan: <strong id="planBadge">Free</strong></div>
+      <div class="badge">Mode: <strong id="modeBadge">Friend</strong></div>
+      <div class="badge">Preview: <strong id="previewBadge">Ready</strong></div>
+    </div>
   </div>
 
-  <div class="inputRow">
-    <textarea id="input" placeholder="Talk to Simo… (Enter to send, Shift+Enter for new line)"></textarea>
-    <button id="sendBtn">Send</button>
+  <div class="grid">
+    <!-- CHAT -->
+    <div class="card">
+      <div class="cardHeader">
+        <div>
+          <div class="cardTitle">Chat</div>
+          <div class="cardHint">Enter to send • Shift+Enter for a new line</div>
+        </div>
+        <button class="secondaryBtn" id="clearBtn" type="button">Clear</button>
+      </div>
+
+      <div id="chat" class="chat"></div>
+
+      <div class="controls">
+        <textarea id="input" placeholder="Talk to Simo…"></textarea>
+        <button id="sendBtn" type="button">Send</button>
+      </div>
+    </div>
+
+    <!-- RIGHT: PREVIEW + CONTEXT -->
+    <div class="card">
+      <div class="cardHeader">
+        <div>
+          <div class="cardTitle">Preview</div>
+          <div class="cardHint">Shows when you ask: “show me a preview / mockup”</div>
+        </div>
+        <button class="secondaryBtn" id="togglePlanBtn" type="button">Toggle Pro</button>
+      </div>
+
+      <div class="side">
+        <div class="kv"><span>Last intent</span><strong id="intentKV">—</strong></div>
+        <div class="kv"><span>Project/topic</span><strong id="topicKV">—</strong></div>
+        <div class="kv"><span>Preview modules</span><strong id="modulesKV">—</strong></div>
+
+        <div class="small">
+          Tip: Ask anything. If you want visuals, say “show me a preview” and include what you want on it.
+        </div>
+
+        <hr class="sep" />
+
+        <div id="previewArea" class="previewWrap">
+          <div class="small">No preview yet. Ask for one.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Upgrade Modal -->
+<div id="modalBackdrop" class="modalBackdrop" role="dialog" aria-modal="true">
+  <div class="modal">
+    <h3>That’s a Pro action</h3>
+    <p>
+      I can absolutely do it — but in the Free plan I keep it light. Toggle Pro to simulate paid upgrades.
+      (Payment wiring comes later; this is the UI + logic gate.)
+    </p>
+    <div class="row">
+      <button class="secondaryBtn" id="closeModalBtn" type="button">Not now</button>
+      <button id="enableProBtn" type="button">Enable Pro</button>
+    </div>
+    <div class="warnLine">
+      This is just the upgrade *gate*. It doesn’t charge anyone — it only flips the plan state.
+    </div>
   </div>
 </div>
 
 <script>
-const chat = document.getElementById("chat");
-const input = document.getElementById("input");
+/* =========================
+   State
+========================= */
+const state = {
+  plan: "free",             // "free" | "pro" (simulated)
+  mode: "friend",           // "friend" | "builder"
+  history: [],              // {role:"user"|"simo", text, ts}
+  memory: {
+    lastIntent: "",
+    lastTopic: "",
+    lastPreviewSpec: null,  // {title, modules[], notes}
+  }
+};
+
+/* =========================
+   DOM
+========================= */
+const chatEl = document.getElementById("chat");
+const inputEl = document.getElementById("input");
 const sendBtn = document.getElementById("sendBtn");
 
-let lastUserMessage = "";
+const clearBtn = document.getElementById("clearBtn");
+const togglePlanBtn = document.getElementById("togglePlanBtn");
 
-function addMessage(text, type){
-  const div = document.createElement("div");
-  div.className = "msg " + type;
-  div.innerHTML = text;
-  chat.appendChild(div);
-  chat.scrollTop = chat.scrollHeight;
-}
+const planBadge = document.getElementById("planBadge");
+const modeBadge = document.getElementById("modeBadge");
+const previewBadge = document.getElementById("previewBadge");
 
-// Very light “topic hint” from the user’s own words.
-// This does NOT lock to a niche topic; it just titles the mockup.
-function inferPreviewTitle(fromText){
-  const cleaned = (fromText || "").trim();
-  if(!cleaned) return "Your Idea";
-  // Keep it short
-  const short = cleaned.length > 48 ? cleaned.slice(0, 48).trim() + "…" : cleaned;
-  // Remove common trigger phrases to avoid “show me a preview…” as title
-  return short
-    .replace(/show me (a|the) (quick )?(preview|mockup)( of)?/i, "")
-    .replace(/preview|mockup/i, "")
-    .trim() || "Your Idea";
-}
+const intentKV = document.getElementById("intentKV");
+const topicKV = document.getElementById("topicKV");
+const modulesKV = document.getElementById("modulesKV");
+const previewArea = document.getElementById("previewArea");
 
-function simoReply(userText){
-  const lower = userText.toLowerCase();
+const modalBackdrop = document.getElementById("modalBackdrop");
+const closeModalBtn = document.getElementById("closeModalBtn");
+const enableProBtn = document.getElementById("enableProBtn");
 
-  // --- Preview Trigger ---
-  if(lower.includes("show me a preview") || lower.includes("mockup")){
-    addMessage("Alright. Here’s a quick visual template (generic) — tell me what you want changed.", "simo");
-    showPreview(lastUserMessage);
-    return;
-  }
-
-  // --- Best Friend Mode ---
-  if(lower.includes("stressed") || lower.includes("tired") || lower.includes("argument")){
-    addMessage("Yeah… that’s a lot. What’s the part that keeps setting you off — the topic, or the way it loops?", "simo");
-    return;
-  }
-
-  // --- Builder Nudge ---
-  if(lower.includes("build") || lower.includes("create") || lower.includes("design")){
-    addMessage("Cool. Give me the goal in one sentence, then your top 3 must-haves.", "simo");
-    return;
-  }
-
-  // --- Default ---
-  addMessage("I’m here. Don’t filter it — what’s actually going on?", "simo");
-}
-
-function showPreview(contextText){
-  const title = inferPreviewTitle(contextText);
-
-  const preview = document.createElement("div");
-  preview.className = "previewCard";
-
-  // Generic template: no driveway/garage/any niche domain.
-  preview.innerHTML = `
-    <h3 style="margin:0 0 6px;">UI Mockup Template</h3>
-    <div style="font-size:13px;color:#444;margin-bottom:10px;">
-      <strong>Concept:</strong> ${escapeHtml(title)}
-    </div>
-
-    <div style="margin-bottom:10px;">
-      <div style="font-weight:700;margin-bottom:6px;">Search / Input</div>
-      <div class="card" style="background:#f3f4f6;">
-        Type here… (search, prompt, or query)
-      </div>
-
-      <div class="pillRow">
-        <span class="pill">Filter A</span>
-        <span class="pill">Filter B</span>
-        <span class="pill">Filter C</span>
-      </div>
-    </div>
-
-    <div style="margin-bottom:10px;">
-      <div style="font-weight:700;margin-bottom:6px;">Results / Items</div>
-      <div class="card">
-        <strong>Item One</strong><br/>
-        Small description • Price/Status • CTA
-      </div>
-      <div class="card">
-        <strong>Item Two</strong><br/>
-        Small description • Price/Status • CTA
-      </div>
-      <div class="card">
-        <strong>Item Three</strong><br/>
-        Small description • Price/Status • CTA
-      </div>
-    </div>
-
-    <div style="margin-bottom:10px;">
-      <div style="font-weight:700;margin-bottom:6px;">Main Visual / Map / Image Area</div>
-      <div class="grayBox" style="height:130px;"></div>
-    </div>
-
-    <div>
-      <div style="font-weight:700;margin-bottom:6px;">Action Panel</div>
-      <div class="card" style="background:#f9fafb;">
-        Primary action button / Checkout / Submit / Book / Save
-      </div>
-    </div>
-  `;
-
-  chat.appendChild(preview);
-  chat.scrollTop = chat.scrollHeight;
-}
-
-// Prevent HTML injection because we echo user text into the preview title
+/* =========================
+   Helpers
+========================= */
 function escapeHtml(str){
   return String(str)
     .replaceAll("&","&amp;")
@@ -257,28 +384,379 @@ function escapeHtml(str){
     .replaceAll("'","&#039;");
 }
 
+function nowTs(){
+  return new Date().toISOString();
+}
+
+function setBadges(){
+  planBadge.textContent = state.plan === "pro" ? "Pro" : "Free";
+  modeBadge.textContent = state.mode === "builder" ? "Builder" : "Friend";
+}
+
+function setContextCards(){
+  intentKV.textContent = state.memory.lastIntent || "—";
+  topicKV.textContent = state.memory.lastTopic || "—";
+  modulesKV.textContent = state.memory.lastPreviewSpec?.modules?.length
+    ? state.memory.lastPreviewSpec.modules.join(", ")
+    : "—";
+}
+
+function openModal(){
+  modalBackdrop.style.display = "flex";
+}
+function closeModal(){
+  modalBackdrop.style.display = "none";
+}
+
+function addMessage(role, text){
+  state.history.push({ role, text, ts: nowTs() });
+
+  const msg = document.createElement("div");
+  msg.className = "msg " + (role === "user" ? "user" : "simo");
+
+  const who = document.createElement("span");
+  who.className = "who";
+  who.textContent = role === "user" ? "You:" : "Simo:";
+
+  const bubble = document.createElement("span");
+  bubble.className = "bubble";
+  bubble.innerHTML = escapeHtml(text);
+
+  msg.appendChild(who);
+  msg.appendChild(bubble);
+  chatEl.appendChild(msg);
+  chatEl.scrollTop = chatEl.scrollHeight;
+}
+
+/* =========================
+   Intent + Topic parsing
+========================= */
+function detectIntent(text){
+  const t = text.toLowerCase();
+
+  if (/(show me|make|build).*(preview|mockup)/i.test(text) || /(preview|mockup)/i.test(text)) return "preview";
+  if (/(write|draft|email|resume|cover letter|bio|script|story|book)/i.test(text)) return "write";
+  if (/(code|html|css|js|javascript|react|bug|fix|error)/i.test(text)) return "code";
+  if (/(design|ui|ux|layout|wireframe)/i.test(text)) return "design";
+  if (/(stressed|tired|argument|anxious|overwhelmed|mad|upset|drained)/i.test(text)) return "vent";
+  return "chat";
+}
+
+// Pull a "topic" from the user's message without locking them into it.
+// If they say "preview of X" capture X; else capture a short summary.
+function inferTopic(text){
+  const raw = (text || "").trim();
+  if (!raw) return "";
+
+  // Try patterns like: "preview of my ____" or "mockup for ____"
+  const m1 = raw.match(/(?:preview|mockup)\s+(?:of|for)\s+(.+)$/i);
+  if (m1 && m1[1]) return shorten(cleanTopic(m1[1]));
+
+  // Try patterns like: "can you build me a ____"
+  const m2 = raw.match(/(?:build|create|design)\s+(?:me|a|an)\s+(.+)$/i);
+  if (m2 && m2[1]) return shorten(cleanTopic(m2[1]));
+
+  return shorten(raw);
+}
+
+function cleanTopic(s){
+  return s
+    .replace(/[?.!]+$/g, "")
+    .replace(/\b(show me|a|an|the|quick|simple|one-page|ui|mockup|preview)\b/ig, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function shorten(s){
+  if (!s) return "";
+  return s.length > 56 ? (s.slice(0, 56).trim() + "…") : s;
+}
+
+/* =========================
+   Preview module parsing
+   (Matches what the user asked for)
+========================= */
+function parsePreviewModules(text){
+  const t = (text || "").toLowerCase();
+  const modules = [];
+
+  // If user explicitly asks for parts, add them
+  if (t.includes("search")) modules.push("search");
+  if (t.includes("filter")) modules.push("filters");
+  if (t.includes("chip")) modules.push("filters");
+  if (t.includes("card") || t.includes("listing") || t.includes("results")) modules.push("cards");
+  if (t.includes("map")) modules.push("map");
+  if (t.includes("booking") || t.includes("checkout") || t.includes("reserve")) modules.push("action panel");
+  if (t.includes("profile")) modules.push("profile");
+  if (t.includes("settings")) modules.push("settings");
+
+  // If nothing was specified, use a neutral default template
+  if (modules.length === 0){
+    modules.push("search", "filters", "cards", "map", "action panel");
+  }
+
+  // Dedupe
+  return [...new Set(modules)];
+}
+
+function renderPreview(spec){
+  const title = spec.title || "UI Mockup Template";
+  const modules = spec.modules || [];
+  const notes = spec.notes || "";
+
+  const parts = [];
+
+  parts.push(`
+    <div class="previewCard">
+      <div class="previewTitle">
+        <div>
+          <h3>${escapeHtml(title)}</h3>
+          <div class="previewSub">${escapeHtml(notes || "Generic preview template (adapts to your request).")}</div>
+        </div>
+        <div class="tag">Preview</div>
+      </div>
+  `);
+
+  // Search / Input
+  if (modules.includes("search")){
+    parts.push(`
+      <div class="blockTitle">Search / Input</div>
+      <div class="box">Type here… (search, prompt, query)</div>
+    `);
+  }
+
+  // Filters
+  if (modules.includes("filters")){
+    parts.push(`
+      <div class="blockTitle">Filters</div>
+      <div class="pillRow">
+        <div class="pill">Filter A</div>
+        <div class="pill">Filter B</div>
+        <div class="pill">Filter C</div>
+      </div>
+    `);
+  }
+
+  // Cards / Results
+  if (modules.includes("cards")){
+    parts.push(`
+      <div class="blockTitle">Results / Cards</div>
+      <div class="box"><strong>Item One</strong><br/>Short description • status/price • CTA</div>
+      <div class="box"><strong>Item Two</strong><br/>Short description • status/price • CTA</div>
+      <div class="box"><strong>Item Three</strong><br/>Short description • status/price • CTA</div>
+    `);
+  }
+
+  // Map / Visual
+  if (modules.includes("map")){
+    parts.push(`
+      <div class="blockTitle">Main Visual / Map / Image Area</div>
+      <div class="grayBox"></div>
+    `);
+  }
+
+  // Action Panel
+  if (modules.includes("action panel")){
+    parts.push(`
+      <div class="blockTitle">Action Panel</div>
+      <div class="box">Primary action: Book / Submit / Checkout / Save</div>
+    `);
+  }
+
+  // Profile / Settings (optional modules)
+  if (modules.includes("profile")){
+    parts.push(`
+      <div class="blockTitle">Profile</div>
+      <div class="box">Avatar • Name • Bio • Saved items</div>
+    `);
+  }
+
+  if (modules.includes("settings")){
+    parts.push(`
+      <div class="blockTitle">Settings</div>
+      <div class="box">Notifications • Privacy • Account</div>
+    `);
+  }
+
+  parts.push(`</div>`);
+
+  previewArea.innerHTML = parts.join("");
+}
+
+/* =========================
+   Pro gating stubs
+========================= */
+function isProAction(text){
+  const t = text.toLowerCase();
+  // examples of “paid upgrades”: generating full code, multi-step build, images, heavy exports, etc.
+  if (/(generate|create|build).*(full|complete).*(code|website|app)/i.test(text)) return true;
+  if (/(make|generate).*(image|logo|cover|art)/i.test(text)) return true;
+  if (/(export|download|pdf|docx|pptx)/i.test(text)) return true;
+  if (/(connect|api key|openai|billing|stripe)/i.test(text)) return true;
+  return false;
+}
+
+/* =========================
+   Simo brain (local)
+========================= */
+function simoReply(userText){
+  const intent = detectIntent(userText);
+  state.memory.lastIntent = intent;
+
+  // Update topic memory *without locking* — just a “last known”
+  const topic = inferTopic(userText);
+  if (topic) state.memory.lastTopic = topic;
+
+  // Previews: match user request
+  if (intent === "preview"){
+    const modules = parsePreviewModules(userText);
+    const title = state.memory.lastTopic ? `Mockup: ${state.memory.lastTopic}` : "UI Mockup Template";
+
+    state.memory.lastPreviewSpec = {
+      title,
+      modules,
+      notes: "Tell me what you want changed (layout, colors, sections, flow)."
+    };
+
+    previewBadge.textContent = "Shown";
+    renderPreview(state.memory.lastPreviewSpec);
+    setContextCards();
+
+    // Friend tone + quick next step
+    addMessage("simo",
+      "Alright — I dropped a preview on the right based on what you asked for.\n" +
+      "What should this *feel like* to the user: clean + calm, or bold + energetic?"
+    );
+    return;
+  }
+
+  // If user asks for a Pro action and they’re on Free → gate it (but still be helpful)
+  if (state.plan !== "pro" && isProAction(userText)){
+    addMessage("simo",
+      "I can do that — but that’s a paid-upgrade type action in your setup.\n" +
+      "If you want, toggle Pro (top right) and I’ll treat it like the upgraded plan."
+    );
+    openModal();
+    setContextCards();
+    return;
+  }
+
+  // Best-friend defaults (no cheesy therapy talk)
+  if (intent === "vent"){
+    state.mode = "friend";
+    setBadges();
+    setContextCards();
+
+    addMessage("simo",
+      "Yeah… I hear you.\n" +
+      "What’s the *exact moment* it flips into the same loop again?"
+    );
+    return;
+  }
+
+  // Builder-ish prompts, but still Simo
+  if (intent === "code" || intent === "design"){
+    state.mode = "builder";
+    setBadges();
+    setContextCards();
+
+    addMessage("simo",
+      "Okay — builder hat on.\n" +
+      "Give me the goal in one sentence, then your top 3 must-haves. If you want a visual first, say “show me a preview” + what sections you want."
+    );
+    return;
+  }
+
+  if (intent === "write"){
+    state.mode = "builder";
+    setBadges();
+    setContextCards();
+
+    addMessage("simo",
+      "Got you. What are we writing — and what vibe: calm, confident, funny, or serious?"
+    );
+    return;
+  }
+
+  // Default friend chat
+  state.mode = "friend";
+  setBadges();
+  setContextCards();
+
+  addMessage("simo",
+    "I’m here.\n" +
+    "Are we venting, solving, or building something right now?"
+  );
+}
+
+/* =========================
+   Sending (Enter + Button)
+========================= */
 function sendMessage(){
-  const text = input.value.trim();
-  if(!text) return;
+  const text = inputEl.value.trim();
+  if (!text) return;
 
-  lastUserMessage = text;
+  // User message
+  addMessage("user", text);
 
-  addMessage(escapeHtml(text), "user");
-  input.value = "";
+  // Clear input
+  inputEl.value = "";
+
+  // Reply
   simoReply(text);
 }
 
-// Button Click
 sendBtn.addEventListener("click", sendMessage);
 
-// Enter Key
-input.addEventListener("keydown", function(e){
-  if(e.key === "Enter" && !e.shiftKey){
+inputEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey){
     e.preventDefault();
     sendMessage();
   }
 });
-</script>
 
+/* =========================
+   Buttons / UI actions
+========================= */
+clearBtn.addEventListener("click", () => {
+  state.history = [];
+  state.memory.lastIntent = "";
+  state.memory.lastTopic = "";
+  state.memory.lastPreviewSpec = null;
+
+  chatEl.innerHTML = "";
+  previewArea.innerHTML = `<div class="small">No preview yet. Ask for one.</div>`;
+  previewBadge.textContent = "Ready";
+  setContextCards();
+
+  addMessage("simo", "Clean slate. I’m still here. What’s up?");
+});
+
+togglePlanBtn.addEventListener("click", () => {
+  state.plan = (state.plan === "pro") ? "free" : "pro";
+  setBadges();
+});
+
+closeModalBtn.addEventListener("click", closeModal);
+modalBackdrop.addEventListener("click", (e) => {
+  if (e.target === modalBackdrop) closeModal();
+});
+enableProBtn.addEventListener("click", () => {
+  state.plan = "pro";
+  setBadges();
+  closeModal();
+  addMessage("simo", "Alright — Pro is on. Now tell me exactly what you want me to generate.");
+});
+
+/* =========================
+   Boot message
+========================= */
+setBadges();
+setContextCards();
+addMessage("simo",
+  "Hey. I’m here.\n" +
+  "If you want visuals, say: “show me a preview” and include what you want on it."
+);
+</script>
 </body>
 </html>
