@@ -8,9 +8,8 @@
     :root{
       --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --card:rgba(255,255,255,.06);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39d98a; --warn:#ffd166;
+      --good:#39d98a; --warn:#ffd166; --bad:#ff4d4d;
     }
     *{box-sizing:border-box}
     body{
@@ -57,9 +56,7 @@
     .panel-h .sub{font-size:12px;color:var(--muted)}
     .panel-b{padding:14px; overflow:auto; flex:1}
 
-    .chat{
-      display:flex; flex-direction:column; gap:10px;
-    }
+    .chat{display:flex; flex-direction:column; gap:10px;}
     .msg{
       border:1px solid var(--line);
       background:rgba(0,0,0,.18);
@@ -92,7 +89,6 @@
       outline:none;
       line-height:1.35;
     }
-    textarea::placeholder{color:rgba(234,240,255,.55)}
     .btn{
       border:1px solid rgba(42,102,255,.35);
       background:linear-gradient(180deg,var(--btn),var(--btn2));
@@ -103,7 +99,6 @@
       font-weight:650;
       min-width:88px;
     }
-    .btn:active{transform:translateY(1px)}
     .btn.secondary{
       background:rgba(255,255,255,.06);
       border:1px solid var(--line);
@@ -111,33 +106,17 @@
       min-width:auto;
       font-weight:600;
     }
-    .hint{
-      padding:10px 14px 0;
-      color:var(--muted);
-      font-size:12px;
-    }
 
-    /* --- Preview UI (images + mockups) --- */
+    /* Preview */
     .pv{border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:14px; background:rgba(255,255,255,.04)}
-    .pv-h{display:flex; flex-direction:column; gap:4px; margin-bottom:10px}
-    .pv-title{font-weight:800; font-size:16px}
-    .pv-accent{color:#7aa2ff}
-    .pv-sub{font-size:12px; opacity:.85}
-    .pv-note{font-size:12px; opacity:.85; line-height:1.4; margin:10px 0}
-    .pv-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
-    .pv-card{border:1px solid rgba(255,255,255,.10); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.20)}
-    .pv-ph{
-      height:86px; display:flex; align-items:center; justify-content:center;
-      opacity:.85; font-size:12px;
-      background:linear-gradient(135deg, rgba(255,255,255,.06), rgba(0,0,0,.12));
-    }
-    .pv-cap{padding:8px 10px; font-size:12px; opacity:.92; border-top:1px solid rgba(255,255,255,.08)}
-    .pv-actions{display:flex; gap:8px; margin-top:12px; flex-wrap:wrap}
-    .pv-btn{cursor:pointer; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.06); color:inherit; padding:8px 10px; border-radius:10px; font-size:12px}
-    .pv-btn:hover{background:rgba(255,255,255,.10)}
+    .pv-title{font-weight:800; font-size:16px; margin-bottom:8px}
+    .pv-sub{font-size:12px; opacity:.85; margin-bottom:10px}
+    .imggrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
+    .imgcard{border:1px solid rgba(255,255,255,.10); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.20)}
+    .imgcard img{display:block; width:100%; height:160px; object-fit:cover}
+    .imgcap{padding:8px 10px; font-size:12px; opacity:.92; border-top:1px solid rgba(255,255,255,.08)}
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <div class="top">
@@ -146,16 +125,13 @@
         <div class="meta">Best-friend first. Builder previews when you ask.</div>
       </div>
       <div class="meta" style="justify-content:flex-end;">
-        <div class="pill"><span class="dot" id="dotPlan" style="background:var(--good)"></span>Plan: <span id="plan">Pro</span></div>
         <div class="pill"><span class="dot" id="dotMode" style="background:var(--good)"></span>Mode: <span id="mode">Friend</span></div>
         <div class="pill"><span class="dot" id="dotDomain" style="background:var(--warn)"></span>Domain: <span id="domain">GENERAL</span></div>
-        <div class="pill"><span class="dot" id="dotPreview" style="background:var(--good)"></span>Preview: <span id="previewState">Ready</span></div>
       </div>
     </div>
 
     <div class="grid">
-      <!-- CHAT -->
-      <div class="panel" id="chatPanel">
+      <div class="panel">
         <div class="panel-h">
           <div>
             <div class="title">Chat</div>
@@ -163,403 +139,156 @@
           </div>
           <button class="btn secondary" id="clearBtn">Clear</button>
         </div>
-
         <div class="panel-b">
           <div class="chat" id="chat"></div>
         </div>
-
         <div class="composer">
           <textarea id="input" placeholder="Talk to Simo…"></textarea>
           <button class="btn" id="sendBtn">Send</button>
         </div>
       </div>
 
-      <!-- PREVIEW -->
-      <div class="panel" id="previewPanel">
+      <div class="panel">
         <div class="panel-h">
           <div>
             <div class="title">Preview</div>
-            <div class="sub">Shows visuals / mockups when you ask “show me…”</div>
+            <div class="sub">Visual requests render here</div>
           </div>
           <button class="btn secondary" id="previewHomeBtn">Preview Home</button>
         </div>
         <div class="panel-b" id="preview">
           <div class="pv">
-            <div class="pv-h">
-              <div class="pv-title">Ready.</div>
-              <div class="pv-sub">Say: “show me images of mars” or “show me a one-page UI mockup for …”</div>
-            </div>
-            <div class="pv-note">
-              This panel is controlled by the Brain Router. Visual requests render here immediately.
-            </div>
+            <div class="pv-title">Ready.</div>
+            <div class="pv-sub">Try: “show me images of mars”</div>
           </div>
         </div>
-        <div class="hint" id="previewHint">Tip: “show me images of ___” renders a gallery. “show me a mockup of ___” renders a mock layout.</div>
       </div>
     </div>
   </div>
 
-  <script>
-    /****************************************************
-     * UI helpers
-     ****************************************************/
-    const chatEl = document.getElementById("chat");
-    const inputEl = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
-    const clearBtn = document.getElementById("clearBtn");
+<script>
+  const chatEl = document.getElementById("chat");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const previewEl = document.getElementById("preview");
+  const previewHomeBtn = document.getElementById("previewHomeBtn");
+  const modeEl = document.getElementById("mode");
+  const domainEl = document.getElementById("domain");
+  const dotMode = document.getElementById("dotMode");
+  const dotDomain = document.getElementById("dotDomain");
 
-    const planEl = document.getElementById("plan");
-    const modeEl = document.getElementById("mode");
-    const domainEl = document.getElementById("domain");
-    const previewStateEl = document.getElementById("previewState");
+  function addMsg(who, text, css) {
+    const d = document.createElement("div");
+    d.className = "msg " + (css || "");
+    d.innerHTML = `<div class="who"><b>${escapeHTML(who)}</b></div><div>${escapeHTML(text).replaceAll("\\n","<br>")}</div>`;
+    chatEl.appendChild(d);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+  const say = (t) => addMsg("Simo", t, "");
+  const you = (t) => addMsg("You", t, "you");
 
-    const dotMode = document.getElementById("dotMode");
-    const dotDomain = document.getElementById("dotDomain");
-
-    const previewEl = document.getElementById("preview");
-    const previewHomeBtn = document.getElementById("previewHomeBtn");
-
-    function addMsg(who, text, cssClass) {
-      const wrap = document.createElement("div");
-      wrap.className = "msg " + (cssClass || "");
-      const header = document.createElement("div");
-      header.className = "who";
-      header.innerHTML = `<b>${escapeHTML(who)}</b>`;
-      const body = document.createElement("div");
-      body.className = "body";
-      body.textContent = text;
-
-      wrap.appendChild(header);
-      wrap.appendChild(body);
-      chatEl.appendChild(wrap);
-      chatEl.scrollTop = chatEl.scrollHeight;
+  function setMode(m) {
+    if (m === "builder") {
+      modeEl.textContent = "Builder";
+      dotMode.style.background = "var(--warn)";
+    } else {
+      modeEl.textContent = "Friend";
+      dotMode.style.background = "var(--good)";
     }
+  }
+  function setDomain(d) {
+    domainEl.textContent = d || "GENERAL";
+    dotDomain.style.background = (d === "VISUAL" || d === "BUILDER") ? "var(--warn)" : "var(--good)";
+  }
 
-    function say(text) { addMsg("Simo", text, ""); }
-    function you(text) { addMsg("You", text, "you"); }
+  function setPreviewHome() {
+    previewEl.innerHTML = `
+      <div class="pv">
+        <div class="pv-title">Ready.</div>
+        <div class="pv-sub">Try: “show me images of mars” • “show me images of Detroit skyline”</div>
+      </div>
+    `;
+  }
 
-    function setPreviewHTML(html) {
-      previewEl.innerHTML = html;
-      previewStateEl.textContent = "Ready";
-    }
+  function renderPreview(preview) {
+    if (!preview || !preview.kind) return;
 
-    function setMode(mode) {
-      // mode: "friend" | "builder"
-      if (mode === "builder") {
-        modeEl.textContent = "Builder";
-        dotMode.style.background = "var(--warn)";
-      } else {
-        modeEl.textContent = "Friend";
-        dotMode.style.background = "var(--good)";
-      }
-    }
-
-    function setDomain(d) {
-      domainEl.textContent = d || "GENERAL";
-      dotDomain.style.background = (d === "VISUAL" || d === "BUILDER") ? "var(--warn)" : "var(--good)";
-    }
-
-    function escapeHTML(s) {
-      return String(s || "")
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-    }
-
-    function autoGrowTextarea(el) {
-      el.style.height = "auto";
-      el.style.height = Math.min(el.scrollHeight, 140) + "px";
-    }
-
-    /****************************************************
-     * SIMO BRAIN v2 (Friend-first + Visual lane)
-     ****************************************************/
-    const SimoBrain = (() => {
-      function normalize(text){ return (text || "").trim(); }
-      function lower(text){ return normalize(text).toLowerCase(); }
-      function hasAny(hay, arr){ return arr.some(k => hay.includes(k)); }
-
-      function detectVisualIntent(text){
-        const t = lower(text);
-        const visualVerbs = [
-          "show me", "let me see", "can i see", "can you show", "display",
-          "images of", "pictures of", "photos of", "photo of", "picture of", "images", "pics",
-          "gallery", "screenshots", "mockup", "ui mockup", "wireframe", "preview"
-        ];
-        if (t.startsWith("show me how") || t.startsWith("show me the steps")) return false;
-        return hasAny(t, visualVerbs);
-      }
-
-      function detectBuilderIntent(text){
-        const t = lower(text);
-        const builderCues = [
-          "build", "create", "design", "make", "generate", "draft", "write code",
-          "html", "css", "javascript", "react", "ui", "landing page", "app", "website",
-          "floor plan", "home layout", "prototype"
-        ];
-        if (detectVisualIntent(text)) return false;
-        return hasAny(t, builderCues);
-      }
-
-      function detectVentingIntent(text){
-        const t = lower(text);
-        const ventCues = [
-          "i'm stressed", "im stressed", "i am stressed", "i'm tired", "im tired",
-          "i'm upset", "im upset", "anxious", "panic", "depressed", "lonely",
-          "argument", "fight", "i can't do this", "i hate this", "i feel like", "i don't feel comfortable", "im drained"
-        ];
-        return hasAny(t, ventCues);
-      }
-
-      function detectSolveIntent(text){
-        const t = lower(text);
-        const solveCues = [
-          "fix", "bug", "error", "doesn't work", "doesnt work", "not working",
-          "help me", "why is", "how do i", "step by step", "walk me through",
-          "issue", "problem", "debug"
-        ];
-        if (detectVisualIntent(text)) return false;
-        return hasAny(t, solveCues);
-      }
-
-      function extractVisualSubject(text){
-        const t = lower(text);
-
-        let m = t.match(/\b(images|pictures|photos|pics)\s+of\s+(.+)$/i);
-        if (m && m[2]) return cleanSubject(m[2]);
-
-        m = t.match(/\bshow\s+me\s+(.+)$/i);
-        if (m && m[1]) {
-          let s = m[1];
-          s = s.replace(/\b(images|pictures|photos|pics)\b/i, "");
-          s = s.replace(/\bof\b/i, "");
-          return cleanSubject(s);
-        }
-        return cleanSubject(text);
-      }
-
-      function cleanSubject(s){
-        return normalize(String(s || ""))
-          .replace(/[?.!]+$/g, "")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
-
-      function buildImagePreview(subject){
-        const safe = escapeHTML(subject || "it");
-        return `
-          <div class="pv">
-            <div class="pv-h">
-              <div class="pv-title">Images: <span class="pv-accent">${safe}</span></div>
-              <div class="pv-sub">Quick gallery preview</div>
-            </div>
-
-            <div class="pv-note">
-              This is the “visual lane” working. If you later wire an image API, these cards become real thumbnails.
-            </div>
-
-            <div class="pv-grid">
-              ${[1,2,3,4,5,6].map(i => `
-                <div class="pv-card">
-                  <div class="pv-ph">Image ${i}</div>
-                  <div class="pv-cap">${safe}</div>
-                </div>
-              `).join("")}
-            </div>
-
-            <div class="pv-actions">
-              <button class="pv-btn" data-pv="surface">Surface close-ups</button>
-              <button class="pv-btn" data-pv="space">From space</button>
-              <button class="pv-btn" data-pv="rovers">Rovers</button>
-            </div>
-          </div>
-        `;
-      }
-
-      function buildMockPreview(topic){
-        const safe = escapeHTML(topic || "your idea");
-        return `
-          <div class="pv">
-            <div class="pv-h">
-              <div class="pv-title">Mockup: <span class="pv-accent">${safe}</span></div>
-              <div class="pv-sub">Simple one-page layout concept</div>
-            </div>
-
-            <div class="pv-note">This is a lightweight preview scaffold. Tell me what sections you want (search, cards, map, booking panel, etc.).</div>
-
-            <div class="pv-grid" style="grid-template-columns:1fr; gap:10px;">
-              <div class="pv-card"><div class="pv-ph">Header / Title</div></div>
-              <div class="pv-card"><div class="pv-ph">Search + Filters</div></div>
-              <div class="pv-card"><div class="pv-ph">Main Content (cards / list)</div></div>
-              <div class="pv-card"><div class="pv-ph">Side Panel (details / booking)</div></div>
-              <div class="pv-card"><div class="pv-ph">Footer / CTA</div></div>
-            </div>
-
-            <div class="pv-actions">
-              <button class="pv-btn" data-pv="tighten">Make it tighter</button>
-              <button class="pv-btn" data-pv="add">Add components</button>
-              <button class="pv-btn" data-pv="theme">Change vibe</button>
-            </div>
-          </div>
-        `;
-      }
-
-      async function handle(text, state, io){
-        const msg = normalize(text);
-
-        // 1) VISUAL lane first
-        if (detectVisualIntent(msg)) {
-          const subject = extractVisualSubject(msg);
-          state.domain = "VISUAL";
-          state.mode = "friend";
-          io.setDomain("VISUAL");
-          io.setMode("friend");
-          io.setPreviewHTML(buildImagePreview(subject));
-          io.say(`Got you. Here you go — images for **${subject}** on the right.\n\nWant **surface close-ups**, **from space**, or **rovers**?`);
-          return state;
-        }
-
-        // 2) Venting
-        if (detectVentingIntent(msg)) {
-          state.domain = "VENT";
-          state.mode = "friend";
-          io.setDomain("VENT");
-          io.setMode("friend");
-          io.say("I’m here. Tell me what’s hitting the hardest right now.");
-          return state;
-        }
-
-        // 3) Solve/debug
-        if (detectSolveIntent(msg)) {
-          state.domain = "SOLVE";
-          state.mode = "friend";
-          io.setDomain("SOLVE");
-          io.setMode("friend");
-          io.say("Alright — I’m with you. What did you expect to happen, and what happened instead?");
-          return state;
-        }
-
-        // 4) Builder intent (without spamming mode questions)
-        if (detectBuilderIntent(msg)) {
-          state.domain = "BUILDER";
-          state.mode = "builder";
-          io.setDomain("BUILDER");
-          io.setMode("builder");
-
-          // If they say "show me a mockup", that's VISUAL lane already; here we guide.
-          io.say("Cool — I can build that. If you want a visual, say **“show me a mockup of …”** or **“show me a preview of …”**.");
-          return state;
-        }
-
-        // 5) Default friend chat (no vent/solve/build interrogation)
-        state.domain = "GENERAL";
-        state.mode = "friend";
-        io.setDomain("GENERAL");
-        io.setMode("friend");
-        io.say("I’m here. What do you want to do next?");
-        return state;
-      }
-
-      return { handle };
-    })();
-
-    /****************************************************
-     * App state + IO adapter
-     ****************************************************/
-    let state = {
-      plan: "pro",
-      mode: "friend",
-      domain: "GENERAL"
-    };
-
-    const io = {
-      say,
-      setPreviewHTML,
-      setDomain,
-      setMode: (m) => setMode(m)
-    };
-
-    /****************************************************
-     * Events
-     ****************************************************/
-    function sendMessage() {
-      const text = (inputEl.value || "").trim();
-      if (!text) return;
-      you(text);
-      inputEl.value = "";
-      autoGrowTextarea(inputEl);
-
-      // route through brain
-      SimoBrain.handle(text, state, io).catch(err => {
-        console.error(err);
-        say("I hit an error. Check console.");
-      });
-    }
-
-    sendBtn.addEventListener("click", sendMessage);
-
-    inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        sendMessage();
-      }
-    });
-
-    inputEl.addEventListener("input", () => autoGrowTextarea(inputEl));
-
-    clearBtn.addEventListener("click", () => {
-      chatEl.innerHTML = "";
-      setPreviewHTML(`
+    if (preview.kind === "images") {
+      const items = Array.isArray(preview.items) ? preview.items : [];
+      previewEl.innerHTML = `
         <div class="pv">
-          <div class="pv-h">
-            <div class="pv-title">Ready.</div>
-            <div class="pv-sub">Say: “show me images of mars”</div>
-          </div>
-          <div class="pv-note">Cleared chat. Preview stays ready.</div>
-        </div>
-      `);
-      setDomain("GENERAL");
-      setMode("friend");
-      say("Reset. I’m here.");
-    });
-
-    previewHomeBtn.addEventListener("click", () => {
-      setPreviewHTML(`
-        <div class="pv">
-          <div class="pv-h">
-            <div class="pv-title">Preview Home</div>
-            <div class="pv-sub">Try a visual request.</div>
-          </div>
-          <div class="pv-note">
-            Examples:
-            <br>• show me images of mars
-            <br>• show me a mockup of a space renting app
-            <br>• show me a preview of a 2 story home layout
+          <div class="pv-title">${escapeHTML(preview.title || "Images")}</div>
+          <div class="pv-sub">${items.length ? "Click an image to open source." : "No images returned."}</div>
+          <div class="imggrid">
+            ${items.map(it => `
+              <a class="imgcard" href="${escapeAttr(it.link || it.url || "#")}" target="_blank" rel="noreferrer">
+                <img src="${escapeAttr(it.url)}" alt="${escapeAttr(it.title || "Image")}" />
+                <div class="imgcap">${escapeHTML(it.title || "Image")}</div>
+              </a>
+            `).join("")}
           </div>
         </div>
-      `);
-      setDomain("GENERAL");
+      `;
+      return;
+    }
+  }
+
+  async function sendMessage() {
+    const text = (inputEl.value || "").trim();
+    if (!text) return;
+    you(text);
+    inputEl.value = "";
+
+    const resp = await fetch("/.netlify/functions/simon", {
+      method: "POST",
+      headers: {"content-type":"application/json"},
+      body: JSON.stringify({ message: text })
     });
 
-    // Preview panel button actions
-    previewEl.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-pv]");
-      if (!btn) return;
-      const kind = btn.getAttribute("data-pv");
-      // simple behavior: turn the button into a follow-up suggestion
-      if (state.domain === "VISUAL") {
-        say(`Bet. Want me to focus on **${kind}** specifically? Say: “show me ${kind} images”.`);
-      } else {
-        say(`Got it — tell me what you want changed: **${kind}**.`);
-      }
-    });
+    const data = await resp.json().catch(()=> ({}));
 
-    /****************************************************
-     * Boot message
-     ****************************************************/
-    say("Hey. I’m here.\nIf you want visuals, say: “show me…” and include what you want on it.");
-  </script>
+    if (!data.ok) {
+      say("I hit an error: " + (data.error || "unknown"));
+      return;
+    }
+
+    setMode(data.mode || "friend");
+    setDomain(data.domain || "GENERAL");
+    say(data.reply || "I’m here.");
+
+    if (data.preview) renderPreview(data.preview);
+  }
+
+  sendBtn.addEventListener("click", sendMessage);
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  clearBtn.addEventListener("click", () => {
+    chatEl.innerHTML = "";
+    setMode("friend");
+    setDomain("GENERAL");
+    setPreviewHome();
+    say("Reset. I’m here.");
+  });
+
+  previewHomeBtn.addEventListener("click", setPreviewHome);
+
+  function escapeHTML(s){
+    return String(s||"")
+      .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+  }
+  function escapeAttr(s){
+    return String(s||"").replaceAll('"',"&quot;");
+  }
+
+  setPreviewHome();
+  say("Hey. I’m here.\nIf you want visuals, say: “show me images of …”");
+</script>
 </body>
 </html>
