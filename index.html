@@ -89,6 +89,7 @@
       outline:none;
       line-height:1.35;
     }
+    textarea::placeholder{color:rgba(234,240,255,.55)}
     .btn{
       border:1px solid rgba(42,102,255,.35);
       background:linear-gradient(180deg,var(--btn),var(--btn2));
@@ -106,15 +107,17 @@
       min-width:auto;
       font-weight:600;
     }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
 
     /* Preview */
     .pv{border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:14px; background:rgba(255,255,255,.04)}
     .pv-title{font-weight:800; font-size:16px; margin-bottom:8px}
     .pv-sub{font-size:12px; opacity:.85; margin-bottom:10px}
     .imggrid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px}
-    .imgcard{border:1px solid rgba(255,255,255,.10); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.20)}
+    .imgcard{border:1px solid rgba(255,255,255,.10); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.20); text-decoration:none; color:inherit}
     .imgcard img{display:block; width:100%; height:160px; object-fit:cover}
     .imgcap{padding:8px 10px; font-size:12px; opacity:.92; border-top:1px solid rgba(255,255,255,.08)}
+    .err{color:var(--bad); font-size:12px; margin-top:10px}
   </style>
 </head>
 <body>
@@ -156,12 +159,7 @@
           </div>
           <button class="btn secondary" id="previewHomeBtn">Preview Home</button>
         </div>
-        <div class="panel-b" id="preview">
-          <div class="pv">
-            <div class="pv-title">Ready.</div>
-            <div class="pv-sub">Try: “show me images of mars”</div>
-          </div>
-        </div>
+        <div class="panel-b" id="preview"></div>
       </div>
     </div>
   </div>
@@ -178,6 +176,31 @@
   const dotMode = document.getElementById("dotMode");
   const dotDomain = document.getElementById("dotDomain");
 
+  // -------- Memory (IMPORTANT) --------
+  // This is what makes topic switching feel “real”.
+  const LS_KEY = "simo_chat_history_v1";
+  let chatHistory = loadHistory(); // [{role:"user"|"assistant", content:"..."}]
+
+  function loadHistory() {
+    try {
+      const raw = localStorage.getItem(LS_KEY);
+      const parsed = JSON.parse(raw || "[]");
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter(m => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+          .slice(-40); // keep last 40 in browser
+      }
+    } catch {}
+    return [];
+  }
+
+  function saveHistory() {
+    try {
+      localStorage.setItem(LS_KEY, JSON.stringify(chatHistory.slice(-60)));
+    } catch {}
+  }
+
+  // -------- UI --------
   function addMsg(who, text, css) {
     const d = document.createElement("div");
     d.className = "msg " + (css || "");
@@ -228,38 +251,84 @@
               </a>
             `).join("")}
           </div>
+          ${items.length ? "" : `<div class="err">If this stays empty, check SERPER_API_KEY and /functions/search.js</div>`}
         </div>
       `;
       return;
     }
   }
 
+  function autoGrow(el) {
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 140) + "px";
+  }
+
+  // -------- Restore previous chat UI (optional but helps continuity) --------
+  function renderHistoryToUI() {
+    chatEl.innerHTML = "";
+    for (const m of chatHistory) {
+      if (m.role === "user") you(m.content);
+      else if (m.role === "assistant") say(m.content);
+    }
+  }
+
+  // -------- Main send --------
   async function sendMessage() {
     const text = (inputEl.value || "").trim();
     if (!text) return;
+
     you(text);
+    chatHistory.push({ role: "user", content: text });
+    saveHistory();
+
     inputEl.value = "";
+    autoGrow(inputEl);
 
-    const resp = await fetch("/.netlify/functions/simon", {
-      method: "POST",
-      headers: {"content-type":"application/json"},
-      body: JSON.stringify({ message: text })
-    });
+    sendBtn.disabled = true;
+    sendBtn.textContent = "…";
 
-    const data = await resp.json().catch(()=> ({}));
+    try {
+      const resp = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: {"content-type":"application/json"},
+        body: JSON.stringify({
+          message: text,
+          history: chatHistory.slice(-20) // send last 20 turns to function
+        })
+      });
 
-    if (!data.ok) {
-      say("I hit an error: " + (data.error || "unknown"));
-      return;
+      const data = await resp.json().catch(()=> ({}));
+
+      if (!data.ok) {
+        const msg = "I hit an error: " + (data.error || "unknown");
+        say(msg);
+        chatHistory.push({ role: "assistant", content: msg });
+        saveHistory();
+        return;
+      }
+
+      setMode(data.mode || "friend");
+      setDomain(data.domain || "GENERAL");
+
+      const reply = data.reply || "I’m here.";
+      say(reply);
+      chatHistory.push({ role: "assistant", content: reply });
+      saveHistory();
+
+      if (data.preview) renderPreview(data.preview);
+
+    } catch (e) {
+      const msg = "Network error. Try again.";
+      say(msg);
+      chatHistory.push({ role: "assistant", content: msg });
+      saveHistory();
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send";
     }
-
-    setMode(data.mode || "friend");
-    setDomain(data.domain || "GENERAL");
-    say(data.reply || "I’m here.");
-
-    if (data.preview) renderPreview(data.preview);
   }
 
+  // -------- Events --------
   sendBtn.addEventListener("click", sendMessage);
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -267,17 +336,23 @@
       sendMessage();
     }
   });
+  inputEl.addEventListener("input", () => autoGrow(inputEl));
 
   clearBtn.addEventListener("click", () => {
+    chatHistory = [];
+    saveHistory();
     chatEl.innerHTML = "";
     setMode("friend");
     setDomain("GENERAL");
     setPreviewHome();
     say("Reset. I’m here.");
+    chatHistory.push({ role: "assistant", content: "Reset. I’m here." });
+    saveHistory();
   });
 
   previewHomeBtn.addEventListener("click", setPreviewHome);
 
+  // -------- Utils --------
   function escapeHTML(s){
     return String(s||"")
       .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
@@ -287,8 +362,15 @@
     return String(s||"").replaceAll('"',"&quot;");
   }
 
+  // Boot
   setPreviewHome();
-  say("Hey. I’m here.\nIf you want visuals, say: “show me images of …”");
+  if (chatHistory.length) {
+    renderHistoryToUI();
+  } else {
+    say("Hey. I’m here.\nIf you want visuals, say: “show me images of …”");
+    chatHistory.push({ role: "assistant", content: "Hey. I’m here.\nIf you want visuals, say: “show me images of …”" });
+    saveHistory();
+  }
 </script>
 </body>
 </html>
