@@ -1,233 +1,195 @@
 // netlify/functions/simon.js
+// Fixes: OpenAI Responses API role/content type mismatch.
+// - user/developer -> content.type = "input_text"
+// - assistant      -> content.type = "output_text"
+
 export async function handler(event) {
+  // Basic CORS (works same-origin + safe for local testing)
+  const corsHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "content-type",
+    "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Content-Type": "application/json; charset=utf-8",
+  };
+
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers: corsHeaders, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers: corsHeaders,
+      body: JSON.stringify({ ok: false, error: "Method not allowed" }),
+    };
+  }
+
   try {
-    if (event.httpMethod === "OPTIONS") {
-      return { statusCode: 200, headers: corsHeaders(), body: "" };
-    }
-    if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Use POST" });
-
-    const body = safeJsonParse(event.body);
-    const message = String(body?.message || "").trim();
-    const history = Array.isArray(body?.history) ? body.history : []; // [{role:"user"|"assistant", content:"..."}]
-
-    if (!message) return json(400, { ok: false, error: "Missing message" });
-
-    // ---- Fast lanes FIRST (keep what works) ----
-    const intent = detectIntent(message);
-
-    if (intent.kind === "visual_images") {
-      const subject = intent.subject || "that";
-      const images = await fetchImages(event, subject);
-      return json(200, {
-        ok: true,
-        mode: "friend",
-        domain: "VISUAL",
-        reply: `Got you. Here are images for "${subject}". Want **surface close-ups**, **from space**, or **rovers**?`,
-        preview: { kind: "images", title: `Images: ${subject}`, items: images },
-      });
+    const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    if (!OPENAI_API_KEY) {
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          ok: false,
+          error: "Missing OPENAI_API_KEY in environment variables",
+        }),
+      };
     }
 
-    // ---- Everything else: REAL brain (LLM) ----
-    const openaiKey = process.env.OPENAI_API_KEY;
-    if (!openaiKey) {
-      // fallback if key missing
-      return json(200, {
-        ok: true,
-        mode: "friend",
-        domain: intent.kind === "build" ? "BUILDER" : "GENERAL",
-        reply:
-          "Your OPENAI_API_KEY isn’t set in Netlify yet. Add it, then I’ll respond like full Simo (topic switching + deep help).",
-      });
+    // If you want to change models without editing code, set OPENAI_MODEL in Netlify env vars.
+    const MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
+
+    // Parse body safely
+    let payload = {};
+    try {
+      payload = JSON.parse(event.body || "{}");
+    } catch {
+      payload = {};
     }
 
-    const mode = intent.kind === "build" ? "builder" : "friend";
-    const domain =
-      intent.kind === "vent" ? "VENT" :
-      intent.kind === "solve" ? "SOLVE" :
-      intent.kind === "build" ? "BUILDER" : "GENERAL";
+    // Your frontend might send message as: message / text / msg / input
+    const userText =
+      (payload && (payload.message || payload.text || payload.msg || payload.input)) || "";
 
-    const instructions = buildSimoInstructions(mode);
+    // History can be sent as payload.history: [{role:"user"/"assistant", content:"..."}]
+    const history = Array.isArray(payload.history) ? payload.history : [];
 
-    // Keep last ~20 turns to stay fast/cheap
-    const clipped = clipHistory(history, 20);
+    // Optional: your UI might send "mode" or "intent"
+    const modeHint = (payload.mode || payload.intent || "").toString();
 
-    // Responses API call (modern)
-    // Docs: https://platform.openai.com/docs/api-reference/responses
+    // --- System / developer instruction (Simo behavior) ---
+    // Keep this short and stable; your UI logic can still do previews & images separately.
+    const DEV_PROMPT = `
+You are Simo — a best-friend AI with builder capability.
+Rules:
+- Follow topic switches naturally. Don't get stuck repeating instructions.
+- If the user is venting: be supportive, direct, human, not therapy-speak.
+- If the user is building: give usable steps, code, and concrete output.
+- If the user asks for "show me images of X", respond briefly and confirm what to search for.
+- Keep responses concise unless the user asks for "whole code" or "full steps".
+`.trim();
+
+    // --- Responses API message builder ---
+    function toResponsesItem(role, text) {
+      const safeText = String(text ?? "");
+      const isAssistant = role === "assistant";
+      return {
+        role,
+        content: [
+          {
+            // CRITICAL FIX:
+            // assistant content must be output_text; user/developer is input_text
+            type: isAssistant ? "output_text" : "input_text",
+            text: safeText,
+          },
+        ],
+      };
+    }
+
+    // Build the input array in the correct schema
+    const input = [];
+    input.push(toResponsesItem("developer", DEV_PROMPT));
+
+    // Map history safely (support either {content} or {text})
+    for (const m of history) {
+      if (!m) continue;
+      const role =
+        m.role === "assistant" || m.role === "user" || m.role === "developer"
+          ? m.role
+          : "user";
+
+      const content = m.content ?? m.text ?? "";
+      input.push(toResponsesItem(role, content));
+    }
+
+    input.push(toResponsesItem("user", userText));
+
+    // Call OpenAI Responses API
     const resp = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${openaiKey}`,
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4.1", // solid default; you can change later
-        instructions,
-        input: [
-          ...clipped.map(m => ({ role: m.role, content: [{ type: "input_text", text: String(m.content || "") }] })),
-          { role: "user", content: [{ type: "input_text", text: message }] }
-        ],
+        model: MODEL,
+        input,
+        // Keep it predictable; adjust if you want longer outputs
+        max_output_tokens: 500,
       }),
     });
 
+    const data = await resp.json().catch(() => ({}));
+
     if (!resp.ok) {
-      const t = await resp.text();
-      return json(500, { ok: false, error: "OpenAI error", details: t });
+      // Preserve OpenAI error details for debugging (no secrets included)
+      return {
+        statusCode: 500,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          ok: false,
+          error: "OpenAI error",
+          details: JSON.stringify(data, null, 2),
+        }),
+      };
     }
 
-    const data = await resp.json();
-    const reply = extractOutputText(data) || "I’m here. Say that again?";
+    // Extract assistant text from Responses API output
+    // Common shapes:
+    // data.output_text (sometimes available)
+    // data.output -> [{content:[{type:"output_text", text:"..."}]}]
+    let assistantText = "";
 
-    return json(200, {
-      ok: true,
-      mode,
-      domain,
-      reply,
-    });
-  } catch (err) {
-    return json(500, { ok: false, error: String(err?.message || err) });
-  }
-}
-
-/* -----------------------------
-   Simo personality + behavior
------------------------------- */
-
-function buildSimoInstructions(mode) {
-  // Friend-first tone, follow topic switches, give usable outputs, minimal therapy-speak.
-  // Mode only changes how proactive we are about building artifacts.
-  return `
-You are "Simo" — a private best-friend AI.
-
-Core rules:
-- Track the user's topic as it changes. Do NOT get stuck in one topic.
-- If the user asks for something new, follow it naturally.
-- Keep responses practical and directly useful (steps, checklists, code blocks when asked).
-- Be warm and human, but avoid generic therapy-speak unless user asks for it.
-- Never spam "venting/solving/building?" questions. Just respond appropriately.
-
-Mode:
-- If mode is friend: prioritize emotional support + clarity + next step.
-- If mode is builder: proactively offer concrete outputs (UI mockups, file structures, code) when user asks.
-
-If user asks for images, the system will handle it separately — you don't need to apologize or redirect.
-Current mode: ${mode}.
-`.trim();
-}
-
-/* -----------------------------
-   Intent detection (fast lanes)
------------------------------- */
-function detectIntent(textRaw) {
-  const text = (textRaw || "").trim();
-  const t = text.toLowerCase();
-
-  if (isImageRequest(t)) return { kind: "visual_images", subject: extractSubjectForImages(text) };
-
-  if (hasAny(t, [
-    "i'm stressed","im stressed","i am stressed",
-    "i'm tired","im tired","i'm upset","im upset",
-    "anxious","panic","depressed","lonely",
-    "argument","fight","im drained","i can't do this","i hate this"
-  ])) return { kind: "vent" };
-
-  if (hasAny(t, [
-    "fix","bug","error","doesn't work","doesnt work","not working",
-    "help me","why is","how do i","step by step","walk me through",
-    "issue","problem","debug"
-  ])) return { kind: "solve" };
-
-  if (hasAny(t, [
-    "build","create","design","make","generate","draft",
-    "html","css","javascript","react","ui","app","website",
-    "floor plan","home layout","prototype"
-  ])) return { kind: "build" };
-
-  return { kind: "general" };
-}
-
-function isImageRequest(t) {
-  if (t.startsWith("show me how") || t.startsWith("show me the steps")) return false;
-  return hasAny(t, [
-    "show me images", "show me pictures", "show me photos", "show me pics",
-    "images of", "pictures of", "photos of", "pics of",
-    "can you show me images", "can you show me pictures", "can you show me photos",
-    "show me", "images", "pictures", "photos"
-  ]);
-}
-function extractSubjectForImages(text) {
-  let m = text.match(/\b(images|pictures|photos|pics)\s+of\s+(.+)$/i);
-  if (m?.[2]) return cleanSubject(m[2]);
-  m = text.match(/\bshow\s+me\s+(.+)$/i);
-  if (m?.[1]) {
-    let s = m[1].replace(/\b(images|pictures|photos|pics)\b/i, "").replace(/\bof\b/i, "");
-    return cleanSubject(s);
-  }
-  return cleanSubject(text);
-}
-function cleanSubject(s) {
-  return String(s || "").replace(/[?.!]+$/g, "").replace(/\s+/g, " ").trim();
-}
-function hasAny(hay, needles) { return needles.some(n => hay.includes(n)); }
-
-/* -----------------------------
-   Call your own search.js for images
------------------------------- */
-async function fetchImages(event, subject) {
-  const proto = event.headers["x-forwarded-proto"] || "https";
-  const host = event.headers.host;
-  const url = `${proto}://${host}/.netlify/functions/search?type=images&num=8&q=${encodeURIComponent(subject)}`;
-
-  const resp = await fetch(url);
-  if (!resp.ok) return [];
-  const data = await resp.json().catch(() => ({}));
-  const results = Array.isArray(data.results) ? data.results : [];
-  return results.slice(0, 8).map(r => ({
-    title: r.title || "Image",
-    url: r.imageUrl || r.thumbnailUrl || r.url || "",
-    link: r.link || r.url || "",
-    source: r.source || ""
-  })).filter(x => x.url);
-}
-
-/* -----------------------------
-   History utils + Responses parsing
------------------------------- */
-function clipHistory(history, maxTurns) {
-  // Keep only role/content and last N
-  const cleaned = history
-    .filter(m => m && (m.role === "user" || m.role === "assistant"))
-    .map(m => ({ role: m.role, content: String(m.content || "") }));
-  return cleaned.slice(Math.max(0, cleaned.length - maxTurns));
-}
-
-function extractOutputText(responsesJson) {
-  // Responses API returns output array with content parts
-  // We try to pull all output_text parts.
-  const out = responsesJson?.output;
-  if (!Array.isArray(out)) return "";
-  let text = "";
-  for (const item of out) {
-    const content = item?.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      if (part?.type === "output_text" && typeof part.text === "string") {
-        text += part.text;
+    if (typeof data.output_text === "string" && data.output_text.trim()) {
+      assistantText = data.output_text.trim();
+    } else if (Array.isArray(data.output)) {
+      const chunks = [];
+      for (const item of data.output) {
+        const contentArr = item?.content;
+        if (!Array.isArray(contentArr)) continue;
+        for (const c of contentArr) {
+          if (c?.type === "output_text" && typeof c.text === "string") {
+            chunks.push(c.text);
+          }
+        }
       }
+      assistantText = chunks.join("").trim();
     }
-  }
-  return text.trim();
-}
 
-/* -----------------------------
-   Netlify helpers
------------------------------- */
-function safeJsonParse(s) { try { return JSON.parse(s || "{}"); } catch { return {}; } }
-function corsHeaders() {
-  return {
-    "content-type": "application/json; charset=utf-8",
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
-    "access-control-allow-methods": "POST,OPTIONS",
-  };
+    if (!assistantText) {
+      assistantText = "Hey. I’m here. What’s going on?";
+    }
+
+    // Return in a way your frontend is unlikely to break:
+    // - reply (some versions use this)
+    // - text (some versions use this)
+    // - ok
+    // - mode echo (optional)
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: JSON.stringify({
+        ok: true,
+        reply: assistantText,
+        text: assistantText,
+        mode: modeHint || null,
+      }),
+    };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "content-type",
+        "Access-Control-Allow-Methods": "POST,OPTIONS",
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        ok: false,
+        error: "Server error",
+        details: String(err?.stack || err?.message || err),
+      }),
+    };
+  }
 }
-function json(statusCode, body) { return { statusCode, headers: corsHeaders(), body: JSON.stringify(body) }; }
