@@ -1,8 +1,8 @@
 // netlify/functions/simon.js
-// Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
+// Simo backend: calm+professional best-friend core + intent router + previews + (optional) Serper web+image search.
 // Uses OpenAI Responses API: https://api.openai.com/v1/responses
 //
-// ENV VARS you should have in Netlify:
+// ENV VARS in Netlify:
 // - OPENAI_API_KEY   (required)
 // - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
 // - SERPER_API_KEY   (optional, enables web + image lookup)
@@ -23,11 +23,7 @@ function normalize(s = "") {
 }
 
 function safeJsonParse(s) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(s); } catch { return null; }
 }
 
 /* --------------------------- Preview logic --------------------------- */
@@ -77,7 +73,6 @@ function buildPreviewHtml(kind, userText = "") {
       :root{
         --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
         --line:rgba(255,255,255,.12);
-        --card:rgba(255,255,255,.06);
         --btn:#2a66ff; --good:#39d98a;
       }
       *{box-sizing:border-box}
@@ -258,11 +253,11 @@ function buildPreviewHtml(kind, userText = "") {
         <div class="card">
           <h3>Hero</h3>
           <div class="list">
-            <div style="font-size:28px;font-weight:900;line-height:1.05;">Big headline that says what this is.</div>
-            <div class="meta" style="font-size:13px;">Short subheadline. Clear value. One sentence.</div>
+            <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
+            <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
             <div style="display:flex;gap:10px;margin-top:12px;">
               <button class="btn">Get started</button>
-              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid var(--line);">See demo</button>
+              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid rgba(255,255,255,.12);">See demo</button>
             </div>
             <div style="margin-top:12px;display:grid;gap:10px;">
               <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
@@ -299,7 +294,6 @@ function buildPreviewHtml(kind, userText = "") {
     `);
   }
 
-  // wireframe/generic
   return shell(`
     <div class="grid">
       <div class="card">
@@ -440,7 +434,7 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           ok: true,
           mode: "bestfriend",
-          reply: "Bet. What do you wanna do now — venting, solving, or building?",
+          reply: "Understood. What do you want to do next — venting, solving, or building?",
           preview_kind: "",
           preview_html: "",
         }),
@@ -456,14 +450,14 @@ exports.handler = async (event) => {
         body: JSON.stringify({
           ok: true,
           mode: "builder",
-          reply: "Preview’s on the right. Want it more simple or more detailed?",
+          reply: "Preview is on the right. Do you want it simpler or more detailed?",
           preview_kind: kind,
           preview_html: buildPreviewHtml(kind, userText),
         }),
       };
     }
 
-    // 3) Image request (ChatGPT-like) using Serper Images
+    // 3) Image request (links) using Serper Images
     if (SERPER_API_KEY && wantsImages(userText)) {
       const img = await serperImageSearch(userText, SERPER_API_KEY);
       if (img.ok && img.top?.length) {
@@ -482,13 +476,12 @@ exports.handler = async (event) => {
             ok: true,
             mode: "builder",
             reply:
-              `Alright — here are high-res Saturn image links I found:\n\n${lines}\n\nWant rings close-ups, Cassini shots, or “phone wallpaper” style?`,
+              `Here are high-resolution results:\n\n${lines}\n\nDo you want close-ups, rings, Cassini shots, or wallpaper-style?`,
             preview_kind: "",
             preview_html: "",
           }),
         };
       }
-      // If Serper fails, fall through to OpenAI (but we’ll mention tool limits in prompt)
     }
 
     // 4) Web lookup (addresses / near me / etc.)
@@ -508,7 +501,6 @@ exports.handler = async (event) => {
       .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
       .map((m) => ({ role: m.role, content: m.content }));
 
-    // Prefer “mode” but let user override naturally
     const inferredMode =
       intent === "venting" ? "bestfriend" :
       intent === "building" ? "builder" :
@@ -516,33 +508,44 @@ exports.handler = async (event) => {
       (clientMode === "builder" || clientMode === "bestfriend") ? clientMode :
       "bestfriend";
 
+    // ✅ Updated tone: Calm + Strategic + Clean + Professional (still warm)
     const SYSTEM_PROMPT = `
-You are Simo — a private best-friend AI with builder powers.
+You are Simo — a private best-friend + creator hybrid.
 
-Core vibe:
-- Talk like a real friend. No therapy-speak. No lectures.
-- Calm, confident, practical.
-- If user says "wife", treat her as wife (never “friendship”).
+Voice (non-negotiable):
+- Calm, steady, and clear. Professional, but warm.
+- No hype. No slang-heavy talk. No therapy-speak.
+- Short sentences. Clean formatting.
+- Ask at most ONE question when the user is venting.
 
-General intelligence:
-- Handle ANY topic the user brings up.
-- If user asks for something you can’t fetch live, don’t hand-wave—offer the best alternative (steps, templates, exact sources).
+Core capability:
+- Handle ANY topic. The user can ask anything.
+- If you cannot fetch something live, do not hand-wave. Offer the best practical alternative (steps, templates, sources, options).
+- When the user wants something built, guide them with structure and next actions.
 
-Intent:
-- Each message choose: venting vs solving vs building.
-- Venting: validate + ask ONE direct question.
-- Solving: clear steps/checklist, short.
-- Building: structure + offer: “Say ‘show me a preview’ and I’ll render it.”
+Intent handling:
+1) Venting:
+   - Validate in 1–2 sentences.
+   - Ask ONE direct question (only one).
+2) Solving:
+   - Give a short diagnosis + a clear step-by-step fix.
+   - Prefer checklists.
+3) Building:
+   - Provide a clean plan (sections/bullets).
+   - Offer: “Say ‘show me a preview’ and I’ll render it in the Workspace.”
 
-Output format:
+Relationship rule:
+- If user says "wife", refer to her as wife (never “friendship”).
+
+Output requirements:
 Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
-Rules for preview_html:
-- preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
-- If user asks for preview, keep reply short and let UI render preview_html.
+Preview rules:
+- preview_html must be "" unless the user explicitly asks for preview/mockup/ui/layout.
+- If user asks for preview, keep the reply short and let the UI render preview_html.
 
-If system provides “Live web results”, use them and include direct links in reply.
+If system provides “Live web results”, use them and include direct links.
 `.trim();
 
     const messages = [
@@ -561,7 +564,7 @@ If system provides “Live web results”, use them and include direct links in 
       body: JSON.stringify({
         model,
         input: messages,
-        temperature: 0.6,
+        temperature: 0.5,
         max_output_tokens: 750,
       }),
     });
@@ -583,7 +586,6 @@ If system provides “Live web results”, use them and include direct links in 
     const outText = extractOutputText(data);
     const parsed = safeJsonParse(outText);
 
-    // Fallback if model doesn't follow JSON
     const mode =
       parsed?.mode === "builder" ? "builder" :
       parsed?.mode === "bestfriend" ? "bestfriend" :
@@ -594,7 +596,6 @@ If system provides “Live web results”, use them and include direct links in 
         ? parsed.reply.trim()
         : (outText || "Reset. I’m here.");
 
-    // Only allow preview_html if user asked for preview
     const previewAllowed = wantsPreview(userText);
     const preview_html =
       previewAllowed && typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
