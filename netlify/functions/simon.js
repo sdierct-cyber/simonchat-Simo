@@ -1,6 +1,11 @@
 // netlify/functions/simon.js
-// Simo backend: best-friend core + intent router + optional web search + preview_html support.
-// Works with OpenAI Responses API (/v1/responses).
+// Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
+// Uses OpenAI Responses API: https://api.openai.com/v1/responses
+//
+// ENV VARS you should have in Netlify:
+// - OPENAI_API_KEY   (required)
+// - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
+// - SERPER_API_KEY   (optional, enables web + image lookup)
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -13,38 +18,46 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-function safeJsonParse(s) {
-  try { return JSON.parse(s); } catch { return null; }
-}
-
 function normalize(s = "") {
   return String(s).toLowerCase().trim();
 }
 
-/** ---------- Preview detection + builders (server fallback) ---------- **/
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
+
+/* --------------------------- Preview logic --------------------------- */
+
+function wantsPreview(text = "") {
+  const t = normalize(text);
+  return (
+    /\bshow me\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t) ||
+    /\b(show|make|build|generate|create)\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t)
+  );
+}
 
 function detectPreviewKind(text = "", fallbackTopic = "") {
   const t = normalize(text);
   const topic = normalize(fallbackTopic);
-
   const any = `${t} ${topic}`.trim();
 
   if (/\b(resume|cv)\b/.test(any)) return "resume";
-  if (/\b(landing page|homepage|hero section)\b/.test(any)) return "landing_page";
+  if (/\b(landing page|homepage|hero section|portfolio)\b/.test(any)) return "landing_page";
   if (/\b(dashboard|admin|analytics)\b/.test(any)) return "dashboard";
-  if (/\b(app|mobile app)\b/.test(any)) return "generic_app";
   if (/\b(space renting|driveway|garage|rent out space|parking spot)\b/.test(any)) return "space_renting_app";
   if (/\b(home|house)\b/.test(any) && /\b(layout|floor plan|2 story|two story)\b/.test(any)) return "home_layout";
-
-  // fall back: try to infer from verbs
-  if (/\b(portfolio|personal site)\b/.test(any)) return "landing_page";
+  if (/\b(app|mobile app)\b/.test(any)) return "generic_app";
 
   return "wireframe";
 }
 
 function buildPreviewHtml(kind, userText = "") {
   const titleMap = {
-    space_renting_app: "Space Renting App",
+    space_renting_app: "Space Rentals",
     resume: "Resume Layout",
     home_layout: "2-Story Home Layout",
     landing_page: "Landing Page",
@@ -57,79 +70,157 @@ function buildPreviewHtml(kind, userText = "") {
   const subtitle = escapeHtml(userText).slice(0, 140);
 
   const shell = (inner) => `
-  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:#0b1020;color:#eaf0ff;height:100%;padding:18px;box-sizing:border-box;">
-    <div style="max-width:960px;margin:0 auto;">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;">
+  <html><head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      :root{
+        --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+        --line:rgba(255,255,255,.12);
+        --card:rgba(255,255,255,.06);
+        --btn:#2a66ff; --good:#39d98a;
+      }
+      *{box-sizing:border-box}
+      body{
+        margin:0;
+        font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+        background:radial-gradient(900px 520px at 20% 0%, #162a66 0%, var(--bg) 60%);
+        color:var(--text);
+        padding:16px;
+      }
+      .shell{max-width:980px;margin:0 auto}
+      .top{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}
+      .title{font-size:18px;font-weight:900;margin:0}
+      .sub{color:rgba(234,240,255,.68);font-size:12px;margin-top:4px}
+      .tag{color:rgba(234,240,255,.68);font-size:12px}
+      .bar{
+        display:flex; gap:10px; flex-wrap:wrap;
+        padding:12px; border:1px solid var(--line); border-radius:14px;
+        background:rgba(0,0,0,.22);
+      }
+      .input{
+        flex:1; min-width:240px;
+        padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+        background:rgba(0,0,0,.28); color:var(--text);
+      }
+      .chip{
+        padding:8px 10px; border-radius:999px;
+        border:1px solid var(--line); background:rgba(255,255,255,.05);
+        color:rgba(234,240,255,.78); font-size:12px;
+      }
+      .grid{
+        display:grid; grid-template-columns: 1.2fr .8fr; gap:12px;
+        margin-top:12px;
+      }
+      .card{
+        border:1px solid var(--line);
+        background:rgba(0,0,0,.22);
+        border-radius:14px;
+        overflow:hidden;
+      }
+      .card h3{margin:0;padding:12px;border-bottom:1px solid var(--line);font-size:14px}
+      .list{padding:12px; display:grid; gap:10px}
+      .item{
+        border:1px solid var(--line);
+        background:rgba(255,255,255,.04);
+        border-radius:12px;
+        padding:10px;
+        display:flex; justify-content:space-between; gap:10px;
+      }
+      .meta{color:rgba(234,240,255,.65); font-size:12px; margin-top:4px}
+      .price{font-weight:900}
+      .btn{
+        display:inline-flex; justify-content:center; align-items:center;
+        padding:10px 12px;
+        border-radius:12px;
+        background:linear-gradient(180deg, var(--btn), #1f4dd6);
+        color:white; font-weight:800; border:0;
+      }
+      .map{
+        height:240px;
+        display:flex;align-items:center;justify-content:center;
+        color:rgba(234,240,255,.65);
+        background:repeating-linear-gradient(45deg, rgba(255,255,255,.04), rgba(255,255,255,.04) 10px, rgba(255,255,255,.02) 10px, rgba(255,255,255,.02) 20px);
+      }
+      @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+    </style>
+  </head><body>
+    <div class="shell">
+      <div class="top">
         <div>
-          <div style="font-size:22px;font-weight:900;letter-spacing:.3px;">${escapeHtml(title)}</div>
-          <div style="font-size:12px;color:rgba(234,240,255,.65);margin-top:4px;">${subtitle}</div>
+          <div class="title">${escapeHtml(title)}</div>
+          <div class="sub">${subtitle}</div>
         </div>
-        <div style="font-size:12px;color:rgba(234,240,255,.65);">Preview • rendered mockup</div>
+        <div class="tag">Preview • rendered mockup</div>
       </div>
-      <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0 16px;"></div>
       ${inner}
     </div>
-  </div>`;
+  </body></html>`;
 
   if (kind === "space_renting_app") {
     return shell(`
-      <div style="display:grid;grid-template-columns: 1.4fr .9fr;gap:14px;">
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;">
-            <div style="font-size:12px;color:rgba(234,240,255,.7);margin-bottom:8px;">Search</div>
-            <div style="display:flex;gap:10px;">
-              <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:10px;color:rgba(234,240,255,.75);">
-                🔎 City / Zip / Address
-              </div>
-              <div style="background:#2a66ff;border-radius:10px;padding:10px 14px;font-weight:800;">Search</div>
-            </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
-              ${["Driveway", "Garage", "Lot", "EV-Ready", "Covered", "24/7"].map(chip => `
-                <div style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);border-radius:999px;padding:6px 10px;font-size:12px;color:rgba(234,240,255,.8);">${chip}</div>
-              `).join("")}
-            </div>
-          </div>
+      <div class="bar">
+        <input class="input" placeholder="Search city, zip, address (e.g., 48044)" />
+        <span class="chip">Under $20/day</span>
+        <span class="chip">24/7 access</span>
+        <span class="chip">Covered</span>
+        <span class="chip">EV friendly</span>
+      </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-            ${[
-              { price:"$12/day", name:"Wide Driveway • Quiet Street", meta:"0.6 mi • Available tonight" },
-              { price:"$18/day", name:"Covered Spot • Security Cam", meta:"1.1 mi • 7am–7pm" },
-              { price:"$9/day",  name:"Side Lot • Easy Access", meta:"0.9 mi • Weekends" },
-              { price:"$22/day", name:"Garage Space • EV Outlet", meta:"2.3 mi • 24/7" },
-            ].map(card => `
-              <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-                <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;">
-                  <div style="font-weight:900;">${escapeHtml(card.name)}</div>
-                  <div style="font-weight:900;color:#39d98a;">${escapeHtml(card.price)}</div>
-                </div>
-                <div style="margin-top:6px;color:rgba(234,240,255,.70);font-size:12px;">${escapeHtml(card.meta)}</div>
-                <div style="margin-top:10px;display:flex;gap:8px;">
-                  <div style="flex:1;background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:8px 10px;font-size:12px;color:rgba(234,240,255,.75);">Map preview</div>
-                  <div style="background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:8px 10px;font-size:12px;">Details</div>
-                </div>
+      <div class="grid">
+        <div class="card">
+          <h3>Listings</h3>
+          <div class="list">
+            <div class="item">
+              <div>
+                <div><strong>Driveway • 2 spots</strong></div>
+                <div class="meta">0.8 mi • Available today • Camera on-site</div>
               </div>
-            `).join("")}
+              <div style="text-align:right">
+                <div class="price">$14/day</div>
+                <div class="meta">Instant book</div>
+              </div>
+            </div>
+
+            <div class="item">
+              <div>
+                <div><strong>Garage Bay • Secure</strong></div>
+                <div class="meta">2.1 mi • Available weekends • Locked gate</div>
+              </div>
+              <div style="text-align:right">
+                <div class="price">$28/day</div>
+                <div class="meta">Request</div>
+              </div>
+            </div>
+
+            <div class="item">
+              <div>
+                <div><strong>Side Lot • Large</strong></div>
+                <div class="meta">4.4 mi • Available nightly • Easy access</div>
+              </div>
+              <div style="text-align:right">
+                <div class="price">$10/day</div>
+                <div class="meta">Instant book</div>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div style="display:flex;flex-direction:column;gap:12px;">
-          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-            <div style="font-weight:900;margin-bottom:10px;">Map</div>
-            <div style="height:180px;border-radius:12px;background:linear-gradient(135deg, rgba(42,102,255,.35), rgba(0,0,0,.35));border:1px solid rgba(255,255,255,.10);display:flex;align-items:center;justify-content:center;color:rgba(234,240,255,.75);">
-              Map placeholder
-            </div>
-          </div>
-
-          <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-            <div style="font-weight:900;margin-bottom:10px;">Booking</div>
-            <div style="display:grid;gap:8px;">
-              <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:10px;color:rgba(234,240,255,.75);">Dates: Select</div>
-              <div style="background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.10);border-radius:10px;padding:10px;color:rgba(234,240,255,.75);">Vehicle: Select</div>
-              <div style="display:flex;gap:10px;">
-                <div style="flex:1;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px;text-align:center;">Message host</div>
-                <div style="flex:1;background:#2a66ff;border-radius:10px;padding:10px;text-align:center;font-weight:900;">Book</div>
+        <div class="card">
+          <h3>Map + Booking</h3>
+          <div class="map">Map placeholder</div>
+          <div class="list">
+            <div class="item">
+              <div>
+                <div><strong>Selected:</strong> Driveway • 2 spots</div>
+                <div class="meta">Pick dates + vehicle</div>
+              </div>
+              <div style="text-align:right">
+                <div class="price">$14</div>
+                <div class="meta">+ fees</div>
               </div>
             </div>
+            <button class="btn">Book now</button>
           </div>
         </div>
       </div>
@@ -138,18 +229,24 @@ function buildPreviewHtml(kind, userText = "") {
 
   if (kind === "resume") {
     return shell(`
-      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:16px;">
-        <div style="font-size:28px;font-weight:900;">Your Name</div>
-        <div style="margin-top:6px;color:rgba(234,240,255,.75);font-size:13px;">
-          Email • Phone • City, State • LinkedIn
-        </div>
-        <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
-        <div style="font-weight:900;margin-bottom:8px;">Experience</div>
-        <div style="background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;color:rgba(234,240,255,.78);font-size:13px;">
-          Job Title • Company • Dates
-          <ul style="margin:8px 0 0 18px;line-height:1.45;">
-            <li>Impact bullet</li><li>Leadership / projects</li><li>Tools / systems</li>
-          </ul>
+      <div class="card">
+        <h3>Resume</h3>
+        <div class="list">
+          <div>
+            <div style="font-size:26px;font-weight:900;">Your Name</div>
+            <div class="meta">Email • Phone • City, State • LinkedIn</div>
+            <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
+            <div style="font-weight:900;margin-bottom:8px;">Experience</div>
+            <div class="item" style="display:block">
+              <div><strong>Job Title • Company</strong></div>
+              <div class="meta">Dates • Location</div>
+              <ul class="meta" style="margin:8px 0 0 18px;line-height:1.45;">
+                <li>Impact bullet</li>
+                <li>Project / leadership</li>
+                <li>Tools / systems</li>
+              </ul>
+            </div>
+          </div>
         </div>
       </div>
     `);
@@ -157,22 +254,26 @@ function buildPreviewHtml(kind, userText = "") {
 
   if (kind === "landing_page") {
     return shell(`
-      <div style="display:grid;grid-template-columns:1.1fr .9fr;gap:14px;">
-        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:16px;">
-          <div style="font-size:28px;font-weight:900;line-height:1.05;">Big headline that says what this is.</div>
-          <div style="margin-top:10px;color:rgba(234,240,255,.75);">Short subheadline. Clear value. One sentence.</div>
-          <div style="display:flex;gap:10px;margin-top:14px;">
-            <div style="background:#2a66ff;border-radius:10px;padding:10px 14px;font-weight:900;">Get started</div>
-            <div style="background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.14);border-radius:10px;padding:10px 14px;">See demo</div>
-          </div>
-          <div style="margin-top:16px;display:grid;gap:10px;">
-            ${["Feature one (fast)", "Feature two (simple)", "Feature three (trust)"].map(f => `
-              <div style="background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.10);border-radius:12px;padding:12px;color:rgba(234,240,255,.78);">${escapeHtml(f)}</div>
-            `).join("")}
+      <div class="grid">
+        <div class="card">
+          <h3>Hero</h3>
+          <div class="list">
+            <div style="font-size:28px;font-weight:900;line-height:1.05;">Big headline that says what this is.</div>
+            <div class="meta" style="font-size:13px;">Short subheadline. Clear value. One sentence.</div>
+            <div style="display:flex;gap:10px;margin-top:12px;">
+              <button class="btn">Get started</button>
+              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid var(--line);">See demo</button>
+            </div>
+            <div style="margin-top:12px;display:grid;gap:10px;">
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+            </div>
           </div>
         </div>
-        <div style="background:linear-gradient(135deg, rgba(42,102,255,.28), rgba(0,0,0,.35));border:1px solid rgba(255,255,255,.10);border-radius:14px;display:flex;align-items:center;justify-content:center;color:rgba(234,240,255,.75);">
-          Screenshot / Hero image
+        <div class="card">
+          <h3>Hero Image</h3>
+          <div class="map">Screenshot / graphic</div>
         </div>
       </div>
     `);
@@ -180,119 +281,120 @@ function buildPreviewHtml(kind, userText = "") {
 
   if (kind === "dashboard") {
     return shell(`
-      <div style="display:grid;grid-template-columns:1fr;gap:12px;">
+      <div class="grid" style="grid-template-columns:1fr;gap:12px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-          ${["Revenue", "Active Users", "Bookings"].map(k => `
-            <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-              <div style="color:rgba(234,240,255,.7);font-size:12px;">${escapeHtml(k)}</div>
-              <div style="font-size:22px;font-weight:900;margin-top:6px;">—</div>
-            </div>
-          `).join("")}
+          <div class="card"><h3>Revenue</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This month</div></div></div>
+          <div class="card"><h3>Active Users</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">Today</div></div></div>
+          <div class="card"><h3>Bookings</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This week</div></div></div>
         </div>
-        <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-          <div style="font-weight:900;margin-bottom:10px;">Recent Activity</div>
-          ${["New booking request", "Payment completed", "New message from user"].map(r => `
-            <div style="padding:10px;border-radius:12px;border:1px solid rgba(255,255,255,.10);background:rgba(0,0,0,.28);margin-top:8px;color:rgba(234,240,255,.78);">${escapeHtml(r)}</div>
-          `).join("")}
+        <div class="card">
+          <h3>Recent Activity</h3>
+          <div class="list">
+            <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
+            <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
+            <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
+          </div>
         </div>
       </div>
     `);
   }
 
-  // wireframe / generic
+  // wireframe/generic
   return shell(`
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-        <div style="font-weight:900;margin-bottom:10px;">Left Panel</div>
-        <div style="height:160px;border-radius:12px;border:1px dashed rgba(255,255,255,.20);display:flex;align-items:center;justify-content:center;color:rgba(234,240,255,.65);">Content</div>
+    <div class="grid">
+      <div class="card">
+        <h3>Left Panel</h3>
+        <div class="list"><div class="map" style="height:180px;">Content</div></div>
       </div>
-      <div style="background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;">
-        <div style="font-weight:900;margin-bottom:10px;">Right Panel</div>
-        <div style="height:160px;border-radius:12px;border:1px dashed rgba(255,255,255,.20);display:flex;align-items:center;justify-content:center;color:rgba(234,240,255,.65);">Content</div>
+      <div class="card">
+        <h3>Right Panel</h3>
+        <div class="list"><div class="map" style="height:180px;">Content</div></div>
       </div>
     </div>
   `);
 }
 
-/** ---------- Intent detection ---------- **/
+/* --------------------------- Intent routing -------------------------- */
 
 function detectIntent(text = "") {
   const t = normalize(text);
 
-  // explicit switches
   if (/\bswitch topics?\b/.test(t)) return "switch";
-  if (/\b(vent|venting)\b/.test(t)) return "venting";
-  if (/\b(build|builder|design|make|create|generate)\b/.test(t)) return "building";
-  if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
-
-  // vent signals
+  if (/\b(show me|preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
   if (/\b(stressed|anxious|tired|overwhelmed|upset|mad|angry|sad|fight|argu(ment|ing))\b/.test(t)) return "venting";
-
-  // preview signals
-  if (/\b(preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
+  if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
+  if (/\b(build|design|make|create|generate)\b/.test(t)) return "building";
 
   return "auto";
 }
 
-function wantsPreview(text = "") {
-  const t = normalize(text);
-  return (
-    /\bshow me\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t) ||
-    /\b(show|make|build|generate|create)\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t)
-  );
-}
+/* ---------------------------- Serper tools --------------------------- */
 
-/** ---------- Optional: Serper web search ---------- **/
-
-async function serperSearch(query, apiKey) {
-  const url = "https://google.serper.dev/search";
-  const res = await fetch(url, {
+async function serperWebSearch(query, apiKey) {
+  const res = await fetch("https://google.serper.dev/search", {
     method: "POST",
-    headers: {
-      "X-API-KEY": apiKey,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ q: query }),
+    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query, num: 6 }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
-  }
+  if (!res.ok) return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
 
-  // keep it tight
-  const top = []
-    .concat(data?.answerBox ? [data.answerBox] : [])
-    .concat(Array.isArray(data?.organic) ? data.organic.slice(0, 5) : [])
-    .map((r) => ({
-      title: r.title || r.name || "",
-      link: r.link || r.website || "",
-      snippet: r.snippet || r.description || "",
-    }))
-    .filter((r) => r.title || r.snippet || r.link);
+  const organic = Array.isArray(data?.organic) ? data.organic.slice(0, 6) : [];
+  const top = organic.map((r) => ({
+    title: r.title || "",
+    link: r.link || "",
+    snippet: r.snippet || "",
+  })).filter(x => x.title || x.link || x.snippet);
 
   return { ok: true, top };
 }
 
-function seemsLikeLookup(text = "") {
-  const t = normalize(text);
-  // user explicitly asks to look up / search OR asks for local businesses / addresses / current info
-  if (/\b(look up|lookup|search|find|near me|addresses|phone number|website|hours)\b/.test(t)) return true;
-  if (/\b(weather|forecast)\b/.test(t)) return true;
-  return false;
+async function serperImageSearch(query, apiKey) {
+  const res = await fetch("https://google.serper.dev/images", {
+    method: "POST",
+    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query, num: 10 }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
+
+  const imgs = Array.isArray(data?.images) ? data.images.slice(0, 10) : [];
+  const top = imgs.map((r) => ({
+    title: r.title || "",
+    link: r.link || "",
+    imageUrl: r.imageUrl || r.image || "",
+    source: r.source || "",
+  })).filter(x => x.link || x.imageUrl);
+
+  return { ok: true, top };
 }
 
-/** ---------- OpenAI call ---------- **/
+function wantsImages(text = "") {
+  const t = normalize(text);
+  return (
+    /\b(images?|photos?|pictures?|wallpapers?)\b/.test(t) ||
+    /\b(high\s*res|4k|8k|hd)\b/.test(t)
+  );
+}
+
+function seemsLikeLookup(text = "") {
+  const t = normalize(text);
+  return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours)\b/.test(t);
+}
+
+/* ---------------------------- OpenAI helpers -------------------------- */
 
 function extractOutputText(respJson) {
   const out = respJson?.output || [];
-  const text = out
+  return out
     .flatMap((o) => o?.content || [])
     .filter((c) => c?.type === "output_text")
     .map((c) => c?.text || "")
     .join("\n")
     .trim();
-  return text;
 }
+
+/* ------------------------------ Handler ------------------------------ */
 
 exports.handler = async (event) => {
   const headers = {
@@ -328,25 +430,26 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: "Missing message" }) };
     }
 
-    // Fast path: switch topics
-    if (detectIntent(userText) === "switch") {
+    const intent = detectIntent(userText);
+
+    // 1) Switch topics fast path
+    if (intent === "switch") {
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           ok: true,
           mode: "bestfriend",
-          reply: "Bet. What do you wanna talk about now — venting, solving, or building?",
+          reply: "Bet. What do you wanna do now — venting, solving, or building?",
           preview_kind: "",
           preview_html: "",
         }),
       };
     }
 
-    // Fast path: preview request => always generate preview_html server-side (no waiting on model)
+    // 2) Preview request fast path => ALWAYS return preview_html (no model waiting)
     if (wantsPreview(userText)) {
       const kind = detectPreviewKind(userText, clientTopic);
-      const preview_html = buildPreviewHtml(kind, userText);
       return {
         statusCode: 200,
         headers,
@@ -355,35 +458,61 @@ exports.handler = async (event) => {
           mode: "builder",
           reply: "Preview’s on the right. Want it more simple or more detailed?",
           preview_kind: kind,
-          preview_html,
+          preview_html: buildPreviewHtml(kind, userText),
         }),
       };
     }
 
-    // Build tool context (optional web lookup)
+    // 3) Image request (ChatGPT-like) using Serper Images
+    if (SERPER_API_KEY && wantsImages(userText)) {
+      const img = await serperImageSearch(userText, SERPER_API_KEY);
+      if (img.ok && img.top?.length) {
+        const top6 = img.top.slice(0, 6);
+        const lines = top6.map((r, i) => {
+          const title = r.title ? r.title : "Image";
+          const src = r.source ? ` — ${r.source}` : "";
+          const url = r.link || r.imageUrl || "";
+          return `${i + 1}) ${title}${src}\n${url}`;
+        }).join("\n\n");
+
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            ok: true,
+            mode: "builder",
+            reply:
+              `Alright — here are high-res Saturn image links I found:\n\n${lines}\n\nWant rings close-ups, Cassini shots, or “phone wallpaper” style?`,
+            preview_kind: "",
+            preview_html: "",
+          }),
+        };
+      }
+      // If Serper fails, fall through to OpenAI (but we’ll mention tool limits in prompt)
+    }
+
+    // 4) Web lookup (addresses / near me / etc.)
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
-      const s = await serperSearch(userText, SERPER_API_KEY);
-      if (s.ok && Array.isArray(s.top) && s.top.length) {
+      const s = await serperWebSearch(userText, SERPER_API_KEY);
+      if (s.ok && s.top?.length) {
         toolContext =
-          "Live web results (use as facts, cite titles/links in plain text if helpful):\n" +
-          s.top
-            .map((r, i) => `${i + 1}. ${r.title}\n   ${r.link}\n   ${r.snippet}`.trim())
-            .join("\n\n");
+          "Live web results (use as facts; include direct links in reply):\n" +
+          s.top.map((r, i) => `${i + 1}. ${r.title}\n${r.link}\n${r.snippet}`.trim()).join("\n\n");
       }
     }
 
+    // Clean history to keep model stable
     const cleanedHistory = history
       .slice(-18)
       .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
       .map((m) => ({ role: m.role, content: m.content }));
 
-    // Intent: if client already has a mode, respect it lightly, but let user override naturally
-    const intent = detectIntent(userText);
+    // Prefer “mode” but let user override naturally
     const inferredMode =
       intent === "venting" ? "bestfriend" :
       intent === "building" ? "builder" :
-      intent === "solving" ? "builder" : // solving usually needs steps/code
+      intent === "solving" ? "builder" :
       (clientMode === "builder" || clientMode === "bestfriend") ? clientMode :
       "bestfriend";
 
@@ -392,23 +521,28 @@ You are Simo — a private best-friend AI with builder powers.
 
 Core vibe:
 - Talk like a real friend. No therapy-speak. No lectures.
-- Keep it confident, practical, and calm.
-- If user says "wife", treat her as wife (not "friendship").
+- Calm, confident, practical.
+- If user says "wife", treat her as wife (never “friendship”).
 
-Behavior:
-- Always handle ANY topic the user brings. Never say you "can't do that" unless it truly requires a tool you do not have.
-- Decide intent per message: venting vs solving vs building.
-- If venting: validate + ask ONE direct question.
-- If solving: give clear steps/checklist. If code is needed, offer full code.
-- If building: propose a simple structure + offer preview prompt: "Say 'show me a preview' and I'll render it."
+General intelligence:
+- Handle ANY topic the user brings up.
+- If user asks for something you can’t fetch live, don’t hand-wave—offer the best alternative (steps, templates, exact sources).
 
-Output rules:
+Intent:
+- Each message choose: venting vs solving vs building.
+- Venting: validate + ask ONE direct question.
+- Solving: clear steps/checklist, short.
+- Building: structure + offer: “Say ‘show me a preview’ and I’ll render it.”
+
+Output format:
 Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
-Notes:
-- preview_html must be an empty string unless the user explicitly asks for a preview/mockup/layout.
-- Keep reply short and useful.
+Rules for preview_html:
+- preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
+- If user asks for preview, keep reply short and let UI render preview_html.
+
+If system provides “Live web results”, use them and include direct links in reply.
 `.trim();
 
     const messages = [
@@ -428,7 +562,7 @@ Notes:
         model,
         input: messages,
         temperature: 0.6,
-        max_output_tokens: 700,
+        max_output_tokens: 750,
       }),
     });
 
@@ -449,26 +583,24 @@ Notes:
     const outText = extractOutputText(data);
     const parsed = safeJsonParse(outText);
 
-    // If model didn't follow JSON, fall back gracefully.
+    // Fallback if model doesn't follow JSON
     const mode =
       parsed?.mode === "builder" ? "builder" :
       parsed?.mode === "bestfriend" ? "bestfriend" :
       inferredMode === "builder" ? "builder" : "bestfriend";
 
-    let reply =
+    const reply =
       typeof parsed?.reply === "string" && parsed.reply.trim()
         ? parsed.reply.trim()
         : (outText || "Reset. I’m here.");
 
-    // Hard guard: do not leak preview_html unless user asked for preview
+    // Only allow preview_html if user asked for preview
     const previewAllowed = wantsPreview(userText);
-    let preview_html = "";
-    let preview_kind = "";
+    const preview_html =
+      previewAllowed && typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
 
-    if (previewAllowed && typeof parsed?.preview_html === "string" && parsed.preview_html.trim()) {
-      preview_html = parsed.preview_html;
-      preview_kind = typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
-    }
+    const preview_kind =
+      previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
 
     return {
       statusCode: 200,
