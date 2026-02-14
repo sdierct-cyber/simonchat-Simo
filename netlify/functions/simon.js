@@ -1,48 +1,157 @@
 // netlify/functions/simon.js
-export default async (req) => {
-  // --- CORS ---
-  const corsHeaders = {
+// Netlify Function (Node) - CommonJS handler format
+
+const OPENAI_URL = "https://api.openai.com/v1/responses";
+
+exports.handler = async (event) => {
+  const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "content-type",
     "Access-Control-Allow-Methods": "POST,OPTIONS",
+    "Content-Type": "application/json",
   };
-  if (req.method === "OPTIONS") {
-    return new Response("", { status: 200, headers: corsHeaders });
+
+  // CORS preflight
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
+
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ ok: false, error: "Method not allowed" }),
+    };
   }
 
   try {
     const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+    const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+
     if (!OPENAI_API_KEY) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing OPENAI_API_KEY" }),
-        { status: 500, headers: { ...corsHeaders, "content-type": "application/json" } }
-      );
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ ok: false, error: "Missing OPENAI_API_KEY env var" }),
+      };
     }
 
-    const body = await req.json().catch(() => ({}));
-    const userText = (body?.message || "").toString();
-    const history = Array.isArray(body?.history) ? body.history : []; // [{role:'user'|'assistant', content:'...'}]
+    let body = {};
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      body = {};
+    }
+
+    const userText = (body.message || "").toString();
+    const history = Array.isArray(body.history) ? body.history : [];
 
     if (!userText.trim()) {
-      return new Response(
-        JSON.stringify({ ok: false, error: "Missing message" }),
-        { status: 400, headers: { ...corsHeaders, "content-type": "application/json" } }
-      );
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ ok: false, error: "Missing message" }),
+      };
     }
 
-    // ---------------------------
-    // Simo Brain: Behavior Contract
-    // ---------------------------
+    // Strong behavior contract (Simo vibe + builder switching + preview support)
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend AI.
 
-Core rule: match the user's vibe, keep up with topic switches, and never get "stuck" repeating yourself.
+Default: best-friend mode (warm, real, not therapy-speak).
+Switch to Builder mode automatically when user asks to design/build/create an app, website, UI, or code.
 
-You have 2 modes:
-1) Best-friend mode (default): warm, real, not therapy-speak, short helpful replies.
-2) Builder mode: when the user asks to design/build/create an app, website, UI, code, or a concrete artifact.
+If user asks "show me a preview" (or mockup/UI/layout), produce a simple 1-page UI mockup in HTML.
 
-Mode switching:
-- If user asks to design/build/create an app/site/feature/mockup/plan, switch to Builder mode automatically.
-- In Builder mode you must immediately ask 1–2 tight questions OR offer a quick preview.
-- If the user asks f
+Return ONLY valid JSON (no markdown) with EXACT keys:
+{
+  "mode": "bestfriend" | "builder",
+  "reply": "string",
+  "preview_html": "string (or empty)"
+}
+No extra keys.
+`.trim();
+
+    // Keep only last turns
+    const cleanedHistory = history
+      .slice(-16)
+      .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    const input = [
+      { role: "system", content: SYSTEM_PROMPT },
+      ...cleanedHistory,
+      { role: "user", content: userText },
+    ];
+
+    const openaiResp = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        input,                 // <-- IMPORTANT: no input_text, only roles+content
+        temperature: 0.6,
+        max_output_tokens: 900,
+      }),
+    });
+
+    const data = await openaiResp.json().catch(() => ({}));
+
+    if (!openaiResp.ok) {
+      // Return clear OpenAI error so you never see "unknown" again
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({
+          ok: false,
+          error: "OpenAI error",
+          status: openaiResp.status,
+          details: data?.error || data,
+        }),
+      };
+    }
+
+    // Extract text from Responses API output
+    const outText = (data.output || [])
+      .flatMap((o) => o.content || [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text)
+      .join("\n")
+      .trim();
+
+    let parsed;
+    try {
+      parsed = JSON.parse(outText);
+    } catch {
+      // If model doesn't obey JSON rule, coerce safely
+      parsed = {
+        mode: "bestfriend",
+        reply: outText || "Reset. I’m here.",
+        preview_html: "",
+      };
+    }
+
+    const mode = parsed.mode === "builder" ? "builder" : "bestfriend";
+    const reply = typeof parsed.reply === "string" && parsed.reply.trim() ? parsed.reply.trim() : "Reset. I’m here.";
+    const preview_html = typeof parsed.preview_html === "string" ? parsed.preview_html : "";
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({ ok: true, mode, reply, preview_html }),
+    };
+  } catch (err) {
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({
+        ok: false,
+        error: "Server crash",
+        details: String(err?.message || err),
+      }),
+    };
+  }
+};
