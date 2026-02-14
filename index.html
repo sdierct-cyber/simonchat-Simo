@@ -105,9 +105,12 @@ async function sendMessage(){
     addMessage(data.reply,"assistant");
     history.push({role:"assistant",content:data.reply});
 
-    if(data.preview_html){
-      previewEl.innerHTML = data.preview_html;
-    }
+    if (data.preview_html && data.preview_html.trim()) {
+  previewEl.innerHTML = data.preview_html;
+} else if (data.mode === "bestfriend") {
+  // optional: clear preview when we're back to chat mode
+  previewEl.innerHTML = "";
+}
 
   }catch(err){
     addMessage("Network error: " + err.message,"assistant");
@@ -135,3 +138,4 @@ addMessage("Reset. I’m here.","assistant");
 
 </body>
 </html>
+
