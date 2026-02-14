@@ -112,13 +112,16 @@
       height:100%;
       border:0;
       background:transparent;
-      display:none; /* shown when we have preview_html */
+      display:none; /* shown when preview_html exists */
     }
+
     .workspaceEmpty{
       padding:16px;
       color:var(--muted);
       font-size:13px;
+      line-height:1.55;
     }
+
     .results{
       padding:14px;
       display:none; /* shown when we have links/results */
@@ -141,11 +144,7 @@
       font-weight:800;
       margin-bottom:6px;
     }
-    .resultMeta{
-      color:rgba(234,240,255,.70);
-      font-size:12px;
-      margin-top:6px;
-    }
+
     .workspaceFooter{
       border-top:1px solid var(--line);
       background:rgba(0,0,0,.18);
@@ -209,19 +208,13 @@
             <div class="results" id="resultsBox"></div>
 
             <div class="workspaceEmpty" id="workspaceEmpty">
-              This panel shows whatever you ask to see (mockups, links, results, code, etc.).<br><br>
-              Try:
-              <ul style="margin:10px 0 0 18px; line-height:1.5;">
-                <li><b>show me a preview</b></li>
-                <li><b>show me high res images of saturn</b></li>
-                <li><b>make me a landing page layout</b></li>
-              </ul>
+              Waiting… tell me what you want to do.
             </div>
           </div>
 
           <div class="workspaceFooter">
             <span id="workStatus">status: <span class="statusWarn">idle</span></span>
-            <span id="workHint">Tip: say “show me a preview” to render a mockup.</span>
+            <span id="workHint">Tip: say “show me a preview” to render something here.</span>
           </div>
         </div>
       </div>
@@ -276,14 +269,12 @@
         state.mode = "auto";
       } else if (/(stressed|anxious|tired|overwhelmed|upset|fight|argument)/.test(t)) {
         if (state.mode === "auto") state.mode = "venting";
-      } else if (/(show me a preview|preview|mockup|wireframe|design|build|create|generate|make)/.test(t)) {
+      } else if (/(show me a preview|preview|mockup|ui|layout|wireframe|design|build|create|generate|make)/.test(t)) {
         state.mode = "building";
       }
 
-      // Context: store the user’s last “goal” as free text (not a hardcoded topic)
-      // This keeps it unlimited and ChatGPT-like.
+      // Context: store last user goal as free text (keeps it unlimited)
       if (t.length > 0 && !/\bswitch topics?\b/.test(t)) {
-        // keep short and human
         state.context = userText.slice(0, 60);
       }
 
@@ -294,18 +285,21 @@
     function setWorkspaceIdle(){
       workSub.textContent = "Waiting…";
       workStatus.innerHTML = `status: <span class="statusWarn">idle</span>`;
-      workHint.textContent = `Tip: say “show me a preview” to render a mockup.`;
+      workHint.textContent = `Tip: say “show me a preview” to render something here.`;
+
       workspaceFrame.style.display = "none";
       resultsBox.style.display = "none";
       workspaceEmpty.style.display = "block";
+
       workspaceFrame.srcdoc = "";
       resultsBox.innerHTML = "";
     }
 
     function setWorkspacePreview(html){
-      workSub.textContent = "Mockup • rendered";
+      workSub.textContent = "Preview • rendered";
       workStatus.innerHTML = `status: <span class="statusGood">showing preview</span>`;
       workHint.textContent = `Ask for tweaks (layout, colors, filters, etc.).`;
+
       workspaceEmpty.style.display = "none";
       resultsBox.style.display = "none";
       workspaceFrame.style.display = "block";
@@ -313,29 +307,23 @@
     }
 
     function extractUrls(text){
-      const urls = (text.match(/https?:\/\/[^\s)]+/g) || []);
-      // de-dupe
+      const urls = (String(text||"").match(/https?:\/\/[^\s)]+/g) || []);
       return [...new Set(urls)];
-    }
-
-    function looksLikeImageUrl(url){
-      return /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(url);
     }
 
     function setWorkspaceResults(urls){
       workSub.textContent = "Results • links";
       workStatus.innerHTML = `status: <span class="statusGood">showing results</span>`;
       workHint.textContent = `Click a link to open it. Want me to narrow it down?`;
+
       workspaceEmpty.style.display = "none";
       workspaceFrame.style.display = "none";
       resultsBox.style.display = "block";
 
       const cards = urls.map((u, i) => {
-        const isImg = looksLikeImageUrl(u);
-        const title = isImg ? `Image link ${i+1}` : `Link ${i+1}`;
         return `
           <div class="resultCard">
-            <div class="resultTitle">${escapeHtml(title)}</div>
+            <div class="resultTitle">Link ${i+1}</div>
             <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a>
           </div>
         `;
@@ -349,7 +337,7 @@
       const payload = {
         message: userText,
         mode: state.mode === "venting" ? "bestfriend" : state.mode === "building" ? "builder" : "auto",
-        topic: state.context,          // free text context
+        topic: state.context,
         history: state.history.slice(-14)
       };
 
@@ -386,13 +374,12 @@
       state.lastUserText = text;
 
       addLine("You", text);
-
       detectModeAndContext(text);
 
-      // optimistic UI: if user asked for preview, show a “loading” state
+      // Loading state
       workStatus.innerHTML = `status: <span class="statusWarn">thinking…</span>`;
       workSub.textContent = "Working…";
-      workHint.textContent = "If you asked for a preview, it’ll render here.";
+      workHint.textContent = "If you asked for a preview or results, it’ll show here.";
 
       state.history.push({ role:"user", content:text });
 
@@ -408,30 +395,27 @@
       // Update mode pill from backend if provided
       if (data && data.ok && typeof data.mode === "string") {
         const m = data.mode.toLowerCase();
-        if (m === "builder") state.mode = "building";
-        if (m === "bestfriend") state.mode = "venting"; // bestfriend-ish
-        modePill.textContent = `mode: ${m === "builder" ? "building" : m === "bestfriend" ? "venting" : "auto"}`;
+        modePill.textContent = `mode: ${m === "builder" ? "builder" : m === "bestfriend" ? "bestfriend" : "auto"}`;
       }
 
       addLine("Simo", reply);
-
       state.history.push({ role:"assistant", content: reply });
 
       // Workspace render priority:
-      // 1) preview_html from backend
+      // 1) preview_html
       if (data && data.ok && typeof data.preview_html === "string" && data.preview_html.trim()) {
         setWorkspacePreview(data.preview_html);
         return;
       }
 
-      // 2) If reply contains links, show them in Results
+      // 2) links in reply => results
       const urls = extractUrls(reply);
       if (urls.length) {
         setWorkspaceResults(urls);
         return;
       }
 
-      // 3) Otherwise idle
+      // 3) idle
       setWorkspaceIdle();
     }
 
