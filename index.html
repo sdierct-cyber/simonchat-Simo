@@ -1,141 +1,520 @@
 <!doctype html>
-<html>
+<html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Simo</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.10);
+      --card:rgba(255,255,255,.06);
+      --btn:#2a66ff; --btn2:#1f4dd6;
+      --good:#39d98a; --warn:#ffcc66;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    .wrap{max-width:1200px;margin:0 auto;padding:18px}
+    h1{margin:0 0 10px 0; font-size:22px; letter-spacing:.2px}
+    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
 
-<style>
-body{
-  margin:0;
-  font-family:system-ui;
-  background:#0b1020;
-  color:#fff;
-}
-.wrap{
-  max-width:1000px;
-  margin:0 auto;
-  padding:20px;
-}
-.chat{
-  border:1px solid rgba(255,255,255,.1);
-  padding:15px;
-  height:350px;
-  overflow:auto;
-  margin-bottom:10px;
-}
-.preview{
-  border:1px solid rgba(255,255,255,.1);
-  height:350px;
-  margin-top:20px;
-  background:#111;
-}
-textarea{
-  width:100%;
-  height:60px;
-  background:#111;
-  color:#fff;
-  border:1px solid rgba(255,255,255,.2);
-  padding:10px;
-}
-button{
-  padding:10px 15px;
-  margin-top:5px;
-  cursor:pointer;
-}
-.msg-user{color:#6ea8ff;}
-.msg-simo{color:#39d98a;}
-</style>
-</head>
+    .panel{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.22);
+      border-radius:14px;
+      overflow:hidden;
+      min-height: 520px;
+    }
+    .panelHeader{
+      padding:12px 14px;
+      border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between;
+      background:rgba(0,0,0,.18);
+    }
+    .panelHeader .sub{color:var(--muted); font-size:12px}
 
-<body>
-<div class="wrap">
-
-<h2>Simo</h2>
-
-<div id="chat" class="chat"></div>
-
-<textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
-<button id="send">Send</button>
-<button id="clear">Clear</button>
-
-<div id="preview" class="preview"></div>
-
-</div>
-
-<script>
-const chatEl = document.getElementById("chat");
-const inputEl = document.getElementById("input");
-const sendBtn = document.getElementById("send");
-const clearBtn = document.getElementById("clear");
-const previewEl = document.getElementById("preview");
-
-let history = [];
-
-function addMessage(text, role){
-  const div = document.createElement("div");
-  div.className = role === "user" ? "msg-user" : "msg-simo";
-  div.innerText = (role === "user" ? "You: " : "Simo: ") + text;
-  chatEl.appendChild(div);
-  chatEl.scrollTop = chatEl.scrollHeight;
-}
-
-async function sendMessage(){
-  const message = inputEl.value.trim();
-  if(!message) return;
-
-  addMessage(message,"user");
-  history.push({role:"user",content:message});
-  inputEl.value="";
-
-  try{
-    const res = await fetch("/.netlify/functions/simon",{
-      method:"POST",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({message,history})
-    });
-
-    const data = await res.json();
-
-    if(!data.ok){
-      addMessage("Error: " + (data.error || "unknown"),"assistant");
-      return;
+    /* Chat */
+    #chat{
+      height: 420px;
+      overflow:auto;
+      padding:14px;
+      line-height:1.45;
+      font-size:14px;
+      white-space:pre-wrap;
+    }
+    .msg{margin:0 0 10px 0}
+    .you{color:#7fb0ff}
+    .simo{color:var(--good)}
+    .sys{color:var(--muted)}
+    .composer{
+      border-top:1px solid var(--line);
+      padding:12px;
+      background:rgba(0,0,0,.18);
+    }
+    textarea{
+      width:100%;
+      min-height:82px;
+      resize:vertical;
+      border-radius:10px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.35);
+      color:var(--text);
+      padding:10px;
+      outline:none;
+      font-size:14px;
+    }
+    .row{display:flex; gap:10px; margin-top:10px}
+    button{
+      border:1px solid var(--line);
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      color:white;
+      padding:9px 12px;
+      border-radius:10px;
+      cursor:pointer;
+      font-weight:600;
+    }
+    button.secondary{
+      background:rgba(255,255,255,.07);
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:4px 10px; border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      color:var(--muted); font-size:12px;
     }
 
-    addMessage(data.reply,"assistant");
-    history.push({role:"assistant",content:data.reply});
+    /* Preview */
+    #previewHost{
+      height: 520px;
+      background:rgba(0,0,0,.10);
+      position:relative;
+    }
+    #previewFrame{
+      width:100%;
+      height:100%;
+      border:0;
+      background:transparent;
+    }
+    .hint{
+      padding:14px;
+      color:var(--muted);
+      font-size:13px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Simo</h1>
 
-    if (data.preview_html && data.preview_html.trim()) {
-  previewEl.innerHTML = data.preview_html;
-} else if (data.mode === "bestfriend") {
-  // optional: clear preview when we're back to chat mode
-  previewEl.innerHTML = "";
-}
+    <div class="grid">
+      <!-- LEFT: Chat -->
+      <div class="panel">
+        <div class="panelHeader">
+          <div>
+            <div style="font-weight:700;">Chat</div>
+            <div class="sub">Enter to send • Shift+Enter for new line</div>
+          </div>
+          <div class="pill" id="modePill">mode: auto</div>
+        </div>
 
-  }catch(err){
-    addMessage("Network error: " + err.message,"assistant");
-  }
-}
+        <div id="chat"></div>
 
-sendBtn.onclick = sendMessage;
+        <div class="composer">
+          <textarea id="input" placeholder="Say something..."></textarea>
+          <div class="row">
+            <button id="sendBtn">Send</button>
+            <button id="clearBtn" class="secondary">Clear</button>
+          </div>
+        </div>
+      </div>
 
-inputEl.addEventListener("keydown", e=>{
-  if(e.key==="Enter" && !e.shiftKey){
-    e.preventDefault();
-    sendMessage();
-  }
-});
+      <!-- RIGHT: Preview -->
+      <div class="panel">
+        <div class="panelHeader">
+          <div>
+            <div style="font-weight:700;">App Preview</div>
+            <div class="sub" id="previewSub">Preview • static mockup</div>
+          </div>
+          <div class="pill" id="topicPill">topic: none</div>
+        </div>
 
-clearBtn.onclick = ()=>{
-  chatEl.innerHTML="";
-  previewEl.innerHTML="";
-  history=[];
-  addMessage("Reset. I’m here.","assistant");
-};
+        <div id="previewHost">
+          <iframe id="previewFrame" title="preview"></iframe>
+        </div>
+        <div class="hint" id="previewHint">
+          Say “show me a preview” to render a real mockup here.
+        </div>
+      </div>
+    </div>
+  </div>
 
-addMessage("Reset. I’m here.","assistant");
-</script>
+  <script>
+    const chatEl = document.getElementById("chat");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("sendBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const previewFrame = document.getElementById("previewFrame");
+    const previewHint = document.getElementById("previewHint");
+    const topicPill = document.getElementById("topicPill");
+    const modePill = document.getElementById("modePill");
+    const previewSub = document.getElementById("previewSub");
 
+    const state = {
+      history: [],
+      mode: "auto",           // auto | venting | building | solving
+      lastBuildTopic: "none", // e.g. space_renting_app
+      lastUserText: ""
+    };
+
+    function addLine(who, text, cls){
+      const p = document.createElement("p");
+      p.className = "msg " + (cls || "");
+      p.innerHTML = `<span class="${who === 'You' ? 'you' : who === 'Simo' ? 'simo' : 'sys'}">${who}:</span> ${escapeHtml(text)}`;
+      chatEl.appendChild(p);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function escapeHtml(str){
+      return String(str).replace(/[&<>"']/g, s => ({
+        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+      }[s]));
+    }
+
+    function normalize(s){ return String(s||"").toLowerCase().trim(); }
+
+    function detectTopicAndMode(userText){
+      const t = normalize(userText);
+
+      // Topic detection (basic but effective)
+      if (t.includes("space") && (t.includes("rent") || t.includes("rental") || t.includes("driveway") || t.includes("garage"))) {
+        state.lastBuildTopic = "space_renting_app";
+      } else if (t.includes("home") || t.includes("floor plan") || t.includes("2 story") || t.includes("layout")) {
+        state.lastBuildTopic = "home_layout";
+      } else if (t.includes("resume") || t.includes("cv")) {
+        state.lastBuildTopic = "resume";
+      } else if (t.includes("website") || t.includes("landing page")) {
+        state.lastBuildTopic = "website";
+      }
+
+      // Mode detection cues
+      if (t.includes("switch topics")) {
+        state.mode = "auto";
+      } else if (t.includes("im stressed") || t.includes("i'm stressed") || t.includes("anxious") || t.includes("argument") || t.includes("fight")) {
+        // don't force mode forever, just nudge
+        if (state.mode === "auto") state.mode = "venting";
+      } else if (t.includes("build") || t.includes("design") || t.includes("show me a preview") || t.includes("mockup")) {
+        state.mode = "building";
+      }
+
+      modePill.textContent = `mode: ${state.mode}`;
+      topicPill.textContent = `topic: ${state.lastBuildTopic}`;
+    }
+
+    function isPreviewRequest(userText){
+      const t = normalize(userText);
+      // must include preview intent — prevents “im stressed” from accidentally triggering preview
+      return t.includes("show me a preview") || (t.includes("preview") && (t.includes("show") || t.includes("mockup") || t.includes("ui")));
+    }
+
+    function renderPreviewForTopic(topic){
+      const html = buildPreviewHtml(topic);
+      previewFrame.srcdoc = html;
+      previewHint.textContent = "Preview rendered. Ask for tweaks (colors, layout, filters, etc.).";
+      previewSub.textContent = "Preview • rendered mockup";
+    }
+
+    function buildPreviewHtml(topic){
+      // Simple but real-looking UI mockups; runs fully inside iframe.
+      // No external assets needed.
+      const baseStyles = `
+        <style>
+          :root{
+            --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+            --line:rgba(255,255,255,.12);
+            --card:rgba(255,255,255,.06);
+            --btn:#2a66ff;
+          }
+          *{box-sizing:border-box}
+          body{
+            margin:0;
+            font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+            background:radial-gradient(900px 520px at 20% 0%, #162a66 0%, var(--bg) 60%);
+            color:var(--text);
+            padding:16px;
+          }
+          .shell{max-width:980px;margin:0 auto}
+          .title{display:flex;justify-content:space-between;align-items:end;margin-bottom:12px}
+          .title h2{margin:0;font-size:18px}
+          .title .tag{color:var(--muted);font-size:12px}
+          .bar{
+            display:flex; gap:10px; flex-wrap:wrap;
+            padding:12px; border:1px solid var(--line); border-radius:14px;
+            background:rgba(0,0,0,.22);
+          }
+          .input{
+            flex:1; min-width:240px;
+            padding:10px 12px; border-radius:12px; border:1px solid var(--line);
+            background:rgba(0,0,0,.28); color:var(--text);
+          }
+          .chip{
+            padding:8px 10px; border-radius:999px;
+            border:1px solid var(--line); background:rgba(255,255,255,.05);
+            color:var(--muted); font-size:12px;
+          }
+          .grid{
+            display:grid; grid-template-columns: 1.2fr .8fr; gap:12px;
+            margin-top:12px;
+          }
+          .card{
+            border:1px solid var(--line);
+            background:rgba(0,0,0,.22);
+            border-radius:14px;
+            overflow:hidden;
+          }
+          .card h3{margin:0;padding:12px;border-bottom:1px solid var(--line);font-size:14px}
+          .list{padding:12px; display:grid; gap:10px}
+          .item{
+            border:1px solid var(--line);
+            background:rgba(255,255,255,.04);
+            border-radius:12px;
+            padding:10px;
+            display:flex; justify-content:space-between; gap:10px;
+          }
+          .item .meta{color:var(--muted); font-size:12px; margin-top:4px}
+          .price{font-weight:800}
+          .btn{
+            display:inline-flex; justify-content:center; align-items:center;
+            padding:10px 12px;
+            border-radius:12px;
+            background:linear-gradient(180deg, var(--btn), #1f4dd6);
+            color:white; font-weight:700; border:0;
+            cursor:pointer;
+          }
+          .map{
+            height:240px;
+            display:flex;align-items:center;justify-content:center;
+            color:var(--muted);
+            background:repeating-linear-gradient(45deg, rgba(255,255,255,.04), rgba(255,255,255,.04) 10px, rgba(255,255,255,.02) 10px, rgba(255,255,255,.02) 20px);
+          }
+          @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+        </style>
+      `;
+
+      if (topic === "space_renting_app") {
+        return `
+          <html><head>${baseStyles}</head><body>
+            <div class="shell">
+              <div class="title">
+                <h2>Space Rentals</h2>
+                <div class="tag">driveways • garages • side lots</div>
+              </div>
+
+              <div class="bar">
+                <input class="input" placeholder="Search city, zip, address (e.g., 48044)" />
+                <span class="chip">Under $20/day</span>
+                <span class="chip">24/7 access</span>
+                <span class="chip">Covered</span>
+                <span class="chip">EV friendly</span>
+              </div>
+
+              <div class="grid">
+                <div class="card">
+                  <h3>Listings</h3>
+                  <div class="list">
+                    <div class="item">
+                      <div>
+                        <div><strong>Driveway • 2 spots</strong></div>
+                        <div class="meta">0.8 mi • Available today • Camera on-site</div>
+                      </div>
+                      <div style="text-align:right">
+                        <div class="price">$14/day</div>
+                        <div class="meta">Instant book</div>
+                      </div>
+                    </div>
+                    <div class="item">
+                      <div>
+                        <div><strong>Garage Bay • Secure</strong></div>
+                        <div class="meta">2.1 mi • Available weekends • Locked gate</div>
+                      </div>
+                      <div style="text-align:right">
+                        <div class="price">$28/day</div>
+                        <div class="meta">Request</div>
+                      </div>
+                    </div>
+                    <div class="item">
+                      <div>
+                        <div><strong>Side Lot • Large</strong></div>
+                        <div class="meta">4.4 mi • Available nightly • Easy access</div>
+                      </div>
+                      <div style="text-align:right">
+                        <div class="price">$10/day</div>
+                        <div class="meta">Instant book</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="card">
+                  <h3>Map + Booking</h3>
+                  <div class="map">Map placeholder</div>
+                  <div style="padding:12px; display:grid; gap:10px">
+                    <div class="item">
+                      <div>
+                        <div><strong>Selected:</strong> Driveway • 2 spots</div>
+                        <div class="meta">Feb 14 • 6pm → Feb 15 • 8am</div>
+                      </div>
+                      <div style="text-align:right">
+                        <div class="price">$14</div>
+                        <div class="meta">+ fees</div>
+                      </div>
+                    </div>
+                    <button class="btn">Book now</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </body></html>
+        `;
+      }
+
+      // Fallback generic preview
+      return `
+        <html><head>${baseStyles}</head><body>
+          <div class="shell">
+            <div class="title">
+              <h2>Preview</h2>
+              <div class="tag">topic: ${topic}</div>
+            </div>
+            <div class="card">
+              <h3>Mockup</h3>
+              <div class="list">
+                <div class="item">
+                  <div>
+                    <div><strong>Tell Simo what to build</strong></div>
+                    <div class="meta">Try: “show me a preview of a space renting app UI”</div>
+                  </div>
+                  <div class="price">✓</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </body></html>
+      `;
+    }
+
+    async function callBackend(userText){
+      // If you already have a netlify function, this will use it.
+      // If it fails, we fall back gracefully.
+      const url = "/.netlify/functions/simon";
+      const payload = {
+        message: userText,
+        mode: state.mode,
+        topic: state.lastBuildTopic,
+        history: state.history.slice(-12) // keep it light
+      };
+
+      try{
+        const res = await fetch(url, {
+          method:"POST",
+          headers:{ "content-type":"application/json" },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json().catch(()=> ({}));
+
+        if(!res.ok){
+          throw new Error(data?.error || `HTTP ${res.status}`);
+        }
+
+        return data;
+      }catch(err){
+        return { ok:false, error:String(err?.message || err) };
+      }
+    }
+
+    function bestFriendFallback(userText){
+      // Minimal fallback so the app stays usable even if backend is down.
+      const t = normalize(userText);
+      if (t.includes("im stressed") || t.includes("i'm stressed") || t.includes("tired") || t.includes("argument") || t.includes("fight")) {
+        return "I got you. Talk to me—what part is hitting you the hardest right now?";
+      }
+      if (isPreviewRequest(userText)) {
+        return "Preview’s on the right. Want it more simple or more Airbnb-style?";
+      }
+      if (t.includes("design") || t.includes("build")) {
+        return "Alright—tell me what you want me to build, and say “show me a preview” when you want the mockup.";
+      }
+      if (t.includes("switch topics")) {
+        return "Bet. What do you wanna do now — venting, solving, or building?";
+      }
+      return "I’m here. Say what you want next — venting, solving, or building.";
+    }
+
+    async function onSend(){
+      const text = inputEl.value.trim();
+      if(!text) return;
+
+      inputEl.value = "";
+      state.lastUserText = text;
+
+      addLine("You", text);
+
+      detectTopicAndMode(text);
+
+      // If user asked for preview, render it immediately (no waiting on AI)
+      if (isPreviewRequest(text)) {
+        renderPreviewForTopic(state.lastBuildTopic);
+      }
+
+      // store in history
+      state.history.push({ role:"user", content:text });
+
+      // call backend (optional)
+      const data = await callBackend(text);
+
+      let reply = "";
+      if (data && data.ok && typeof data.reply === "string") {
+        reply = data.reply;
+      } else {
+        reply = bestFriendFallback(text);
+      }
+
+      addLine("Simo", reply);
+
+      state.history.push({ role:"assistant", content: reply });
+    }
+
+    // Events
+    sendBtn.addEventListener("click", onSend);
+
+    clearBtn.addEventListener("click", () => {
+      chatEl.innerHTML = "";
+      state.history = [];
+      state.mode = "auto";
+      state.lastBuildTopic = "none";
+      modePill.textContent = "mode: auto";
+      topicPill.textContent = "topic: none";
+      previewFrame.srcdoc = "";
+      previewHint.textContent = "Say “show me a preview” to render a real mockup here.";
+      previewSub.textContent = "Preview • static mockup";
+      addLine("Simo", "Reset. I’m here.", "sys");
+    });
+
+    inputEl.addEventListener("keydown", (e) => {
+      if(e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        onSend();
+      }
+    });
+
+    // Boot
+    addLine("Simo", "Reset. I’m here.", "sys");
+  </script>
 </body>
 </html>
-
