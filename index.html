@@ -112,7 +112,7 @@
       height:100%;
       border:0;
       background:transparent;
-      display:none; /* shown when preview_html exists */
+      display:none;
     }
 
     .workspaceEmpty{
@@ -124,7 +124,7 @@
 
     .results{
       padding:14px;
-      display:none; /* shown when we have links/results */
+      display:none;
       overflow:auto;
       height:100%;
     }
@@ -145,9 +145,9 @@
       margin-bottom:6px;
     }
 
-    /* NEW: workspace tools toolbar (download/copy) */
+    /* Tools toolbar */
     .workspaceTools{
-      display:none; /* shown only when preview exists */
+      display:none;
       padding:10px 14px;
       border-top:1px solid var(--line);
       background:rgba(0,0,0,.18);
@@ -213,6 +213,7 @@
           <div class="pills">
             <div class="pill" id="modePill">mode: auto</div>
             <div class="pill" id="locPill">loc: off</div>
+            <div class="pill" id="memPill">memory: on</div>
           </div>
         </div>
 
@@ -242,19 +243,15 @@
         <div id="workspace">
           <div class="workspaceBody">
             <iframe id="workspaceFrame" title="workspace"></iframe>
-
             <div class="results" id="resultsBox"></div>
-
-            <div class="workspaceEmpty" id="workspaceEmpty">
-              Waiting… tell me what you want to do.
-            </div>
+            <div class="workspaceEmpty" id="workspaceEmpty">Waiting… tell me what you want to do.</div>
           </div>
 
-          <!-- NEW: tools bar appears only when a preview is active -->
           <div class="workspaceTools" id="workspaceTools">
             <div class="toolsLeft">
               <button class="toolBtn primary" id="downloadBtn">Download HTML</button>
               <button class="toolBtn" id="copyBtn">Copy HTML</button>
+              <button class="toolBtn" id="forgetBtn" title="Clears local memory on this device">Forget</button>
               <span class="toolsNote" id="toolsNote">Preview ready.</span>
             </div>
             <div class="toolsNote" id="fileNameNote">file: simo-preview.html</div>
@@ -270,6 +267,8 @@
   </div>
 
   <script>
+    const STORAGE_KEY = "simo_state_v1";
+
     const chatEl = document.getElementById("chat");
     const inputEl = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
@@ -277,6 +276,7 @@
 
     const modePill = document.getElementById("modePill");
     const locPill = document.getElementById("locPill");
+    const memPill = document.getElementById("memPill");
     const topicPill = document.getElementById("topicPill");
 
     const workSub = document.getElementById("workSub");
@@ -287,10 +287,10 @@
     const workspaceEmpty = document.getElementById("workspaceEmpty");
     const resultsBox = document.getElementById("resultsBox");
 
-    // NEW toolbar elements
     const workspaceTools = document.getElementById("workspaceTools");
     const downloadBtn = document.getElementById("downloadBtn");
     const copyBtn = document.getElementById("copyBtn");
+    const forgetBtn = document.getElementById("forgetBtn");
     const toolsNote = document.getElementById("toolsNote");
     const fileNameNote = document.getElementById("fileNameNote");
 
@@ -299,10 +299,57 @@
       mode: "auto",
       context: "none",
       coords: null,
-      locState: "off", // off | on | denied
+      locState: "off",
+      memoryOn: true,
       lastPreviewHtml: "",
-      lastPreviewName: "simo-preview.html"
+      lastPreviewName: "simo-preview.html",
+      notes: ""
     };
+
+    function saveState(){
+      if (!state.memoryOn) return;
+      try {
+        const payload = {
+          mode: state.mode,
+          context: state.context,
+          notes: state.notes
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+      } catch {}
+    }
+
+    function loadState(){
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        if (data && typeof data === "object") {
+          if (typeof data.mode === "string") state.mode = data.mode;
+          if (typeof data.context === "string") state.context = data.context;
+          if (typeof data.notes === "string") state.notes = data.notes;
+        }
+      } catch {}
+    }
+
+    function clearSavedState(){
+      try { localStorage.removeItem(STORAGE_KEY); } catch {}
+    }
+
+    function setMemPill(){
+      memPill.textContent = `memory: ${state.memoryOn ? "on" : "off"}`;
+    }
+
+    memPill.addEventListener("click", () => {
+      state.memoryOn = !state.memoryOn;
+      setMemPill();
+      if (!state.memoryOn) {
+        // don’t delete automatically; user controls “Forget”
+        toolsNote.textContent = "Memory off (this device).";
+      } else {
+        toolsNote.textContent = "Memory on (this device).";
+        saveState();
+      }
+    });
 
     function escapeHtml(str){
       return String(str).replace(/[&<>"']/g, s => ({
@@ -337,6 +384,8 @@
 
       modePill.textContent = `mode: ${state.mode}`;
       topicPill.textContent = `context: ${state.context === "none" ? "none" : state.context}`;
+
+      saveState();
     }
 
     function setLocPill(){
@@ -420,11 +469,7 @@
     function guessFileNameFromContext(){
       const base = normalize(state.context || "");
       if (!base || base === "none") return "simo-preview.html";
-      // keep it safe for filenames
-      const safe = base
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40);
+      const safe = base.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
       return safe ? `simo-${safe}.html` : "simo-preview.html";
     }
 
@@ -438,7 +483,6 @@
       workspaceFrame.style.display = "block";
       workspaceFrame.srcdoc = html;
 
-      // NEW: store preview + show tools
       state.lastPreviewHtml = String(html || "");
       showWorkspaceTools(guessFileNameFromContext());
     }
@@ -465,7 +509,6 @@
       `).join("");
 
       resultsBox.innerHTML = cards || `<div class="workspaceEmpty">No links found.</div>`;
-
       hideWorkspaceTools();
     }
 
@@ -476,7 +519,8 @@
         mode: state.mode === "venting" ? "bestfriend" : state.mode === "building" ? "builder" : "auto",
         topic: state.context,
         history: state.history.slice(-14),
-        coords: state.coords
+        coords: state.coords,
+        notes: state.notes
       };
 
       try{
@@ -515,7 +559,6 @@
       addLine("You", text);
       detectModeAndContext(text);
 
-      // Attach coords only when needed
       if (shouldRequestLocation(text) && state.locState !== "denied") {
         if (!state.coords || typeof state.coords.lat !== "number") {
           workStatus.innerHTML = `status: <span class="statusWarn">getting location…</span>`;
@@ -534,7 +577,6 @@
         }
       }
 
-      // Loading
       workStatus.innerHTML = `status: <span class="statusWarn">thinking…</span>`;
       workSub.textContent = "Working…";
       workHint.textContent = "If you asked for a preview or results, it’ll show here.";
@@ -544,13 +586,9 @@
       const data = await callBackend(text);
 
       let reply = "";
-      if (data && data.ok && typeof data.reply === "string") {
-        reply = data.reply;
-      } else {
-        reply = (data && data.error) ? `I couldn’t reach my brain for a second. (${data.error})` : fallbackReply(text);
-      }
+      if (data && data.ok && typeof data.reply === "string") reply = data.reply;
+      else reply = (data && data.error) ? `I couldn’t reach my brain for a second. (${data.error})` : fallbackReply(text);
 
-      // Update mode pill from backend if provided
       if (data && data.ok && typeof data.mode === "string") {
         const m = data.mode.toLowerCase();
         modePill.textContent = `mode: ${m === "builder" ? "builder" : m === "bestfriend" ? "bestfriend" : "auto"}`;
@@ -559,7 +597,6 @@
       addLine("Simo", reply);
       state.history.push({ role:"assistant", content: reply });
 
-      // Workspace priority
       if (data && data.ok && typeof data.preview_html === "string" && data.preview_html.trim()) {
         setWorkspacePreview(data.preview_html);
         return;
@@ -574,12 +611,8 @@
       setWorkspaceIdle();
     }
 
-    // NEW: Download HTML
     downloadBtn.addEventListener("click", () => {
-      if (!state.lastPreviewHtml) {
-        toolsNote.textContent = "No preview to download yet.";
-        return;
-      }
+      if (!state.lastPreviewHtml) { toolsNote.textContent = "No preview to download yet."; return; }
       try {
         const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
         const a = document.createElement("a");
@@ -590,37 +623,39 @@
         a.remove();
         URL.revokeObjectURL(a.href);
         toolsNote.textContent = "Downloaded.";
-      } catch {
-        toolsNote.textContent = "Download failed.";
-      }
+      } catch { toolsNote.textContent = "Download failed."; }
     });
 
-    // NEW: Copy HTML
     copyBtn.addEventListener("click", async () => {
-      if (!state.lastPreviewHtml) {
-        toolsNote.textContent = "No preview to copy yet.";
-        return;
-      }
+      if (!state.lastPreviewHtml) { toolsNote.textContent = "No preview to copy yet."; return; }
       try {
         await navigator.clipboard.writeText(state.lastPreviewHtml);
         toolsNote.textContent = "Copied.";
       } catch {
-        // fallback
         try {
           const ta = document.createElement("textarea");
           ta.value = state.lastPreviewHtml;
           ta.style.position = "fixed";
           ta.style.left = "-9999px";
           document.body.appendChild(ta);
-          ta.focus();
-          ta.select();
+          ta.focus(); ta.select();
           document.execCommand("copy");
           ta.remove();
           toolsNote.textContent = "Copied.";
-        } catch {
-          toolsNote.textContent = "Copy failed.";
-        }
+        } catch { toolsNote.textContent = "Copy failed."; }
       }
+    });
+
+    // NEW: Forget (local memory reset)
+    forgetBtn.addEventListener("click", () => {
+      clearSavedState();
+      state.mode = "auto";
+      state.context = "none";
+      state.notes = "";
+      modePill.textContent = "mode: auto";
+      topicPill.textContent = "context: none";
+      toolsNote.textContent = "Local memory cleared.";
+      saveState(); // if memory is on, saves reset state
     });
 
     sendBtn.addEventListener("click", onSend);
@@ -639,6 +674,7 @@
       setLocPill();
       setWorkspaceIdle();
       addLine("Simo", "Reset. I’m here.", "sys");
+      saveState();
     });
 
     inputEl.addEventListener("keydown", (e) => {
@@ -649,6 +685,10 @@
     });
 
     // Boot
+    loadState();
+    modePill.textContent = `mode: ${state.mode}`;
+    topicPill.textContent = `context: ${state.context === "none" ? "none" : state.context}`;
+    setMemPill();
     setLocPill();
     setWorkspaceIdle();
     addLine("Simo", "Reset. I’m here.", "sys");
