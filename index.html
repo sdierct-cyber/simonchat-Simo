@@ -380,6 +380,7 @@
 
     function normalize(s){ return String(s||"").toLowerCase().trim(); }
 
+    // ✅ This is the key fix: "continue/resume" does NOT overwrite context
     function detectModeAndContext(userText){
       const t = normalize(userText);
 
@@ -391,7 +392,9 @@
         state.mode = "building";
       }
 
-      if (t.length > 0 && !/\bswitch topics?\b/.test(t)) {
+      const isContinue = /^(continue|keep going|resume)\b/.test(t) || /\bcontinue that\b/.test(t);
+
+      if (t.length > 0 && !/\bswitch topics?\b/.test(t) && !isContinue) {
         state.context = userText.slice(0, 60);
       }
 
