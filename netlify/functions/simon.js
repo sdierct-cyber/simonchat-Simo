@@ -1,6 +1,13 @@
 // netlify/functions/simon.js
 // Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
 // + Server memory (forever until Forget) using Netlify Blobs (@netlify/blobs)
+//
+// ENV VARS in Netlify:
+// - OPENAI_API_KEY   (required)
+// - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
+// - SERPER_API_KEY   (optional, enables web lookup)
+// Notes:
+// - This function supports client "action":"forget" with "user_id" to clear server memory.
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -217,6 +224,78 @@ function buildPreviewHtml(kind, userText = "") {
     `);
   }
 
+  if (kind === "resume") {
+    return shell(`
+      <div class="card">
+        <h3>Resume</h3>
+        <div class="list">
+          <div>
+            <div style="font-size:26px;font-weight:900;">Your Name</div>
+            <div class="meta">Email • Phone • City, State • LinkedIn</div>
+            <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
+            <div style="font-weight:900;margin-bottom:8px;">Experience</div>
+            <div class="item" style="display:block">
+              <div><strong>Job Title • Company</strong></div>
+              <div class="meta">Dates • Location</div>
+              <ul class="meta" style="margin:8px 0 0 18px;line-height:1.45;">
+                <li>Impact bullet</li>
+                <li>Project / leadership</li>
+                <li>Tools / systems</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (kind === "landing_page") {
+    return shell(`
+      <div class="grid">
+        <div class="card">
+          <h3>Hero</h3>
+          <div class="list">
+            <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
+            <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
+            <div style="display:flex;gap:10px;margin-top:12px;">
+              <button class="btn">Get started</button>
+              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid rgba(255,255,255,.12);">See demo</button>
+            </div>
+            <div style="margin-top:12px;display:grid;gap:10px;">
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Hero Image</h3>
+          <div class="map">Screenshot / graphic</div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (kind === "dashboard") {
+    return shell(`
+      <div class="grid" style="grid-template-columns:1fr;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="card"><h3>Revenue</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This month</div></div></div>
+          <div class="card"><h3>Active Users</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">Today</div></div></div>
+          <div class="card"><h3>Bookings</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This week</div></div></div>
+        </div>
+        <div class="card">
+          <h3>Recent Activity</h3>
+          <div class="list">
+            <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
+            <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
+            <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
   return shell(`
     <div class="grid">
       <div class="card">
@@ -277,9 +356,10 @@ function wantsImages(text = "") {
   return /\b(images?|photos?|pictures?|wallpapers?)\b/.test(t) || /\b(high\s*res|4k|8k|hd)\b/.test(t);
 }
 
+// ✅ FIX #2: weather/forecast now counts as lookup
 function seemsLikeLookup(text = "") {
   const t = normalize(text);
-  return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours)\b/.test(t);
+  return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours|weather|forecast|temperature|temp)\b/.test(t);
 }
 
 /* ---------------------------- OpenAI helpers -------------------------- */
@@ -299,13 +379,6 @@ function extractOutputText(respJson) {
 async function getMemoryStore() {
   const mod = await import("@netlify/blobs");
   return mod.getStore("simo-memory");
-}
-
-function normMode(m) {
-  const t = String(m || "").toLowerCase().trim();
-  if (t === "builder") return "builder";
-  if (t === "bestfriend") return "bestfriend";
-  return "auto";
 }
 
 function looksLikeJunkTopic(topic) {
@@ -375,7 +448,7 @@ exports.handler = async (event) => {
 
     const intent = detectIntent(userText);
 
-    // Choose an "effective topic" (don't let "continue..." overwrite it)
+    // Choose effective topic
     const savedTopic = (mem?.last_topic || "").toString();
     const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : (clientTopic || savedTopic);
 
@@ -409,7 +482,6 @@ exports.handler = async (event) => {
     // 2) Preview fast path
     if (wantsPreview(userText)) {
       const kind = detectPreviewKind(userText, effectiveTopic);
-      // Save a basic brief when we generate a preview (this is what makes “continue” work)
       const brief =
         kind === "space_renting_app"
           ? "Space renting app (driveway/garage/parking/extra space): search + filters + listing cards with price/availability + map placeholder + booking panel + messaging + host dashboard."
@@ -440,7 +512,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 3) Web lookup context
+    // 3) Web lookup context (now includes weather, forecast, temp, etc.)
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
@@ -471,6 +543,7 @@ exports.handler = async (event) => {
 - project_brief: ${mem?.project_brief || ""}`.trim()
       : "";
 
+    // ✅ FIX #1: No markdown headings. Continue should move the project forward.
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
 
@@ -478,6 +551,8 @@ Voice (non-negotiable):
 - Calm, steady, and clear. Professional, but warm.
 - No hype. No slang-heavy talk. No therapy-speak.
 - Short sentences. Clean formatting.
+- Do NOT use markdown headings (no ###, ####) or long outlines.
+- Use short numbered steps only when needed. Otherwise write plain paragraphs.
 - Ask at most ONE question when the user is venting.
 
 Core capability:
@@ -487,6 +562,9 @@ Core capability:
 Special rule for "continue/resume":
 - If the user says "continue", assume they mean the last active project from memory (last_topic / project_brief).
 - Do NOT ask "what app?" unless there is truly no saved project_brief.
+- Continue from the last project_brief and move it forward one milestone.
+- Be concrete: next screens, data model, API endpoints, or build steps.
+- Do NOT restart with generic "define features / choose tech stack".
 
 Intent handling:
 1) Venting: validate (1–2 sentences) + ask ONE question.
@@ -548,10 +626,13 @@ Preview rules:
       parsed?.mode === "bestfriend" ? "bestfriend" :
       inferredMode === "builder" ? "builder" : "bestfriend";
 
-    const reply =
+    let reply =
       typeof parsed?.reply === "string" && parsed.reply.trim()
         ? parsed.reply.trim()
         : (outText || "Reset. I’m here.");
+
+    // Extra safety: strip leading markdown headings if any leak through
+    reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
     const previewAllowed = wantsPreview(userText);
     const preview_html =
@@ -560,15 +641,14 @@ Preview rules:
     const preview_kind =
       previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
 
-    // Save memory forever (don’t let "continue..." overwrite the topic)
+    // Save memory (don’t let "continue..." overwrite)
     if (userId) {
       try {
         const store = await getMemoryStore();
-        const nextTopic = effectiveTopic || "";
+        const nextTopic = effectiveTopic || mem?.last_topic || "";
         const nextBrief = mem?.project_brief || "";
-        const nextMode = mode === "builder" ? "builder" : "bestfriend";
         await store.setJSON(userId, {
-          preferred_mode: nextMode,
+          preferred_mode: mode,
           last_topic: nextTopic,
           project_brief: nextBrief,
           updated_at: new Date().toISOString()
