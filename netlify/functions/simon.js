@@ -1,11 +1,6 @@
 // netlify/functions/simon.js
 // Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
 // + Server memory (forever until Forget) using Netlify Blobs (@netlify/blobs)
-//
-// ENV VARS in Netlify:
-// - OPENAI_API_KEY   (required)
-// - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
-// - SERPER_API_KEY   (optional, enables web + image lookup)
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -222,78 +217,6 @@ function buildPreviewHtml(kind, userText = "") {
     `);
   }
 
-  if (kind === "resume") {
-    return shell(`
-      <div class="card">
-        <h3>Resume</h3>
-        <div class="list">
-          <div>
-            <div style="font-size:26px;font-weight:900;">Your Name</div>
-            <div class="meta">Email • Phone • City, State • LinkedIn</div>
-            <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
-            <div style="font-weight:900;margin-bottom:8px;">Experience</div>
-            <div class="item" style="display:block">
-              <div><strong>Job Title • Company</strong></div>
-              <div class="meta">Dates • Location</div>
-              <ul class="meta" style="margin:8px 0 0 18px;line-height:1.45;">
-                <li>Impact bullet</li>
-                <li>Project / leadership</li>
-                <li>Tools / systems</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    `);
-  }
-
-  if (kind === "landing_page") {
-    return shell(`
-      <div class="grid">
-        <div class="card">
-          <h3>Hero</h3>
-          <div class="list">
-            <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
-            <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
-            <div style="display:flex;gap:10px;margin-top:12px;">
-              <button class="btn">Get started</button>
-              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid rgba(255,255,255,.12);">See demo</button>
-            </div>
-            <div style="margin-top:12px;display:grid;gap:10px;">
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Hero Image</h3>
-          <div class="map">Screenshot / graphic</div>
-        </div>
-      </div>
-    `);
-  }
-
-  if (kind === "dashboard") {
-    return shell(`
-      <div class="grid" style="grid-template-columns:1fr;gap:12px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-          <div class="card"><h3>Revenue</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This month</div></div></div>
-          <div class="card"><h3>Active Users</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">Today</div></div></div>
-          <div class="card"><h3>Bookings</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This week</div></div></div>
-        </div>
-        <div class="card">
-          <h3>Recent Activity</h3>
-          <div class="list">
-            <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
-            <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
-            <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
-          </div>
-        </div>
-      </div>
-    `);
-  }
-
   return shell(`
     <div class="grid">
       <div class="card">
@@ -310,10 +233,16 @@ function buildPreviewHtml(kind, userText = "") {
 
 /* --------------------------- Intent routing -------------------------- */
 
+function isContinue(text = "") {
+  const t = normalize(text);
+  return /^(continue|resume|keep going)\b/.test(t) || /\bcontinue that\b/.test(t) || /\bkeep going\b/.test(t);
+}
+
 function detectIntent(text = "") {
   const t = normalize(text);
 
   if (/\bswitch topics?\b/.test(t)) return "switch";
+  if (isContinue(t)) return "continue";
   if (/\b(show me|preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
   if (/\b(stressed|anxious|tired|overwhelmed|upset|mad|angry|sad|fight|argu(ment|ing))\b/.test(t)) return "venting";
   if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
@@ -343,32 +272,9 @@ async function serperWebSearch(query, apiKey) {
   return { ok: true, top };
 }
 
-async function serperImageSearch(query, apiKey) {
-  const res = await fetch("https://google.serper.dev/images", {
-    method: "POST",
-    headers: { "X-API-KEY": apiKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query, num: 10 }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
-
-  const imgs = Array.isArray(data?.images) ? data.images.slice(0, 10) : [];
-  const top = imgs.map((r) => ({
-    title: r.title || "",
-    link: r.link || "",
-    imageUrl: r.imageUrl || r.image || "",
-    source: r.source || "",
-  })).filter(x => x.link || x.imageUrl);
-
-  return { ok: true, top };
-}
-
 function wantsImages(text = "") {
   const t = normalize(text);
-  return (
-    /\b(images?|photos?|pictures?|wallpapers?)\b/.test(t) ||
-    /\b(high\s*res|4k|8k|hd)\b/.test(t)
-  );
+  return /\b(images?|photos?|pictures?|wallpapers?)\b/.test(t) || /\b(high\s*res|4k|8k|hd)\b/.test(t);
 }
 
 function seemsLikeLookup(text = "") {
@@ -391,16 +297,20 @@ function extractOutputText(respJson) {
 /* ------------------------- Server memory (Blobs) ---------------------- */
 
 async function getMemoryStore() {
-  // Dynamic import works in CommonJS Netlify Functions
   const mod = await import("@netlify/blobs");
   return mod.getStore("simo-memory");
 }
 
-function normalizeMode(m) {
+function normMode(m) {
   const t = String(m || "").toLowerCase().trim();
   if (t === "builder") return "builder";
   if (t === "bestfriend") return "bestfriend";
   return "auto";
+}
+
+function looksLikeJunkTopic(topic) {
+  const t = normalize(topic);
+  return !t || t === "none" || t === "continue that app" || t === "continue" || t === "resume" || t === "keep going";
 }
 
 /* ------------------------------ Handler ------------------------------ */
@@ -430,7 +340,6 @@ exports.handler = async (event) => {
     let body = {};
     try { body = JSON.parse(event.body || "{}"); } catch { body = {}; }
 
-    // Special: server forget action (no message required)
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
 
@@ -438,10 +347,7 @@ exports.handler = async (event) => {
       try {
         const store = await getMemoryStore();
         await store.delete(userId);
-      } catch (e) {
-        // If blobs not configured, we still return ok so UI can reset.
-      }
-
+      } catch {}
       return {
         statusCode: 200,
         headers,
@@ -458,29 +364,30 @@ exports.handler = async (event) => {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: "Missing message" }) };
     }
 
-    // Load server memory (if user_id provided)
-    let serverMem = null;
+    // Load server memory
+    let mem = null;
     if (userId) {
       try {
         const store = await getMemoryStore();
-        serverMem = await store.get(userId, { type: "json" });
-      } catch {
-        serverMem = null;
-      }
+        mem = await store.get(userId, { type: "json" });
+      } catch { mem = null; }
     }
 
     const intent = detectIntent(userText);
 
-    // 1) Switch topics fast path
+    // Choose an "effective topic" (don't let "continue..." overwrite it)
+    const savedTopic = (mem?.last_topic || "").toString();
+    const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : (clientTopic || savedTopic);
+
+    // 1) Switch topics
     if (intent === "switch") {
-      // Save: last seen mode/topic
       if (userId) {
         try {
           const store = await getMemoryStore();
           await store.setJSON(userId, {
-            preferred_mode: normalizeMode("bestfriend"),
-            last_topic: clientTopic || (serverMem?.last_topic || ""),
-            notes: serverMem?.notes || "",
+            preferred_mode: "bestfriend",
+            last_topic: effectiveTopic || "",
+            project_brief: mem?.project_brief || "",
             updated_at: new Date().toISOString()
           });
         } catch {}
@@ -499,17 +406,22 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2) Preview request fast path => ALWAYS return preview_html
+    // 2) Preview fast path
     if (wantsPreview(userText)) {
-      const kind = detectPreviewKind(userText, clientTopic || serverMem?.last_topic || "");
-      // Save memory
+      const kind = detectPreviewKind(userText, effectiveTopic);
+      // Save a basic brief when we generate a preview (this is what makes “continue” work)
+      const brief =
+        kind === "space_renting_app"
+          ? "Space renting app (driveway/garage/parking/extra space): search + filters + listing cards with price/availability + map placeholder + booking panel + messaging + host dashboard."
+          : (mem?.project_brief || "");
+
       if (userId) {
         try {
           const store = await getMemoryStore();
           await store.setJSON(userId, {
             preferred_mode: "builder",
-            last_topic: clientTopic || serverMem?.last_topic || "",
-            notes: serverMem?.notes || "",
+            last_topic: effectiveTopic || kind || "",
+            project_brief: brief,
             updated_at: new Date().toISOString()
           });
         } catch {}
@@ -528,46 +440,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 3) Image request (links) using Serper Images
-    if (SERPER_API_KEY && wantsImages(userText)) {
-      const img = await serperImageSearch(userText, SERPER_API_KEY);
-      if (img.ok && img.top?.length) {
-        const top6 = img.top.slice(0, 6);
-        const lines = top6.map((r, i) => {
-          const title = r.title ? r.title : "Image";
-          const src = r.source ? ` — ${r.source}` : "";
-          const url = r.link || r.imageUrl || "";
-          return `${i + 1}) ${title}${src}\n${url}`;
-        }).join("\n\n");
-
-        // Save memory
-        if (userId) {
-          try {
-            const store = await getMemoryStore();
-            await store.setJSON(userId, {
-              preferred_mode: "builder",
-              last_topic: clientTopic || serverMem?.last_topic || "",
-              notes: serverMem?.notes || "",
-              updated_at: new Date().toISOString()
-            });
-          } catch {}
-        }
-
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            ok: true,
-            mode: "builder",
-            reply: `Here are high-resolution results:\n\n${lines}\n\nDo you want close-ups, wallpapers, or a specific style?`,
-            preview_kind: "",
-            preview_html: "",
-          }),
-        };
-      }
-    }
-
-    // 4) Web lookup (addresses / near me / etc.)
+    // 3) Web lookup context
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
@@ -578,7 +451,6 @@ exports.handler = async (event) => {
       }
     }
 
-    // Clean history
     const cleanedHistory = history
       .slice(-18)
       .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
@@ -588,17 +460,15 @@ exports.handler = async (event) => {
       intent === "venting" ? "bestfriend" :
       intent === "building" ? "builder" :
       intent === "solving" ? "builder" :
+      intent === "continue" ? "builder" :
       (clientMode === "builder" || clientMode === "bestfriend") ? clientMode :
       "bestfriend";
 
-    const savedMode = normalizeMode(serverMem?.preferred_mode || "");
-    const savedTopic = (serverMem?.last_topic || "").toString();
-
-    const memoryBlock = userId && serverMem
+    const memoryBlock = (userId && mem)
       ? `Saved user memory:
-- preferred_mode: ${serverMem?.preferred_mode || "auto"}
-- last_topic: ${serverMem?.last_topic || ""}
-- notes: ${serverMem?.notes || ""}`.trim()
+- preferred_mode: ${mem?.preferred_mode || "auto"}
+- last_topic: ${mem?.last_topic || ""}
+- project_brief: ${mem?.project_brief || ""}`.trim()
       : "";
 
     const SYSTEM_PROMPT = `
@@ -611,20 +481,17 @@ Voice (non-negotiable):
 - Ask at most ONE question when the user is venting.
 
 Core capability:
-- Handle ANY topic. The user can ask anything.
+- Handle ANY topic.
 - If you cannot fetch something live, do not hand-wave. Offer the best practical alternative (steps, templates, sources, options).
-- When the user wants something built, guide them with structure and next actions.
+
+Special rule for "continue/resume":
+- If the user says "continue", assume they mean the last active project from memory (last_topic / project_brief).
+- Do NOT ask "what app?" unless there is truly no saved project_brief.
 
 Intent handling:
-1) Venting:
-   - Validate in 1–2 sentences.
-   - Ask ONE direct question (only one).
-2) Solving:
-   - Give a short diagnosis + a clear step-by-step fix.
-   - Prefer checklists.
-3) Building:
-   - Provide a clean plan (sections/bullets).
-   - Offer: “Say ‘show me a preview’ and I’ll render it in the Workspace.”
+1) Venting: validate (1–2 sentences) + ask ONE question.
+2) Solving: diagnosis + step-by-step checklist.
+3) Building: provide a clean plan with next actions.
 
 Relationship rule:
 - If user says "wife", refer to her as wife (never “friendship”).
@@ -634,18 +501,14 @@ Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
 Preview rules:
-- preview_html must be "" unless the user explicitly asks for preview/mockup/ui/layout.
-- If user asks for preview, keep the reply short and let the UI render preview_html.
-
-If system provides “Live web results”, use them and include direct links.
+- preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
 `.trim();
 
-    // If server memory exists, inject it as an extra system message (keeps the main prompt stable).
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(memoryBlock ? [{ role: "system", content: memoryBlock }] : []),
-      ...cleanedHistory,
       ...(toolContext ? [{ role: "system", content: toolContext }] : []),
+      ...cleanedHistory,
       { role: "user", content: userText },
     ];
 
@@ -697,16 +560,17 @@ If system provides “Live web results”, use them and include direct links.
     const preview_kind =
       previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
 
-    // Save server memory forever (if user_id provided)
+    // Save memory forever (don’t let "continue..." overwrite the topic)
     if (userId) {
       try {
         const store = await getMemoryStore();
-        const nextTopic = clientTopic || savedTopic || "";
+        const nextTopic = effectiveTopic || "";
+        const nextBrief = mem?.project_brief || "";
         const nextMode = mode === "builder" ? "builder" : "bestfriend";
         await store.setJSON(userId, {
           preferred_mode: nextMode,
           last_topic: nextTopic,
-          notes: serverMem?.notes || "",
+          project_brief: nextBrief,
           updated_at: new Date().toISOString()
         });
       } catch {}
