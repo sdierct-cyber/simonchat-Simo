@@ -145,6 +145,43 @@
       margin-bottom:6px;
     }
 
+    /* NEW: workspace tools toolbar (download/copy) */
+    .workspaceTools{
+      display:none; /* shown only when preview exists */
+      padding:10px 14px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .toolsLeft{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .toolBtn{
+      border:1px solid var(--line);
+      border-radius:10px;
+      padding:8px 10px;
+      font-weight:800;
+      cursor:pointer;
+      background:rgba(255,255,255,.08);
+      color:var(--text);
+    }
+    .toolBtn.primary{
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      color:white;
+    }
+    .toolsNote{
+      color:var(--muted);
+      font-size:12px;
+      white-space:nowrap;
+    }
+
     .workspaceFooter{
       border-top:1px solid var(--line);
       background:rgba(0,0,0,.18);
@@ -205,10 +242,22 @@
         <div id="workspace">
           <div class="workspaceBody">
             <iframe id="workspaceFrame" title="workspace"></iframe>
+
             <div class="results" id="resultsBox"></div>
+
             <div class="workspaceEmpty" id="workspaceEmpty">
               Waiting… tell me what you want to do.
             </div>
+          </div>
+
+          <!-- NEW: tools bar appears only when a preview is active -->
+          <div class="workspaceTools" id="workspaceTools">
+            <div class="toolsLeft">
+              <button class="toolBtn primary" id="downloadBtn">Download HTML</button>
+              <button class="toolBtn" id="copyBtn">Copy HTML</button>
+              <span class="toolsNote" id="toolsNote">Preview ready.</span>
+            </div>
+            <div class="toolsNote" id="fileNameNote">file: simo-preview.html</div>
           </div>
 
           <div class="workspaceFooter">
@@ -238,12 +287,21 @@
     const workspaceEmpty = document.getElementById("workspaceEmpty");
     const resultsBox = document.getElementById("resultsBox");
 
+    // NEW toolbar elements
+    const workspaceTools = document.getElementById("workspaceTools");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const toolsNote = document.getElementById("toolsNote");
+    const fileNameNote = document.getElementById("fileNameNote");
+
     const state = {
       history: [],
       mode: "auto",
       context: "none",
       coords: null,
-      locState: "off" // off | on | denied
+      locState: "off", // off | on | denied
+      lastPreviewHtml: "",
+      lastPreviewName: "simo-preview.html"
     };
 
     function escapeHtml(str){
@@ -330,6 +388,20 @@
       });
     }
 
+    function hideWorkspaceTools(){
+      workspaceTools.style.display = "none";
+      state.lastPreviewHtml = "";
+      state.lastPreviewName = "simo-preview.html";
+      toolsNote.textContent = "Preview ready.";
+      fileNameNote.textContent = `file: ${state.lastPreviewName}`;
+    }
+
+    function showWorkspaceTools(fileName){
+      workspaceTools.style.display = "flex";
+      state.lastPreviewName = fileName || "simo-preview.html";
+      fileNameNote.textContent = `file: ${state.lastPreviewName}`;
+    }
+
     function setWorkspaceIdle(){
       workSub.textContent = "Waiting…";
       workStatus.innerHTML = `status: <span class="statusWarn">idle</span>`;
@@ -341,6 +413,19 @@
 
       workspaceFrame.srcdoc = "";
       resultsBox.innerHTML = "";
+
+      hideWorkspaceTools();
+    }
+
+    function guessFileNameFromContext(){
+      const base = normalize(state.context || "");
+      if (!base || base === "none") return "simo-preview.html";
+      // keep it safe for filenames
+      const safe = base
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40);
+      return safe ? `simo-${safe}.html` : "simo-preview.html";
     }
 
     function setWorkspacePreview(html){
@@ -352,6 +437,10 @@
       resultsBox.style.display = "none";
       workspaceFrame.style.display = "block";
       workspaceFrame.srcdoc = html;
+
+      // NEW: store preview + show tools
+      state.lastPreviewHtml = String(html || "");
+      showWorkspaceTools(guessFileNameFromContext());
     }
 
     function extractUrls(text){
@@ -376,6 +465,8 @@
       `).join("");
 
       resultsBox.innerHTML = cards || `<div class="workspaceEmpty">No links found.</div>`;
+
+      hideWorkspaceTools();
     }
 
     async function callBackend(userText){
@@ -483,6 +574,55 @@
       setWorkspaceIdle();
     }
 
+    // NEW: Download HTML
+    downloadBtn.addEventListener("click", () => {
+      if (!state.lastPreviewHtml) {
+        toolsNote.textContent = "No preview to download yet.";
+        return;
+      }
+      try {
+        const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = state.lastPreviewName || "simo-preview.html";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+        toolsNote.textContent = "Downloaded.";
+      } catch {
+        toolsNote.textContent = "Download failed.";
+      }
+    });
+
+    // NEW: Copy HTML
+    copyBtn.addEventListener("click", async () => {
+      if (!state.lastPreviewHtml) {
+        toolsNote.textContent = "No preview to copy yet.";
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(state.lastPreviewHtml);
+        toolsNote.textContent = "Copied.";
+      } catch {
+        // fallback
+        try {
+          const ta = document.createElement("textarea");
+          ta.value = state.lastPreviewHtml;
+          ta.style.position = "fixed";
+          ta.style.left = "-9999px";
+          document.body.appendChild(ta);
+          ta.focus();
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          toolsNote.textContent = "Copied.";
+        } catch {
+          toolsNote.textContent = "Copy failed.";
+        }
+      }
+    });
+
     sendBtn.addEventListener("click", onSend);
 
     clearBtn.addEventListener("click", () => {
@@ -492,6 +632,8 @@
       state.context = "none";
       state.coords = null;
       state.locState = "off";
+      state.lastPreviewHtml = "";
+      state.lastPreviewName = "simo-preview.html";
       modePill.textContent = "mode: auto";
       topicPill.textContent = "context: none";
       setLocPill();
