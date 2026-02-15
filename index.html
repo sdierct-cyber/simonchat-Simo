@@ -49,7 +49,10 @@
       background:rgba(255,255,255,.05);
       color:var(--muted); font-size:12px;
       white-space:nowrap;
+      user-select:none;
     }
+    .pill.clickable{cursor:pointer}
+    .pill strong{color:var(--text); font-weight:800}
 
     /* Chat */
     #chat{
@@ -213,7 +216,7 @@
           <div class="pills">
             <div class="pill" id="modePill">mode: auto</div>
             <div class="pill" id="locPill">loc: off</div>
-            <div class="pill" id="memPill">memory: on</div>
+            <div class="pill clickable" id="memPill" title="Toggle local memory on this device">memory: <strong>on</strong></div>
           </div>
         </div>
 
@@ -251,7 +254,7 @@
             <div class="toolsLeft">
               <button class="toolBtn primary" id="downloadBtn">Download HTML</button>
               <button class="toolBtn" id="copyBtn">Copy HTML</button>
-              <button class="toolBtn" id="forgetBtn" title="Clears local memory on this device">Forget</button>
+              <button class="toolBtn" id="forgetBtn" title="Clears local memory + resets screen on this device">Forget</button>
               <span class="toolsNote" id="toolsNote">Preview ready.</span>
             </div>
             <div class="toolsNote" id="fileNameNote">file: simo-preview.html</div>
@@ -336,19 +339,14 @@
     }
 
     function setMemPill(){
-      memPill.textContent = `memory: ${state.memoryOn ? "on" : "off"}`;
+      memPill.innerHTML = `memory: <strong>${state.memoryOn ? "on" : "off"}</strong>`;
     }
 
     memPill.addEventListener("click", () => {
       state.memoryOn = !state.memoryOn;
       setMemPill();
-      if (!state.memoryOn) {
-        // don’t delete automatically; user controls “Forget”
-        toolsNote.textContent = "Memory off (this device).";
-      } else {
-        toolsNote.textContent = "Memory on (this device).";
-        saveState();
-      }
+      toolsNote.textContent = state.memoryOn ? "Memory on (this device)." : "Memory off (this device).";
+      if (state.memoryOn) saveState();
     });
 
     function escapeHtml(str){
@@ -646,16 +644,32 @@
       }
     });
 
-    // NEW: Forget (local memory reset)
+    // ✅ FIXED: Forget now clears memory AND clears the preview/chat immediately (no refresh needed)
     forgetBtn.addEventListener("click", () => {
+      // 1) clear saved memory
       clearSavedState();
+
+      // 2) reset state (including chat history + preview)
+      state.history = [];
       state.mode = "auto";
       state.context = "none";
       state.notes = "";
+
+      state.lastPreviewHtml = "";
+      state.lastPreviewName = "simo-preview.html";
+
+      // 3) reset UI pills + chat + workspace immediately
+      chatEl.innerHTML = "";
       modePill.textContent = "mode: auto";
       topicPill.textContent = "context: none";
-      toolsNote.textContent = "Local memory cleared.";
-      saveState(); // if memory is on, saves reset state
+
+      setWorkspaceIdle(); // hides iframe, clears srcdoc, hides toolbar, clears results
+
+      // 4) show confirmation
+      addLine("Simo", "Local memory cleared on this device.", "sys");
+
+      // 5) if memory is ON, store the reset baseline
+      saveState();
     });
 
     sendBtn.addEventListener("click", onSend);
