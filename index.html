@@ -175,6 +175,7 @@
           </div>
           <div class="pills">
             <div class="pill" id="modePill">mode: auto</div>
+            <div class="pill" id="locPill">loc: off</div>
           </div>
         </div>
 
@@ -204,9 +205,7 @@
         <div id="workspace">
           <div class="workspaceBody">
             <iframe id="workspaceFrame" title="workspace"></iframe>
-
             <div class="results" id="resultsBox"></div>
-
             <div class="workspaceEmpty" id="workspaceEmpty">
               Waiting… tell me what you want to do.
             </div>
@@ -228,6 +227,7 @@
     const clearBtn = document.getElementById("clearBtn");
 
     const modePill = document.getElementById("modePill");
+    const locPill = document.getElementById("locPill");
     const topicPill = document.getElementById("topicPill");
 
     const workSub = document.getElementById("workSub");
@@ -241,8 +241,9 @@
     const state = {
       history: [],
       mode: "auto",
-      context: "none",   // free-text “last goal”
-      lastUserText: ""
+      context: "none",
+      coords: null,
+      locState: "off" // off | on | denied
     };
 
     function escapeHtml(str){
@@ -264,7 +265,6 @@
     function detectModeAndContext(userText){
       const t = normalize(userText);
 
-      // Mode detection (lightweight; backend also decides)
       if (/\bswitch topics?\b/.test(t)) {
         state.mode = "auto";
       } else if (/(stressed|anxious|tired|overwhelmed|upset|fight|argument)/.test(t)) {
@@ -273,13 +273,61 @@
         state.mode = "building";
       }
 
-      // Context: store last user goal as free text (keeps it unlimited)
       if (t.length > 0 && !/\bswitch topics?\b/.test(t)) {
         state.context = userText.slice(0, 60);
       }
 
       modePill.textContent = `mode: ${state.mode}`;
       topicPill.textContent = `context: ${state.context === "none" ? "none" : state.context}`;
+    }
+
+    function setLocPill(){
+      if (state.locState === "on") locPill.textContent = "loc: on";
+      else if (state.locState === "denied") locPill.textContent = "loc: denied";
+      else locPill.textContent = "loc: off";
+    }
+
+    function shouldRequestLocation(userText){
+      const t = normalize(userText);
+      return (
+        /\bweather\b/.test(t) ||
+        /\bnear me\b/.test(t) ||
+        /\bmy location\b/.test(t) ||
+        /\bnearby\b/.test(t)
+      );
+    }
+
+    function getCoordsOnce(timeoutMs = 9000){
+      return new Promise((resolve) => {
+        if (!navigator.geolocation) return resolve(null);
+
+        let done = false;
+        const timer = setTimeout(() => {
+          if (done) return;
+          done = true;
+          resolve(null);
+        }, timeoutMs);
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve({
+              lat: Number(pos.coords.latitude),
+              lon: Number(pos.coords.longitude),
+              accuracy: Number(pos.coords.accuracy)
+            });
+          },
+          (err) => {
+            if (done) return;
+            done = true;
+            clearTimeout(timer);
+            resolve({ error: err && err.code ? err.code : "geo_error" });
+          },
+          { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 5 * 60 * 1000 }
+        );
+      });
     }
 
     function setWorkspaceIdle(){
@@ -320,14 +368,12 @@
       workspaceFrame.style.display = "none";
       resultsBox.style.display = "block";
 
-      const cards = urls.map((u, i) => {
-        return `
-          <div class="resultCard">
-            <div class="resultTitle">Link ${i+1}</div>
-            <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a>
-          </div>
-        `;
-      }).join("");
+      const cards = urls.map((u, i) => `
+        <div class="resultCard">
+          <div class="resultTitle">Link ${i+1}</div>
+          <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a>
+        </div>
+      `).join("");
 
       resultsBox.innerHTML = cards || `<div class="workspaceEmpty">No links found.</div>`;
     }
@@ -338,7 +384,8 @@
         message: userText,
         mode: state.mode === "venting" ? "bestfriend" : state.mode === "building" ? "builder" : "auto",
         topic: state.context,
-        history: state.history.slice(-14)
+        history: state.history.slice(-14),
+        coords: state.coords
       };
 
       try{
@@ -363,6 +410,8 @@
         return "I got you. What part is hitting you the hardest right now?";
       if (/(preview|mockup|ui|layout)/.test(t))
         return "Say “show me a preview” and I’ll render something in the Workspace.";
+      if (/\bweather\b/.test(t))
+        return "Tell me your ZIP/city — or allow location and ask again.";
       return "I’m here. Tell me what you want next — venting, solving, or building.";
     }
 
@@ -371,12 +420,30 @@
       if(!text) return;
 
       inputEl.value = "";
-      state.lastUserText = text;
 
       addLine("You", text);
       detectModeAndContext(text);
 
-      // Loading state
+      // Attach coords only when needed
+      if (shouldRequestLocation(text) && state.locState !== "denied") {
+        if (!state.coords || typeof state.coords.lat !== "number") {
+          workStatus.innerHTML = `status: <span class="statusWarn">getting location…</span>`;
+          const geo = await getCoordsOnce(9000);
+          if (geo && geo.error) {
+            state.locState = "denied";
+            state.coords = null;
+          } else if (geo && typeof geo.lat === "number" && typeof geo.lon === "number") {
+            state.locState = "on";
+            state.coords = geo;
+          } else {
+            state.locState = "off";
+            state.coords = null;
+          }
+          setLocPill();
+        }
+      }
+
+      // Loading
       workStatus.innerHTML = `status: <span class="statusWarn">thinking…</span>`;
       workSub.textContent = "Working…";
       workHint.textContent = "If you asked for a preview or results, it’ll show here.";
@@ -389,7 +456,7 @@
       if (data && data.ok && typeof data.reply === "string") {
         reply = data.reply;
       } else {
-        reply = fallbackReply(text);
+        reply = (data && data.error) ? `I couldn’t reach my brain for a second. (${data.error})` : fallbackReply(text);
       }
 
       // Update mode pill from backend if provided
@@ -401,21 +468,18 @@
       addLine("Simo", reply);
       state.history.push({ role:"assistant", content: reply });
 
-      // Workspace render priority:
-      // 1) preview_html
+      // Workspace priority
       if (data && data.ok && typeof data.preview_html === "string" && data.preview_html.trim()) {
         setWorkspacePreview(data.preview_html);
         return;
       }
 
-      // 2) links in reply => results
       const urls = extractUrls(reply);
       if (urls.length) {
         setWorkspaceResults(urls);
         return;
       }
 
-      // 3) idle
       setWorkspaceIdle();
     }
 
@@ -426,8 +490,11 @@
       state.history = [];
       state.mode = "auto";
       state.context = "none";
+      state.coords = null;
+      state.locState = "off";
       modePill.textContent = "mode: auto";
       topicPill.textContent = "context: none";
+      setLocPill();
       setWorkspaceIdle();
       addLine("Simo", "Reset. I’m here.", "sys");
     });
@@ -440,6 +507,7 @@
     });
 
     // Boot
+    setLocPill();
     setWorkspaceIdle();
     addLine("Simo", "Reset. I’m here.", "sys");
   </script>
