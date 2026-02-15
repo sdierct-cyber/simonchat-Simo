@@ -1,8 +1,7 @@
 {
-  "name": "simo",
+  "name": "simo-site",
   "private": true,
   "dependencies": {
-    "openai": "^4.0.0",
-    "@upstash/redis": "^1.34.0"
+    "@netlify/blobs": "^9.0.0"
   }
 }
