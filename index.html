@@ -28,11 +28,14 @@
       gap:12px; padding:12px 14px; border:1px solid var(--line);
       background:rgba(255,255,255,.04); border-radius:var(--radius); box-shadow:var(--shadow);
     }
-    .brand{display:flex;align-items:center;gap:10px}
+    .brand{display:flex;align-items:center;gap:10px; min-width:240px}
     .dot{width:10px;height:10px;border-radius:999px;background:var(--good);box-shadow:0 0 18px rgba(57,217,138,.55)}
     .title{font-weight:700; letter-spacing:.2px}
     .subtitle{color:var(--muted); font-size:12px}
-    .modeRow{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end}
+
+    .rightStack{display:flex; flex-direction:column; gap:8px; align-items:flex-end}
+    .bar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end}
+
     .chip{
       border:1px solid var(--line); background:rgba(255,255,255,.04);
       padding:8px 10px; border-radius:999px; cursor:pointer;
@@ -40,6 +43,12 @@
     }
     .chip:hover{background:rgba(255,255,255,.08)}
     .chip.active{border-color:rgba(42,102,255,.75); background:rgba(42,102,255,.15)}
+
+    .modeChip.active{
+      border-color: rgba(57,217,138,.75);
+      background: rgba(57,217,138,.12);
+    }
+
     .toggle{
       display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px;
       border:1px solid var(--line); background:rgba(255,255,255,.04);
@@ -164,9 +173,23 @@
     }
     .ghost:hover{background:rgba(255,255,255,.10)}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+
+    .hintRow{
+      display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;
+      padding:0 12px 12px;
+    }
+    .hintBtn{
+      font-size:12px; padding:8px 10px; border-radius:999px;
+      border:1px solid var(--line); background:rgba(255,255,255,.04);
+      color:var(--text); cursor:pointer;
+    }
+    .hintBtn:hover{background:rgba(255,255,255,.08)}
+
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
       iframe{min-height:52vh}
+      .rightStack{align-items:flex-start}
+      .top{flex-direction:column; align-items:flex-start}
     }
   </style>
 </head>
@@ -181,14 +204,28 @@
         </div>
       </div>
 
-      <div class="modeRow">
-        <div class="chip active" data-view="split" id="viewSplit">Split</div>
-        <div class="chip" data-view="chat" id="viewChat">Chat</div>
-        <div class="chip" data-view="preview" id="viewPreview">Preview</div>
-        <label class="toggle" title="Auto-render preview when Simo outputs HTML or images">
-          <input type="checkbox" id="autoPreview" checked />
-          Auto-preview
-        </label>
+      <div class="rightStack">
+        <!-- VIEW -->
+        <div class="bar">
+          <div class="chip active" data-view="split" id="viewSplit">Split</div>
+          <div class="chip" data-view="chat" id="viewChat">Chat</div>
+          <div class="chip" data-view="preview" id="viewPreview">Preview</div>
+          <label class="toggle" title="Auto-render preview when Simo outputs HTML or images">
+            <input type="checkbox" id="autoPreview" checked />
+            Auto-preview
+          </label>
+        </div>
+
+        <!-- MODE -->
+        <div class="bar">
+          <div class="chip modeChip active" data-mode="venting" id="modeVenting">Venting</div>
+          <div class="chip modeChip" data-mode="solving" id="modeSolving">Solving</div>
+          <div class="chip modeChip" data-mode="building" id="modeBuilding">Building</div>
+          <div class="toggle" title="When Building, Simo will return HTML in ```html``` fences so previews always render.">
+            <span class="mono">Build Assist</span>
+            <span id="buildAssistState" class="good">ON</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -208,6 +245,14 @@
 
         <div class="chat" id="chat"></div>
 
+        <div class="hintRow">
+          <button class="hintBtn" data-hint="Design a space renting app.">Space app</button>
+          <button class="hintBtn" data-hint="Build me a simple landing page with full HTML.">Landing page</button>
+          <button class="hintBtn" data-hint="Show me a preview.">Preview</button>
+          <button class="hintBtn" data-hint="I’m stressed out.">Venting</button>
+          <button class="hintBtn" data-hint="Help me plan my next steps.">Solve</button>
+        </div>
+
         <div class="row">
           <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
           <button id="sendBtn" type="button">Send</button>
@@ -215,6 +260,7 @@
 
         <div class="status">
           <div class="pill"><span class="mono">API</span> <span id="apiState" class="warn">idle</span></div>
+          <div class="pill"><span class="mono">Mode</span> <span id="modeState" class="good">venting</span></div>
           <div class="pill"><span class="mono">Preview</span> <span id="previewState" class="warn">none</span></div>
         </div>
       </div>
@@ -236,7 +282,7 @@
           <div class="previewBody" id="previewBody">
             <div class="previewEmpty">
               Nothing to preview yet.<br><br>
-              Try: <span class="mono">build me a simple website</span> or <span class="mono">design an app</span>.
+              Try: <span class="mono">build me a simple website</span> or click <b>Space app</b>.
               If Simo outputs HTML or image links, I’ll render them here automatically.
             </div>
           </div>
@@ -253,6 +299,8 @@
   const clearBtn = document.getElementById("clearBtn");
   const apiStateEl = document.getElementById("apiState");
   const previewStateEl = document.getElementById("previewState");
+  const modeStateEl = document.getElementById("modeState");
+  const buildAssistStateEl = document.getElementById("buildAssistState");
 
   const gridEl = document.getElementById("grid");
   const chatPanel = document.getElementById("chatPanel");
@@ -263,6 +311,10 @@
   const viewPreview = document.getElementById("viewPreview");
   const autoPreviewEl = document.getElementById("autoPreview");
 
+  const modeVenting = document.getElementById("modeVenting");
+  const modeSolving = document.getElementById("modeSolving");
+  const modeBuilding = document.getElementById("modeBuilding");
+
   const previewBody = document.getElementById("previewBody");
   const renderLastBtn = document.getElementById("renderLastBtn");
   const openNewTabBtn = document.getElementById("openNewTabBtn");
@@ -272,6 +324,23 @@
   let lastSimoText = "";
   let lastPreview = { type: "none", html: "", images: [] };
   let lastPreviewBlobUrl = "";
+  let mode = localStorage.getItem("simo_mode") || "venting"; // venting | solving | building
+
+  // When Building, we enforce consistent preview-friendly formatting.
+  const BUILD_ASSIST_ON = true;
+
+  function applyModeUI(){
+    [modeVenting, modeSolving, modeBuilding].forEach(x => x.classList.remove("active"));
+    if (mode === "venting") modeVenting.classList.add("active");
+    if (mode === "solving") modeSolving.classList.add("active");
+    if (mode === "building") modeBuilding.classList.add("active");
+
+    modeStateEl.textContent = mode;
+    modeStateEl.className = (mode === "building") ? "good" : "warn";
+
+    buildAssistStateEl.textContent = BUILD_ASSIST_ON ? "ON" : "OFF";
+    buildAssistStateEl.className = BUILD_ASSIST_ON ? "good" : "warn";
+  }
 
   // ---- Helpers ----
   const nowTime = () => new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
@@ -326,43 +395,32 @@
   }
 
   function extractHtmlBlock(text){
-    // 1) ```html ... ```
     const fence = text.match(/```html\s*([\s\S]*?)```/i);
     if (fence && fence[1]) return fence[1].trim();
 
-    // 2) any ``` ... ``` that looks like HTML inside
     const anyFence = text.match(/```\s*([\s\S]*?)```/);
     if (anyFence && anyFence[1] && /<\/?[a-z][\s\S]*>/i.test(anyFence[1])) {
       return anyFence[1].trim();
     }
 
-    // 3) raw html hints
     if (/<html[\s>]/i.test(text) || /<!doctype html>/i.test(text) || /<\/div>/i.test(text)) {
-      // try to isolate from first "<!doctype" or "<html" onward
       const idx = text.search(/<!doctype html>|<html[\s>]/i);
       if (idx >= 0) return text.slice(idx).trim();
     }
-
     return "";
   }
 
   function extractImageUrls(text){
-    // Basic URL match
     const urls = (text.match(/https?:\/\/[^\s)"]+/g) || [])
       .map(u => u.replace(/[.,;]+$/,""));
-
-    // Keep common image formats + also allow querystring images
     const img = urls.filter(u =>
       /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(u) ||
-      /image/i.test(u) && /https?:\/\//i.test(u)
+      (/image/i.test(u) && /https?:\/\//i.test(u))
     );
-
-    // de-dupe
     return [...new Set(img)];
   }
 
   function renderPreview(preview){
-    // cleanup old blob
     if (lastPreviewBlobUrl){
       URL.revokeObjectURL(lastPreviewBlobUrl);
       lastPreviewBlobUrl = "";
@@ -374,7 +432,7 @@
       previewBody.innerHTML = `
         <div class="previewEmpty">
           Nothing to preview yet.<br><br>
-          Try: <span class="mono">build me a simple website</span>, or click <b>Ask for Preview</b>.
+          Tip: switch to <b>Building</b> mode for consistent HTML previews.
         </div>
       `;
       setPreviewState("none", "warn");
@@ -399,11 +457,7 @@
     }
 
     if (preview.type === "html"){
-      // Render HTML safely in an iframe using srcdoc.
       const iframe = document.createElement("iframe");
-
-      // Some user HTML snippets won't include <html> wrapper — that's fine.
-      // We add a base target to keep links from breaking the parent tab.
       const srcdoc = `
 <!doctype html>
 <html>
@@ -441,15 +495,54 @@ ${preview.html}
     return false;
   }
 
+  function buildHiddenModeInstruction(){
+    if (mode === "venting"){
+      return [
+        "MODE: VENTING.",
+        "Be warm, loyal, direct. No therapy-speak.",
+        "Ask 1 short question max if needed. Otherwise respond naturally."
+      ].join("\n");
+    }
+
+    if (mode === "solving"){
+      return [
+        "MODE: SOLVING.",
+        "Be structured and practical.",
+        "Give steps and checks. Keep it tight."
+      ].join("\n");
+    }
+
+    // building
+    const buildAssist = BUILD_ASSIST_ON ? [
+      "MODE: BUILDING.",
+      "When you provide a previewable output, include the FULL HTML inside a fenced block exactly like:",
+      "```html",
+      "<!doctype html> ...",
+      "```",
+      "If images are relevant, include direct image URLs.",
+      "Keep chat explanation short; prioritize usable output."
+    ].join("\n") : "MODE: BUILDING.";
+    return buildAssist;
+  }
+
+  function wrapUserMessageWithMode(userText){
+    // Hidden steering. Backend receives a single string like before.
+    // We keep it readable if you ever inspect logs.
+    const steer = buildHiddenModeInstruction();
+    return `${steer}\n\nUSER:\n${userText}`;
+  }
+
   async function callSimo(userText){
     setApiState("thinking…", "warn");
     sendBtn.disabled = true;
 
     try{
+      const payloadText = wrapUserMessageWithMode(userText);
+
       const res = await fetch("/.netlify/functions/simon", {
         method: "POST",
         headers: {"content-type":"application/json"},
-        body: JSON.stringify({ message: userText })
+        body: JSON.stringify({ message: payloadText })
       });
 
       const data = await res.json().catch(() => ({}));
@@ -460,7 +553,6 @@ ${preview.html}
         return `I hit an error: ${err}`;
       }
 
-      // Flexible parsing: backend might return {ok:true, text:"..."} or {reply:"..."} etc.
       const text =
         data?.text ??
         data?.reply ??
@@ -491,9 +583,13 @@ ${preview.html}
     addMsg("simo", simoText);
 
     const found = updateLastPreviewFromText(simoText);
-    if (autoPreviewEl.checked && found){
+
+    // Auto show preview if:
+    // - autoPreview on AND we found previewable content
+    // - OR we are in building mode and found previewable content
+    if ((autoPreviewEl.checked && found) || (mode === "building" && found)){
       renderPreview(lastPreview);
-      setView("split"); // keep it visible
+      setView("split");
     }
   }
 
@@ -519,6 +615,17 @@ ${preview.html}
   viewChat.addEventListener("click", () => setView("chat"));
   viewPreview.addEventListener("click", () => setView("preview"));
 
+  // Modes
+  function setMode(next){
+    mode = next;
+    localStorage.setItem("simo_mode", mode);
+    applyModeUI();
+    addMsg("simo", `Mode set to: ${mode}. Talk normally — I’ll follow.`);
+  }
+  modeVenting.addEventListener("click", () => setMode("venting"));
+  modeSolving.addEventListener("click", () => setMode("solving"));
+  modeBuilding.addEventListener("click", () => setMode("building"));
+
   // Preview controls
   renderLastBtn.addEventListener("click", () => {
     if (lastSimoText){
@@ -533,7 +640,6 @@ ${preview.html}
       alert("Open works for HTML previews. Generate a website/app HTML first.");
       return;
     }
-    // Create a blob so it opens as a standalone page.
     const html = `
 <!doctype html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -548,10 +654,20 @@ ${preview.html}
     send();
   });
 
+  // Hint buttons
+  document.querySelectorAll(".hintBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const hint = btn.getAttribute("data-hint") || "";
+      inputEl.value = hint;
+      inputEl.focus();
+    });
+  });
+
   // Init
+  applyModeUI();
   setView("split");
   renderPreview(lastPreview);
-  addMsg("simo", "I’m here. Talk normally. If I output HTML or image links, I’ll render it in Preview automatically.");
+  addMsg("simo", "I’m here. Switch modes anytime. Building mode makes previews consistent (HTML in ```html``` blocks).");
 })();
 </script>
 </body>
