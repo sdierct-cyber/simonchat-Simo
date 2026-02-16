@@ -1,19 +1,16 @@
 // netlify/functions/simon.js
 // Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
-// + Server memory (forever until Forget) using Netlify Blobs (@netlify/blobs)
+// + Server memory using Netlify Blobs (@netlify/blobs)
 //
 // ENV VARS in Netlify:
 // - OPENAI_API_KEY   (required)
 // - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
 // - SERPER_API_KEY   (optional, enables web lookup)
 //
-// Client supports:
-// - POST with { action:"forget", user_id:"..." } to clear server memory.
-//
-// FIXES in this version:
-// 1) Never show raw JSON in chat (robust JSON extraction + parsing).
-// 2) Auto-preview in Building mode for buildable prompts.
-// 3) Frontend-friendly response shape: { ok, text, preview:{title,html} } + legacy keys kept.
+// FIXES:
+// - Robust JSON parsing (no raw JSON in chat).
+// - Auto-preview in Building mode for buildable prompts.
+// - PRO mode visibly upgrades preview templates (pricing/testimonials/charts/booking extras).
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -26,25 +23,17 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-function normalize(s = "") {
-  return String(s).toLowerCase().trim();
-}
+function normalize(s = "") { return String(s).toLowerCase().trim(); }
+function safeJsonParse(s) { try { return JSON.parse(s); } catch { return null; } }
 
-function safeJsonParse(s) {
-  try { return JSON.parse(s); } catch { return null; }
-}
-
-// If the model output contains extra text, grab the first JSON object we can.
 function extractJsonObject(text = "") {
   const t = String(text || "").trim();
   const first = t.indexOf("{");
   const last = t.lastIndexOf("}");
   if (first === -1 || last === -1 || last <= first) return null;
-  const slice = t.slice(first, last + 1);
-  return safeJsonParse(slice);
+  return safeJsonParse(t.slice(first, last + 1));
 }
 
-// If the assistant accidentally returns raw JSON, try to convert it to a readable reply.
 function coerceReply(outText = "") {
   const direct = safeJsonParse(outText);
   if (direct && typeof direct.reply === "string" && direct.reply.trim()) return direct.reply.trim();
@@ -52,10 +41,8 @@ function coerceReply(outText = "") {
   const extracted = extractJsonObject(outText);
   if (extracted && typeof extracted.reply === "string" && extracted.reply.trim()) return extracted.reply.trim();
 
-  // Worst case: strip a JSON-looking wrapper if present
   const t = String(outText || "").trim();
   if (t.startsWith("{") && t.includes('"reply"')) {
-    // last resort: keep it from showing a blob of JSON
     return "Got you. Say what you want next and I’ll move with you.";
   }
   return t || "Reset. I’m here.";
@@ -87,11 +74,15 @@ function detectPreviewKind(text = "", fallbackTopic = "") {
   if (/\b(space renting|driveway|garage|rent out space|parking spot)\b/.test(any)) return "space_renting_app";
   if (/\b(home|house)\b/.test(any) && /\b(layout|floor plan|2 story|two story)\b/.test(any)) return "home_layout";
   if (/\b(app|mobile app)\b/.test(any)) return "generic_app";
-
   return "wireframe";
 }
 
-function buildPreviewHtml(kind, userText = "") {
+// PRO upgrade helpers (pure HTML/CSS blocks)
+function proChip(label) {
+  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.35);background:rgba(57,217,138,.12);color:rgba(234,240,255,.92);font-size:12px;font-weight:900;">PRO • ${escapeHtml(label)}</span>`;
+}
+
+function buildPreviewHtml(kind, userText = "", isPro = false) {
   const titleMap = {
     space_renting_app: "Space Rentals",
     resume: "Resume Layout",
@@ -114,6 +105,7 @@ function buildPreviewHtml(kind, userText = "") {
         --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
         --line:rgba(255,255,255,.12);
         --btn:#2a66ff;
+        --pro: rgba(57,217,138,1);
       }
       *{box-sizing:border-box}
       body{
@@ -127,7 +119,7 @@ function buildPreviewHtml(kind, userText = "") {
       .top{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}
       .title{font-size:18px;font-weight:900;margin:0}
       .sub{color:rgba(234,240,255,.68);font-size:12px;margin-top:4px}
-      .tag{color:rgba(234,240,255,.68);font-size:12px}
+      .tag{color:rgba(234,240,255,.68);font-size:12px;display:flex;gap:10px;align-items:center}
       .bar{
         display:flex; gap:10px; flex-wrap:wrap;
         padding:12px; border:1px solid var(--line); border-radius:14px;
@@ -171,13 +163,43 @@ function buildPreviewHtml(kind, userText = "") {
         background:linear-gradient(180deg, var(--btn), #1f4dd6);
         color:white; font-weight:800; border:0;
       }
+      .btn.ghost{
+        background:rgba(255,255,255,.08);
+        border:1px solid rgba(255,255,255,.12);
+        color:rgba(234,240,255,.92);
+      }
       .map{
         height:240px;
         display:flex;align-items:center;justify-content:center;
         color:rgba(234,240,255,.65);
         background:repeating-linear-gradient(45deg, rgba(255,255,255,.04), rgba(255,255,255,.04) 10px, rgba(255,255,255,.02) 10px, rgba(255,255,255,.02) 20px);
       }
-      @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
+      .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+      .divider{height:1px;background:rgba(255,255,255,.10);margin:6px 0}
+      .kpi{
+        border:1px solid var(--line);
+        background:rgba(255,255,255,.04);
+        border-radius:12px;
+        padding:12px;
+      }
+      .kpi .label{font-size:12px;color:rgba(234,240,255,.70);font-weight:800}
+      .kpi .value{font-size:22px;font-weight:900;margin-top:6px}
+      .trend{font-size:12px;font-weight:900;color:rgba(57,217,138,.95);margin-top:6px}
+      .chart{
+        height:160px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
+        background:linear-gradient(180deg, rgba(42,102,255,.14), rgba(0,0,0,.10));
+        display:flex;align-items:center;justify-content:center;
+        color:rgba(234,240,255,.70);
+      }
+      .badgePro{
+        display:inline-flex;align-items:center;gap:6px;
+        padding:6px 10px;border-radius:999px;
+        border:1px solid rgba(57,217,138,.35);
+        background:rgba(57,217,138,.12);
+        color:rgba(234,240,255,.92);
+        font-size:12px;font-weight:900;
+      }
+      @media (max-width: 860px){ .grid{grid-template-columns:1fr} .two{grid-template-columns:1fr} }
     </style>
   </head><body>
     <div class="shell">
@@ -186,7 +208,10 @@ function buildPreviewHtml(kind, userText = "") {
           <div class="title">${escapeHtml(title)}</div>
           <div class="sub">${subtitle}</div>
         </div>
-        <div class="tag">Preview • rendered mockup</div>
+        <div class="tag">
+          <span>Preview • rendered mockup</span>
+          ${isPro ? `<span class="badgePro">PRO enabled</span>` : ``}
+        </div>
       </div>
       ${inner}
     </div>
@@ -200,7 +225,16 @@ function buildPreviewHtml(kind, userText = "") {
         <span class="chip">24/7 access</span>
         <span class="chip">Covered</span>
         <span class="chip">EV friendly</span>
+        ${isPro ? `<span class="chip" style="border-color:rgba(57,217,138,.35);background:rgba(57,217,138,.10)">Instant message</span>` : ``}
       </div>
+
+      ${isPro ? `
+      <div class="bar" style="margin-top:10px">
+        <input class="input" placeholder="Start date" value="Mar 01" />
+        <input class="input" placeholder="End date" value="Mar 03" />
+        <input class="input" placeholder="Vehicle" value="SUV • 2m height" />
+        <button class="btn">Check availability</button>
+      </div>` : ``}
 
       <div class="grid">
         <div class="card">
@@ -238,6 +272,21 @@ function buildPreviewHtml(kind, userText = "") {
                 <div class="meta">Instant book</div>
               </div>
             </div>
+
+            ${isPro ? `
+            <div class="card" style="border-radius:12px">
+              <h3 style="border-bottom:1px solid rgba(255,255,255,.10)">Messages</h3>
+              <div class="list">
+                <div class="item" style="display:block">
+                  <strong>Host (Mike)</strong>
+                  <div class="meta">“Gate code will be sent after booking.”</div>
+                </div>
+                <div class="item" style="display:block;opacity:.9">
+                  <div class="meta">Type a message…</div>
+                </div>
+                <button class="btn ghost">Send message</button>
+              </div>
+            </div>` : ``}
           </div>
         </div>
 
@@ -256,6 +305,15 @@ function buildPreviewHtml(kind, userText = "") {
               </div>
             </div>
             <button class="btn">Book now</button>
+
+            ${isPro ? `
+            <div class="divider"></div>
+            <div class="item" style="display:block">
+              <strong>Host Dashboard (preview)</strong>
+              <div class="meta">Earnings • calendar • approve requests • message renters</div>
+            </div>
+            <button class="btn ghost">Open host view</button>
+            ` : ``}
           </div>
         </div>
       </div>
@@ -270,9 +328,10 @@ function buildPreviewHtml(kind, userText = "") {
           <div class="list">
             <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
             <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
-            <div style="display:flex;gap:10px;margin-top:12px;">
+            <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
               <button class="btn">Get started</button>
-              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid rgba(255,255,255,.12);">See demo</button>
+              <button class="btn ghost">See demo</button>
+              ${isPro ? `<span style="margin-left:auto">${proChip("Pricing + social proof")}</span>` : ``}
             </div>
             <div style="margin-top:12px;display:grid;gap:10px;">
               <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
@@ -286,6 +345,46 @@ function buildPreviewHtml(kind, userText = "") {
           <div class="map">Screenshot / graphic</div>
         </div>
       </div>
+
+      ${isPro ? `
+      <div class="grid" style="grid-template-columns:1fr;gap:12px;margin-top:12px">
+        <div class="card">
+          <h3>Pricing</h3>
+          <div class="list">
+            <div class="two">
+              <div class="kpi">
+                <div class="label">Starter</div>
+                <div class="value">$0</div>
+                <div class="meta">Basic chat + limited builds</div>
+              </div>
+              <div class="kpi" style="border-color:rgba(57,217,138,.35);background:rgba(57,217,138,.10)">
+                <div class="label">Pro</div>
+                <div class="value">$19/mo</div>
+                <div class="meta">Unlimited previews + export + library</div>
+                <div class="trend">Most popular</div>
+              </div>
+            </div>
+            <button class="btn">Upgrade to Pro</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Testimonials</h3>
+          <div class="list">
+            <div class="item" style="display:block"><strong>“I went from idea → mockup in minutes.”</strong><div class="meta">— Alex</div></div>
+            <div class="item" style="display:block"><strong>“The previews sell the concept instantly.”</strong><div class="meta">— Sam</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>FAQ</h3>
+          <div class="list">
+            <div class="item" style="display:block"><strong>Can I download the HTML?</strong><div class="meta">Yes — Download exports a .html file.</div></div>
+            <div class="item" style="display:block"><strong>Do builds save?</strong><div class="meta">Yes — Library saves on this device.</div></div>
+          </div>
+        </div>
+      </div>
+      ` : ``}
     `);
   }
 
@@ -293,23 +392,80 @@ function buildPreviewHtml(kind, userText = "") {
     return shell(`
       <div class="grid" style="grid-template-columns:1fr;gap:12px;">
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-          <div class="card"><h3>Revenue</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This month</div></div></div>
-          <div class="card"><h3>Active Users</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">Today</div></div></div>
-          <div class="card"><h3>Bookings</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This week</div></div></div>
+          <div class="kpi">
+            <div class="label">Revenue</div>
+            <div class="value">—</div>
+            ${isPro ? `<div class="trend">+12% vs last month</div>` : `<div class="meta">This month</div>`}
+          </div>
+          <div class="kpi">
+            <div class="label">Active Users</div>
+            <div class="value">—</div>
+            ${isPro ? `<div class="trend">+4% today</div>` : `<div class="meta">Today</div>`}
+          </div>
+          <div class="kpi">
+            <div class="label">Bookings</div>
+            <div class="value">—</div>
+            ${isPro ? `<div class="trend">+18% this week</div>` : `<div class="meta">This week</div>`}
+          </div>
         </div>
+
+        ${isPro ? `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div class="card">
+            <h3>Bookings (7 days)</h3>
+            <div class="list">
+              <div class="chart">Chart placeholder</div>
+              <div class="meta">Daily bookings trend • conversion • cancellations</div>
+            </div>
+          </div>
+          <div class="card">
+            <h3>Revenue (30 days)</h3>
+            <div class="list">
+              <div class="chart">Chart placeholder</div>
+              <div class="meta">MRR • refunds • net revenue</div>
+            </div>
+          </div>
+        </div>` : ``}
+
         <div class="card">
           <h3>Recent Activity</h3>
           <div class="list">
             <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
             <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
             <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
+            ${isPro ? `<div class="item"><div><strong>Chargeback risk</strong><div class="meta">flagged • review</div></div></div>` : ``}
           </div>
         </div>
       </div>
     `);
   }
 
-  // generic fallback
+  if (kind === "resume") {
+    return shell(`
+      <div class="card">
+        <h3>Resume</h3>
+        <div class="list">
+          <div>
+            <div style="font-size:26px;font-weight:900;">Your Name</div>
+            <div class="meta">Email • Phone • City, State • LinkedIn</div>
+            <div class="divider"></div>
+            <div style="font-weight:900;margin-bottom:8px;">Experience</div>
+            <div class="item" style="display:block">
+              <div><strong>Job Title • Company</strong></div>
+              <div class="meta">Dates • Location</div>
+              <ul class="meta" style="margin:8px 0 0 18px;line-height:1.45;">
+                <li>Impact bullet</li>
+                <li>Project / leadership</li>
+                <li>Tools / systems</li>
+              </ul>
+            </div>
+            ${isPro ? `<div class="item" style="display:block"><strong>PRO tips</strong><div class="meta">Add quantified results + keywords + strong verbs.</div></div>` : ``}
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
   return shell(`
     <div class="grid">
       <div class="card">
@@ -333,14 +489,12 @@ function isContinue(text = "") {
 
 function detectIntent(text = "") {
   const t = normalize(text);
-
   if (/\bswitch topics?\b/.test(t)) return "switch";
   if (isContinue(t)) return "continue";
   if (/\b(show me|preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
   if (/\b(stressed|anxious|tired|overwhelmed|upset|mad|angry|sad|fight|argu(ment|ing))\b/.test(t)) return "venting";
   if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
   if (/\b(build|design|make|create|generate)\b/.test(t)) return "building";
-
   return "auto";
 }
 
@@ -423,9 +577,7 @@ exports.handler = async (event) => {
 
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
-
-    // UI sends body.mode = "venting" | "solving" | "building"
-    const uiMode = (body.mode || "auto").toString();
+    const uiMode = (body.mode || "auto").toString(); // "venting" | "solving" | "building"
     const isPro = !!body.pro;
 
     if (action === "forget" && userId) {
@@ -508,7 +660,7 @@ exports.handler = async (event) => {
         wireframe: "Wireframe Preview",
       }[kind] || "Preview");
 
-      fastPreview = { kind, title, html: buildPreviewHtml(kind, userText) };
+      fastPreview = { kind, title, html: buildPreviewHtml(kind, userText, isPro) };
     }
 
     // Lookup context
@@ -545,7 +697,7 @@ You are Simo — a private best-friend + creator hybrid.
 
 Voice:
 - Calm, steady, direct.
-- No therapy-speak. No "stress can really weigh you down" phrasing.
+- No therapy-speak.
 - If venting: validate in 1 sentence, then ask ONE simple question.
 - No markdown headings. Avoid heavy formatting.
 
@@ -554,8 +706,8 @@ Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
 Preview rules:
-- If user asks for preview/mockup/ui/layout, include preview_html.
-- If client is in Building mode, you may include preview_html when the request is clearly buildable.
+- preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
+- If client is in Building mode, you may include preview_html when request is clearly buildable.
 `.trim();
 
     const messages = [
@@ -596,8 +748,6 @@ Preview rules:
     }
 
     const outText = extractOutputText(data);
-
-    // Robust parse
     const parsed = safeJsonParse(outText) || extractJsonObject(outText);
 
     const mode =
@@ -605,32 +755,20 @@ Preview rules:
       parsed?.mode === "bestfriend" ? "bestfriend" :
       inferredMode === "builder" ? "builder" : "bestfriend";
 
-    // Always coerce reply to plain text
     let reply = "";
     if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
       reply = parsed.reply.trim();
     } else {
       reply = coerceReply(outText);
     }
-
-    // Strip accidental markdown headings
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    // Previews: prefer our fastPreview (consistent), otherwise accept model fields
-    let preview_kind = "";
-    let preview_html = "";
-
-    if (previewShouldRender && fastPreview) {
-      preview_kind = fastPreview.kind;
-      preview_html = fastPreview.html;
-    } else if (previewShouldRender) {
-      preview_kind = typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
-      preview_html = typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
-    }
-
+    // Preview: we always prefer fastPreview for consistency
+    const preview_kind = (previewShouldRender && fastPreview) ? fastPreview.kind : "";
+    const preview_html = (previewShouldRender && fastPreview) ? fastPreview.html : "";
     const preview =
-      previewShouldRender && preview_html
-        ? { title: (fastPreview?.title || "Preview"), html: preview_html }
+      previewShouldRender && fastPreview && preview_html
+        ? { title: fastPreview.title, html: preview_html }
         : null;
 
     // Save memory
@@ -648,7 +786,6 @@ Preview rules:
       } catch {}
     }
 
-    // Return frontend-friendly + legacy keys
     return {
       statusCode: 200,
       headers,
