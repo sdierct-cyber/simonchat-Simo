@@ -7,8 +7,9 @@
   <style>
     :root{
       --bg:#0b1020;
-      --panel:#0f1733;
-      --panel2:#0c132c;
+      --bg2:#0a1433;
+      --card:rgba(0,0,0,.28);
+      --card2:rgba(255,255,255,.06);
       --text:#eaf0ff;
       --muted:#a9b6d3;
       --line:rgba(255,255,255,.12);
@@ -16,1113 +17,939 @@
       --btn2:#1f4dd6;
       --good:#39d98a;
       --bad:#ff4d4d;
-      --warn:#ffd166;
-      --chip:rgba(255,255,255,.08);
-      --shadow:0 10px 35px rgba(0,0,0,.35);
+      --pill:rgba(255,255,255,.08);
+      --shadow: 0 16px 60px rgba(0,0,0,.45);
       --radius:18px;
       --radius2:14px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     }
 
     *{box-sizing:border-box}
-    html,body{height:100%}
     body{
       margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:
-        radial-gradient(1200px 700px at 18% 0%, #193a9a 0%, var(--bg) 58%),
-        radial-gradient(900px 500px at 80% 20%, rgba(255,255,255,.06) 0%, rgba(255,255,255,0) 60%),
-        var(--bg);
       color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% 0%, #16357a 0%, var(--bg) 58%),
+        radial-gradient(900px 520px at 90% 10%, #0f2a66 0%, rgba(0,0,0,0) 60%);
+      min-height:100vh;
+      overflow-x:hidden;
     }
 
-    .wrap{max-width:1140px;margin:0 auto;padding:18px 14px 26px}
-    .top{
+    .wrap{max-width:1180px;margin:0 auto;padding:18px 14px 26px;}
+    .topbar{
       display:flex;align-items:center;justify-content:space-between;gap:12px;
       margin-bottom:14px;
     }
-    .brand{
-      display:flex;align-items:center;gap:10px;
-      user-select:none;
-    }
+    .brand{display:flex;align-items:center;gap:12px;}
     .logo{
-      width:40px;height:40px;border-radius:14px;
-      background:linear-gradient(135deg, rgba(42,102,255,.95), rgba(90,210,255,.55));
-      box-shadow:0 10px 25px rgba(42,102,255,.25);
-      position:relative;
-      overflow:hidden;
+      width:46px;height:46px;border-radius:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.25), rgba(255,255,255,.08));
+      border:1px solid rgba(255,255,255,.18);
+      box-shadow: var(--shadow);
     }
-    .logo:after{
-      content:"";
-      position:absolute;inset:-20px;
-      background:radial-gradient(circle at 30% 30%, rgba(255,255,255,.55), rgba(255,255,255,0) 55%);
-      transform:rotate(20deg);
-    }
-    .brand h1{
-      margin:0;font-size:18px;letter-spacing:.2px
-    }
-    .brand p{
-      margin:0;font-size:12px;color:var(--muted)
-    }
+    .brand h1{font-size:20px;line-height:1;margin:0;font-weight:900;}
+    .brand .sub{font-size:12px;color:rgba(234,240,255,.75);margin-top:4px}
 
-    .controls{
-      display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;
-    }
-    .chip{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:9px 10px;
-      border-radius:999px;
-      background:var(--chip);
+    .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+    .toggle{
+      display:flex;align-items:center;gap:10px;
+      padding:8px 10px;border-radius:999px;
       border:1px solid var(--line);
-      box-shadow:0 8px 20px rgba(0,0,0,.15);
-      color:var(--muted);
-      font-size:12px;
+      background:rgba(0,0,0,.22);
     }
-    .chip strong{color:var(--text);font-weight:600}
+    .toggle span{font-size:12px;color:rgba(234,240,255,.85);font-weight:800}
+    .switch{
+      width:42px;height:22px;border-radius:999px;position:relative;
+      background:rgba(255,255,255,.14);
+      border:1px solid rgba(255,255,255,.18);
+      cursor:pointer;
+    }
+    .knob{
+      width:18px;height:18px;border-radius:50%;
+      position:absolute;top:50%;transform:translateY(-50%);
+      left:2px;
+      background:rgba(255,255,255,.85);
+      transition: left .18s ease;
+    }
+    .switch.on{background:rgba(57,217,138,.22);border-color:rgba(57,217,138,.35);}
+    .switch.on .knob{left:21px;background:rgba(57,217,138,.95);}
 
     .btn{
-      appearance:none;border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);
-      color:var(--text);
       padding:10px 12px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      font-weight:900;
       cursor:pointer;
-      transition:transform .05s ease, background .15s ease, border .15s ease;
-      font-weight:600;
-      font-size:13px;
-      display:inline-flex;align-items:center;gap:8px;
+      transition: transform .06s ease, background .2s ease;
     }
-    .btn:hover{background:rgba(255,255,255,.09);border-color:rgba(255,255,255,.2)}
+    .btn:hover{background:rgba(255,255,255,.08)}
     .btn:active{transform:translateY(1px)}
     .btn.primary{
+      border:none;
       background:linear-gradient(180deg, var(--btn), var(--btn2));
-      border-color:rgba(255,255,255,.16);
-      box-shadow:0 10px 30px rgba(42,102,255,.22);
     }
-    .btn.primary:hover{filter:brightness(1.04)}
-    .btn.danger{background:rgba(255,77,77,.12);border-color:rgba(255,77,77,.35)}
-    .btn.ghost{background:transparent}
-    .btn.small{padding:8px 10px;font-size:12px;border-radius:11px}
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-
-    .toggle{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:9px 10px;border-radius:999px;
-      background:rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      font-size:12px;color:var(--muted);
-      user-select:none;
-    }
-    .switch{
-      width:40px;height:22px;border-radius:999px;
-      background:rgba(255,255,255,.10);
-      border:1px solid rgba(255,255,255,.16);
-      position:relative;
-      cursor:pointer;
-    }
-    .switch .knob{
-      width:18px;height:18px;border-radius:50%;
-      background:rgba(255,255,255,.85);
-      position:absolute;top:1px;left:1px;
-      transition:left .18s ease, background .18s ease;
-    }
-    .switch.on{background:rgba(57,217,138,.22);border-color:rgba(57,217,138,.35)}
-    .switch.on .knob{left:19px;background:rgba(57,217,138,.95)}
 
     .grid{
       display:grid;
-      grid-template-columns: 1.05fr .95fr;
+      grid-template-columns: 1fr 1fr;
       gap:14px;
-      align-items:start;
     }
     @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
+      .grid{grid-template-columns:1fr;}
     }
 
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.04));
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-    }
-    .cardHeader{
-      padding:12px 14px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      background:linear-gradient(180deg, rgba(0,0,0,.06), rgba(0,0,0,0));
-      border-bottom:1px solid rgba(255,255,255,.08);
-    }
-    .cardHeader h2{
-      margin:0;font-size:13px;letter-spacing:.2px;color:var(--muted);
-      font-weight:700;
-    }
-    .cardBody{padding:14px}
-
-    /* chat */
-    .modes{
-      display:flex;gap:8px;flex-wrap:wrap;
-    }
-    .modeBtn{
-      padding:8px 10px;border-radius:999px;
-      background:rgba(255,255,255,.06);
-      border:1px solid rgba(255,255,255,.14);
-      color:var(--muted);
-      cursor:pointer;
-      font-size:12px;
-      user-select:none;
-      font-weight:700;
-    }
-    .modeBtn.active{
-      background:rgba(42,102,255,.20);
-      border-color:rgba(42,102,255,.45);
-      color:var(--text);
-    }
-    .chatLog{
-      height:430px;
-      overflow:auto;
-      padding:10px;
-      border-radius:var(--radius2);
+    .panel{
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: var(--radius);
       background:rgba(0,0,0,.18);
-      border:1px solid rgba(255,255,255,.10);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      backdrop-filter: blur(8px);
+    }
+    .panelHead{
+      padding:12px 14px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    }
+    .panelHead .title{
+      display:flex;align-items:center;gap:10px;
+      font-weight:900;letter-spacing:.2px;
+      color:rgba(234,240,255,.92);
+    }
+    .pillRow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;}
+    .pill{
+      padding:8px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.22);
+      font-size:12px;font-weight:900;color:rgba(234,240,255,.92);
+      cursor:pointer;
+      user-select:none;
+    }
+    .pill.active{
+      background:rgba(42,102,255,.18);
+      border-color:rgba(42,102,255,.38);
+    }
+
+    .chatBody{
+      padding:14px;
+      display:flex;flex-direction:column;gap:10px;
+      height:470px;
+      overflow:auto;
     }
     .msg{
-      display:flex;gap:10px;
-      margin:10px 0;
-      align-items:flex-start;
-    }
-    .bubble{
-      max-width:86%;
-      padding:10px 12px;
+      max-width:82%;
+      padding:12px 12px;
       border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(255,255,255,.06);
-      line-height:1.35;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      box-shadow: 0 10px 30px rgba(0,0,0,.25);
       white-space:pre-wrap;
-      word-wrap:break-word;
+      word-break:break-word;
     }
-    .msg.user{justify-content:flex-end}
-    .msg.user .bubble{
-      background:rgba(42,102,255,.20);
+    .msg.you{
+      margin-left:auto;
+      background:rgba(42,102,255,.14);
       border-color:rgba(42,102,255,.35);
     }
-    .who{
-      font-size:11px;
-      color:var(--muted);
+    .msg .who{
+      font-size:12px;
+      color:rgba(234,240,255,.75);
+      font-weight:900;
       margin-bottom:6px;
-      font-weight:800;
-      letter-spacing:.2px;
-    }
-    .composer{
-      display:flex;gap:8px;margin-top:10px;
-      align-items:flex-end;
-    }
-    textarea{
-      width:100%;
-      min-height:44px;
-      max-height:140px;
-      resize:none;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      outline:none;
-      background:rgba(0,0,0,.16);
-      color:var(--text);
-      font-size:14px;
-      line-height:1.3;
-    }
-    textarea::placeholder{color:rgba(169,182,211,.70)}
-    .hint{
-      margin-top:8px;
-      color:var(--muted);
-      font-size:12px;
-      display:flex;align-items:center;justify-content:space-between;gap:8px;
-      flex-wrap:wrap;
-    }
-    code.inline{
-      font-family:var(--mono);
-      background:rgba(255,255,255,.08);
-      border:1px solid rgba(255,255,255,.12);
-      padding:2px 6px;border-radius:9px;
-      color:var(--text);
-      font-size:12px;
     }
 
-    /* preview */
-    .previewWrap{
+    .composer{
+      padding:12px 14px;
+      border-top:1px solid rgba(255,255,255,.10);
+      display:flex;gap:10px;align-items:flex-end;
+      background:linear-gradient(180deg, rgba(0,0,0,.02), rgba(0,0,0,.18));
+    }
+    textarea{
+      flex:1;
+      resize:none;
+      height:44px;
+      max-height:140px;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      outline:none;
+      font-size:14px;
+      line-height:1.25;
+    }
+    .hintRow{
+      padding:0 14px 14px;
+      color:rgba(234,240,255,.65);
+      font-size:12px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    }
+    .status{
+      display:flex;align-items:center;gap:8px;
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      font-weight:900;
+    }
+    .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
+    .dot.busy{background:rgba(255,255,255,.35)}
+
+    /* Preview */
+    .previewBody{
+      padding:14px;
+      height:470px;
+      overflow:hidden;
       display:flex;flex-direction:column;gap:10px;
     }
-    .previewBox{
-      width:100%;
-      height:430px;
-      border-radius:var(--radius2);
-      background:rgba(0,0,0,.18);
+    .previewMeta{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      color:rgba(234,240,255,.75);
+      font-size:13px;
+    }
+    .previewStage{
+      flex:1;
+      border-radius:14px;
       border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.18);
       overflow:hidden;
       position:relative;
     }
     iframe{
-      width:100%;height:100%;
+      width:100%;
+      height:100%;
       border:0;
       background:white;
     }
-    .previewEmpty{
-      position:absolute;inset:0;
-      display:flex;flex-direction:column;
-      align-items:center;justify-content:center;
-      gap:8px;
-      color:rgba(169,182,211,.85);
+    .empty{
+      height:100%;
+      display:flex;flex-direction:column;align-items:center;justify-content:center;
+      padding:20px;
       text-align:center;
-      padding:22px;
+      color:rgba(234,240,255,.70);
+      gap:10px;
     }
-    .previewEmpty strong{color:var(--text)}
-    .previewTools{
-      display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;
-    }
-    .mini{
-      font-size:12px;color:var(--muted);
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
+    .empty strong{font-size:16px;color:rgba(234,240,255,.92)}
+    .kbd{
+      display:inline-block;
+      padding:2px 8px;
+      border-radius:10px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.06);
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:12px;
+      color:rgba(234,240,255,.85);
     }
 
-    /* modal */
-    .backdrop{
-      position:fixed;inset:0;
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0;
       background:rgba(0,0,0,.55);
       display:none;
-      align-items:center;justify-content:center;
+      align-items:center; justify-content:center;
       padding:18px;
-      z-index:9998;
+      z-index:50;
     }
+    .modalBack.on{display:flex;}
     .modal{
-      width:min(720px, 96vw);
+      width:min(760px, 100%);
       border-radius:18px;
-      border:1px solid rgba(255,255,255,.14);
-      background:linear-gradient(180deg, rgba(15,23,51,.98), rgba(12,19,44,.98));
-      box-shadow:0 18px 60px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(10,16,32,.92);
+      box-shadow: var(--shadow);
       overflow:hidden;
     }
-    .modalHeader{
+    .modalHead{
       padding:12px 14px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
       border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      font-weight:900;
     }
-    .modalHeader h3{
-      margin:0;font-size:13px;color:var(--text);letter-spacing:.2px
-    }
-    .modalBody{padding:14px}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .row > *{flex:1 1 220px}
-    input[type="text"]{
+    .modalBody{padding:14px;display:grid;gap:12px;}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+    .field{
       width:100%;
       padding:10px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      outline:none;
-      background:rgba(0,0,0,.16);
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.22);
       color:var(--text);
-      font-size:14px;
+      outline:none;
     }
-    .list{
-      margin-top:12px;
-      display:flex;flex-direction:column;gap:10px;
-      max-height:360px;
-      overflow:auto;
-      padding-right:4px;
-    }
-    .item{
-      padding:12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(255,255,255,.05);
-      display:flex;gap:10px;align-items:flex-start;justify-content:space-between;
-    }
-    .item h4{margin:0;font-size:13px}
-    .item p{margin:4px 0 0 0;font-size:12px;color:var(--muted)}
-    .item .actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
-    .tag{
-      display:inline-flex;align-items:center;gap:6px;
-      padding:4px 8px;border-radius:999px;
+    .libList{display:grid;gap:10px;max-height:320px;overflow:auto;padding-right:4px;}
+    .libItem{
       border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.14);
-      font-size:11px;
-      color:var(--muted);
-      margin-top:6px;
+      background:rgba(0,0,0,.18);
+      border-radius:14px;
+      padding:12px;
+      display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
     }
-
-    /* toast */
-    #toast{
+    .libItem .meta{color:rgba(234,240,255,.65);font-size:12px;margin-top:4px}
+    .miniBtn{
+      padding:8px 10px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:rgba(234,240,255,.92);
+      font-weight:900;
+      cursor:pointer;
+    }
+    .miniBtn.danger{border-color:rgba(255,77,77,.35); background:rgba(255,77,77,.10);}
+    .toast{
       position:fixed;
-      left:50%;
-      bottom:18px;
+      bottom:18px; left:50%;
       transform:translateX(-50%);
+      background:rgba(0,0,0,.70);
+      border:1px solid rgba(255,255,255,.14);
+      color:rgba(234,240,255,.92);
       padding:10px 12px;
       border-radius:12px;
-      background:rgba(0,0,0,.7);
-      border:1px solid rgba(255,255,255,.18);
-      color:white;
-      font-size:14px;
-      z-index:9999;
-      opacity:0;
-      transition:opacity .15s ease;
-      pointer-events:none;
+      display:none;
+      z-index:80;
+      font-weight:900;
     }
+    .toast.on{display:block;}
+    .footNote{
+      padding:10px 14px 14px;
+      color:rgba(234,240,255,.55);
+      font-size:12px;
+      display:flex;justify-content:space-between;align-items:center;gap:10px;
+    }
+    .proBadge{
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(57,217,138,.35);
+      background:rgba(57,217,138,.12);
+      color:rgba(234,240,255,.92);
+      font-weight:900;
+      display:none;
+    }
+    .proBadge.on{display:inline-flex;}
   </style>
 </head>
 
 <body>
   <div class="wrap">
-    <div class="top">
+    <div class="topbar">
       <div class="brand">
         <div class="logo" aria-hidden="true"></div>
         <div>
           <h1>Simo</h1>
-          <p>best friend + builder</p>
+          <div class="sub">best friend + builder</div>
         </div>
       </div>
 
       <div class="controls">
-        <div class="toggle" title="Pro Mode unlocks stronger builder output + previews.">
+        <div class="toggle" title="Pro Mode upgrades previews and unlocks more building output.">
           <span>Pro Mode</span>
           <div id="proSwitch" class="switch" role="switch" aria-checked="false" tabindex="0">
             <div class="knob"></div>
           </div>
         </div>
-
-        <button id="resetBtn" class="btn ghost" title="Clear chat + preview (does not delete Library)">Reset</button>
-        <button id="libraryBtnTop" class="btn" title="Open your saved builds">Library</button>
+        <button id="resetBtn" class="btn">Reset</button>
+        <button id="topLibraryBtn" class="btn">Library</button>
       </div>
     </div>
 
     <div class="grid">
-      <!-- LEFT: Chat -->
-      <div class="card">
-        <div class="cardHeader">
-          <h2>CHAT</h2>
-          <div class="modes" aria-label="modes">
-            <button class="modeBtn active" data-mode="venting">Venting</button>
-            <button class="modeBtn" data-mode="solving">Solving</button>
-            <button class="modeBtn" data-mode="building">Building</button>
+      <!-- CHAT -->
+      <section class="panel" aria-label="Chat panel">
+        <div class="panelHead">
+          <div class="title">CHAT</div>
+          <div class="pillRow" aria-label="Mode selector">
+            <div id="pillVenting" class="pill">Venting</div>
+            <div id="pillSolving" class="pill">Solving</div>
+            <div id="pillBuilding" class="pill active">Building</div>
           </div>
         </div>
 
-        <div class="cardBody">
-          <div id="chatLog" class="chatLog" aria-live="polite"></div>
+        <div id="chatBody" class="chatBody"></div>
 
-          <div class="composer">
-            <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
-            <button id="sendBtn" class="btn primary">Send</button>
-          </div>
-
-          <div class="hint">
-            <span>Tip: in <strong>Building</strong> mode, ask for a layout/app/site and I’ll render a preview.</span>
-            <span>Status: <span id="statusPill" class="chip"><strong>Ready</strong></span></span>
+        <div class="composer">
+          <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
+          <button id="sendBtn" class="btn primary">Send</button>
+        </div>
+        <div class="hintRow">
+          <div id="tip">Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview.</div>
+          <div class="status" id="status">
+            <span class="dot" id="dot"></span>
+            <span id="statusText">Ready</span>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- RIGHT: Preview -->
-      <div class="card">
-        <div class="cardHeader">
-          <h2>PREVIEW</h2>
-          <div class="previewTools">
-            <button id="saveBuildBtn" class="btn small" title="Save current preview to Library">Save Build</button>
-            <button id="libraryBtn" class="btn small" title="Open Library">Library</button>
-            <button id="copyHtmlBtn" class="btn small" title="Copy preview HTML to clipboard">Copy HTML</button>
-            <button id="downloadBtn" class="btn small" title="Download preview as .html">Download</button>
+      <!-- PREVIEW -->
+      <section class="panel" aria-label="Preview panel">
+        <div class="panelHead">
+          <div class="title">PREVIEW</div>
+          <div class="pillRow">
+            <button id="saveBuildBtn" class="btn">Save Build</button>
+            <button id="libraryBtn" class="btn">Library</button>
+            <button id="copyHtmlBtn" class="btn">Copy HTML</button>
+            <button id="downloadBtn" class="btn">Download</button>
           </div>
         </div>
 
-        <div class="cardBody previewWrap">
-          <div class="mini">
-            <span>Current: <strong id="previewTitle">No preview yet</strong></span>
-            <span class="chip"><strong id="modeLabel">Venting</strong></span>
+        <div class="previewBody">
+          <div class="previewMeta">
+            <div>Current: <b id="previewTitle">Untitled preview</b></div>
+            <!-- IMPORTANT: badge shows PREVIEW'S mode, not current chat mode -->
+            <div class="pill" id="previewModePill">None</div>
           </div>
 
-          <div class="previewBox">
-            <div id="previewEmpty" class="previewEmpty">
+          <div class="previewStage" id="previewStage">
+            <div class="empty" id="emptyState">
               <strong>No preview yet.</strong>
-              <div>Switch to <strong>Building</strong> and ask for something like:</div>
-              <div><code class="inline">make a neon dashboard</code> or <code class="inline">design a space renting app</code></div>
+              <div>Switch to <b>Building</b> and ask for something like:</div>
+              <div>
+                <span class="kbd">make a neon dashboard</span>
+                <span style="opacity:.7">or</span>
+                <span class="kbd">design a space renting app</span>
+              </div>
             </div>
-            <iframe id="previewFrame" title="preview" sandbox="allow-scripts allow-forms allow-same-origin" style="display:none"></iframe>
-          </div>
-
-          <div class="mini">
-            <span class="chip" title="Stored in your browser (localStorage)"><strong>Library</strong> is saved on this device</span>
-            <span id="proBadge" class="chip" style="display:none"><strong>PRO</strong> enabled</span>
+            <iframe id="previewFrame" title="Preview" style="display:none;"></iframe>
           </div>
         </div>
-      </div>
+
+        <div class="footNote">
+          <div><b>Library</b> is saved on this device</div>
+          <div class="proBadge" id="proBadge">PRO enabled</div>
+        </div>
+      </section>
     </div>
   </div>
 
-  <!-- Library / Save modal -->
-  <div id="backdrop" class="backdrop" role="dialog" aria-modal="true" aria-hidden="true">
+  <!-- SAVE MODAL -->
+  <div id="saveModalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Save build modal">
     <div class="modal">
-      <div class="modalHeader">
-        <h3 id="modalTitle">Library</h3>
-        <button id="closeModalBtn" class="btn small">Close</button>
+      <div class="modalHead">
+        <div>Save Build</div>
+        <button class="btn" id="closeSaveModal">Close</button>
       </div>
       <div class="modalBody">
-        <div class="row" style="margin-bottom:10px">
-          <div>
-            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px">Title</label>
-            <input id="saveTitleInput" type="text" placeholder="e.g. Neon dashboard v1" />
-          </div>
-          <div>
-            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:6px">Notes (optional)</label>
-            <input id="saveNotesInput" type="text" placeholder="what this build is / who it’s for" />
-          </div>
+        <div>
+          <div style="font-weight:900;margin-bottom:8px;color:rgba(234,240,255,.85)">Title</div>
+          <input id="saveTitle" class="field" placeholder="e.g., Space Rentals v1" />
         </div>
-
-        <div class="row" style="justify-content:flex-end">
-          <div style="flex:0 0 auto;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
-            <button id="saveCurrentBtn" class="btn primary">Save Current</button>
-            <button id="clearLibraryBtn" class="btn danger">Clear Library</button>
-          </div>
-        </div>
-
-        <div style="margin-top:14px;border-top:1px solid rgba(255,255,255,.10);padding-top:12px">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
-            <div style="color:var(--muted);font-weight:700;font-size:12px">Saved Builds</div>
-            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-              <input id="searchInput" type="text" placeholder="Search library…" style="width:min(280px, 72vw)" />
-              <button id="exportLibraryBtn" class="btn small">Export JSON</button>
-              <button id="importLibraryBtn" class="btn small">Import JSON</button>
-              <input id="importFileInput" type="file" accept="application/json" style="display:none" />
-            </div>
-          </div>
-
-          <div id="libraryList" class="list"></div>
+        <div class="row">
+          <button class="btn primary" id="saveCurrentBtn">Save Current</button>
+          <div style="color:rgba(234,240,255,.65);font-size:12px">Saves preview HTML + title to this device.</div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="toast"></div>
+  <!-- LIBRARY MODAL -->
+  <div id="libModalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Library modal">
+    <div class="modal">
+      <div class="modalHead">
+        <div>Library</div>
+        <button class="btn" id="closeLibModal">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="libList" id="libList"></div>
+        <div style="color:rgba(234,240,255,.55);font-size:12px">
+          Tip: Load restores the preview. It won’t rewrite chat.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Copied</div>
 
   <script>
-    /***********************
-     * Simo single-file UI *
-     ***********************/
-
-    // --- State
+    // ----------------------------
+    // State
+    // ----------------------------
     const state = {
-      mode: "venting",         // venting | solving | building
-      isPro: false,
-      chat: [],                // {role: "user"|"assistant", content: string}
-      preview: { title: "", html: "" },
-      lastUserText: "",
-      lastBuildPrompt: "",
+      mode: "building",             // "venting" | "solving" | "building"
+      pro: false,
+      busy: false,
+      userId: getOrCreateUserId(),
+      history: [],                  // {role:"user"|"assistant", content:string}
+      // Preview state:
+      previewTitle: "Untitled preview",
+      previewHtml: "",
+      previewMode: "none",          // "building" | "solving" | "venting" | "none"
+      previewKind: "",
     };
 
-    // --- Elements
-    const chatLog = document.getElementById("chatLog");
+    // ----------------------------
+    // Elements
+    // ----------------------------
+    const chatBody = document.getElementById("chatBody");
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
     const resetBtn = document.getElementById("resetBtn");
-    const statusPill = document.getElementById("statusPill");
 
-    const modeBtns = Array.from(document.querySelectorAll(".modeBtn"));
-    const modeLabel = document.getElementById("modeLabel");
-
-    const previewTitle = document.getElementById("previewTitle");
-    const previewFrame = document.getElementById("previewFrame");
-    const previewEmpty = document.getElementById("previewEmpty");
-
-    const saveBuildBtn = document.getElementById("saveBuildBtn");
-    const libraryBtn = document.getElementById("libraryBtn");
-    const libraryBtnTop = document.getElementById("libraryBtnTop");
-    const copyHtmlBtn = document.getElementById("copyHtmlBtn");
-    const downloadBtn = document.getElementById("downloadBtn");
-
-    const backdrop = document.getElementById("backdrop");
-    const closeModalBtn = document.getElementById("closeModalBtn");
-    const modalTitle = document.getElementById("modalTitle");
-
-    const saveTitleInput = document.getElementById("saveTitleInput");
-    const saveNotesInput = document.getElementById("saveNotesInput");
-    const saveCurrentBtn = document.getElementById("saveCurrentBtn");
-    const clearLibraryBtn = document.getElementById("clearLibraryBtn");
-    const libraryList = document.getElementById("libraryList");
-    const searchInput = document.getElementById("searchInput");
-    const exportLibraryBtn = document.getElementById("exportLibraryBtn");
-    const importLibraryBtn = document.getElementById("importLibraryBtn");
-    const importFileInput = document.getElementById("importFileInput");
+    const pillVenting = document.getElementById("pillVenting");
+    const pillSolving = document.getElementById("pillSolving");
+    const pillBuilding = document.getElementById("pillBuilding");
 
     const proSwitch = document.getElementById("proSwitch");
     const proBadge = document.getElementById("proBadge");
 
-    // --- Helpers
-    function toast(msg, isBad=false){
-      const t = document.getElementById("toast");
-      t.textContent = msg;
-      t.style.background = isBad ? "rgba(255,77,77,.85)" : "rgba(0,0,0,.7)";
-      t.style.opacity = "1";
-      clearTimeout(toast._timer);
-      toast._timer = setTimeout(() => t.style.opacity = "0", 1200);
+    const statusText = document.getElementById("statusText");
+    const dot = document.getElementById("dot");
+
+    const previewTitleEl = document.getElementById("previewTitle");
+    const previewModePill = document.getElementById("previewModePill");
+    const previewFrame = document.getElementById("previewFrame");
+    const emptyState = document.getElementById("emptyState");
+
+    const saveBuildBtn = document.getElementById("saveBuildBtn");
+    const libraryBtn = document.getElementById("libraryBtn");
+    const topLibraryBtn = document.getElementById("topLibraryBtn");
+    const copyHtmlBtn = document.getElementById("copyHtmlBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+
+    const saveModalBack = document.getElementById("saveModalBack");
+    const closeSaveModal = document.getElementById("closeSaveModal");
+    const saveTitle = document.getElementById("saveTitle");
+    const saveCurrentBtn = document.getElementById("saveCurrentBtn");
+
+    const libModalBack = document.getElementById("libModalBack");
+    const closeLibModal = document.getElementById("closeLibModal");
+    const libList = document.getElementById("libList");
+
+    const toast = document.getElementById("toast");
+
+    // ----------------------------
+    // Boot message (Option A)
+    // ----------------------------
+    boot();
+
+    function boot(){
+      setMode("building");
+      addAssistant("I’m here. Pick a mode — or just talk.");
+      // NOTE: We do NOT clear preview on boot.
+      updatePreviewUI();
     }
 
-    function setStatus(text){
-      statusPill.innerHTML = `<strong>${escapeHtml(text)}</strong>`;
-    }
-
-    function escapeHtml(s){
-      return (s || "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    function clampTextarea(){
-      input.style.height = "auto";
-      input.style.height = Math.min(input.scrollHeight, 140) + "px";
-    }
-
-    function scrollChatToBottom(){
-      chatLog.scrollTop = chatLog.scrollHeight;
-    }
-
-    function renderChat(){
-      chatLog.innerHTML = "";
-      for(const m of state.chat){
-        const wrap = document.createElement("div");
-        wrap.className = "msg " + (m.role === "user" ? "user" : "assistant");
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        const who = document.createElement("div");
-        who.className = "who";
-        who.textContent = (m.role === "user") ? "You" : "Simo";
-        bubble.appendChild(who);
-
-        const body = document.createElement("div");
-        body.textContent = m.content;
-        bubble.appendChild(body);
-
-        wrap.appendChild(bubble);
-        chatLog.appendChild(wrap);
-      }
-      scrollChatToBottom();
+    // ----------------------------
+    // UI helpers
+    // ----------------------------
+    function setBusy(isBusy){
+      state.busy = isBusy;
+      dot.classList.toggle("busy", isBusy);
+      statusText.textContent = isBusy ? "Thinking" : "Ready";
+      sendBtn.disabled = isBusy;
+      input.disabled = isBusy;
     }
 
     function setMode(mode){
       state.mode = mode;
-      modeBtns.forEach(b => b.classList.toggle("active", b.dataset.mode === mode));
-      modeLabel.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      // give a small nudge in chat when switching modes (optional)
+
+      pillVenting.classList.toggle("active", mode==="venting");
+      pillSolving.classList.toggle("active", mode==="solving");
+      pillBuilding.classList.toggle("active", mode==="building");
+
+      // NOTE: preview badge is NOT driven by chat mode anymore.
+      // previewModePill shows state.previewMode (updated when a preview is created or loaded).
     }
 
-    function setPro(on){
-      state.isPro = !!on;
-      proSwitch.classList.toggle("on", state.isPro);
-      proSwitch.setAttribute("aria-checked", state.isPro ? "true" : "false");
-      proBadge.style.display = state.isPro ? "inline-flex" : "none";
-      toast(state.isPro ? "Pro enabled" : "Pro disabled");
+    function showToast(text="Copied"){
+      toast.textContent = text;
+      toast.classList.add("on");
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=>toast.classList.remove("on"), 900);
     }
 
-    function setPreview({title, html}){
-      state.preview.title = title || "Untitled preview";
-      state.preview.html = html || "";
+    function addMsg(who, text, isYou){
+      const msg = document.createElement("div");
+      msg.className = "msg" + (isYou ? " you" : "");
+      const head = document.createElement("div");
+      head.className = "who";
+      head.textContent = who;
+      const body = document.createElement("div");
+      body.textContent = text;
 
-      previewTitle.textContent = state.preview.title;
+      msg.appendChild(head);
+      msg.appendChild(body);
+      chatBody.appendChild(msg);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
 
-      if(state.preview.html.trim()){
-        const srcdoc = state.preview.html;
-        previewFrame.srcdoc = srcdoc;
-        previewFrame.style.display = "block";
-        previewEmpty.style.display = "none";
-      } else {
-        previewFrame.removeAttribute("srcdoc");
-        previewFrame.style.display = "none";
-        previewEmpty.style.display = "flex";
+    function addUser(text){
+      addMsg("You", text, true);
+      state.history.push({ role:"user", content:text });
+      trimHistory();
+    }
+
+    function addAssistant(text){
+      addMsg("Simo", text, false);
+      state.history.push({ role:"assistant", content:text });
+      trimHistory();
+    }
+
+    function trimHistory(){
+      if (state.history.length > 30) state.history = state.history.slice(-30);
+    }
+
+    function updatePreviewUI(){
+      previewTitleEl.textContent = state.previewTitle || "Untitled preview";
+
+      // Preview mode badge should stay tied to the preview itself.
+      const pm = state.previewMode || "none";
+      previewModePill.textContent =
+        pm === "none" ? "None" :
+        pm === "building" ? "Building" :
+        pm === "solving" ? "Solving" :
+        pm === "venting" ? "Venting" : String(pm);
+
+      const hasPreview = !!(state.previewHtml && state.previewHtml.trim());
+      emptyState.style.display = hasPreview ? "none" : "flex";
+      previewFrame.style.display = hasPreview ? "block" : "none";
+
+      if (hasPreview){
+        const blob = new Blob([state.previewHtml], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+        previewFrame.src = url;
+
+        // release the last object URL eventually
+        clearTimeout(updatePreviewUI._revokeT);
+        const old = updatePreviewUI._lastUrl;
+        updatePreviewUI._lastUrl = url;
+        updatePreviewUI._revokeT = setTimeout(()=>{ try{ if(old) URL.revokeObjectURL(old); }catch{} }, 1500);
       }
     }
 
-    // --- Library (localStorage)
-    const LIB_KEY = "simo_build_library_v1";
+    // ----------------------------
+    // Mode pills
+    // ----------------------------
+    pillVenting.addEventListener("click", ()=>{
+      setMode("venting");
+      addAssistant("Venting mode. Say it straight — I’m with you.");
+    });
+    pillSolving.addEventListener("click", ()=>{
+      setMode("solving");
+      addAssistant("Solving mode. Tell me what’s broken and what you expected to happen.");
+    });
+    pillBuilding.addEventListener("click", ()=>{
+      setMode("building");
+      addAssistant("Builder mode on. Tell me what you want to build — I’ll render a preview on the right.");
+    });
+
+    // ----------------------------
+    // Pro toggle
+    // ----------------------------
+    function setPro(on){
+      state.pro = !!on;
+      proSwitch.classList.toggle("on", state.pro);
+      proSwitch.setAttribute("aria-checked", String(state.pro));
+      proBadge.classList.toggle("on", state.pro);
+    }
+
+    proSwitch.addEventListener("click", ()=> setPro(!state.pro));
+    proSwitch.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPro(!state.pro); }
+    });
+
+    // ----------------------------
+    // Send logic
+    // ----------------------------
+    sendBtn.addEventListener("click", send);
+    input.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        send();
+      }
+    });
+
+    async function send(){
+      const text = (input.value || "").trim();
+      if (!text || state.busy) return;
+
+      input.value = "";
+      input.style.height = "44px";
+
+      addUser(text);
+      setBusy(true);
+
+      try{
+        const resp = await fetch("/.netlify/functions/simon", {
+          method:"POST",
+          headers:{ "Content-Type":"application/json" },
+          body: JSON.stringify({
+            message: text,
+            history: state.history,
+            mode: state.mode,       // "venting"|"solving"|"building"
+            pro: state.pro,
+            topic: "",
+            user_id: state.userId
+          })
+        });
+
+        const data = await resp.json().catch(()=>({ ok:false, error:"Bad JSON" }));
+
+        if (!resp.ok || !data.ok){
+          addAssistant("I couldn’t reach my brain for a second. Try again.");
+          setBusy(false);
+          return;
+        }
+
+        // Text from backend (support multiple keys)
+        const reply =
+          (typeof data.text === "string" && data.text.trim()) ? data.text.trim() :
+          (typeof data.message === "string" && data.message.trim()) ? data.message.trim() :
+          (typeof data.reply === "string" && data.reply.trim()) ? data.reply.trim() :
+          "Reset. I’m here.";
+
+        addAssistant(reply);
+
+        // Preview handling:
+        // Prefer data.preview:{title,html}, else legacy preview_html
+        const p = data.preview && typeof data.preview === "object" ? data.preview : null;
+
+        const nextHtml =
+          p && typeof p.html === "string" ? p.html :
+          (typeof data.preview_html === "string" ? data.preview_html : "");
+
+        const nextTitle =
+          p && typeof p.title === "string" && p.title.trim() ? p.title.trim() :
+          (typeof data.preview_kind === "string" && data.preview_kind.trim() ? data.preview_kind : "") ||
+          state.previewTitle;
+
+        // Only update preview when backend actually returns preview HTML
+        if (nextHtml && nextHtml.trim()){
+          state.previewHtml = nextHtml;
+          state.previewTitle = nextTitle || "Untitled preview";
+          state.previewKind = (typeof data.preview_kind === "string" ? data.preview_kind : "") || state.previewKind;
+
+          // IMPORTANT: tie previewMode to the mode that generated it.
+          // If we're in building, mark preview as building.
+          // If you're in venting/solving but server returns a preview (rare), still label it by current mode.
+          state.previewMode = state.mode || "building";
+
+          updatePreviewUI();
+        }
+
+      }catch(err){
+        addAssistant("Network hiccup. Try again.");
+      }finally{
+        setBusy(false);
+      }
+    }
+
+    // Auto grow textarea
+    input.addEventListener("input", ()=>{
+      input.style.height = "44px";
+      input.style.height = Math.min(input.scrollHeight, 140) + "px";
+    });
+
+    // ----------------------------
+    // Reset
+    // ----------------------------
+    resetBtn.addEventListener("click", ()=>{
+      // Clear chat + history only. Keep preview and library.
+      chatBody.innerHTML = "";
+      state.history = [];
+      addAssistant("Fresh start. I’m here.");
+      // keep current mode as-is; most people expect it to remain.
+      // If you want reset to default to building, uncomment:
+      // setMode("building");
+    });
+
+    // ----------------------------
+    // Copy / Download
+    // ----------------------------
+    copyHtmlBtn.addEventListener("click", async ()=>{
+      if (!state.previewHtml || !state.previewHtml.trim()){
+        showToast("No preview");
+        return;
+      }
+      try{
+        await navigator.clipboard.writeText(state.previewHtml);
+        showToast("Copied");
+      }catch{
+        // fallback
+        try{
+          const ta = document.createElement("textarea");
+          ta.value = state.previewHtml;
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          ta.remove();
+          showToast("Copied");
+        }catch{
+          showToast("Copy failed");
+        }
+      }
+    });
+
+    downloadBtn.addEventListener("click", ()=>{
+      if (!state.previewHtml || !state.previewHtml.trim()){
+        showToast("No preview");
+        return;
+      }
+      const name = (state.previewTitle || "simo-build").replace(/[^\w\-]+/g, "_").slice(0, 50) || "simo-build";
+      const blob = new Blob([state.previewHtml], { type:"text/html" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = name + ".html";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(()=>{ try{ URL.revokeObjectURL(url); }catch{} }, 800);
+      showToast("Downloaded");
+    });
+
+    // ----------------------------
+    // Save Build / Library
+    // ----------------------------
+    const LS_KEY = "simo_build_library_v1";
 
     function loadLibrary(){
       try{
-        const raw = localStorage.getItem(LIB_KEY);
+        const raw = localStorage.getItem(LS_KEY);
         const arr = raw ? JSON.parse(raw) : [];
         return Array.isArray(arr) ? arr : [];
       }catch{
         return [];
       }
     }
-
-    function saveLibrary(arr){
-      localStorage.setItem(LIB_KEY, JSON.stringify(arr));
+    function saveLibrary(items){
+      localStorage.setItem(LS_KEY, JSON.stringify(items));
     }
 
-    function upsertBuild(build){
-      const lib = loadLibrary();
-      const idx = lib.findIndex(x => x.id === build.id);
-      if(idx >= 0) lib[idx] = build;
-      else lib.unshift(build);
-      saveLibrary(lib);
-      return lib;
+    function openSaveModal(){
+      if (!state.previewHtml || !state.previewHtml.trim()){
+        showToast("No preview");
+        return;
+      }
+      saveTitle.value = state.previewTitle || "Untitled preview";
+      saveModalBack.classList.add("on");
+      saveTitle.focus();
+      saveTitle.select();
     }
 
-    function deleteBuild(id){
-      const lib = loadLibrary().filter(x => x.id !== id);
-      saveLibrary(lib);
-      return lib;
+    function closeSave(){
+      saveModalBack.classList.remove("on");
     }
 
-    function formatDate(ts){
-      const d = new Date(ts);
-      return d.toLocaleString();
+    saveBuildBtn.addEventListener("click", openSaveModal);
+    closeSaveModal.addEventListener("click", closeSave);
+    saveModalBack.addEventListener("click", (e)=>{ if(e.target === saveModalBack) closeSave(); });
+
+    saveCurrentBtn.addEventListener("click", ()=>{
+      if (!state.previewHtml || !state.previewHtml.trim()){
+        showToast("No preview");
+        return;
+      }
+      const title = (saveTitle.value || "").trim() || "Untitled preview";
+
+      const items = loadLibrary();
+      const item = {
+        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2),
+        title,
+        mode: state.previewMode || "building",
+        kind: state.previewKind || "",
+        html: state.previewHtml,
+        created_at: new Date().toISOString()
+      };
+      items.unshift(item);
+      saveLibrary(items.slice(0, 100));
+      closeSave();
+      showToast("Saved");
+    });
+
+    function openLibrary(){
+      renderLibrary();
+      libModalBack.classList.add("on");
+    }
+    function closeLibrary(){
+      libModalBack.classList.remove("on");
+    }
+    libraryBtn.addEventListener("click", openLibrary);
+    topLibraryBtn.addEventListener("click", openLibrary);
+    closeLibModal.addEventListener("click", closeLibrary);
+    libModalBack.addEventListener("click", (e)=>{ if(e.target === libModalBack) closeLibrary(); });
+
+    function fmtDate(iso){
+      try{
+        const d = new Date(iso);
+        return d.toLocaleString();
+      }catch{
+        return iso;
+      }
     }
 
     function renderLibrary(){
-      const q = (searchInput.value || "").trim().toLowerCase();
-      const lib = loadLibrary()
-        .filter(b => {
-          if(!q) return true;
-          return (b.title||"").toLowerCase().includes(q) || (b.notes||"").toLowerCase().includes(q);
-        });
+      const items = loadLibrary();
+      libList.innerHTML = "";
 
-      libraryList.innerHTML = "";
-
-      if(lib.length === 0){
+      if (!items.length){
         const empty = document.createElement("div");
-        empty.className = "item";
-        empty.innerHTML = `
-          <div>
-            <h4>No saved builds yet</h4>
-            <p>Make a preview in Building mode, then hit <strong>Save Build</strong>.</p>
-          </div>
-        `;
-        libraryList.appendChild(empty);
+        empty.style.color = "rgba(234,240,255,.7)";
+        empty.textContent = "No saved builds yet.";
+        libList.appendChild(empty);
         return;
       }
 
-      for(const b of lib){
-        const el = document.createElement("div");
-        el.className = "item";
+      for (const it of items){
+        const row = document.createElement("div");
+        row.className = "libItem";
 
         const left = document.createElement("div");
-        left.style.flex = "1 1 auto";
-        left.innerHTML = `
-          <h4>${escapeHtml(b.title || "Untitled")}</h4>
-          <p>${escapeHtml(b.notes || "")}</p>
-          <div class="tag">Saved: <strong>${escapeHtml(formatDate(b.savedAt))}</strong></div>
-        `;
+        const title = document.createElement("div");
+        title.style.fontWeight = "900";
+        title.textContent = it.title || "Untitled";
+        const meta = document.createElement("div");
+        meta.className = "meta";
+        const m = (it.mode || "building");
+        meta.textContent = `${m} • ${fmtDate(it.created_at || "")}`;
+        left.appendChild(title);
+        left.appendChild(meta);
 
         const right = document.createElement("div");
-        right.className = "actions";
+        right.style.display = "flex";
+        right.style.gap = "8px";
+        right.style.flexWrap = "wrap";
+        right.style.justifyContent = "flex-end";
 
         const loadBtn = document.createElement("button");
-        loadBtn.className = "btn small";
+        loadBtn.className = "miniBtn";
         loadBtn.textContent = "Load";
-        loadBtn.onclick = () => {
-          setPreview({ title: b.title, html: b.html });
-          toast("Loaded ✅");
-          closeModal();
-        };
-
-        const copyBtn = document.createElement("button");
-        copyBtn.className = "btn small";
-        copyBtn.textContent = "Copy HTML";
-        copyBtn.onclick = async () => {
-          try{
-            await navigator.clipboard.writeText(b.html || "");
-            toast("Copied ✅");
-          }catch{
-            toast("Copy failed", true);
-          }
-        };
-
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "btn small";
-        dlBtn.textContent = "Download";
-        dlBtn.onclick = () => downloadHtml(b.html || "", (b.title || "build") + ".html");
+        loadBtn.addEventListener("click", ()=>{
+          state.previewTitle = it.title || "Untitled preview";
+          state.previewHtml = it.html || "";
+          state.previewMode = it.mode || "building";
+          state.previewKind = it.kind || "";
+          updatePreviewUI();
+          showToast("Loaded");
+          closeLibrary();
+        });
 
         const delBtn = document.createElement("button");
-        delBtn.className = "btn small danger";
+        delBtn.className = "miniBtn danger";
         delBtn.textContent = "Delete";
-        delBtn.onclick = () => {
-          deleteBuild(b.id);
+        delBtn.addEventListener("click", ()=>{
+          const next = loadLibrary().filter(x => x.id !== it.id);
+          saveLibrary(next);
           renderLibrary();
-          toast("Deleted");
-        };
+          showToast("Deleted");
+        });
 
         right.appendChild(loadBtn);
-        right.appendChild(copyBtn);
-        right.appendChild(dlBtn);
         right.appendChild(delBtn);
 
-        el.appendChild(left);
-        el.appendChild(right);
-        libraryList.appendChild(el);
+        row.appendChild(left);
+        row.appendChild(right);
+        libList.appendChild(row);
       }
     }
 
-    function openModal(kind){
-      backdrop.style.display = "flex";
-      backdrop.setAttribute("aria-hidden","false");
-      modalTitle.textContent = (kind === "save") ? "Save Build" : "Library";
-      renderLibrary();
+    // ----------------------------
+    // Utilities
+    // ----------------------------
+    function getOrCreateUserId(){
+      const k = "simo_user_id_v1";
+      let v = localStorage.getItem(k);
+      if (v && v.length > 8) return v;
+      v = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2));
+      localStorage.setItem(k, v);
+      return v;
     }
-
-    function closeModal(){
-      backdrop.style.display = "none";
-      backdrop.setAttribute("aria-hidden","true");
-    }
-
-    function downloadHtml(html, filename){
-      const safeName = (filename || "build.html").replace(/[\\/:*?"<>|]+/g, "-");
-      const blob = new Blob([html], {type:"text/html;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = safeName.endsWith(".html") ? safeName : (safeName + ".html");
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast("Downloaded ✅");
-    }
-
-    function makeDefaultTitle(){
-      const base = state.lastBuildPrompt?.trim() ? state.lastBuildPrompt.trim() : "New build";
-      const short = base.length > 42 ? (base.slice(0,42) + "…") : base;
-      return short || "New build";
-    }
-
-    // --- Backend call
-    async function callSimoBackend(userText){
-      // You already have /netlify/functions/simon.js set up.
-      // This expects it to return JSON like:
-      // { ok:true, text:"...", preview:{ title:"...", html:"..." } }
-      const payload = {
-        message: userText,
-        mode: state.mode,
-        pro: state.isPro,
-        history: state.chat.slice(-12)
-      };
-
-      const res = await fetch("/.netlify/functions/simon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if(!res.ok || data.ok === false){
-        const err = data?.error || `Request failed (${res.status})`;
-        return { ok:false, text:`I hit an error: ${err}`, preview:null };
-      }
-
-      return {
-        ok:true,
-        text: data.text || data.message || "…",
-        preview: data.preview || null
-      };
-    }
-
-    // --- Smart client-side preview fallback (so previews still work even if backend replies without preview)
-    function localPreviewFallback(prompt){
-      // Minimal “neon dashboard” template (your test case)
-      const title = "Neon Dashboard";
-      const html = `
-<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Neon Dashboard</title>
-<style>
-  :root{ --bg:#070b18; --card:rgba(255,255,255,.06); --line:rgba(255,255,255,.14); --txt:#eaf0ff; --mut:#a9b6d3;}
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui;background:radial-gradient(900px 500px at 20% 0%, rgba(42,102,255,.35), transparent 60%), var(--bg); color:var(--txt);}
-  .wrap{padding:20px}
-  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-  h1{margin:0;font-size:20px}
-  .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:14px}
-  @media(max-width:860px){.grid{grid-template-columns:1fr}}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px;backdrop-filter: blur(10px);}
-  .kpi{font-size:26px;font-weight:800;margin-top:6px}
-  .mut{color:var(--mut);font-size:12px}
-  .bar{height:10px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px}
-  .bar>i{display:block;height:100%;width:62%;background:linear-gradient(90deg, #2a66ff, #5ad2ff)}
-  .pill{display:inline-flex;gap:8px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:999px;background:rgba(0,0,0,.18);color:var(--mut);font-size:12px}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1>Neon Dashboard</h1>
-        <div class="mut">Live KPIs + quick status</div>
-      </div>
-      <div class="pill">Status: <b style="color:#39d98a">Healthy</b></div>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div class="mut">Monthly Revenue</div>
-        <div class="kpi">$42,880</div>
-        <div class="bar"><i></i></div>
-      </div>
-      <div class="card">
-        <div class="mut">Active Users</div>
-        <div class="kpi">8,214</div>
-        <div class="bar"><i style="width:74%"></i></div>
-      </div>
-      <div class="card">
-        <div class="mut">Conversion</div>
-        <div class="kpi">3.9%</div>
-        <div class="bar"><i style="width:39%"></i></div>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
-      return { title, html };
-    }
-
-    function shouldFallbackPreview(text){
-      // If backend didn't provide preview, but user asked for neon dashboard-ish
-      const t = (text || "").toLowerCase();
-      return t.includes("neon") && (t.includes("dashboard") || t.includes("cards"));
-    }
-
-    // --- Send message flow
-    async function send(){
-      const text = (input.value || "").trim();
-      if(!text) return;
-
-      state.lastUserText = text;
-      if(state.mode === "building") state.lastBuildPrompt = text;
-
-      state.chat.push({ role:"user", content:text });
-      renderChat();
-
-      input.value = "";
-      clampTextarea();
-      setStatus("Thinking…");
-      sendBtn.disabled = true;
-
-      let reply;
-      try{
-        reply = await callSimoBackend(text);
-      }catch(err){
-        reply = { ok:false, text:"I couldn’t reach my brain for a second. Try again.", preview:null };
-        console.error(err);
-      }
-
-      // Add assistant message
-      state.chat.push({ role:"assistant", content: reply.text || "…" });
-
-      // Apply preview (if any)
-      if(reply.preview && typeof reply.preview.html === "string"){
-        setPreview({
-          title: reply.preview.title || makeDefaultTitle(),
-          html: reply.preview.html || ""
-        });
-      } else {
-        // Optional fallback for your known test case
-        if(state.mode === "building" && shouldFallbackPreview(text)){
-          const p = localPreviewFallback(text);
-          setPreview({ title: p.title, html: p.html });
-        }
-      }
-
-      renderChat();
-      setStatus("Ready");
-      sendBtn.disabled = false;
-      input.focus();
-    }
-
-    // --- Events
-    sendBtn.addEventListener("click", send);
-
-    input.addEventListener("keydown", (e) => {
-      if(e.key === "Enter" && !e.shiftKey){
-        e.preventDefault();
-        send();
-      }
-    });
-
-    input.addEventListener("input", clampTextarea);
-
-    resetBtn.addEventListener("click", () => {
-      // Clear chat and preview only
-      state.chat = [];
-      setPreview({ title:"", html:"" });
-      state.lastUserText = "";
-      state.lastBuildPrompt = "";
-      setStatus("Ready");
-      renderChat();
-      toast("Reset ✅");
-      // Friendly boot message
-      state.chat.push({ role:"assistant", content:"Simo: Reset. I’m here." });
-      renderChat();
-    });
-
-    modeBtns.forEach(btn => {
-      btn.addEventListener("click", () => {
-        setMode(btn.dataset.mode);
-        if(state.mode === "building"){
-          state.chat.push({ role:"assistant", content:"Builder mode on. Tell me what you want to build — I’ll render a preview on the right." });
-        } else if(state.mode === "venting"){
-          state.chat.push({ role:"assistant", content:"Venting mode. Say it straight — I’m with you." });
-        } else {
-          state.chat.push({ role:"assistant", content:"Solving mode. Tell me the problem and what ‘done’ looks like." });
-        }
-        renderChat();
-      });
-    });
-
-    proSwitch.addEventListener("click", () => setPro(!state.isPro));
-    proSwitch.addEventListener("keydown", (e) => {
-      if(e.key === "Enter" || e.key === " "){
-        e.preventDefault();
-        setPro(!state.isPro);
-      }
-    });
-
-    // Preview tools
-    saveBuildBtn.addEventListener("click", () => {
-      if(!state.preview.html.trim()){
-        toast("Nothing to save yet.", true);
-        return;
-      }
-      saveTitleInput.value = state.preview.title || makeDefaultTitle();
-      saveNotesInput.value = "";
-      openModal("save");
-      saveTitleInput.focus();
-    });
-
-    libraryBtn.addEventListener("click", () => openModal("library"));
-    libraryBtnTop.addEventListener("click", () => openModal("library"));
-
-    closeModalBtn.addEventListener("click", closeModal);
-    backdrop.addEventListener("click", (e) => { if(e.target === backdrop) closeModal(); });
-
-    saveCurrentBtn.addEventListener("click", () => {
-      if(!state.preview.html.trim()){
-        toast("Nothing to save.", true);
-        return;
-      }
-      const title = (saveTitleInput.value || "").trim() || makeDefaultTitle();
-      const notes = (saveNotesInput.value || "").trim();
-
-      const build = {
-        id: crypto.randomUUID(),
-        title,
-        notes,
-        html: state.preview.html,
-        savedAt: Date.now()
-      };
-
-      upsertBuild(build);
-      renderLibrary();
-      toast("Saved ✅");
-    });
-
-    clearLibraryBtn.addEventListener("click", () => {
-      const ok = confirm("Clear the entire Library on this device?");
-      if(!ok) return;
-      saveLibrary([]);
-      renderLibrary();
-      toast("Library cleared");
-    });
-
-    searchInput.addEventListener("input", renderLibrary);
-
-    exportLibraryBtn.addEventListener("click", () => {
-      const lib = loadLibrary();
-      const blob = new Blob([JSON.stringify(lib, null, 2)], {type:"application/json;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "simo-library.json";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast("Exported ✅");
-    });
-
-    importLibraryBtn.addEventListener("click", () => importFileInput.click());
-
-    importFileInput.addEventListener("change", async () => {
-      const file = importFileInput.files && importFileInput.files[0];
-      if(!file) return;
-      try{
-        const txt = await file.text();
-        const arr = JSON.parse(txt);
-        if(!Array.isArray(arr)) throw new Error("Invalid JSON format.");
-        // Basic validation
-        const cleaned = arr
-          .filter(x => x && typeof x.html === "string")
-          .map(x => ({
-            id: x.id || crypto.randomUUID(),
-            title: String(x.title || "Imported build"),
-            notes: String(x.notes || ""),
-            html: String(x.html || ""),
-            savedAt: Number(x.savedAt || Date.now())
-          }));
-        saveLibrary(cleaned);
-        renderLibrary();
-        toast("Imported ✅");
-      }catch(err){
-        toast("Import failed", true);
-        console.error(err);
-      } finally {
-        importFileInput.value = "";
-      }
-    });
-
-    // Copy HTML (with visible toast)
-    copyHtmlBtn.addEventListener("click", async () => {
-      try {
-        const html = (state?.preview?.html || "").trim();
-        if (!html) {
-          toast("Nothing to copy yet.", true);
-          return;
-        }
-        await navigator.clipboard.writeText(html);
-        toast("Copied ✅");
-      } catch (err) {
-        // Fallback if clipboard API is blocked
-        try {
-          const html = (state?.preview?.html || "").trim();
-          const ta = document.createElement("textarea");
-          ta.value = html;
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand("copy");
-          document.body.removeChild(ta);
-          toast("Copied ✅");
-        } catch (e2) {
-          toast("Copy failed — try download instead.", true);
-          console.error(e2);
-        }
-      }
-    });
-
-    downloadBtn.addEventListener("click", () => {
-      const html = (state.preview.html || "").trim();
-      if(!html){
-        toast("Nothing to download yet.", true);
-        return;
-      }
-      const name = (state.preview.title || "build").trim() || "build";
-      downloadHtml(html, name + ".html");
-    });
-
-    // Boot
-    (function init(){
-      setMode("venting");
-      setPreview({title:"", html:""});
-      setStatus("Ready");
-      state.chat.push({ role:"assistant", content:"Simo: Reset. I’m here." });
-      renderChat();
-      clampTextarea();
-    })();
   </script>
 </body>
 </html>
