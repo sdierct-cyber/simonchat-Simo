@@ -1,17 +1,13 @@
 // netlify/functions/simon.js
 // Simo backend: best-friend core + intent router + previews + (optional) Serper web+image search.
-// + Server memory using Netlify Blobs (@netlify/blobs)
+// + Server memory (forever until Forget) using Netlify Blobs (@netlify/blobs)
 //
 // ENV VARS in Netlify:
 // - OPENAI_API_KEY   (required)
 // - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
 // - SERPER_API_KEY   (optional, enables web lookup)
-//
-// Features:
-// - Auto-preview in Building mode for buildable prompts
-// - PRO mode visibly upgrades preview templates AND adds pronounced neon frame + glow + pulse
-// - Watermark removed (keeps PRO pill)
-// - Hard guard so JSON never leaks into chat
+// Notes:
+// - This function supports client "action":"forget" with "user_id" to clear server memory.
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -29,33 +25,7 @@ function normalize(s = "") {
 }
 
 function safeJsonParse(s) {
-  try {
-    return JSON.parse(s);
-  } catch {
-    return null;
-  }
-}
-
-function extractJsonObject(text = "") {
-  const t = String(text || "").trim();
-  const first = t.indexOf("{");
-  const last = t.lastIndexOf("}");
-  if (first === -1 || last === -1 || last <= first) return null;
-  return safeJsonParse(t.slice(first, last + 1));
-}
-
-function coerceReply(outText = "") {
-  const direct = safeJsonParse(outText);
-  if (direct && typeof direct.reply === "string" && direct.reply.trim()) return direct.reply.trim();
-
-  const extracted = extractJsonObject(outText);
-  if (extracted && typeof extracted.reply === "string" && extracted.reply.trim()) return extracted.reply.trim();
-
-  const t = String(outText || "").trim();
-  if (t.startsWith("{") && t.includes('"reply"')) {
-    return "Got you. Tell me what you want next and I’ll move with you.";
-  }
-  return t || "Reset. I’m here.";
+  try { return JSON.parse(s); } catch { return null; }
 }
 
 /* --------------------------- Preview logic --------------------------- */
@@ -65,13 +35,6 @@ function wantsPreview(text = "") {
   return (
     /\bshow me\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t) ||
     /\b(show|make|build|generate|create)\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t)
-  );
-}
-
-function seemsBuildRequest(text = "") {
-  const t = normalize(text);
-  return /\b(build|design|make|create|generate|draft|mockup|wireframe|layout|ui|dashboard|landing page|homepage|resume|cv|app)\b/.test(
-    t
   );
 }
 
@@ -90,13 +53,7 @@ function detectPreviewKind(text = "", fallbackTopic = "") {
   return "wireframe";
 }
 
-function proChip(label) {
-  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.56);background:rgba(57,217,138,.14);color:rgba(234,240,255,.96);font-size:12px;font-weight:950;box-shadow:0 0 24px rgba(57,217,138,.22);">PRO • ${escapeHtml(
-    label
-  )}</span>`;
-}
-
-function buildPreviewHtml(kind, userText = "", isPro = false) {
+function buildPreviewHtml(kind, userText = "") {
   const titleMap = {
     space_renting_app: "Space Rentals",
     resume: "Resume Layout",
@@ -118,8 +75,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
       :root{
         --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
         --line:rgba(255,255,255,.12);
-        --btn:#2a66ff;
-        --pro: rgba(57,217,138,1);
+        --btn:#2a66ff; --good:#39d98a;
       }
       *{box-sizing:border-box}
       body{
@@ -129,100 +85,11 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         color:var(--text);
         padding:16px;
       }
-
-      /* Base container */
-      .shell{
-        max-width:980px;
-        margin:0 auto;
-      }
-
-      /* 🔥 PRO FRAME (pronounced + brighter cyber neon) */
-      .proFrame{
-        position:relative;
-        border-radius:18px;
-        padding:12px;
-      }
-      .proFrame::before{
-        content:"";
-        position:absolute; inset:0;
-        border-radius:18px;
-        padding:2px;
-        background: linear-gradient(90deg,
-          rgba(57,217,138,.10),
-          rgba(57,217,138,.90),
-          rgba(42,102,255,.60),
-          rgba(57,217,138,.90),
-          rgba(57,217,138,.10)
-        );
-        -webkit-mask:
-          linear-gradient(#000 0 0) content-box,
-          linear-gradient(#000 0 0);
-        -webkit-mask-composite: xor;
-        mask-composite: exclude;
-        filter:
-          drop-shadow(0 0 18px rgba(57,217,138,.40))
-          drop-shadow(0 0 44px rgba(57,217,138,.26))
-          drop-shadow(0 0 70px rgba(42,102,255,.18));
-        opacity:.95;
-        animation: proFramePulse 2.0s ease-in-out infinite;
-        pointer-events:none;
-      }
-      .proFrame::after{
-        content:"";
-        position:absolute; inset:2px;
-        border-radius:16px;
-        background: radial-gradient(900px 520px at 25% 0%, rgba(57,217,138,.12), rgba(0,0,0,.00) 58%);
-        opacity:.92;
-        pointer-events:none;
-      }
-      @keyframes proFramePulse{
-        0%,100%{
-          filter:
-            drop-shadow(0 0 16px rgba(57,217,138,.38))
-            drop-shadow(0 0 40px rgba(57,217,138,.24))
-            drop-shadow(0 0 62px rgba(42,102,255,.16));
-          opacity:.88;
-        }
-        50%{
-          filter:
-            drop-shadow(0 0 26px rgba(57,217,138,.52))
-            drop-shadow(0 0 60px rgba(57,217,138,.30))
-            drop-shadow(0 0 90px rgba(42,102,255,.22));
-          opacity:1;
-        }
-      }
-
-      /* Inner content box */
-      .inner{
-        position:relative;
-        z-index:1;
-        border-radius:16px;
-      }
-
-      /* Cyber scanlines overlay (PRO only) */
-      .proOn::before{
-        content:"";
-        position:absolute;
-        inset:0;
-        border-radius:16px;
-        pointer-events:none;
-        background:
-          repeating-linear-gradient(
-            to bottom,
-            rgba(255,255,255,.035),
-            rgba(255,255,255,.035) 1px,
-            rgba(0,0,0,0) 3px,
-            rgba(0,0,0,0) 6px
-          );
-        opacity:.10;
-        mix-blend-mode: overlay;
-      }
-
+      .shell{max-width:980px;margin:0 auto}
       .top{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}
       .title{font-size:18px;font-weight:900;margin:0}
       .sub{color:rgba(234,240,255,.68);font-size:12px;margin-top:4px}
-      .tag{color:rgba(234,240,255,.68);font-size:12px;display:flex;gap:10px;align-items:center}
-
+      .tag{color:rgba(234,240,255,.68);font-size:12px}
       .bar{
         display:flex; gap:10px; flex-wrap:wrap;
         padding:12px; border:1px solid var(--line); border-radius:14px;
@@ -266,94 +133,24 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         background:linear-gradient(180deg, var(--btn), #1f4dd6);
         color:white; font-weight:800; border:0;
       }
-      .btn.ghost{
-        background:rgba(255,255,255,.08);
-        border:1px solid rgba(255,255,255,.12);
-        color:rgba(234,240,255,.92);
-      }
       .map{
         height:240px;
         display:flex;align-items:center;justify-content:center;
         color:rgba(234,240,255,.65);
         background:repeating-linear-gradient(45deg, rgba(255,255,255,.04), rgba(255,255,255,.04) 10px, rgba(255,255,255,.02) 10px, rgba(255,255,255,.02) 20px);
       }
-      .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-      .divider{height:1px;background:rgba(255,255,255,.10);margin:6px 0}
-      .kpi{
-        border:1px solid var(--line);
-        background:rgba(255,255,255,.04);
-        border-radius:12px;
-        padding:12px;
-      }
-      .kpi .label{font-size:12px;color:rgba(234,240,255,.70);font-weight:800}
-      .kpi .value{font-size:22px;font-weight:900;margin-top:6px}
-      .trend{font-size:12px;font-weight:900;color:rgba(57,217,138,.98);margin-top:6px}
-      .chart{
-        height:160px;border-radius:12px;border:1px solid rgba(255,255,255,.12);
-        background:linear-gradient(180deg, rgba(42,102,255,.14), rgba(0,0,0,.10));
-        display:flex;align-items:center;justify-content:center;
-        color:rgba(234,240,255,.70);
-      }
-
-      /* PRO badge - brighter + more pulse */
-      .badgePro{
-        display:inline-flex;align-items:center;gap:6px;
-        padding:6px 10px;border-radius:999px;
-        border:2px solid rgba(57,217,138,.70);
-        background:rgba(57,217,138,.16);
-        color:rgba(234,240,255,.98);
-        font-size:12px;font-weight:950;
-        letter-spacing:.02em;
-        box-shadow:
-          0 0 18px rgba(57,217,138,.34),
-          0 0 48px rgba(57,217,138,.20);
-      }
-
-      /* PRO glow (stronger) */
-      .proOn .card,
-      .proOn .bar{
-        border-color: rgba(57,217,138,.36);
-        box-shadow:
-          0 0 0 1px rgba(57,217,138,.20),
-          0 0 26px rgba(57,217,138,.20),
-          0 0 58px rgba(57,217,138,.12);
-      }
-      .proOn .badgePro{
-        animation: proPulse 1.25s ease-in-out infinite;
-      }
-
-      @keyframes proPulse{
-        0%,100%{
-          box-shadow:
-            0 0 18px rgba(57,217,138,.32),
-            0 0 48px rgba(57,217,138,.18);
-          transform: translateY(0) scale(1);
-        }
-        50%{
-          box-shadow:
-            0 0 30px rgba(57,217,138,.48),
-            0 0 64px rgba(57,217,138,.24);
-          transform: translateY(-1px) scale(1.01);
-        }
-      }
-
-      @media (max-width: 860px){ .grid{grid-template-columns:1fr} .two{grid-template-columns:1fr} }
+      @media (max-width: 860px){ .grid{grid-template-columns:1fr} }
     </style>
   </head><body>
-    <div class="shell ${isPro ? "proFrame" : ""}">
-      <div class="inner ${isPro ? "proOn" : ""}">
-        <div class="top">
-          <div>
-            <div class="title">${escapeHtml(title)}</div>
-            <div class="sub">${subtitle}</div>
-          </div>
-          <div class="tag">
-            <span>Preview • rendered mockup</span>
-            ${isPro ? `<span class="badgePro">PRO enabled</span>` : ``}
-          </div>
+    <div class="shell">
+      <div class="top">
+        <div>
+          <div class="title">${escapeHtml(title)}</div>
+          <div class="sub">${subtitle}</div>
         </div>
-        ${inner}
+        <div class="tag">Preview • rendered mockup</div>
       </div>
+      ${inner}
     </div>
   </body></html>`;
 
@@ -365,16 +162,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         <span class="chip">24/7 access</span>
         <span class="chip">Covered</span>
         <span class="chip">EV friendly</span>
-        ${isPro ? `<span class="chip" style="border-color:rgba(57,217,138,.60);background:rgba(57,217,138,.14);color:rgba(234,240,255,.92)">Instant message</span>` : ``}
       </div>
-
-      ${isPro ? `
-      <div class="bar" style="margin-top:10px">
-        <input class="input" placeholder="Start date" value="Mar 01" />
-        <input class="input" placeholder="End date" value="Mar 03" />
-        <input class="input" placeholder="Vehicle" value="SUV • 2m height" />
-        <button class="btn">Check availability</button>
-      </div>` : ``}
 
       <div class="grid">
         <div class="card">
@@ -412,21 +200,6 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
                 <div class="meta">Instant book</div>
               </div>
             </div>
-
-            ${isPro ? `
-            <div class="card" style="border-radius:12px">
-              <h3 style="border-bottom:1px solid rgba(255,255,255,.10)">Messages</h3>
-              <div class="list">
-                <div class="item" style="display:block">
-                  <strong>Host (Mike)</strong>
-                  <div class="meta">“Gate code will be sent after booking.”</div>
-                </div>
-                <div class="item" style="display:block;opacity:.9">
-                  <div class="meta">Type a message…</div>
-                </div>
-                <button class="btn ghost">Send message</button>
-              </div>
-            </div>` : ``}
           </div>
         </div>
 
@@ -445,135 +218,6 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
               </div>
             </div>
             <button class="btn">Book now</button>
-
-            ${isPro ? `
-            <div class="divider"></div>
-            <div class="item" style="display:block">
-              <strong>Host Dashboard (preview)</strong>
-              <div class="meta">Earnings • calendar • approve requests • message renters</div>
-            </div>
-            <button class="btn ghost">Open host view</button>
-            ` : ``}
-          </div>
-        </div>
-      </div>
-    `);
-  }
-
-  if (kind === "landing_page") {
-    return shell(`
-      <div class="grid">
-        <div class="card">
-          <h3>Hero</h3>
-          <div class="list">
-            <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
-            <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
-            <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap;">
-              <button class="btn">Get started</button>
-              <button class="btn ghost">See demo</button>
-              ${isPro ? `<span style="margin-left:auto">${proChip("Pricing + social proof")}</span>` : ``}
-            </div>
-            <div style="margin-top:12px;display:grid;gap:10px;">
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
-            </div>
-          </div>
-        </div>
-        <div class="card">
-          <h3>Hero Image</h3>
-          <div class="map">Screenshot / graphic</div>
-        </div>
-      </div>
-
-      ${isPro ? `
-      <div class="grid" style="grid-template-columns:1fr;gap:12px;margin-top:12px">
-        <div class="card">
-          <h3>Pricing</h3>
-          <div class="list">
-            <div class="two">
-              <div class="kpi">
-                <div class="label">Starter</div>
-                <div class="value">$0</div>
-                <div class="meta">Basic chat + limited builds</div>
-              </div>
-              <div class="kpi" style="border-color:rgba(57,217,138,.60);background:rgba(57,217,138,.16);box-shadow:0 0 28px rgba(57,217,138,.18)">
-                <div class="label">Pro</div>
-                <div class="value">$19/mo</div>
-                <div class="meta">Unlimited previews + export + library</div>
-                <div class="trend">Most popular</div>
-              </div>
-            </div>
-            <button class="btn">Upgrade to Pro</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>Testimonials</h3>
-          <div class="list">
-            <div class="item" style="display:block"><strong>“I went from idea → mockup in minutes.”</strong><div class="meta">— Alex</div></div>
-            <div class="item" style="display:block"><strong>“The previews sell the concept instantly.”</strong><div class="meta">— Sam</div></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <h3>FAQ</h3>
-          <div class="list">
-            <div class="item" style="display:block"><strong>Can I download the HTML?</strong><div class="meta">Yes — Download exports a .html file.</div></div>
-            <div class="item" style="display:block"><strong>Do builds save?</strong><div class="meta">Yes — Library saves on this device.</div></div>
-          </div>
-        </div>
-      </div>
-      ` : ``}
-    `);
-  }
-
-  if (kind === "dashboard") {
-    return shell(`
-      <div class="grid" style="grid-template-columns:1fr;gap:12px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-          <div class="kpi">
-            <div class="label">Revenue</div>
-            <div class="value">—</div>
-            ${isPro ? `<div class="trend">+12% vs last month</div>` : `<div class="meta">This month</div>`}
-          </div>
-          <div class="kpi">
-            <div class="label">Active Users</div>
-            <div class="value">—</div>
-            ${isPro ? `<div class="trend">+4% today</div>` : `<div class="meta">Today</div>`}
-          </div>
-          <div class="kpi">
-            <div class="label">Bookings</div>
-            <div class="value">—</div>
-            ${isPro ? `<div class="trend">+18% this week</div>` : `<div class="meta">This week</div>`}
-          </div>
-        </div>
-
-        ${isPro ? `
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="card">
-            <h3>Bookings (7 days)</h3>
-            <div class="list">
-              <div class="chart">Chart placeholder</div>
-              <div class="meta">Daily bookings trend • conversion • cancellations</div>
-            </div>
-          </div>
-          <div class="card">
-            <h3>Revenue (30 days)</h3>
-            <div class="list">
-              <div class="chart">Chart placeholder</div>
-              <div class="meta">MRR • refunds • net revenue</div>
-            </div>
-          </div>
-        </div>` : ``}
-
-        <div class="card">
-          <h3>Recent Activity</h3>
-          <div class="list">
-            <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
-            <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
-            <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
-            ${isPro ? `<div class="item"><div><strong>Chargeback risk</strong><div class="meta">flagged • review</div></div></div>` : ``}
           </div>
         </div>
       </div>
@@ -588,7 +232,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
           <div>
             <div style="font-size:26px;font-weight:900;">Your Name</div>
             <div class="meta">Email • Phone • City, State • LinkedIn</div>
-            <div class="divider"></div>
+            <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
             <div style="font-weight:900;margin-bottom:8px;">Experience</div>
             <div class="item" style="display:block">
               <div><strong>Job Title • Company</strong></div>
@@ -599,7 +243,53 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
                 <li>Tools / systems</li>
               </ul>
             </div>
-            ${isPro ? `<div class="item" style="display:block"><strong>PRO tips</strong><div class="meta">Add quantified results + keywords + strong verbs.</div></div>` : ``}
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (kind === "landing_page") {
+    return shell(`
+      <div class="grid">
+        <div class="card">
+          <h3>Hero</h3>
+          <div class="list">
+            <div style="font-size:28px;font-weight:900;line-height:1.05;">Clear headline that says what this is.</div>
+            <div class="meta" style="font-size:13px;">Short subheadline. One sentence. Concrete benefit.</div>
+            <div style="display:flex;gap:10px;margin-top:12px;">
+              <button class="btn">Get started</button>
+              <button class="btn" style="background:rgba(255,255,255,.10);color:var(--text);border:1px solid rgba(255,255,255,.12);">See demo</button>
+            </div>
+            <div style="margin-top:12px;display:grid;gap:10px;">
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+              <div class="item"><div><strong>Feature</strong><div class="meta">Benefit in one line</div></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <h3>Hero Image</h3>
+          <div class="map">Screenshot / graphic</div>
+        </div>
+      </div>
+    `);
+  }
+
+  if (kind === "dashboard") {
+    return shell(`
+      <div class="grid" style="grid-template-columns:1fr;gap:12px;">
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+          <div class="card"><h3>Revenue</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This month</div></div></div>
+          <div class="card"><h3>Active Users</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">Today</div></div></div>
+          <div class="card"><h3>Bookings</h3><div class="list"><div style="font-size:22px;font-weight:900;">—</div><div class="meta">This week</div></div></div>
+        </div>
+        <div class="card">
+          <h3>Recent Activity</h3>
+          <div class="list">
+            <div class="item"><div><strong>New signup</strong><div class="meta">2 min ago</div></div></div>
+            <div class="item"><div><strong>Payment completed</strong><div class="meta">17 min ago</div></div></div>
+            <div class="item"><div><strong>New message</strong><div class="meta">1 hr ago</div></div></div>
           </div>
         </div>
       </div>
@@ -629,12 +319,14 @@ function isContinue(text = "") {
 
 function detectIntent(text = "") {
   const t = normalize(text);
+
   if (/\bswitch topics?\b/.test(t)) return "switch";
   if (isContinue(t)) return "continue";
   if (/\b(show me|preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
   if (/\b(stressed|anxious|tired|overwhelmed|upset|mad|angry|sad|fight|argu(ment|ing))\b/.test(t)) return "venting";
   if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
   if (/\b(build|design|make|create|generate)\b/.test(t)) return "building";
+
   return "auto";
 }
 
@@ -650,17 +342,16 @@ async function serperWebSearch(query, apiKey) {
   if (!res.ok) return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
 
   const organic = Array.isArray(data?.organic) ? data.organic.slice(0, 6) : [];
-  const top = organic
-    .map((r) => ({
-      title: r.title || "",
-      link: r.link || "",
-      snippet: r.snippet || "",
-    }))
-    .filter((x) => x.title || x.link || x.snippet);
+  const top = organic.map((r) => ({
+    title: r.title || "",
+    link: r.link || "",
+    snippet: r.snippet || "",
+  })).filter(x => x.title || x.link || x.snippet);
 
   return { ok: true, top };
 }
 
+// ✅ FIX #2: weather/forecast now counts as lookup
 function seemsLikeLookup(text = "") {
   const t = normalize(text);
   return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours|weather|forecast|temperature|temp)\b/.test(t);
@@ -715,16 +406,13 @@ exports.handler = async (event) => {
     }
 
     let body = {};
-    try {
-      body = JSON.parse(event.body || "{}");
-    } catch {
-      body = {};
-    }
+    try { body = JSON.parse(event.body || "{}"); } catch { body = {}; }
 
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
-    const uiMode = (body.mode || "auto").toString(); // "venting" | "solving" | "building"
-    const isPro = !!body.pro;
+
+    // ✅ Pro flag from UI
+    const pro = !!body.pro;
 
     if (action === "forget" && userId) {
       try {
@@ -734,21 +422,13 @@ exports.handler = async (event) => {
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({
-          ok: true,
-          mode: "bestfriend",
-          text: "Forgot.",
-          message: "Forgot.",
-          reply: "Forgot.",
-          preview: null,
-          preview_kind: "",
-          preview_html: "",
-        }),
+        body: JSON.stringify({ ok: true, mode: "bestfriend", reply: "Forgot.", preview_kind: "", preview_html: "" }),
       };
     }
 
     const userText = (body.message || "").toString();
     const history = Array.isArray(body.history) ? body.history : [];
+    const clientMode = (body.mode || "auto").toString();
     const clientTopic = (body.topic || "").toString();
 
     if (!userText.trim()) {
@@ -761,69 +441,93 @@ exports.handler = async (event) => {
       try {
         const store = await getMemoryStore();
         mem = await store.get(userId, { type: "json" });
-      } catch {
-        mem = null;
-      }
+      } catch { mem = null; }
     }
 
     const intent = detectIntent(userText);
 
+    // Choose effective topic
     const savedTopic = (mem?.last_topic || "").toString();
-    const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : clientTopic || savedTopic;
+    const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : (clientTopic || savedTopic);
 
-    // Switch topics
+    // 1) Switch topics
     if (intent === "switch") {
-      const msg = "Understood. What do you want to do next — venting, solving, or building?";
+      if (userId) {
+        try {
+          const store = await getMemoryStore();
+          await store.setJSON(userId, {
+            preferred_mode: "bestfriend",
+            last_topic: effectiveTopic || "",
+            project_brief: mem?.project_brief || "",
+            updated_at: new Date().toISOString()
+          });
+        } catch {}
+      }
+
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           ok: true,
           mode: "bestfriend",
-          text: msg,
-          message: msg,
-          reply: msg,
-          preview: null,
+          reply: "Understood. What do you want to do next — venting, solving, or building?",
           preview_kind: "",
           preview_html: "",
         }),
       };
     }
 
-    // Preview decision
-    const explicitPreview = wantsPreview(userText);
-    const autoPreview =
-      uiMode === "building" && !explicitPreview && seemsBuildRequest(userText) && intent !== "venting";
-    const previewShouldRender = explicitPreview || autoPreview;
+    // ✅ PRO AUTO-PREVIEW:
+    // If Pro is ON and this looks like a building request, generate a preview even if they didn’t ask for “preview”.
+    // We DO NOT do this for venting/solving.
+    const proAutoPreview =
+      pro &&
+      intent === "building" &&
+      !wantsPreview(userText);
 
-    let fastPreview = null;
-    if (previewShouldRender) {
+    // 2) Preview fast path (explicit OR Pro auto-preview)
+    if (wantsPreview(userText) || proAutoPreview) {
       const kind = detectPreviewKind(userText, effectiveTopic);
-      const title = (
-        {
-          space_renting_app: "Space Rentals",
-          resume: "Resume Layout",
-          home_layout: "2-Story Home Layout",
-          landing_page: "Landing Page",
-          dashboard: "Dashboard UI",
-          generic_app: "App UI",
-          wireframe: "Wireframe Preview",
-        }[kind] || "Preview"
-      );
+      const brief =
+        kind === "space_renting_app"
+          ? "Space renting app (driveway/garage/parking/extra space): search + filters + listing cards with price/availability + map placeholder + booking panel + messaging + host dashboard."
+          : (mem?.project_brief || "");
 
-      fastPreview = { kind, title, html: buildPreviewHtml(kind, userText, isPro) };
+      if (userId) {
+        try {
+          const store = await getMemoryStore();
+          await store.setJSON(userId, {
+            preferred_mode: "builder",
+            last_topic: effectiveTopic || kind || "",
+            project_brief: brief,
+            updated_at: new Date().toISOString()
+          });
+        } catch {}
+      }
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          mode: "builder",
+          reply: proAutoPreview
+            ? "Pro auto-preview is on. I rendered a preview on the right. Want it simpler or more detailed?"
+            : "Preview is on the right. Do you want it simpler or more detailed?",
+          preview_kind: kind,
+          preview_html: buildPreviewHtml(kind, userText),
+        }),
+      };
     }
 
-    // Lookup context
+    // 3) Web lookup context (now includes weather, forecast, temp, etc.)
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
       if (s.ok && s.top?.length) {
         toolContext =
           "Live web results (use as facts; include direct links in reply):\n" +
-          s.top
-            .map((r, i) => `${i + 1}. ${r.title}\n${r.link}\n${r.snippet}`.trim())
-            .join("\n\n");
+          s.top.map((r, i) => `${i + 1}. ${r.title}\n${r.link}\n${r.snippet}`.trim()).join("\n\n");
       }
     }
 
@@ -833,45 +537,63 @@ exports.handler = async (event) => {
       .map((m) => ({ role: m.role, content: m.content }));
 
     const inferredMode =
-      intent === "venting"
-        ? "bestfriend"
-        : intent === "building" || intent === "continue" || uiMode === "building"
-          ? "builder"
-          : intent === "solving"
-            ? "builder"
-            : "bestfriend";
+      intent === "venting" ? "bestfriend" :
+      intent === "building" ? "builder" :
+      intent === "solving" ? "builder" :
+      intent === "continue" ? "builder" :
+      (clientMode === "builder" || clientMode === "bestfriend") ? clientMode :
+      "bestfriend";
 
-    const memoryBlock =
-      userId && mem
-        ? `Saved user memory:
+    const memoryBlock = (userId && mem)
+      ? `Saved user memory:
 - preferred_mode: ${mem?.preferred_mode || "auto"}
 - last_topic: ${mem?.last_topic || ""}
 - project_brief: ${mem?.project_brief || ""}`.trim()
-        : "";
+      : "";
 
+    // ✅ FIX #1: No markdown headings. Continue should move the project forward.
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
 
-Voice:
-- Calm, steady, direct.
-- No therapy-speak.
-- If venting: validate in 1 sentence, then ask ONE simple question.
-- No markdown headings. Avoid heavy formatting.
+Voice (non-negotiable):
+- Calm, steady, and clear. Professional, but warm.
+- No hype. No slang-heavy talk. No therapy-speak.
+- Short sentences. Clean formatting.
+- Do NOT use markdown headings (no ###, ####) or long outlines.
+- Use short numbered steps only when needed. Otherwise write plain paragraphs.
+- Ask at most ONE question when the user is venting.
 
-Output:
+Core capability:
+- Handle ANY topic.
+- If you cannot fetch something live, do not hand-wave. Offer the best practical alternative (steps, templates, sources, options).
+
+Special rule for "continue/resume":
+- If the user says "continue", assume they mean the last active project from memory (last_topic / project_brief).
+- Do NOT ask "what app?" unless there is truly no saved project_brief.
+- Continue from the last project_brief and move it forward one milestone.
+- Be concrete: next screens, data model, API endpoints, or build steps.
+- Do NOT restart with generic "define features / choose tech stack".
+
+Intent handling:
+1) Venting: validate (1–2 sentences) + ask ONE question.
+2) Solving: diagnosis + step-by-step checklist.
+3) Building: provide a clean plan with next actions.
+
+Relationship rule:
+- If user says "wife", refer to her as wife (never “friendship”).
+
+Output requirements:
 Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
 Preview rules:
 - preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
-- If client is in Building mode, you may include preview_html when request is clearly buildable.
 `.trim();
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(memoryBlock ? [{ role: "system", content: memoryBlock }] : []),
       ...(toolContext ? [{ role: "system", content: toolContext }] : []),
-      { role: "system", content: `Client context: ui_mode=${uiMode}; pro=${isPro}; preview_should_render=${previewShouldRender}` },
       ...cleanedHistory,
       { role: "user", content: userText },
     ];
@@ -905,63 +627,39 @@ Preview rules:
     }
 
     const outText = extractOutputText(data);
-    const parsed = safeJsonParse(outText) || extractJsonObject(outText);
+    const parsed = safeJsonParse(outText);
 
     const mode =
-      parsed?.mode === "builder"
-        ? "builder"
-        : parsed?.mode === "bestfriend"
-          ? "bestfriend"
-          : inferredMode === "builder"
-            ? "builder"
-            : "bestfriend";
+      parsed?.mode === "builder" ? "builder" :
+      parsed?.mode === "bestfriend" ? "bestfriend" :
+      inferredMode === "builder" ? "builder" : "bestfriend";
 
-    let reply = "";
-    if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
-      reply = parsed.reply.trim();
-    } else {
-      reply = coerceReply(outText);
-    }
+    let reply =
+      typeof parsed?.reply === "string" && parsed.reply.trim()
+        ? parsed.reply.trim()
+        : (outText || "Reset. I’m here.");
+
+    // Extra safety: strip leading markdown headings if any leak through
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    // --- hard guard: never let JSON leak into chat ---
-    function looksLikeJsonLeak(s = "") {
-      const t = String(s).trim();
-      if (!t.startsWith("{")) return false;
-      return /"mode"\s*:|"reply"\s*:|"preview_html"\s*:|"headline"\s*:|"features?_section"\s*:|"pricing_section"\s*:|"testimonials_section"\s*:/.test(
-        t
-      );
-    }
+    const previewAllowed = wantsPreview(userText); // keep strict for LLM generated previews
+    const preview_html =
+      previewAllowed && typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
 
-    if (looksLikeJsonLeak(reply)) {
-      const parsedLeak = safeJsonParse(reply) || extractJsonObject(reply);
-      if (parsedLeak && typeof parsedLeak.reply === "string" && parsedLeak.reply.trim()) {
-        reply = parsedLeak.reply.trim();
-      } else {
-        reply =
-          "Got it. Tell me what you want changed on that landing page (headline, buttons, pricing, testimonials) and I’ll adjust it.";
-      }
-    }
+    const preview_kind =
+      previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
 
-    // Preview: prefer fastPreview for consistency
-    const preview_kind = previewShouldRender && fastPreview ? fastPreview.kind : "";
-    const preview_html = previewShouldRender && fastPreview ? fastPreview.html : "";
-    const preview =
-      previewShouldRender && fastPreview && preview_html
-        ? { title: fastPreview.title, html: preview_html }
-        : null;
-
-    // Save memory
+    // Save memory (don’t let "continue..." overwrite)
     if (userId) {
       try {
         const store = await getMemoryStore();
-        const nextTopic = preview_kind || effectiveTopic || mem?.last_topic || "";
+        const nextTopic = effectiveTopic || mem?.last_topic || "";
         const nextBrief = mem?.project_brief || "";
         await store.setJSON(userId, {
           preferred_mode: mode,
           last_topic: nextTopic,
           project_brief: nextBrief,
-          updated_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         });
       } catch {}
     }
@@ -972,11 +670,7 @@ Preview rules:
       body: JSON.stringify({
         ok: true,
         mode,
-        text: reply,
-        message: reply,
-        reply: reply,
-
-        preview,
+        reply,
         preview_kind,
         preview_html,
       }),
