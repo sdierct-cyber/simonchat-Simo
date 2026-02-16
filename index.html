@@ -279,8 +279,8 @@
 
         <div class="hintRow">
           <button class="hintBtn" data-hint="Design a space renting app.">Space app</button>
-          <button class="hintBtn" data-hint="Build me a simple landing page with full HTML.">Landing page</button>
-          <button class="hintBtn" data-hint="Show me a preview.">Preview</button>
+          <button class="hintBtn" data-hint="Build me a deep space landing page with full HTML inside a ```html fenced block.">Landing page</button>
+          <button class="hintBtn" data-hint="Generate the FULL HTML preview now inside a ```html fenced block.">Preview</button>
           <button class="hintBtn" data-hint="I’m stressed out.">Venting</button>
           <button class="hintBtn" data-hint="Help me plan my next steps.">Solve</button>
         </div>
@@ -314,7 +314,7 @@
           <div class="previewBody" id="previewBody">
             <div class="previewEmpty">
               Nothing to preview yet.<br><br>
-              Try: <span class="mono">build me a simple website</span> or click <b>Space app</b>.
+              Tip: In <b>Building</b> mode, ask for full HTML.
             </div>
           </div>
         </div>
@@ -383,14 +383,12 @@
   let lastSimoText = "";
   let lastPreview = { type: "none", html: "", images: [] };
   let lastPreviewBlobUrl = "";
-
   let mode = localStorage.getItem("simo_mode") || "venting"; // venting | solving | building
 
   // Pro + rate limit (frontend-only)
   const FREE_DAILY_BUILD_LIMIT = 10;
   let proEnabled = (localStorage.getItem("simo_pro") === "true");
 
-  // usage stored per day
   function todayKey(){
     const d = new Date();
     const y = d.getFullYear();
@@ -497,7 +495,7 @@
       previewBody.innerHTML = `
         <div class="previewEmpty">
           Nothing to preview yet.<br><br>
-          Tip: switch to <b>Building</b> mode for consistent HTML previews.
+          Tip: In <b>Building</b> mode, ask for full HTML.
         </div>
       `;
       setPreviewState("none", "warn");
@@ -560,7 +558,6 @@ ${preview.html}
     return false;
   }
 
-  // Stronger Venting style: more direct, less “therapy speak”
   function buildHiddenModeInstruction(){
     if (mode === "venting"){
       return [
@@ -582,7 +579,7 @@ ${preview.html}
       "```html",
       "<!doctype html> ...",
       "```",
-      "Keep explanation short; prioritize usable output."
+      "Do NOT ask questions first. Produce the HTML now."
     ].join("\n");
   }
 
@@ -646,7 +643,6 @@ ${preview.html}
       proBadge.textContent = "PRO";
       proBadge.classList.add("pro");
       unlockBtn.textContent = "Pro: Enabled";
-      unlockBtn.classList.add("ghost");
       buildCountEl.textContent = "∞";
       buildCountEl.className = "good";
     } else {
@@ -696,25 +692,39 @@ ${preview.html}
     inputEl.value = "";
     addMsg("you", t);
 
-    const simoText = await callSimo(t);
+    // ---- FIX #1: In Building mode, force HTML when user asks for pages/apps/previews ----
+    let sendText = t;
+    if (mode === "building"){
+      const wantsPreviewable =
+        /landing page|website|page|app|dashboard|ui|mockup|preview|html/i.test(sendText);
+
+      if (wantsPreviewable){
+        sendText += "\n\nIMPORTANT: Return the FULL result as a complete HTML document inside a ```html fenced block. Do not ask questions first. Do it now.";
+      }
+    }
+
+    const simoText = await callSimo(sendText);
     lastSimoText = simoText;
     addMsg("simo", simoText);
 
-    // Count a build if we were in building mode (even if the user asked something small)
     if (mode === "building" && !proEnabled){
       incBuildCount();
       applyProUI();
     }
 
     const found = updateLastPreviewFromText(simoText);
-    if (autoPreviewEl.checked && found){
+
+    // ---- FIX #2: Always render preview in Building mode when found ----
+    if ((autoPreviewEl.checked && found) || (mode === "building" && found)){
       renderPreview(lastPreview);
       setView("split");
+    } else if (mode === "building" && !found){
+      addMsg("simo", "No preview detected in my last message. Ask for full HTML and I’ll wrap it in ```html``` fences so the Preview panel can render it.");
     }
   }
 
   // ---- Events ----
-  document.getElementById("sendBtn").addEventListener("click", send);
+  sendBtn.addEventListener("click", send);
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey){
       e.preventDefault();
@@ -757,8 +767,9 @@ ${preview.html}
     window.open(lastPreviewBlobUrl, "_blank", "noopener,noreferrer");
   });
 
+  // ---- FIX #3: Ask for Preview now forces HTML generation, not the canned preview reply ----
   quickPreviewBtn.addEventListener("click", () => {
-    inputEl.value = "show me a preview";
+    inputEl.value = "Generate the FULL HTML preview now. Put the entire page inside a ```html fenced block. No extra explanation.";
     send();
   });
 
@@ -771,18 +782,12 @@ ${preview.html}
   });
 
   // ---- Modal ----
-  function openProModal(){
-    modalBack.style.display = "flex";
-  }
-  function closeProModal(){
-    modalBack.style.display = "none";
-  }
+  function openProModal(){ modalBack.style.display = "flex"; }
+  function closeProModal(){ modalBack.style.display = "none"; }
 
   unlockBtn.addEventListener("click", openProModal);
   closeModalBtn.addEventListener("click", closeProModal);
-  modalBack.addEventListener("click", (e) => {
-    if (e.target === modalBack) closeProModal();
-  });
+  modalBack.addEventListener("click", (e) => { if (e.target === modalBack) closeProModal(); });
 
   enableProBtn.addEventListener("click", () => {
     proEnabled = true;
@@ -801,41 +806,12 @@ ${preview.html}
   });
 
   // ---- Init ----
-  function setApiState(text, cls){
-    apiStateEl.textContent = text;
-    apiStateEl.className = (cls || "warn");
-  }
-  function setPreviewState(text, cls){
-    previewStateEl.textContent = text;
-    previewStateEl.className = (cls || "warn");
-  }
-  function setView(view){
-    [viewSplit, viewChat, viewPreview].forEach(x => x.classList.remove("active"));
-    if (view === "split") viewSplit.classList.add("active");
-    if (view === "chat") viewChat.classList.add("active");
-    if (view === "preview") viewPreview.classList.add("active");
-
-    if (view === "split"){
-      gridEl.style.gridTemplateColumns = "1fr 1fr";
-      chatPanel.style.display = "flex";
-      previewPanel.style.display = "flex";
-    } else if (view === "chat"){
-      gridEl.style.gridTemplateColumns = "1fr";
-      chatPanel.style.display = "flex";
-      previewPanel.style.display = "none";
-    } else {
-      gridEl.style.gridTemplateColumns = "1fr";
-      chatPanel.style.display = "none";
-      previewPanel.style.display = "flex";
-    }
-  }
-
   applyModeUI();
   applyProUI();
   setView("split");
   renderPreview(lastPreview);
 
-  addMsg("simo", "Pro gate is live (frontend-only). Venting + Solving are free. Building has a daily free limit unless Pro is enabled.");
+  addMsg("simo", "Preview reliability upgrade is live: Building mode forces HTML output for pages/apps, and Ask for Preview now generates full HTML automatically.");
   setApiState("idle", "warn");
 })();
 </script>
