@@ -317,11 +317,21 @@ function isContinue(text = "") {
   return /^(continue|resume|keep going)\b/.test(t) || /\bcontinue that\b/.test(t) || /\bkeep going\b/.test(t);
 }
 
+// ✅ NEW: treat edit language as "building" intent
+function isEditLanguage(text = "") {
+  const t = normalize(text);
+  return /\b(add|include|insert|append|update|edit|change|modify|tweak|improve|enhance|remove|delete|swap|replace)\b/.test(t);
+}
+
 function detectIntent(text = "") {
   const t = normalize(text);
 
   if (/\bswitch topics?\b/.test(t)) return "switch";
   if (isContinue(t)) return "continue";
+
+  // ✅ NEW: edit verbs should route to building
+  if (isEditLanguage(t)) return "building";
+
   if (/\b(show me|preview|mockup|ui|layout|wireframe)\b/.test(t)) return "building";
   if (/\b(stressed|anxious|tired|overwhelmed|upset|mad|angry|sad|fight|argu(ment|ing))\b/.test(t)) return "venting";
   if (/\b(help me|how do i|fix|debug|error|issue|broken)\b/.test(t)) return "solving";
@@ -333,7 +343,7 @@ function detectIntent(text = "") {
 function looksLikeModify(text = "") {
   const t = normalize(text);
   if (isContinue(t)) return true;
-  return /\b(add|include|insert|append|update|edit|change|modify|tweak|improve|enhance|make it|make the|remove|delete|swap|replace)\b/.test(t);
+  return isEditLanguage(t);
 }
 
 function extractModRequests(text = "") {
@@ -351,7 +361,6 @@ function extractModRequests(text = "") {
     makeNeon: /\b(neon|cyber|glow|brighter)\b/.test(t),
   };
 
-  // If they said "continue" with no keywords, do a sensible default add-on
   const anyExplicit =
     req.addPricing || req.addTestimonials || req.addFaq || req.addAuth ||
     req.addPayments || req.addDashboard || req.addMessaging || req.makeDarker || req.makeNeon;
@@ -373,13 +382,11 @@ function injectBeforeBodyClose(html, injection) {
 function tweakTheme(html, { makeDarker, makeNeon }) {
   let out = html;
 
-  // Darker: deepen bg + gradients slightly (safe string replaces)
   if (makeDarker) {
     out = out.replace(/--bg:#0b1020/g, "--bg:#070a14");
     out = out.replace(/#162a66/g, "#0e1d52");
   }
 
-  // Neon: add subtle glow effect to cards/items (safe: append CSS near end of <style>)
   if (makeNeon) {
     const styleClose = out.toLowerCase().lastIndexOf("</style>");
     if (styleClose !== -1) {
@@ -495,7 +502,6 @@ function applyStructuredEdits(currentHtml, userText) {
   }
 
   if (!sections.length) {
-    // If modify intent but no recognized section, add a safe “Next” section
     sections.push(buildSection({
       title: "Next",
       bodyHtml: `
@@ -537,7 +543,6 @@ async function serperWebSearch(query, apiKey) {
   return { ok: true, top };
 }
 
-// lookup includes weather/forecast/temp
 function seemsLikeLookup(text = "") {
   const t = normalize(text);
   return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours|weather|forecast|temperature|temp)\b/.test(t);
@@ -662,11 +667,11 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ PRO CONTINUE/EDIT CURRENT PREVIEW (structured injection)
-    // Pro-only, Building-only, requires existing preview HTML from client.
+    // ✅ FIX: PRO edit should trigger even if intent came in as "auto"
+    // We trust "clientMode === building" and presence of currentPreviewHtml.
     const proCanEdit =
       pro &&
-      intent === "building" &&
+      clientMode === "building" &&
       !!currentPreviewHtml.trim() &&
       looksLikeModify(userText);
 
@@ -687,10 +692,10 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ Pro auto-preview (if Pro is ON and building intent but user didn’t ask for preview)
+    // Pro auto-preview (Pro ON + Building intent but user didn’t ask "show preview")
     const proAutoPreview =
       pro &&
-      intent === "building" &&
+      (intent === "building") &&
       !wantsPreview(userText);
 
     // 2) Preview fast path (explicit OR Pro auto-preview)
