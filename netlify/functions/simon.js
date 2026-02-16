@@ -310,7 +310,7 @@ function buildPreviewHtml(kind, userText = "") {
   `);
 }
 
-/* --------------------------- Intent routing -------------------------- */
+/* ----------------------- Pro structured injection -------------------- */
 
 function isContinue(text = "") {
   const t = normalize(text);
@@ -328,6 +328,192 @@ function detectIntent(text = "") {
   if (/\b(build|design|make|create|generate)\b/.test(t)) return "building";
 
   return "auto";
+}
+
+function looksLikeModify(text = "") {
+  const t = normalize(text);
+  if (isContinue(t)) return true;
+  return /\b(add|include|insert|append|update|edit|change|modify|tweak|improve|enhance|make it|make the|remove|delete|swap|replace)\b/.test(t);
+}
+
+function extractModRequests(text = "") {
+  const t = normalize(text);
+
+  const req = {
+    addPricing: /\b(pricing|plans|subscription|tiers)\b/.test(t),
+    addTestimonials: /\b(testimonials|reviews|social proof)\b/.test(t),
+    addFaq: /\b(faq|questions)\b/.test(t),
+    addAuth: /\b(login|log in|signup|sign up|register|authentication)\b/.test(t),
+    addPayments: /\b(payments?|checkout|stripe|billing)\b/.test(t),
+    addDashboard: /\b(host dashboard|admin|analytics|charts)\b/.test(t),
+    addMessaging: /\b(message|chat|inbox|dm)\b/.test(t),
+    makeDarker: /\b(darker|more dark|night mode)\b/.test(t),
+    makeNeon: /\b(neon|cyber|glow|brighter)\b/.test(t),
+  };
+
+  // If they said "continue" with no keywords, do a sensible default add-on
+  const anyExplicit =
+    req.addPricing || req.addTestimonials || req.addFaq || req.addAuth ||
+    req.addPayments || req.addDashboard || req.addMessaging || req.makeDarker || req.makeNeon;
+
+  if (!anyExplicit && isContinue(t)) {
+    req.addPricing = true;
+    req.addTestimonials = true;
+  }
+
+  return req;
+}
+
+function injectBeforeBodyClose(html, injection) {
+  const idx = html.toLowerCase().lastIndexOf("</body>");
+  if (idx === -1) return html + injection;
+  return html.slice(0, idx) + injection + html.slice(idx);
+}
+
+function tweakTheme(html, { makeDarker, makeNeon }) {
+  let out = html;
+
+  // Darker: deepen bg + gradients slightly (safe string replaces)
+  if (makeDarker) {
+    out = out.replace(/--bg:#0b1020/g, "--bg:#070a14");
+    out = out.replace(/#162a66/g, "#0e1d52");
+  }
+
+  // Neon: add subtle glow effect to cards/items (safe: append CSS near end of <style>)
+  if (makeNeon) {
+    const styleClose = out.toLowerCase().lastIndexOf("</style>");
+    if (styleClose !== -1) {
+      const glowCss = `
+      /* PRO: neon polish */
+      .card{box-shadow: 0 0 0 1px rgba(42,102,255,.18), 0 18px 60px rgba(0,0,0,.35);}
+      .item{box-shadow: 0 0 0 1px rgba(57,217,138,.10);}
+      .btn{box-shadow: 0 0 24px rgba(42,102,255,.18);}
+      `.trim();
+      out = out.slice(0, styleClose) + "\n" + glowCss + "\n" + out.slice(styleClose);
+    }
+  }
+
+  return out;
+}
+
+function buildSection({ title, bodyHtml }) {
+  return `
+  <div style="margin-top:12px;">
+    <div class="card">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="list">
+        ${bodyHtml}
+      </div>
+    </div>
+  </div>
+  `.trim();
+}
+
+function applyStructuredEdits(currentHtml, userText) {
+  const req = extractModRequests(userText);
+  let out = currentHtml;
+
+  out = tweakTheme(out, req);
+
+  const sections = [];
+
+  if (req.addPricing) {
+    sections.push(buildSection({
+      title: "Pricing",
+      bodyHtml: `
+        <div class="item"><div><strong>Starter</strong><div class="meta">Good for trying it</div></div><div style="text-align:right"><div class="price">$9/mo</div><div class="meta">Core features</div></div></div>
+        <div class="item"><div><strong>Pro</strong><div class="meta">Auto-preview + editing</div></div><div style="text-align:right"><div class="price">$29/mo</div><div class="meta">Best value</div></div></div>
+        <div class="item"><div><strong>Team</strong><div class="meta">Collaboration</div></div><div style="text-align:right"><div class="price">$79/mo</div><div class="meta">Seats + roles</div></div></div>
+      `.trim()
+    }));
+  }
+
+  if (req.addTestimonials) {
+    sections.push(buildSection({
+      title: "Testimonials",
+      bodyHtml: `
+        <div class="item"><div><strong>“Fastest way I’ve built a UI.”</strong><div class="meta">Saved me hours.</div></div><div class="meta">— Customer</div></div>
+        <div class="item"><div><strong>“Pro edits are the killer feature.”</strong><div class="meta">Feels like a real builder.</div></div><div class="meta">— Builder</div></div>
+      `.trim()
+    }));
+  }
+
+  if (req.addFaq) {
+    sections.push(buildSection({
+      title: "FAQ",
+      bodyHtml: `
+        <div class="item" style="display:block">
+          <div><strong>Does Pro change the preview automatically?</strong></div>
+          <div class="meta">Yes. Pro can add sections and update the current preview.</div>
+        </div>
+        <div class="item" style="display:block">
+          <div><strong>Do saved builds sync across devices?</strong></div>
+          <div class="meta">Right now it’s local to this device. Sync can be added next.</div>
+        </div>
+      `.trim()
+    }));
+  }
+
+  if (req.addAuth) {
+    sections.push(buildSection({
+      title: "Auth",
+      bodyHtml: `
+        <div class="item"><div><strong>Login</strong><div class="meta">Email + password</div></div><div class="meta">Reset link</div></div>
+        <div class="item"><div><strong>Sign up</strong><div class="meta">Create account</div></div><div class="meta">Verify email</div></div>
+      `.trim()
+    }));
+  }
+
+  if (req.addPayments) {
+    sections.push(buildSection({
+      title: "Payments",
+      bodyHtml: `
+        <div class="item"><div><strong>Checkout</strong><div class="meta">Card + Apple Pay</div></div><div class="meta">Stripe-ready</div></div>
+        <div class="item"><div><strong>Billing</strong><div class="meta">Invoices + plan changes</div></div><div class="meta">Customer portal</div></div>
+      `.trim()
+    }));
+  }
+
+  if (req.addDashboard) {
+    sections.push(buildSection({
+      title: "Dashboard",
+      bodyHtml: `
+        <div class="item"><div><strong>Key metrics</strong><div class="meta">Revenue, users, conversion</div></div><div class="meta">Weekly view</div></div>
+        <div class="item"><div><strong>Activity</strong><div class="meta">New builds + saves</div></div><div class="meta">Live feed</div></div>
+      `.trim()
+    }));
+  }
+
+  if (req.addMessaging) {
+    sections.push(buildSection({
+      title: "Messaging",
+      bodyHtml: `
+        <div class="item"><div><strong>Inbox</strong><div class="meta">Conversations list</div></div><div class="meta">Unread badges</div></div>
+        <div class="item"><div><strong>Thread</strong><div class="meta">Quick replies + attachments</div></div><div class="meta">Search</div></div>
+      `.trim()
+    }));
+  }
+
+  if (!sections.length) {
+    // If modify intent but no recognized section, add a safe “Next” section
+    sections.push(buildSection({
+      title: "Next",
+      bodyHtml: `
+        <div class="item" style="display:block">
+          <div><strong>Pro builder updated.</strong></div>
+          <div class="meta">Tell me what to add: pricing, testimonials, FAQ, auth, payments, dashboard, messaging.</div>
+        </div>
+      `.trim()
+    }));
+  }
+
+  const injection = `
+  <!-- PRO_EDIT: injected by Simo -->
+  ${sections.join("\n")}
+  `.trim();
+
+  out = injectBeforeBodyClose(out, injection);
+  return out;
 }
 
 /* ---------------------------- Serper tools --------------------------- */
@@ -351,7 +537,7 @@ async function serperWebSearch(query, apiKey) {
   return { ok: true, top };
 }
 
-// ✅ FIX #2: weather/forecast now counts as lookup
+// lookup includes weather/forecast/temp
 function seemsLikeLookup(text = "") {
   const t = normalize(text);
   return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours|weather|forecast|temperature|temp)\b/.test(t);
@@ -410,8 +596,6 @@ exports.handler = async (event) => {
 
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
-
-    // ✅ Pro flag from UI
     const pro = !!body.pro;
 
     if (action === "forget" && userId) {
@@ -430,6 +614,7 @@ exports.handler = async (event) => {
     const history = Array.isArray(body.history) ? body.history : [];
     const clientMode = (body.mode || "auto").toString();
     const clientTopic = (body.topic || "").toString();
+    const currentPreviewHtml = (body.current_preview_html || "").toString();
 
     if (!userText.trim()) {
       return { statusCode: 400, headers, body: JSON.stringify({ ok: false, error: "Missing message" }) };
@@ -477,9 +662,32 @@ exports.handler = async (event) => {
       };
     }
 
-    // ✅ PRO AUTO-PREVIEW:
-    // If Pro is ON and this looks like a building request, generate a preview even if they didn’t ask for “preview”.
-    // We DO NOT do this for venting/solving.
+    // ✅ PRO CONTINUE/EDIT CURRENT PREVIEW (structured injection)
+    // Pro-only, Building-only, requires existing preview HTML from client.
+    const proCanEdit =
+      pro &&
+      intent === "building" &&
+      !!currentPreviewHtml.trim() &&
+      looksLikeModify(userText);
+
+    if (proCanEdit) {
+      const updated = applyStructuredEdits(currentPreviewHtml, userText);
+      const kind = detectPreviewKind(userText, effectiveTopic || (mem?.last_topic || ""));
+
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          ok: true,
+          mode: "builder",
+          reply: "Pro edit applied. Preview updated on the right.",
+          preview_kind: kind,
+          preview_html: updated,
+        }),
+      };
+    }
+
+    // ✅ Pro auto-preview (if Pro is ON and building intent but user didn’t ask for preview)
     const proAutoPreview =
       pro &&
       intent === "building" &&
@@ -520,7 +728,7 @@ exports.handler = async (event) => {
       };
     }
 
-    // 3) Web lookup context (now includes weather, forecast, temp, etc.)
+    // 3) Web lookup context
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
@@ -551,7 +759,6 @@ exports.handler = async (event) => {
 - project_brief: ${mem?.project_brief || ""}`.trim()
       : "";
 
-    // ✅ FIX #1: No markdown headings. Continue should move the project forward.
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
 
@@ -639,17 +846,16 @@ Preview rules:
         ? parsed.reply.trim()
         : (outText || "Reset. I’m here.");
 
-    // Extra safety: strip leading markdown headings if any leak through
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    const previewAllowed = wantsPreview(userText); // keep strict for LLM generated previews
+    const previewAllowed = wantsPreview(userText);
     const preview_html =
       previewAllowed && typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
 
     const preview_kind =
       previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
 
-    // Save memory (don’t let "continue..." overwrite)
+    // Save memory
     if (userId) {
       try {
         const store = await getMemoryStore();
