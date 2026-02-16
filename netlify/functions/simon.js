@@ -10,6 +10,7 @@
 // Features:
 // - Auto-preview in Building mode for buildable prompts
 // - PRO mode visibly upgrades preview templates AND adds pronounced neon frame + glow + pulse
+// - Watermark removed (keeps PRO pill)
 // - Hard guard so JSON never leaks into chat
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
@@ -90,7 +91,7 @@ function detectPreviewKind(text = "", fallbackTopic = "") {
 }
 
 function proChip(label) {
-  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.50);background:rgba(57,217,138,.14);color:rgba(234,240,255,.96);font-size:12px;font-weight:950;box-shadow:0 0 22px rgba(57,217,138,.22);">PRO • ${escapeHtml(
+  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.56);background:rgba(57,217,138,.14);color:rgba(234,240,255,.96);font-size:12px;font-weight:950;box-shadow:0 0 24px rgba(57,217,138,.22);">PRO • ${escapeHtml(
     label
   )}</span>`;
 }
@@ -135,7 +136,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         margin:0 auto;
       }
 
-      /* 🔥 PRO FRAME (pronounced) */
+      /* 🔥 PRO FRAME (pronounced + brighter cyber neon) */
       .proFrame{
         position:relative;
         border-radius:18px;
@@ -147,37 +148,46 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         border-radius:18px;
         padding:2px;
         background: linear-gradient(90deg,
-          rgba(57,217,138,.15),
-          rgba(57,217,138,.85),
-          rgba(42,102,255,.55),
-          rgba(57,217,138,.85),
-          rgba(57,217,138,.15)
+          rgba(57,217,138,.10),
+          rgba(57,217,138,.90),
+          rgba(42,102,255,.60),
+          rgba(57,217,138,.90),
+          rgba(57,217,138,.10)
         );
         -webkit-mask:
           linear-gradient(#000 0 0) content-box,
           linear-gradient(#000 0 0);
         -webkit-mask-composite: xor;
         mask-composite: exclude;
-        filter: drop-shadow(0 0 16px rgba(57,217,138,.30)) drop-shadow(0 0 34px rgba(57,217,138,.18));
+        filter:
+          drop-shadow(0 0 18px rgba(57,217,138,.40))
+          drop-shadow(0 0 44px rgba(57,217,138,.26))
+          drop-shadow(0 0 70px rgba(42,102,255,.18));
         opacity:.95;
-        animation: proFramePulse 2.2s ease-in-out infinite;
+        animation: proFramePulse 2.0s ease-in-out infinite;
         pointer-events:none;
       }
       .proFrame::after{
         content:"";
         position:absolute; inset:2px;
         border-radius:16px;
-        background: radial-gradient(900px 520px at 25% 0%, rgba(57,217,138,.10), rgba(0,0,0,.00) 55%);
-        opacity:.9;
+        background: radial-gradient(900px 520px at 25% 0%, rgba(57,217,138,.12), rgba(0,0,0,.00) 58%);
+        opacity:.92;
         pointer-events:none;
       }
       @keyframes proFramePulse{
         0%,100%{
-          filter: drop-shadow(0 0 14px rgba(57,217,138,.28)) drop-shadow(0 0 28px rgba(57,217,138,.16));
+          filter:
+            drop-shadow(0 0 16px rgba(57,217,138,.38))
+            drop-shadow(0 0 40px rgba(57,217,138,.24))
+            drop-shadow(0 0 62px rgba(42,102,255,.16));
           opacity:.88;
         }
         50%{
-          filter: drop-shadow(0 0 22px rgba(57,217,138,.40)) drop-shadow(0 0 44px rgba(57,217,138,.22));
+          filter:
+            drop-shadow(0 0 26px rgba(57,217,138,.52))
+            drop-shadow(0 0 60px rgba(57,217,138,.30))
+            drop-shadow(0 0 90px rgba(42,102,255,.22));
           opacity:1;
         }
       }
@@ -187,6 +197,25 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         position:relative;
         z-index:1;
         border-radius:16px;
+      }
+
+      /* Cyber scanlines overlay (PRO only) */
+      .proOn::before{
+        content:"";
+        position:absolute;
+        inset:0;
+        border-radius:16px;
+        pointer-events:none;
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,.035),
+            rgba(255,255,255,.035) 1px,
+            rgba(0,0,0,0) 3px,
+            rgba(0,0,0,0) 6px
+          );
+        opacity:.10;
+        mix-blend-mode: overlay;
       }
 
       .top{display:flex;justify-content:space-between;align-items:end;gap:12px;margin-bottom:12px}
@@ -270,53 +299,40 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
       .badgePro{
         display:inline-flex;align-items:center;gap:6px;
         padding:6px 10px;border-radius:999px;
-        border:1px solid rgba(57,217,138,.65);
+        border:2px solid rgba(57,217,138,.70);
         background:rgba(57,217,138,.16);
         color:rgba(234,240,255,.98);
         font-size:12px;font-weight:950;
+        letter-spacing:.02em;
         box-shadow:
-          0 0 18px rgba(57,217,138,.30),
-          0 0 34px rgba(57,217,138,.18);
-      }
-
-      /* PRO watermark */
-      .watermark{
-        position:absolute;
-        top:12px; right:14px;
-        font-size:10px;
-        letter-spacing:.14em;
-        font-weight:950;
-        color:rgba(57,217,138,.70);
-        text-transform:uppercase;
-        opacity:.85;
-        text-shadow: 0 0 18px rgba(57,217,138,.28);
-        pointer-events:none;
+          0 0 18px rgba(57,217,138,.34),
+          0 0 48px rgba(57,217,138,.20);
       }
 
       /* PRO glow (stronger) */
       .proOn .card,
       .proOn .bar{
-        border-color: rgba(57,217,138,.32);
+        border-color: rgba(57,217,138,.36);
         box-shadow:
-          0 0 0 1px rgba(57,217,138,.18),
-          0 0 22px rgba(57,217,138,.18),
-          0 0 44px rgba(57,217,138,.10);
+          0 0 0 1px rgba(57,217,138,.20),
+          0 0 26px rgba(57,217,138,.20),
+          0 0 58px rgba(57,217,138,.12);
       }
       .proOn .badgePro{
-        animation: proPulse 1.35s ease-in-out infinite;
+        animation: proPulse 1.25s ease-in-out infinite;
       }
 
       @keyframes proPulse{
         0%,100%{
           box-shadow:
-            0 0 18px rgba(57,217,138,.28),
-            0 0 34px rgba(57,217,138,.16);
+            0 0 18px rgba(57,217,138,.32),
+            0 0 48px rgba(57,217,138,.18);
           transform: translateY(0) scale(1);
         }
         50%{
           box-shadow:
-            0 0 28px rgba(57,217,138,.42),
-            0 0 54px rgba(57,217,138,.22);
+            0 0 30px rgba(57,217,138,.48),
+            0 0 64px rgba(57,217,138,.24);
           transform: translateY(-1px) scale(1.01);
         }
       }
@@ -326,7 +342,6 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
   </head><body>
     <div class="shell ${isPro ? "proFrame" : ""}">
       <div class="inner ${isPro ? "proOn" : ""}">
-        ${isPro ? `<div class="watermark">PRO</div>` : ``}
         <div class="top">
           <div>
             <div class="title">${escapeHtml(title)}</div>
@@ -350,7 +365,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
         <span class="chip">24/7 access</span>
         <span class="chip">Covered</span>
         <span class="chip">EV friendly</span>
-        ${isPro ? `<span class="chip" style="border-color:rgba(57,217,138,.55);background:rgba(57,217,138,.12);color:rgba(234,240,255,.92)">Instant message</span>` : ``}
+        ${isPro ? `<span class="chip" style="border-color:rgba(57,217,138,.60);background:rgba(57,217,138,.14);color:rgba(234,240,255,.92)">Instant message</span>` : ``}
       </div>
 
       ${isPro ? `
@@ -482,7 +497,7 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
                 <div class="value">$0</div>
                 <div class="meta">Basic chat + limited builds</div>
               </div>
-              <div class="kpi" style="border-color:rgba(57,217,138,.55);background:rgba(57,217,138,.14);box-shadow:0 0 22px rgba(57,217,138,.14)">
+              <div class="kpi" style="border-color:rgba(57,217,138,.60);background:rgba(57,217,138,.16);box-shadow:0 0 28px rgba(57,217,138,.18)">
                 <div class="label">Pro</div>
                 <div class="value">$19/mo</div>
                 <div class="meta">Unlimited previews + export + library</div>
