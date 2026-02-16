@@ -6,8 +6,14 @@
 // - OPENAI_API_KEY   (required)
 // - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
 // - SERPER_API_KEY   (optional, enables web lookup)
-// Notes:
-// - This function supports client "action":"forget" with "user_id" to clear server memory.
+//
+// Client supports:
+// - POST with { action:"forget", user_id:"..." } to clear server memory.
+//
+// IMPORTANT:
+// This version fixes 2 issues:
+// 1) Frontend expects { ok, text, preview:{title,html} } but previous code returned {reply, preview_html}.
+// 2) Auto-preview in Building mode: if body.mode === "building", we return a preview even without “show me preview”.
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -36,6 +42,12 @@ function wantsPreview(text = "") {
     /\bshow me\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t) ||
     /\b(show|make|build|generate|create)\b.*\b(preview|mockup|ui|layout|wireframe)\b/.test(t)
   );
+}
+
+// Build-ish requests (so we can auto-preview in Building mode)
+function seemsBuildRequest(text = "") {
+  const t = normalize(text);
+  return /\b(build|design|make|create|generate|draft|mockup|wireframe|layout|ui|dashboard|landing page|homepage|resume|cv|app)\b/.test(t);
 }
 
 function detectPreviewKind(text = "", fallbackTopic = "") {
@@ -351,12 +363,6 @@ async function serperWebSearch(query, apiKey) {
   return { ok: true, top };
 }
 
-function wantsImages(text = "") {
-  const t = normalize(text);
-  return /\b(images?|photos?|pictures?|wallpapers?)\b/.test(t) || /\b(high\s*res|4k|8k|hd)\b/.test(t);
-}
-
-// ✅ FIX #2: weather/forecast now counts as lookup
 function seemsLikeLookup(text = "") {
   const t = normalize(text);
   return /\b(look up|lookup|search|find|near me|addresses|phone number|website|hours|weather|forecast|temperature|temp)\b/.test(t);
@@ -416,21 +422,33 @@ exports.handler = async (event) => {
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
 
+    // UI sends body.mode = "venting" | "solving" | "building"
+    const uiMode = (body.mode || "auto").toString(); // from index.html
+    const isPro = !!body.pro;
+
     if (action === "forget" && userId) {
       try {
         const store = await getMemoryStore();
         await store.delete(userId);
       } catch {}
+      // Return both new + legacy keys
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ ok: true, mode: "bestfriend", reply: "Forgot.", preview_kind: "", preview_html: "" }),
+        body: JSON.stringify({
+          ok: true,
+          mode: "bestfriend",
+          text: "Forgot.",
+          reply: "Forgot.",
+          preview: null,
+          preview_kind: "",
+          preview_html: "",
+        }),
       };
     }
 
     const userText = (body.message || "").toString();
     const history = Array.isArray(body.history) ? body.history : [];
-    const clientMode = (body.mode || "auto").toString();
     const clientTopic = (body.topic || "").toString();
 
     if (!userText.trim()) {
@@ -466,53 +484,52 @@ exports.handler = async (event) => {
         } catch {}
       }
 
+      const msg = "Understood. What do you want to do next — venting, solving, or building?";
       return {
         statusCode: 200,
         headers,
         body: JSON.stringify({
           ok: true,
           mode: "bestfriend",
-          reply: "Understood. What do you want to do next — venting, solving, or building?",
+          text: msg,
+          reply: msg,
+          preview: null,
           preview_kind: "",
           preview_html: "",
         }),
       };
     }
 
-    // 2) Preview fast path
-    if (wantsPreview(userText)) {
+    // 2) Preview decision
+    // Explicit preview request always wins
+    const explicitPreview = wantsPreview(userText);
+
+    // Auto-preview when in Building mode and the message is build-ish
+    const autoPreview = (uiMode === "building") && !explicitPreview && seemsBuildRequest(userText) && intent !== "venting";
+
+    const previewShouldRender = explicitPreview || autoPreview;
+
+    // If we are going to render a preview, do it NOW (fast path),
+    // and still return a normal reply (not "ask me to preview").
+    let fastPreview = null;
+    if (previewShouldRender) {
       const kind = detectPreviewKind(userText, effectiveTopic);
-      const brief =
-        kind === "space_renting_app"
-          ? "Space renting app (driveway/garage/parking/extra space): search + filters + listing cards with price/availability + map placeholder + booking panel + messaging + host dashboard."
-          : (mem?.project_brief || "");
-
-      if (userId) {
-        try {
-          const store = await getMemoryStore();
-          await store.setJSON(userId, {
-            preferred_mode: "builder",
-            last_topic: effectiveTopic || kind || "",
-            project_brief: brief,
-            updated_at: new Date().toISOString()
-          });
-        } catch {}
-      }
-
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          ok: true,
-          mode: "builder",
-          reply: "Preview is on the right. Do you want it simpler or more detailed?",
-          preview_kind: kind,
-          preview_html: buildPreviewHtml(kind, userText),
-        }),
+      fastPreview = {
+        kind,
+        title: ({
+          space_renting_app: "Space Rentals",
+          resume: "Resume Layout",
+          home_layout: "2-Story Home Layout",
+          landing_page: "Landing Page",
+          dashboard: "Dashboard UI",
+          generic_app: "App UI",
+          wireframe: "Wireframe Preview",
+        }[kind] || "Preview"),
+        html: buildPreviewHtml(kind, userText),
       };
     }
 
-    // 3) Web lookup context (now includes weather, forecast, temp, etc.)
+    // 3) Web lookup context (includes weather, forecast, temp, etc.)
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
@@ -528,12 +545,11 @@ exports.handler = async (event) => {
       .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
       .map((m) => ({ role: m.role, content: m.content }));
 
+    // Determine response mode
     const inferredMode =
       intent === "venting" ? "bestfriend" :
-      intent === "building" ? "builder" :
+      (intent === "building" || intent === "continue" || uiMode === "building") ? "builder" :
       intent === "solving" ? "builder" :
-      intent === "continue" ? "builder" :
-      (clientMode === "builder" || clientMode === "bestfriend") ? clientMode :
       "bestfriend";
 
     const memoryBlock = (userId && mem)
@@ -543,7 +559,7 @@ exports.handler = async (event) => {
 - project_brief: ${mem?.project_brief || ""}`.trim()
       : "";
 
-    // ✅ FIX #1: No markdown headings. Continue should move the project forward.
+    // System prompt: we now allow auto-preview in Building mode
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
 
@@ -569,7 +585,7 @@ Special rule for "continue/resume":
 Intent handling:
 1) Venting: validate (1–2 sentences) + ask ONE question.
 2) Solving: diagnosis + step-by-step checklist.
-3) Building: provide a clean plan with next actions.
+3) Building: provide the next actions clearly.
 
 Relationship rule:
 - If user says "wife", refer to her as wife (never “friendship”).
@@ -579,13 +595,16 @@ Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
 Preview rules:
-- preview_html must be "" unless user explicitly asks for preview/mockup/ui/layout.
+- If the user explicitly asks for preview/mockup/ui/layout, include preview_html.
+- If the client is in Building mode, it's also allowed to include preview_html when the request is clearly buildable.
 `.trim();
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(memoryBlock ? [{ role: "system", content: memoryBlock }] : []),
       ...(toolContext ? [{ role: "system", content: toolContext }] : []),
+      // Give the model some extra context on Pro mode + preview decision
+      { role: "system", content: `Client context: ui_mode=${uiMode}; pro=${isPro}; preview_should_render=${previewShouldRender}` },
       ...cleanedHistory,
       { role: "user", content: userText },
     ];
@@ -631,21 +650,34 @@ Preview rules:
         ? parsed.reply.trim()
         : (outText || "Reset. I’m here.");
 
-    // Extra safety: strip leading markdown headings if any leak through
+    // Strip accidental markdown headings
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    const previewAllowed = wantsPreview(userText);
-    const preview_html =
-      previewAllowed && typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
+    // Choose preview:
+    // - Prefer the fastPreview we generated (guaranteed working, consistent)
+    // - Otherwise allow model-provided preview ONLY if previewShouldRender
+    let preview_kind = "";
+    let preview_html = "";
 
-    const preview_kind =
-      previewAllowed && typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
+    if (previewShouldRender && fastPreview) {
+      preview_kind = fastPreview.kind;
+      preview_html = fastPreview.html;
+    } else if (previewShouldRender) {
+      // Model-provided fallback (rare)
+      preview_kind = typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
+      preview_html = typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
+    }
 
-    // Save memory (don’t let "continue..." overwrite)
+    const preview =
+      previewShouldRender && preview_html
+        ? { title: (fastPreview?.title || "Preview"), html: preview_html }
+        : null;
+
+    // Save memory
     if (userId) {
       try {
         const store = await getMemoryStore();
-        const nextTopic = effectiveTopic || mem?.last_topic || "";
+        const nextTopic = preview_kind || effectiveTopic || mem?.last_topic || "";
         const nextBrief = mem?.project_brief || "";
         await store.setJSON(userId, {
           preferred_mode: mode,
@@ -656,13 +688,21 @@ Preview rules:
       } catch {}
     }
 
+    // ✅ Return what the FRONTEND expects:
+    // { ok, text, preview:{title,html} }
+    // and also include legacy keys so nothing else breaks.
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         ok: true,
         mode,
+        // FRONTEND-FRIENDLY:
+        text: reply,
+        message: reply,
+        // LEGACY (your older UI might read these):
         reply,
+        preview,
         preview_kind,
         preview_html,
       }),
