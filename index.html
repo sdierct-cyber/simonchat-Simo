@@ -315,13 +315,24 @@
       font-size:12px;
       display:flex;justify-content:space-between;align-items:center;gap:10px;
     }
+
+    /* ===========================
+       PRO BADGE (BOTTOM FOOTER)
+       Upgraded: more pronounced, but NO animation (doesn't compete)
+       =========================== */
     .proBadge{
-      padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(57,217,138,.35);
-      background:rgba(57,217,138,.12);
-      color:rgba(234,240,255,.92);
-      font-weight:900;
+      padding:7px 12px;
+      border-radius:999px;
+      border:2px solid rgba(57,217,138,.62);
+      background:rgba(57,217,138,.14);
+      color:rgba(234,240,255,.98);
+      font-weight:950;
+      letter-spacing:.02em;
       display:none;
+      box-shadow:
+        0 0 10px rgba(57,217,138,.22),
+        0 0 28px rgba(57,217,138,.12),
+        0 0 52px rgba(57,217,138,.06);
     }
     .proBadge.on{display:inline-flex;}
   </style>
