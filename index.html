@@ -280,7 +280,7 @@
         <div class="hintRow">
           <button class="hintBtn" data-hint="Design a space renting app.">Space app</button>
           <button class="hintBtn" data-hint="Build me a deep space landing page with full HTML inside a ```html fenced block.">Landing page</button>
-          <button class="hintBtn" data-hint="Generate the FULL HTML preview now inside a ```html fenced block.">Preview</button>
+          <button class="hintBtn" data-hint="Output a complete HTML document RIGHT NOW in a ```html fenced block (include <!doctype html>, <head>, <style>, <body>). Do not ask questions first.">HTML now</button>
           <button class="hintBtn" data-hint="I’m stressed out.">Venting</button>
           <button class="hintBtn" data-hint="Help me plan my next steps.">Solve</button>
         </div>
@@ -477,8 +477,7 @@
     const urls = (text.match(/https?:\/\/[^\s)"]+/g) || [])
       .map(u => u.replace(/[.,;]+$/,""));
     const img = urls.filter(u =>
-      /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(u) ||
-      (/image/i.test(u) && /https?:\/\//i.test(u))
+      /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(u)
     );
     return [...new Set(img)];
   }
@@ -667,10 +666,7 @@ ${preview.html}
     if (proEnabled) return { ok:true };
     const n = getBuildCount();
     if (n >= FREE_DAILY_BUILD_LIMIT){
-      return {
-        ok:false,
-        reason:`Free build limit reached (${FREE_DAILY_BUILD_LIMIT}/day). Click “Unlock Pro”.`
-      };
+      return { ok:false, reason:`Free build limit reached (${FREE_DAILY_BUILD_LIMIT}/day). Click “Unlock Pro”.` };
     }
     return { ok:true };
   }
@@ -679,7 +675,6 @@ ${preview.html}
     const t = (inputEl.value || "").trim();
     if (!t) return;
 
-    // If user is in building mode, enforce limit BEFORE sending to backend
     if (mode === "building"){
       const gate = canUseBuilding();
       if (!gate.ok){
@@ -692,11 +687,11 @@ ${preview.html}
     inputEl.value = "";
     addMsg("you", t);
 
-    // ---- FIX #1: In Building mode, force HTML when user asks for pages/apps/previews ----
+    // Force previewable HTML in building mode for typical build requests
     let sendText = t;
     if (mode === "building"){
       const wantsPreviewable =
-        /landing page|website|page|app|dashboard|ui|mockup|preview|html/i.test(sendText);
+        /landing page|website|page|app|dashboard|ui|mockup|html/i.test(sendText);
 
       if (wantsPreviewable){
         sendText += "\n\nIMPORTANT: Return the FULL result as a complete HTML document inside a ```html fenced block. Do not ask questions first. Do it now.";
@@ -714,7 +709,7 @@ ${preview.html}
 
     const found = updateLastPreviewFromText(simoText);
 
-    // ---- FIX #2: Always render preview in Building mode when found ----
+    // Always render in building mode if we detected previewable output
     if ((autoPreviewEl.checked && found) || (mode === "building" && found)){
       renderPreview(lastPreview);
       setView("split");
@@ -767,9 +762,9 @@ ${preview.html}
     window.open(lastPreviewBlobUrl, "_blank", "noopener,noreferrer");
   });
 
-  // ---- FIX #3: Ask for Preview now forces HTML generation, not the canned preview reply ----
+  // Ask for Preview button now avoids the "preview" keyword to prevent canned replies
   quickPreviewBtn.addEventListener("click", () => {
-    inputEl.value = "Generate the FULL HTML preview now. Put the entire page inside a ```html fenced block. No extra explanation.";
+    inputEl.value = "Output a complete HTML document RIGHT NOW in a ```html fenced block (include <!doctype html>, <head>, <style>, <body>). Do not ask questions first.";
     send();
   });
 
@@ -811,7 +806,7 @@ ${preview.html}
   setView("split");
   renderPreview(lastPreview);
 
-  addMsg("simo", "Preview reliability upgrade is live: Building mode forces HTML output for pages/apps, and Ask for Preview now generates full HTML automatically.");
+  addMsg("simo", "Ask for Preview now forces HTML output (without using the word 'preview'), so the Preview panel will render reliably.");
   setApiState("idle", "warn");
 })();
 </script>
