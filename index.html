@@ -21,6 +21,11 @@
       --shadow: 0 16px 60px rgba(0,0,0,.45);
       --radius:18px;
       --radius2:14px;
+
+      /* PRO neon */
+      --pro:#39d98a;
+      --pro2:#00ffd0;
+      --proGlow: 0 0 0 1px rgba(57,217,138,.35), 0 0 18px rgba(57,217,138,.35), 0 0 42px rgba(0,255,208,.18);
     }
 
     *{box-sizing:border-box}
@@ -56,23 +61,39 @@
       padding:8px 10px;border-radius:999px;
       border:1px solid var(--line);
       background:rgba(0,0,0,.22);
+      position:relative;
     }
-    .toggle span{font-size:12px;color:rgba(234,240,255,.85);font-weight:800}
+    .toggle span{font-size:12px;color:rgba(234,240,255,.85);font-weight:900}
+    .toggle.proOn{
+      border-color: rgba(57,217,138,.35);
+      box-shadow: var(--proGlow);
+      background: linear-gradient(180deg, rgba(57,217,138,.12), rgba(0,0,0,.22));
+    }
+
     .switch{
       width:42px;height:22px;border-radius:999px;position:relative;
       background:rgba(255,255,255,.14);
       border:1px solid rgba(255,255,255,.18);
       cursor:pointer;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,.06);
     }
     .knob{
       width:18px;height:18px;border-radius:50%;
       position:absolute;top:50%;transform:translateY(-50%);
       left:2px;
       background:rgba(255,255,255,.85);
-      transition: left .18s ease;
+      transition: left .18s ease, background .18s ease, box-shadow .18s ease;
     }
-    .switch.on{background:rgba(57,217,138,.22);border-color:rgba(57,217,138,.35);}
-    .switch.on .knob{left:21px;background:rgba(57,217,138,.95);}
+    .switch.on{
+      background:rgba(57,217,138,.18);
+      border-color:rgba(57,217,138,.40);
+      box-shadow: 0 0 0 1px rgba(57,217,138,.25), 0 0 16px rgba(57,217,138,.25);
+    }
+    .switch.on .knob{
+      left:21px;
+      background: linear-gradient(180deg, rgba(0,255,208,.95), rgba(57,217,138,.92));
+      box-shadow: 0 0 12px rgba(0,255,208,.35);
+    }
 
     .btn{
       padding:10px 12px;border-radius:12px;
@@ -81,7 +102,7 @@
       color:var(--text);
       font-weight:900;
       cursor:pointer;
-      transition: transform .06s ease, background .2s ease;
+      transition: transform .06s ease, background .2s ease, box-shadow .2s ease;
     }
     .btn:hover{background:rgba(255,255,255,.08)}
     .btn:active{transform:translateY(1px)}
@@ -316,25 +337,23 @@
       display:flex;justify-content:space-between;align-items:center;gap:10px;
     }
 
-    /* ===========================
-       PRO BADGE (BOTTOM FOOTER)
-       Upgraded: more pronounced, but NO animation (doesn't compete)
-       =========================== */
+    /* PRO badge (bottom right) — static glow, no pulse */
     .proBadge{
-      padding:7px 12px;
-      border-radius:999px;
-      border:2px solid rgba(57,217,138,.62);
-      background:rgba(57,217,138,.14);
-      color:rgba(234,240,255,.98);
-      font-weight:950;
-      letter-spacing:.02em;
+      padding:7px 12px;border-radius:999px;
+      border:1px solid rgba(57,217,138,.45);
+      background:linear-gradient(180deg, rgba(57,217,138,.16), rgba(0,0,0,.12));
+      color:rgba(234,240,255,.96);
+      font-weight:1000;
       display:none;
-      box-shadow:
-        0 0 10px rgba(57,217,138,.22),
-        0 0 28px rgba(57,217,138,.12),
-        0 0 52px rgba(57,217,138,.06);
+      box-shadow: 0 0 0 1px rgba(57,217,138,.25), 0 0 20px rgba(57,217,138,.22), 0 0 50px rgba(0,255,208,.10);
+      letter-spacing:.3px;
     }
     .proBadge.on{display:inline-flex;}
+
+    /* Optional: make primary buttons slightly punchier in Pro */
+    .btn.primary.proOn{
+      box-shadow: 0 0 0 1px rgba(42,102,255,.18), 0 0 24px rgba(42,102,255,.18);
+    }
   </style>
 </head>
 
@@ -350,7 +369,7 @@
       </div>
 
       <div class="controls">
-        <div class="toggle" title="Pro Mode upgrades previews and unlocks more building output.">
+        <div id="proWrap" class="toggle" title="Pro Mode upgrades visuals and unlocks more building output.">
           <span>Pro Mode</span>
           <div id="proSwitch" class="switch" role="switch" aria-checked="false" tabindex="0">
             <div class="knob"></div>
@@ -496,6 +515,7 @@
     const pillSolving = document.getElementById("pillSolving");
     const pillBuilding = document.getElementById("pillBuilding");
 
+    const proWrap = document.getElementById("proWrap");
     const proSwitch = document.getElementById("proSwitch");
     const proBadge = document.getElementById("proBadge");
 
@@ -525,7 +545,7 @@
     const toast = document.getElementById("toast");
 
     // ----------------------------
-    // Boot message (Option A)
+    // Boot message
     // ----------------------------
     boot();
 
@@ -553,9 +573,6 @@
       pillVenting.classList.toggle("active", mode==="venting");
       pillSolving.classList.toggle("active", mode==="solving");
       pillBuilding.classList.toggle("active", mode==="building");
-
-      // NOTE: preview badge is NOT driven by chat mode anymore.
-      // previewModePill shows state.previewMode (updated when a preview is created or loaded).
     }
 
     function showToast(text="Copied"){
@@ -648,6 +665,12 @@
       proSwitch.classList.toggle("on", state.pro);
       proSwitch.setAttribute("aria-checked", String(state.pro));
       proBadge.classList.toggle("on", state.pro);
+
+      // Stronger visual “PRO” state
+      proWrap.classList.toggle("proOn", state.pro);
+      sendBtn.classList.toggle("proOn", state.pro);
+      sendBtn.classList.toggle("primary", true);
+      sendBtn.classList.toggle("proOn", state.pro);
     }
 
     proSwitch.addEventListener("click", ()=> setPro(!state.pro));
@@ -698,12 +721,29 @@
           return;
         }
 
-        // Text from backend (support multiple keys)
-        const reply =
+        // 1) Get reply (support multiple keys)
+        let reply =
           (typeof data.text === "string" && data.text.trim()) ? data.text.trim() :
           (typeof data.message === "string" && data.message.trim()) ? data.message.trim() :
           (typeof data.reply === "string" && data.reply.trim()) ? data.reply.trim() :
           "Reset. I’m here.";
+
+        // 2) FIX: If backend accidentally returns JSON string (like {"mode":"builder","reply":"..."}), parse it.
+        const maybeJson = safeJsonParse(reply);
+        if (maybeJson && typeof maybeJson === "object") {
+          if (typeof maybeJson.reply === "string" && maybeJson.reply.trim()) reply = maybeJson.reply.trim();
+          // If server ever sends preview fields inside that string, we can also adopt them:
+          if (typeof maybeJson.preview_html === "string" && maybeJson.preview_html.trim()) {
+            data.preview_html = maybeJson.preview_html;
+          }
+          if (typeof maybeJson.preview_kind === "string" && maybeJson.preview_kind.trim()) {
+            data.preview_kind = maybeJson.preview_kind;
+          }
+          if (typeof maybeJson.mode === "string" && maybeJson.mode.trim()) {
+            // optional: if you want UI mode to follow server, uncomment:
+            // setMode(maybeJson.mode === "bestfriend" ? "venting" : "building");
+          }
+        }
 
         addAssistant(reply);
 
@@ -726,9 +766,7 @@
           state.previewTitle = nextTitle || "Untitled preview";
           state.previewKind = (typeof data.preview_kind === "string" ? data.preview_kind : "") || state.previewKind;
 
-          // IMPORTANT: tie previewMode to the mode that generated it.
-          // If we're in building, mark preview as building.
-          // If you're in venting/solving but server returns a preview (rare), still label it by current mode.
+          // Tie previewMode to the mode that generated it (current UI mode).
           state.previewMode = state.mode || "building";
 
           updatePreviewUI();
@@ -755,9 +793,7 @@
       chatBody.innerHTML = "";
       state.history = [];
       addAssistant("Fresh start. I’m here.");
-      // keep current mode as-is; most people expect it to remain.
-      // If you want reset to default to building, uncomment:
-      // setMode("building");
+      // keep current mode as-is
     });
 
     // ----------------------------
@@ -960,6 +996,17 @@
       v = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "_" + Math.random().toString(16).slice(2));
       localStorage.setItem(k, v);
       return v;
+    }
+
+    function safeJsonParse(s){
+      try{
+        if (typeof s !== "string") return null;
+        const t = s.trim();
+        if (!t.startsWith("{") || !t.endsWith("}")) return null;
+        return JSON.parse(t);
+      }catch{
+        return null;
+      }
     }
   </script>
 </body>
