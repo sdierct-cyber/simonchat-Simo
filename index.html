@@ -6,11 +6,13 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --bg:#0b1020; --panel:#0f1730; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --card:rgba(255,255,255,.06);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39d98a; --warn:#ffcc66; --bad:#ff4d4d;
+      --good:#39d98a; --bad:#ff4d4d; --warn:#ffcc66;
+      --card:rgba(255,255,255,.06);
+      --shadow: 0 12px 30px rgba(0,0,0,.35);
+      --radius:16px;
     }
     *{box-sizing:border-box}
     body{
@@ -19,719 +21,538 @@
       background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    .wrap{max-width:1200px;margin:0 auto;padding:18px}
-    h1{margin:0 0 12px 0; font-size:22px; letter-spacing:.2px}
-    .grid{display:grid; grid-template-columns: 1.1fr .9fr; gap:14px}
-    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
-
+    a{color:#9cc0ff}
+    .wrap{max-width:1100px;margin:0 auto;padding:16px}
+    .top{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:12px 14px; border:1px solid var(--line);
+      background:rgba(255,255,255,.04); border-radius:var(--radius); box-shadow:var(--shadow);
+    }
+    .brand{display:flex;align-items:center;gap:10px}
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--good);box-shadow:0 0 18px rgba(57,217,138,.55)}
+    .title{font-weight:700; letter-spacing:.2px}
+    .subtitle{color:var(--muted); font-size:12px}
+    .modeRow{display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end}
+    .chip{
+      border:1px solid var(--line); background:rgba(255,255,255,.04);
+      padding:8px 10px; border-radius:999px; cursor:pointer;
+      color:var(--text); font-size:12px; user-select:none;
+    }
+    .chip:hover{background:rgba(255,255,255,.08)}
+    .chip.active{border-color:rgba(42,102,255,.75); background:rgba(42,102,255,.15)}
+    .toggle{
+      display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px;
+      border:1px solid var(--line); background:rgba(255,255,255,.04);
+      padding:8px 10px; border-radius:999px;
+    }
+    .toggle input{accent-color: var(--btn)}
+    .grid{
+      margin-top:14px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+    }
     .panel{
       border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-      border-radius:14px;
+      background:rgba(255,255,255,.04);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
       overflow:hidden;
-      min-height: 600px;
-    }
-    .panelHeader{
-      padding:12px 14px;
-      border-bottom:1px solid var(--line);
-      display:flex; align-items:center; justify-content:space-between;
-      background:rgba(0,0,0,.18);
-      gap:10px;
-    }
-    .panelTitle{font-weight:800}
-    .panelSub{color:var(--muted); font-size:12px; margin-top:2px}
-    .headerLeft{display:flex; flex-direction:column}
-    .pills{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:4px 10px; border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.05);
-      color:var(--muted); font-size:12px;
-      white-space:nowrap;
-      user-select:none;
-    }
-    .pill.clickable{cursor:pointer}
-    .pill strong{color:var(--text); font-weight:800}
-
-    /* Chat */
-    #chat{
-      height: 440px;
-      overflow:auto;
-      padding:14px;
-      line-height:1.45;
-      font-size:14px;
-      white-space:pre-wrap;
-    }
-    .msg{margin:0 0 10px 0}
-    .you{color:#7fb0ff}
-    .simo{color:var(--good)}
-    .sys{color:var(--muted)}
-
-    .composer{
-      border-top:1px solid var(--line);
-      padding:12px;
-      background:rgba(0,0,0,.18);
-    }
-    textarea{
-      width:100%;
-      min-height:82px;
-      resize:vertical;
-      border-radius:10px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.35);
-      color:var(--text);
-      padding:10px;
-      outline:none;
-      font-size:14px;
-    }
-    .row{display:flex; gap:10px; margin-top:10px}
-    button{
-      border:1px solid var(--line);
-      background:linear-gradient(180deg,var(--btn),var(--btn2));
-      color:white;
-      padding:9px 12px;
-      border-radius:10px;
-      cursor:pointer;
-      font-weight:700;
-    }
-    button.secondary{
-      background:rgba(255,255,255,.07);
-    }
-
-    /* Workspace */
-    #workspace{
-      height: 560px;
+      min-height:70vh;
       display:flex;
       flex-direction:column;
     }
-    .workspaceBody{
-      flex:1;
-      position:relative;
-      background:rgba(0,0,0,.10);
+    .panelHead{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 12px;
+      border-bottom:1px solid var(--line);
+      background:rgba(0,0,0,.12);
     }
-    #workspaceFrame{
+    .panelHead .h{font-weight:700; font-size:13px}
+    .panelHead .mini{color:var(--muted); font-size:12px}
+    .chat{
+      padding:12px;
+      overflow:auto;
+      flex:1;
+    }
+    .msg{
+      padding:10px 12px;
+      border:1px solid var(--line);
+      background:var(--card);
+      border-radius:14px;
+      margin:10px 0;
+      white-space:pre-wrap;
+      line-height:1.35;
+    }
+    .msg.you{background:rgba(42,102,255,.12); border-color:rgba(42,102,255,.25)}
+    .msg.simo{background:rgba(255,255,255,.06)}
+    .meta{
+      display:flex; justify-content:space-between; align-items:center;
+      margin-bottom:6px; color:var(--muted); font-size:12px;
+    }
+    .row{
+      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
+      background:rgba(0,0,0,.08);
+    }
+    textarea{
+      flex:1; min-height:46px; max-height:140px; resize:vertical;
+      border:1px solid var(--line); border-radius:14px;
+      background:rgba(0,0,0,.18); color:var(--text);
+      padding:10px 12px; outline:none;
+    }
+    button{
+      border:1px solid rgba(42,102,255,.35);
+      background:linear-gradient(180deg, var(--btn), var(--btn2));
+      color:white; border-radius:14px;
+      padding:10px 14px; cursor:pointer; font-weight:700;
+    }
+    button:disabled{opacity:.55; cursor:not-allowed}
+    .status{
+      padding:10px 12px; border-top:1px solid var(--line);
+      color:var(--muted); font-size:12px; display:flex; gap:10px; align-items:center;
+      justify-content:space-between;
+    }
+    .pill{
+      display:inline-flex; align-items:center; gap:6px;
+      border:1px solid var(--line); background:rgba(255,255,255,.04);
+      padding:6px 10px; border-radius:999px;
+    }
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+    .good{color:var(--good)}
+    .previewWrap{
+      flex:1; background:rgba(0,0,0,.10);
+      display:flex; flex-direction:column;
+    }
+    .previewBody{
+      flex:1; overflow:auto;
+      padding:12px;
+    }
+    .previewEmpty{
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:14px;
+      padding:14px;
+      color:var(--muted);
+      background:rgba(255,255,255,.04);
+    }
+    iframe{
       width:100%;
       height:100%;
-      border:0;
-      background:transparent;
-      display:none;
+      border:1px solid rgba(255,255,255,.14);
+      border-radius:14px;
+      background:white;
+      min-height:55vh;
     }
-
-    .workspaceEmpty{
-      padding:16px;
-      color:var(--muted);
-      font-size:13px;
-      line-height:1.55;
-    }
-
-    .results{
-      padding:14px;
-      display:none;
-      overflow:auto;
-      height:100%;
-    }
-    .resultCard{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.05);
-      border-radius:12px;
-      padding:12px;
-      margin-bottom:10px;
-    }
-    .resultCard a{
-      color:#9fc1ff;
-      text-decoration:none;
-      word-break:break-word;
-    }
-    .resultTitle{
-      font-weight:800;
-      margin-bottom:6px;
-    }
-
-    /* Tools toolbar */
-    .workspaceTools{
-      display:none;
-      padding:10px 14px;
-      border-top:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      display:flex;
+    .imgGrid{
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap:10px;
-      align-items:center;
-      justify-content:space-between;
-      flex-wrap:wrap;
     }
-    .toolsLeft{
-      display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
-    }
-    .toolBtn{
+    .imgCard{
       border:1px solid var(--line);
-      border-radius:10px;
-      padding:8px 10px;
-      font-weight:800;
-      cursor:pointer;
-      background:rgba(255,255,255,.08);
+      background:rgba(255,255,255,.04);
+      border-radius:14px;
+      overflow:hidden;
+    }
+    .imgCard img{width:100%; display:block}
+    .imgCard .cap{padding:8px 10px; font-size:12px; color:var(--muted)}
+    .smallBtns{display:flex; gap:8px; flex-wrap:wrap}
+    .ghost{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
       color:var(--text);
     }
-    .toolBtn.primary{
-      background:linear-gradient(180deg,var(--btn),var(--btn2));
-      color:white;
+    .ghost:hover{background:rgba(255,255,255,.10)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+      iframe{min-height:52vh}
     }
-    .toolsNote{
-      color:var(--muted);
-      font-size:12px;
-      white-space:nowrap;
-    }
-
-    .workspaceFooter{
-      border-top:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      padding:10px 14px;
-      font-size:12px;
-      color:var(--muted);
-      display:flex;
-      justify-content:space-between;
-      gap:10px;
-      flex-wrap:wrap;
-    }
-    .statusGood{color:var(--good)}
-    .statusWarn{color:var(--warn)}
-    .statusBad{color:var(--bad)}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Simo</h1>
-
-    <div class="grid">
-      <!-- LEFT: Chat -->
-      <div class="panel">
-        <div class="panelHeader">
-          <div class="headerLeft">
-            <div class="panelTitle">Chat</div>
-            <div class="panelSub">Enter to send • Shift+Enter for new line</div>
-          </div>
-          <div class="pills">
-            <div class="pill" id="modePill">mode: auto</div>
-            <div class="pill" id="locPill">loc: off</div>
-            <div class="pill clickable" id="memPill" title="Toggle memory on this device + server">memory: <strong>on</strong></div>
-          </div>
-        </div>
-
-        <div id="chat"></div>
-
-        <div class="composer">
-          <textarea id="input" placeholder="Say something..."></textarea>
-          <div class="row">
-            <button id="sendBtn">Send</button>
-            <button id="clearBtn" class="secondary">Clear</button>
-          </div>
+    <div class="top">
+      <div class="brand">
+        <div class="dot" id="dot"></div>
+        <div>
+          <div class="title">Simo</div>
+          <div class="subtitle">Best friend + builder — with live previews</div>
         </div>
       </div>
 
-      <!-- RIGHT: Workspace -->
-      <div class="panel">
-        <div class="panelHeader">
-          <div class="headerLeft">
-            <div class="panelTitle">Workspace</div>
-            <div class="panelSub" id="workSub">Waiting…</div>
+      <div class="modeRow">
+        <div class="chip active" data-view="split" id="viewSplit">Split</div>
+        <div class="chip" data-view="chat" id="viewChat">Chat</div>
+        <div class="chip" data-view="preview" id="viewPreview">Preview</div>
+        <label class="toggle" title="Auto-render preview when Simo outputs HTML or images">
+          <input type="checkbox" id="autoPreview" checked />
+          Auto-preview
+        </label>
+      </div>
+    </div>
+
+    <div class="grid" id="grid">
+      <!-- Chat Panel -->
+      <div class="panel" id="chatPanel">
+        <div class="panelHead">
+          <div>
+            <div class="h">Chat</div>
+            <div class="mini">Talk normally — switch topics anytime.</div>
           </div>
-          <div class="pills">
-            <div class="pill" id="topicPill">context: none</div>
+          <div class="smallBtns">
+            <button class="ghost" id="quickPreviewBtn" type="button">Ask for Preview</button>
+            <button class="ghost" id="clearBtn" type="button">Clear</button>
           </div>
         </div>
 
-        <div id="workspace">
-          <div class="workspaceBody">
-            <iframe id="workspaceFrame" title="workspace"></iframe>
-            <div class="results" id="resultsBox"></div>
-            <div class="workspaceEmpty" id="workspaceEmpty">Waiting… tell me what you want to do.</div>
-          </div>
+        <div class="chat" id="chat"></div>
 
-          <div class="workspaceTools" id="workspaceTools">
-            <div class="toolsLeft">
-              <button class="toolBtn primary" id="downloadBtn">Download HTML</button>
-              <button class="toolBtn" id="copyBtn">Copy HTML</button>
-              <button class="toolBtn" id="forgetBtn" title="Clears local + server memory + resets screen">Forget</button>
-              <span class="toolsNote" id="toolsNote">Preview ready.</span>
+        <div class="row">
+          <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
+          <button id="sendBtn" type="button">Send</button>
+        </div>
+
+        <div class="status">
+          <div class="pill"><span class="mono">API</span> <span id="apiState" class="warn">idle</span></div>
+          <div class="pill"><span class="mono">Preview</span> <span id="previewState" class="warn">none</span></div>
+        </div>
+      </div>
+
+      <!-- Preview Panel -->
+      <div class="panel" id="previewPanel">
+        <div class="panelHead">
+          <div>
+            <div class="h">Preview</div>
+            <div class="mini">Renders the last “build” automatically.</div>
+          </div>
+          <div class="smallBtns">
+            <button class="ghost" id="renderLastBtn" type="button">Render Last</button>
+            <button class="ghost" id="openNewTabBtn" type="button">Open</button>
+          </div>
+        </div>
+
+        <div class="previewWrap">
+          <div class="previewBody" id="previewBody">
+            <div class="previewEmpty">
+              Nothing to preview yet.<br><br>
+              Try: <span class="mono">build me a simple website</span> or <span class="mono">design an app</span>.
+              If Simo outputs HTML or image links, I’ll render them here automatically.
             </div>
-            <div class="toolsNote" id="fileNameNote">file: simo-preview.html</div>
-          </div>
-
-          <div class="workspaceFooter">
-            <span id="workStatus">status: <span class="statusWarn">idle</span></span>
-            <span id="workHint">Tip: say “show me a preview” to render something here.</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script>
-    const STORAGE_KEY = "simo_state_v1";
-    const USER_ID_KEY  = "simo_user_id_v1";
+<script>
+(() => {
+  const chatEl = document.getElementById("chat");
+  const inputEl = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const apiStateEl = document.getElementById("apiState");
+  const previewStateEl = document.getElementById("previewState");
 
-    const chatEl = document.getElementById("chat");
-    const inputEl = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
-    const clearBtn = document.getElementById("clearBtn");
+  const gridEl = document.getElementById("grid");
+  const chatPanel = document.getElementById("chatPanel");
+  const previewPanel = document.getElementById("previewPanel");
 
-    const modePill = document.getElementById("modePill");
-    const locPill = document.getElementById("locPill");
-    const memPill = document.getElementById("memPill");
-    const topicPill = document.getElementById("topicPill");
+  const viewSplit = document.getElementById("viewSplit");
+  const viewChat = document.getElementById("viewChat");
+  const viewPreview = document.getElementById("viewPreview");
+  const autoPreviewEl = document.getElementById("autoPreview");
 
-    const workSub = document.getElementById("workSub");
-    const workStatus = document.getElementById("workStatus");
-    const workHint = document.getElementById("workHint");
+  const previewBody = document.getElementById("previewBody");
+  const renderLastBtn = document.getElementById("renderLastBtn");
+  const openNewTabBtn = document.getElementById("openNewTabBtn");
+  const quickPreviewBtn = document.getElementById("quickPreviewBtn");
 
-    const workspaceFrame = document.getElementById("workspaceFrame");
-    const workspaceEmpty = document.getElementById("workspaceEmpty");
-    const resultsBox = document.getElementById("resultsBox");
+  // ---- State ----
+  let lastSimoText = "";
+  let lastPreview = { type: "none", html: "", images: [] };
+  let lastPreviewBlobUrl = "";
 
-    const workspaceTools = document.getElementById("workspaceTools");
-    const downloadBtn = document.getElementById("downloadBtn");
-    const copyBtn = document.getElementById("copyBtn");
-    const forgetBtn = document.getElementById("forgetBtn");
-    const toolsNote = document.getElementById("toolsNote");
-    const fileNameNote = document.getElementById("fileNameNote");
+  // ---- Helpers ----
+  const nowTime = () => new Date().toLocaleTimeString([], {hour:"2-digit", minute:"2-digit"});
 
-    const state = {
-      history: [],
-      mode: "auto",
-      context: "none",
-      coords: null,
-      locState: "off",
-      memoryOn: true,
-      userId: null,
-      lastPreviewHtml: "",
-      lastPreviewName: "simo-preview.html",
-      notes: ""
-    };
+  function addMsg(role, text){
+    const wrap = document.createElement("div");
+    wrap.className = "msg " + (role === "you" ? "you" : "simo");
 
-    function makeUserId(){
-      try{
-        const existing = localStorage.getItem(USER_ID_KEY);
-        if (existing) return existing;
-        const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() :
-          ("u_" + Math.random().toString(16).slice(2) + Date.now().toString(16));
-        localStorage.setItem(USER_ID_KEY, id);
-        return id;
-      }catch{
-        return "u_" + Math.random().toString(16).slice(2) + Date.now().toString(16);
-      }
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.innerHTML = `<span><b>${role === "you" ? "You" : "Simo"}</b></span><span>${nowTime()}</span>`;
+
+    const body = document.createElement("div");
+    body.textContent = text;
+
+    wrap.appendChild(meta);
+    wrap.appendChild(body);
+    chatEl.appendChild(wrap);
+    chatEl.scrollTop = chatEl.scrollHeight;
+  }
+
+  function setApiState(text, cls){
+    apiStateEl.textContent = text;
+    apiStateEl.className = (cls || "warn");
+  }
+
+  function setPreviewState(text, cls){
+    previewStateEl.textContent = text;
+    previewStateEl.className = (cls || "warn");
+  }
+
+  function setView(view){
+    // view: split | chat | preview
+    [viewSplit, viewChat, viewPreview].forEach(x => x.classList.remove("active"));
+    if (view === "split") viewSplit.classList.add("active");
+    if (view === "chat") viewChat.classList.add("active");
+    if (view === "preview") viewPreview.classList.add("active");
+
+    if (view === "split"){
+      gridEl.style.gridTemplateColumns = "1fr 1fr";
+      chatPanel.style.display = "flex";
+      previewPanel.style.display = "flex";
+    } else if (view === "chat"){
+      gridEl.style.gridTemplateColumns = "1fr";
+      chatPanel.style.display = "flex";
+      previewPanel.style.display = "none";
+    } else {
+      gridEl.style.gridTemplateColumns = "1fr";
+      chatPanel.style.display = "none";
+      previewPanel.style.display = "flex";
+    }
+  }
+
+  function extractHtmlBlock(text){
+    // 1) ```html ... ```
+    const fence = text.match(/```html\s*([\s\S]*?)```/i);
+    if (fence && fence[1]) return fence[1].trim();
+
+    // 2) any ``` ... ``` that looks like HTML inside
+    const anyFence = text.match(/```\s*([\s\S]*?)```/);
+    if (anyFence && anyFence[1] && /<\/?[a-z][\s\S]*>/i.test(anyFence[1])) {
+      return anyFence[1].trim();
     }
 
-    function saveState(){
-      if (!state.memoryOn) return;
-      try {
-        const payload = {
-          mode: state.mode,
-          context: state.context,
-          notes: state.notes
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
-      } catch {}
+    // 3) raw html hints
+    if (/<html[\s>]/i.test(text) || /<!doctype html>/i.test(text) || /<\/div>/i.test(text)) {
+      // try to isolate from first "<!doctype" or "<html" onward
+      const idx = text.search(/<!doctype html>|<html[\s>]/i);
+      if (idx >= 0) return text.slice(idx).trim();
     }
 
-    function loadState(){
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return;
-        const data = JSON.parse(raw);
-        if (data && typeof data === "object") {
-          if (typeof data.mode === "string") state.mode = data.mode;
-          if (typeof data.context === "string") state.context = data.context;
-          if (typeof data.notes === "string") state.notes = data.notes;
-        }
-      } catch {}
+    return "";
+  }
+
+  function extractImageUrls(text){
+    // Basic URL match
+    const urls = (text.match(/https?:\/\/[^\s)"]+/g) || [])
+      .map(u => u.replace(/[.,;]+$/,""));
+
+    // Keep common image formats + also allow querystring images
+    const img = urls.filter(u =>
+      /\.(png|jpg|jpeg|webp|gif)(\?|#|$)/i.test(u) ||
+      /image/i.test(u) && /https?:\/\//i.test(u)
+    );
+
+    // de-dupe
+    return [...new Set(img)];
+  }
+
+  function renderPreview(preview){
+    // cleanup old blob
+    if (lastPreviewBlobUrl){
+      URL.revokeObjectURL(lastPreviewBlobUrl);
+      lastPreviewBlobUrl = "";
     }
 
-    function clearSavedState(){
-      try { localStorage.removeItem(STORAGE_KEY); } catch {}
-    }
+    previewBody.innerHTML = "";
 
-    function setMemPill(){
-      memPill.innerHTML = `memory: <strong>${state.memoryOn ? "on" : "off"}</strong>`;
-    }
-
-    memPill.addEventListener("click", () => {
-      state.memoryOn = !state.memoryOn;
-      setMemPill();
-      toolsNote.textContent = state.memoryOn ? "Memory on (this device + server)." : "Memory off (no save).";
-      if (state.memoryOn) saveState();
-    });
-
-    function escapeHtml(str){
-      return String(str).replace(/[&<>"']/g, s => ({
-        "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-      }[s]));
-    }
-
-    function addLine(who, text, cls){
-      const p = document.createElement("p");
-      p.className = "msg " + (cls || "");
-      p.innerHTML = `<span class="${who === 'You' ? 'you' : who === 'Simo' ? 'simo' : 'sys'}">${who}:</span> ${escapeHtml(text)}`;
-      chatEl.appendChild(p);
-      chatEl.scrollTop = chatEl.scrollHeight;
-    }
-
-    function normalize(s){ return String(s||"").toLowerCase().trim(); }
-
-    // ✅ This is the key fix: "continue/resume" does NOT overwrite context
-    function detectModeAndContext(userText){
-      const t = normalize(userText);
-
-      if (/\bswitch topics?\b/.test(t)) {
-        state.mode = "auto";
-      } else if (/(stressed|anxious|tired|overwhelmed|upset|fight|argument)/.test(t)) {
-        if (state.mode === "auto") state.mode = "venting";
-      } else if (/(show me a preview|preview|mockup|ui|layout|wireframe|design|build|create|generate|make)/.test(t)) {
-        state.mode = "building";
-      }
-
-      const isContinue = /^(continue|keep going|resume)\b/.test(t) || /\bcontinue that\b/.test(t);
-
-      if (t.length > 0 && !/\bswitch topics?\b/.test(t) && !isContinue) {
-        state.context = userText.slice(0, 60);
-      }
-
-      modePill.textContent = `mode: ${state.mode}`;
-      topicPill.textContent = `context: ${state.context === "none" ? "none" : state.context}`;
-
-      saveState();
-    }
-
-    function setLocPill(){
-      if (state.locState === "on") locPill.textContent = "loc: on";
-      else if (state.locState === "denied") locPill.textContent = "loc: denied";
-      else locPill.textContent = "loc: off";
-    }
-
-    function shouldRequestLocation(userText){
-      const t = normalize(userText);
-      return (
-        /\bweather\b/.test(t) ||
-        /\bnear me\b/.test(t) ||
-        /\bmy location\b/.test(t) ||
-        /\bnearby\b/.test(t)
-      );
-    }
-
-    function getCoordsOnce(timeoutMs = 9000){
-      return new Promise((resolve) => {
-        if (!navigator.geolocation) return resolve(null);
-
-        let done = false;
-        const timer = setTimeout(() => {
-          if (done) return;
-          done = true;
-          resolve(null);
-        }, timeoutMs);
-
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            if (done) return;
-            done = true;
-            clearTimeout(timer);
-            resolve({
-              lat: Number(pos.coords.latitude),
-              lon: Number(pos.coords.longitude),
-              accuracy: Number(pos.coords.accuracy)
-            });
-          },
-          (err) => {
-            if (done) return;
-            done = true;
-            clearTimeout(timer);
-            resolve({ error: err && err.code ? err.code : "geo_error" });
-          },
-          { enableHighAccuracy: false, timeout: timeoutMs, maximumAge: 5 * 60 * 1000 }
-        );
-      });
-    }
-
-    function hideWorkspaceTools(){
-      workspaceTools.style.display = "none";
-      state.lastPreviewHtml = "";
-      state.lastPreviewName = "simo-preview.html";
-      toolsNote.textContent = "Preview ready.";
-      fileNameNote.textContent = `file: ${state.lastPreviewName}`;
-    }
-
-    function showWorkspaceTools(fileName){
-      workspaceTools.style.display = "flex";
-      state.lastPreviewName = fileName || "simo-preview.html";
-      fileNameNote.textContent = `file: ${state.lastPreviewName}`;
-    }
-
-    function setWorkspaceIdle(){
-      workSub.textContent = "Waiting…";
-      workStatus.innerHTML = `status: <span class="statusWarn">idle</span>`;
-      workHint.textContent = `Tip: say “show me a preview” to render something here.`;
-
-      workspaceFrame.style.display = "none";
-      resultsBox.style.display = "none";
-      workspaceEmpty.style.display = "block";
-
-      workspaceFrame.srcdoc = "";
-      resultsBox.innerHTML = "";
-
-      hideWorkspaceTools();
-    }
-
-    function guessFileNameFromContext(){
-      const base = normalize(state.context || "");
-      if (!base || base === "none") return "simo-preview.html";
-      const safe = base.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
-      return safe ? `simo-${safe}.html` : "simo-preview.html";
-    }
-
-    function setWorkspacePreview(html){
-      workSub.textContent = "Preview • rendered";
-      workStatus.innerHTML = `status: <span class="statusGood">showing preview</span>`;
-      workHint.textContent = `Ask for tweaks (layout, colors, filters, etc.).`;
-
-      workspaceEmpty.style.display = "none";
-      resultsBox.style.display = "none";
-      workspaceFrame.style.display = "block";
-      workspaceFrame.srcdoc = html;
-
-      state.lastPreviewHtml = String(html || "");
-      showWorkspaceTools(guessFileNameFromContext());
-    }
-
-    function extractUrls(text){
-      const urls = (String(text||"").match(/https?:\/\/[^\s)]+/g) || []);
-      return [...new Set(urls)];
-    }
-
-    function setWorkspaceResults(urls){
-      workSub.textContent = "Results • links";
-      workStatus.innerHTML = `status: <span class="statusGood">showing results</span>`;
-      workHint.textContent = `Click a link to open it. Want me to narrow it down?`;
-
-      workspaceEmpty.style.display = "none";
-      workspaceFrame.style.display = "none";
-      resultsBox.style.display = "block";
-
-      const cards = urls.map((u, i) => `
-        <div class="resultCard">
-          <div class="resultTitle">Link ${i+1}</div>
-          <a href="${escapeHtml(u)}" target="_blank" rel="noopener noreferrer">${escapeHtml(u)}</a>
+    if (!preview || preview.type === "none"){
+      previewBody.innerHTML = `
+        <div class="previewEmpty">
+          Nothing to preview yet.<br><br>
+          Try: <span class="mono">build me a simple website</span>, or click <b>Ask for Preview</b>.
         </div>
-      `).join("");
-
-      resultsBox.innerHTML = cards || `<div class="workspaceEmpty">No links found.</div>`;
-      hideWorkspaceTools();
+      `;
+      setPreviewState("none", "warn");
+      return;
     }
 
-    async function callBackend(userText){
-      const url = "/.netlify/functions/simon";
-      const payload = {
-        message: userText,
-        mode: state.mode === "venting" ? "bestfriend" : state.mode === "building" ? "builder" : "auto",
-        topic: state.context,
-        history: state.history.slice(-14),
-        coords: state.coords,
-        notes: state.notes,
-        user_id: state.memoryOn ? state.userId : null
-      };
-
-      try{
-        const res = await fetch(url, {
-          method:"POST",
-          headers:{ "content-type":"application/json" },
-          body: JSON.stringify(payload)
-        });
-
-        const data = await res.json().catch(()=> ({}));
-        if(!res.ok) throw new Error(data?.error || `HTTP ${res.status}`);
-        return data;
-      }catch(err){
-        return { ok:false, error:String(err?.message || err) };
-      }
+    if (preview.type === "images"){
+      const grid = document.createElement("div");
+      grid.className = "imgGrid";
+      preview.images.forEach((src, i) => {
+        const card = document.createElement("div");
+        card.className = "imgCard";
+        card.innerHTML = `
+          <img src="${src}" alt="preview image ${i+1}" />
+          <div class="cap mono">${src}</div>
+        `;
+        grid.appendChild(card);
+      });
+      previewBody.appendChild(grid);
+      setPreviewState(`images (${preview.images.length})`, "good");
+      return;
     }
 
-    async function callForgetServer(){
-      if (!state.userId) return;
-      try{
-        await fetch("/.netlify/functions/simon", {
-          method:"POST",
-          headers:{ "content-type":"application/json" },
-          body: JSON.stringify({ action:"forget", user_id: state.userId })
-        });
-      }catch{}
+    if (preview.type === "html"){
+      // Render HTML safely in an iframe using srcdoc.
+      const iframe = document.createElement("iframe");
+
+      // Some user HTML snippets won't include <html> wrapper — that's fine.
+      // We add a base target to keep links from breaking the parent tab.
+      const srcdoc = `
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<base target="_blank">
+</head>
+<body>
+${preview.html}
+</body>
+</html>`.trim();
+
+      iframe.srcdoc = srcdoc;
+      previewBody.appendChild(iframe);
+      setPreviewState("html", "good");
+      return;
+    }
+  }
+
+  function updateLastPreviewFromText(text){
+    const html = extractHtmlBlock(text);
+    const images = extractImageUrls(text);
+
+    if (html){
+      lastPreview = { type: "html", html, images: [] };
+      return true;
+    }
+    if (images.length){
+      lastPreview = { type: "images", html: "", images };
+      return true;
     }
 
-    function fallbackReply(userText){
-      const t = normalize(userText);
-      if (/\bswitch topics?\b/.test(t)) return "Bet. What do you wanna do now — venting, solving, or building?";
-      if (/(stressed|anxious|tired|overwhelmed|upset|fight|argument)/.test(t))
-        return "I got you. What part is hitting you the hardest right now?";
-      if (/(preview|mockup|ui|layout)/.test(t))
-        return "Say “show me a preview” and I’ll render something in the Workspace.";
-      if (/\bweather\b/.test(t))
-        return "Tell me your ZIP/city — or allow location and ask again.";
-      return "I’m here. Tell me what you want next — venting, solving, or building.";
+    lastPreview = { type: "none", html: "", images: [] };
+    return false;
+  }
+
+  async function callSimo(userText){
+    setApiState("thinking…", "warn");
+    sendBtn.disabled = true;
+
+    try{
+      const res = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: {"content-type":"application/json"},
+        body: JSON.stringify({ message: userText })
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || data.ok === false){
+        const err = data?.error || data?.details || `HTTP ${res.status}`;
+        setApiState("error", "bad");
+        return `I hit an error: ${err}`;
+      }
+
+      // Flexible parsing: backend might return {ok:true, text:"..."} or {reply:"..."} etc.
+      const text =
+        data?.text ??
+        data?.reply ??
+        data?.output ??
+        data?.message ??
+        data?.response ??
+        (typeof data === "string" ? data : "");
+
+      setApiState("ok", "good");
+      return (text || "").trim() || "…";
+    } catch (e){
+      setApiState("network error", "bad");
+      return `Network error: ${e?.message || e}`;
+    } finally {
+      sendBtn.disabled = false;
     }
+  }
 
-    async function onSend(){
-      const text = inputEl.value.trim();
-      if(!text) return;
+  async function send(){
+    const t = (inputEl.value || "").trim();
+    if (!t) return;
 
-      inputEl.value = "";
+    inputEl.value = "";
+    addMsg("you", t);
 
-      addLine("You", text);
-      detectModeAndContext(text);
+    const simoText = await callSimo(t);
+    lastSimoText = simoText;
+    addMsg("simo", simoText);
 
-      if (shouldRequestLocation(text) && state.locState !== "denied") {
-        if (!state.coords || typeof state.coords.lat !== "number") {
-          workStatus.innerHTML = `status: <span class="statusWarn">getting location…</span>`;
-          const geo = await getCoordsOnce(9000);
-          if (geo && geo.error) {
-            state.locState = "denied";
-            state.coords = null;
-          } else if (geo && typeof geo.lat === "number" && typeof geo.lon === "number") {
-            state.locState = "on";
-            state.coords = geo;
-          } else {
-            state.locState = "off";
-            state.coords = null;
-          }
-          setLocPill();
-        }
-      }
-
-      workStatus.innerHTML = `status: <span class="statusWarn">thinking…</span>`;
-      workSub.textContent = "Working…";
-      workHint.textContent = "If you asked for a preview or results, it’ll show here.";
-
-      state.history.push({ role:"user", content:text });
-
-      const data = await callBackend(text);
-
-      let reply = "";
-      if (data && data.ok && typeof data.reply === "string") reply = data.reply;
-      else reply = (data && data.error) ? `I couldn’t reach my brain for a second. (${data.error})` : fallbackReply(text);
-
-      if (data && data.ok && typeof data.mode === "string") {
-        const m = data.mode.toLowerCase();
-        modePill.textContent = `mode: ${m === "builder" ? "builder" : m === "bestfriend" ? "bestfriend" : "auto"}`;
-      }
-
-      addLine("Simo", reply);
-      state.history.push({ role:"assistant", content: reply });
-
-      if (data && data.ok && typeof data.preview_html === "string" && data.preview_html.trim()) {
-        setWorkspacePreview(data.preview_html);
-        return;
-      }
-
-      const urls = extractUrls(reply);
-      if (urls.length) {
-        setWorkspaceResults(urls);
-        return;
-      }
-
-      setWorkspaceIdle();
+    const found = updateLastPreviewFromText(simoText);
+    if (autoPreviewEl.checked && found){
+      renderPreview(lastPreview);
+      setView("split"); // keep it visible
     }
+  }
 
-    downloadBtn.addEventListener("click", () => {
-      if (!state.lastPreviewHtml) { toolsNote.textContent = "No preview to download yet."; return; }
-      try {
-        const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = state.lastPreviewName || "simo-preview.html";
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(a.href);
-        toolsNote.textContent = "Downloaded.";
-      } catch { toolsNote.textContent = "Download failed."; }
-    });
+  // ---- Events ----
+  sendBtn.addEventListener("click", send);
 
-    copyBtn.addEventListener("click", async () => {
-      if (!state.lastPreviewHtml) { toolsNote.textContent = "No preview to copy yet."; return; }
-      try {
-        await navigator.clipboard.writeText(state.lastPreviewHtml);
-        toolsNote.textContent = "Copied.";
-      } catch {
-        try {
-          const ta = document.createElement("textarea");
-          ta.value = state.lastPreviewHtml;
-          ta.style.position = "fixed";
-          ta.style.left = "-9999px";
-          document.body.appendChild(ta);
-          ta.focus(); ta.select();
-          document.execCommand("copy");
-          ta.remove();
-          toolsNote.textContent = "Copied.";
-        } catch { toolsNote.textContent = "Copy failed."; }
-      }
-    });
+  inputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  });
 
-    // ✅ Forget: clears local + server memory + clears UI immediately
-    forgetBtn.addEventListener("click", async () => {
-      await callForgetServer();
+  clearBtn.addEventListener("click", () => {
+    chatEl.innerHTML = "";
+    lastSimoText = "";
+    lastPreview = { type:"none", html:"", images:[] };
+    renderPreview(lastPreview);
+  });
 
-      clearSavedState();
-      state.history = [];
-      state.mode = "auto";
-      state.context = "none";
-      state.notes = "";
+  // View toggles
+  viewSplit.addEventListener("click", () => setView("split"));
+  viewChat.addEventListener("click", () => setView("chat"));
+  viewPreview.addEventListener("click", () => setView("preview"));
 
-      state.lastPreviewHtml = "";
-      state.lastPreviewName = "simo-preview.html";
+  // Preview controls
+  renderLastBtn.addEventListener("click", () => {
+    if (lastSimoText){
+      updateLastPreviewFromText(lastSimoText);
+    }
+    renderPreview(lastPreview);
+    setView("preview");
+  });
 
-      chatEl.innerHTML = "";
-      modePill.textContent = "mode: auto";
-      topicPill.textContent = "context: none";
+  openNewTabBtn.addEventListener("click", () => {
+    if (lastPreview.type !== "html"){
+      alert("Open works for HTML previews. Generate a website/app HTML first.");
+      return;
+    }
+    // Create a blob so it opens as a standalone page.
+    const html = `
+<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+<body>${lastPreview.html}</body></html>`;
+    const blob = new Blob([html], {type:"text/html"});
+    lastPreviewBlobUrl = URL.createObjectURL(blob);
+    window.open(lastPreviewBlobUrl, "_blank", "noopener,noreferrer");
+  });
 
-      setWorkspaceIdle();
-      addLine("Simo", "Local + server memory cleared on this device.", "sys");
+  quickPreviewBtn.addEventListener("click", async () => {
+    inputEl.value = "show me a preview";
+    send();
+  });
 
-      saveState();
-    });
-
-    sendBtn.addEventListener("click", onSend);
-
-    clearBtn.addEventListener("click", () => {
-      chatEl.innerHTML = "";
-      state.history = [];
-      state.mode = "auto";
-      state.context = "none";
-      state.coords = null;
-      state.locState = "off";
-      state.lastPreviewHtml = "";
-      state.lastPreviewName = "simo-preview.html";
-      modePill.textContent = "mode: auto";
-      topicPill.textContent = "context: none";
-      setLocPill();
-      setWorkspaceIdle();
-      addLine("Simo", "Reset. I’m here.", "sys");
-      saveState();
-    });
-
-    inputEl.addEventListener("keydown", (e) => {
-      if(e.key === "Enter" && !e.shiftKey){
-        e.preventDefault();
-        onSend();
-      }
-    });
-
-    // Boot
-    state.userId = makeUserId();
-    loadState();
-    modePill.textContent = `mode: ${state.mode}`;
-    topicPill.textContent = `context: ${state.context === "none" ? "none" : state.context}`;
-    setMemPill();
-    setLocPill();
-    setWorkspaceIdle();
-    addLine("Simo", "Reset. I’m here.", "sys");
-  </script>
+  // Init
+  setView("split");
+  renderPreview(lastPreview);
+  addMsg("simo", "I’m here. Talk normally. If I output HTML or image links, I’ll render it in Preview automatically.");
+})();
+</script>
 </body>
 </html>
