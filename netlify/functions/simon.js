@@ -10,10 +10,10 @@
 // Client supports:
 // - POST with { action:"forget", user_id:"..." } to clear server memory.
 //
-// IMPORTANT:
-// This version fixes 2 issues:
-// 1) Frontend expects { ok, text, preview:{title,html} } but previous code returned {reply, preview_html}.
-// 2) Auto-preview in Building mode: if body.mode === "building", we return a preview even without “show me preview”.
+// FIXES in this version:
+// 1) Never show raw JSON in chat (robust JSON extraction + parsing).
+// 2) Auto-preview in Building mode for buildable prompts.
+// 3) Frontend-friendly response shape: { ok, text, preview:{title,html} } + legacy keys kept.
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -34,6 +34,33 @@ function safeJsonParse(s) {
   try { return JSON.parse(s); } catch { return null; }
 }
 
+// If the model output contains extra text, grab the first JSON object we can.
+function extractJsonObject(text = "") {
+  const t = String(text || "").trim();
+  const first = t.indexOf("{");
+  const last = t.lastIndexOf("}");
+  if (first === -1 || last === -1 || last <= first) return null;
+  const slice = t.slice(first, last + 1);
+  return safeJsonParse(slice);
+}
+
+// If the assistant accidentally returns raw JSON, try to convert it to a readable reply.
+function coerceReply(outText = "") {
+  const direct = safeJsonParse(outText);
+  if (direct && typeof direct.reply === "string" && direct.reply.trim()) return direct.reply.trim();
+
+  const extracted = extractJsonObject(outText);
+  if (extracted && typeof extracted.reply === "string" && extracted.reply.trim()) return extracted.reply.trim();
+
+  // Worst case: strip a JSON-looking wrapper if present
+  const t = String(outText || "").trim();
+  if (t.startsWith("{") && t.includes('"reply"')) {
+    // last resort: keep it from showing a blob of JSON
+    return "Got you. Say what you want next and I’ll move with you.";
+  }
+  return t || "Reset. I’m here.";
+}
+
 /* --------------------------- Preview logic --------------------------- */
 
 function wantsPreview(text = "") {
@@ -44,7 +71,6 @@ function wantsPreview(text = "") {
   );
 }
 
-// Build-ish requests (so we can auto-preview in Building mode)
 function seemsBuildRequest(text = "") {
   const t = normalize(text);
   return /\b(build|design|make|create|generate|draft|mockup|wireframe|layout|ui|dashboard|landing page|homepage|resume|cv|app)\b/.test(t);
@@ -87,7 +113,7 @@ function buildPreviewHtml(kind, userText = "") {
       :root{
         --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
         --line:rgba(255,255,255,.12);
-        --btn:#2a66ff; --good:#39d98a;
+        --btn:#2a66ff;
       }
       *{box-sizing:border-box}
       body{
@@ -236,31 +262,6 @@ function buildPreviewHtml(kind, userText = "") {
     `);
   }
 
-  if (kind === "resume") {
-    return shell(`
-      <div class="card">
-        <h3>Resume</h3>
-        <div class="list">
-          <div>
-            <div style="font-size:26px;font-weight:900;">Your Name</div>
-            <div class="meta">Email • Phone • City, State • LinkedIn</div>
-            <div style="height:1px;background:rgba(255,255,255,.10);margin:14px 0;"></div>
-            <div style="font-weight:900;margin-bottom:8px;">Experience</div>
-            <div class="item" style="display:block">
-              <div><strong>Job Title • Company</strong></div>
-              <div class="meta">Dates • Location</div>
-              <ul class="meta" style="margin:8px 0 0 18px;line-height:1.45;">
-                <li>Impact bullet</li>
-                <li>Project / leadership</li>
-                <li>Tools / systems</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </div>
-    `);
-  }
-
   if (kind === "landing_page") {
     return shell(`
       <div class="grid">
@@ -308,6 +309,7 @@ function buildPreviewHtml(kind, userText = "") {
     `);
   }
 
+  // generic fallback
   return shell(`
     <div class="grid">
       <div class="card">
@@ -423,7 +425,7 @@ exports.handler = async (event) => {
     const userId = (body.user_id || "").toString();
 
     // UI sends body.mode = "venting" | "solving" | "building"
-    const uiMode = (body.mode || "auto").toString(); // from index.html
+    const uiMode = (body.mode || "auto").toString();
     const isPro = !!body.pro;
 
     if (action === "forget" && userId) {
@@ -431,7 +433,6 @@ exports.handler = async (event) => {
         const store = await getMemoryStore();
         await store.delete(userId);
       } catch {}
-      // Return both new + legacy keys
       return {
         statusCode: 200,
         headers,
@@ -439,6 +440,7 @@ exports.handler = async (event) => {
           ok: true,
           mode: "bestfriend",
           text: "Forgot.",
+          message: "Forgot.",
           reply: "Forgot.",
           preview: null,
           preview_kind: "",
@@ -466,24 +468,11 @@ exports.handler = async (event) => {
 
     const intent = detectIntent(userText);
 
-    // Choose effective topic
     const savedTopic = (mem?.last_topic || "").toString();
     const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : (clientTopic || savedTopic);
 
-    // 1) Switch topics
+    // Switch topics
     if (intent === "switch") {
-      if (userId) {
-        try {
-          const store = await getMemoryStore();
-          await store.setJSON(userId, {
-            preferred_mode: "bestfriend",
-            last_topic: effectiveTopic || "",
-            project_brief: mem?.project_brief || "",
-            updated_at: new Date().toISOString()
-          });
-        } catch {}
-      }
-
       const msg = "Understood. What do you want to do next — venting, solving, or building?";
       return {
         statusCode: 200,
@@ -492,6 +481,7 @@ exports.handler = async (event) => {
           ok: true,
           mode: "bestfriend",
           text: msg,
+          message: msg,
           reply: msg,
           preview: null,
           preview_kind: "",
@@ -500,36 +490,28 @@ exports.handler = async (event) => {
       };
     }
 
-    // 2) Preview decision
-    // Explicit preview request always wins
+    // Preview decision
     const explicitPreview = wantsPreview(userText);
-
-    // Auto-preview when in Building mode and the message is build-ish
     const autoPreview = (uiMode === "building") && !explicitPreview && seemsBuildRequest(userText) && intent !== "venting";
-
     const previewShouldRender = explicitPreview || autoPreview;
 
-    // If we are going to render a preview, do it NOW (fast path),
-    // and still return a normal reply (not "ask me to preview").
     let fastPreview = null;
     if (previewShouldRender) {
       const kind = detectPreviewKind(userText, effectiveTopic);
-      fastPreview = {
-        kind,
-        title: ({
-          space_renting_app: "Space Rentals",
-          resume: "Resume Layout",
-          home_layout: "2-Story Home Layout",
-          landing_page: "Landing Page",
-          dashboard: "Dashboard UI",
-          generic_app: "App UI",
-          wireframe: "Wireframe Preview",
-        }[kind] || "Preview"),
-        html: buildPreviewHtml(kind, userText),
-      };
+      const title = ({
+        space_renting_app: "Space Rentals",
+        resume: "Resume Layout",
+        home_layout: "2-Story Home Layout",
+        landing_page: "Landing Page",
+        dashboard: "Dashboard UI",
+        generic_app: "App UI",
+        wireframe: "Wireframe Preview",
+      }[kind] || "Preview");
+
+      fastPreview = { kind, title, html: buildPreviewHtml(kind, userText) };
     }
 
-    // 3) Web lookup context (includes weather, forecast, temp, etc.)
+    // Lookup context
     let toolContext = "";
     if (SERPER_API_KEY && seemsLikeLookup(userText)) {
       const s = await serperWebSearch(userText, SERPER_API_KEY);
@@ -545,7 +527,6 @@ exports.handler = async (event) => {
       .filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
       .map((m) => ({ role: m.role, content: m.content }));
 
-    // Determine response mode
     const inferredMode =
       intent === "venting" ? "bestfriend" :
       (intent === "building" || intent === "continue" || uiMode === "building") ? "builder" :
@@ -559,51 +540,28 @@ exports.handler = async (event) => {
 - project_brief: ${mem?.project_brief || ""}`.trim()
       : "";
 
-    // System prompt: we now allow auto-preview in Building mode
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
 
-Voice (non-negotiable):
-- Calm, steady, and clear. Professional, but warm.
-- No hype. No slang-heavy talk. No therapy-speak.
-- Short sentences. Clean formatting.
-- Do NOT use markdown headings (no ###, ####) or long outlines.
-- Use short numbered steps only when needed. Otherwise write plain paragraphs.
-- Ask at most ONE question when the user is venting.
+Voice:
+- Calm, steady, direct.
+- No therapy-speak. No "stress can really weigh you down" phrasing.
+- If venting: validate in 1 sentence, then ask ONE simple question.
+- No markdown headings. Avoid heavy formatting.
 
-Core capability:
-- Handle ANY topic.
-- If you cannot fetch something live, do not hand-wave. Offer the best practical alternative (steps, templates, sources, options).
-
-Special rule for "continue/resume":
-- If the user says "continue", assume they mean the last active project from memory (last_topic / project_brief).
-- Do NOT ask "what app?" unless there is truly no saved project_brief.
-- Continue from the last project_brief and move it forward one milestone.
-- Be concrete: next screens, data model, API endpoints, or build steps.
-- Do NOT restart with generic "define features / choose tech stack".
-
-Intent handling:
-1) Venting: validate (1–2 sentences) + ask ONE question.
-2) Solving: diagnosis + step-by-step checklist.
-3) Building: provide the next actions clearly.
-
-Relationship rule:
-- If user says "wife", refer to her as wife (never “friendship”).
-
-Output requirements:
+Output:
 Return ONLY valid JSON (no markdown) with EXACT keys:
 {"mode":"bestfriend"|"builder","reply":"...","preview_kind":"","preview_html":""}
 
 Preview rules:
-- If the user explicitly asks for preview/mockup/ui/layout, include preview_html.
-- If the client is in Building mode, it's also allowed to include preview_html when the request is clearly buildable.
+- If user asks for preview/mockup/ui/layout, include preview_html.
+- If client is in Building mode, you may include preview_html when the request is clearly buildable.
 `.trim();
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },
       ...(memoryBlock ? [{ role: "system", content: memoryBlock }] : []),
       ...(toolContext ? [{ role: "system", content: toolContext }] : []),
-      // Give the model some extra context on Pro mode + preview decision
       { role: "system", content: `Client context: ui_mode=${uiMode}; pro=${isPro}; preview_should_render=${previewShouldRender}` },
       ...cleanedHistory,
       { role: "user", content: userText },
@@ -638,24 +596,27 @@ Preview rules:
     }
 
     const outText = extractOutputText(data);
-    const parsed = safeJsonParse(outText);
+
+    // Robust parse
+    const parsed = safeJsonParse(outText) || extractJsonObject(outText);
 
     const mode =
       parsed?.mode === "builder" ? "builder" :
       parsed?.mode === "bestfriend" ? "bestfriend" :
       inferredMode === "builder" ? "builder" : "bestfriend";
 
-    let reply =
-      typeof parsed?.reply === "string" && parsed.reply.trim()
-        ? parsed.reply.trim()
-        : (outText || "Reset. I’m here.");
+    // Always coerce reply to plain text
+    let reply = "";
+    if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
+      reply = parsed.reply.trim();
+    } else {
+      reply = coerceReply(outText);
+    }
 
     // Strip accidental markdown headings
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    // Choose preview:
-    // - Prefer the fastPreview we generated (guaranteed working, consistent)
-    // - Otherwise allow model-provided preview ONLY if previewShouldRender
+    // Previews: prefer our fastPreview (consistent), otherwise accept model fields
     let preview_kind = "";
     let preview_html = "";
 
@@ -663,7 +624,6 @@ Preview rules:
       preview_kind = fastPreview.kind;
       preview_html = fastPreview.html;
     } else if (previewShouldRender) {
-      // Model-provided fallback (rare)
       preview_kind = typeof parsed?.preview_kind === "string" ? parsed.preview_kind : "";
       preview_html = typeof parsed?.preview_html === "string" ? parsed.preview_html : "";
     }
@@ -688,20 +648,17 @@ Preview rules:
       } catch {}
     }
 
-    // ✅ Return what the FRONTEND expects:
-    // { ok, text, preview:{title,html} }
-    // and also include legacy keys so nothing else breaks.
+    // Return frontend-friendly + legacy keys
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         ok: true,
         mode,
-        // FRONTEND-FRIENDLY:
         text: reply,
         message: reply,
-        // LEGACY (your older UI might read these):
-        reply,
+        reply: reply,
+
         preview,
         preview_kind,
         preview_html,
