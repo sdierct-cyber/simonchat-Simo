@@ -7,10 +7,10 @@
 // - OPENAI_MODEL     (optional, default: gpt-4.1-mini)
 // - SERPER_API_KEY   (optional, enables web lookup)
 //
-// FIXES:
-// - Robust JSON parsing (no raw JSON in chat).
-// - Auto-preview in Building mode for buildable prompts.
-// - PRO mode visibly upgrades preview templates (pricing/testimonials/charts/booking extras).
+// Features:
+// - Auto-preview in Building mode for buildable prompts
+// - PRO mode visibly upgrades preview templates AND adds neon glow + pulse
+// - Hard guard so JSON never leaks into chat
 
 const OPENAI_URL = "https://api.openai.com/v1/responses";
 
@@ -23,8 +23,17 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-function normalize(s = "") { return String(s).toLowerCase().trim(); }
-function safeJsonParse(s) { try { return JSON.parse(s); } catch { return null; } }
+function normalize(s = "") {
+  return String(s).toLowerCase().trim();
+}
+
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return null;
+  }
+}
 
 function extractJsonObject(text = "") {
   const t = String(text || "").trim();
@@ -60,7 +69,9 @@ function wantsPreview(text = "") {
 
 function seemsBuildRequest(text = "") {
   const t = normalize(text);
-  return /\b(build|design|make|create|generate|draft|mockup|wireframe|layout|ui|dashboard|landing page|homepage|resume|cv|app)\b/.test(t);
+  return /\b(build|design|make|create|generate|draft|mockup|wireframe|layout|ui|dashboard|landing page|homepage|resume|cv|app)\b/.test(
+    t
+  );
 }
 
 function detectPreviewKind(text = "", fallbackTopic = "") {
@@ -74,12 +85,14 @@ function detectPreviewKind(text = "", fallbackTopic = "") {
   if (/\b(space renting|driveway|garage|rent out space|parking spot)\b/.test(any)) return "space_renting_app";
   if (/\b(home|house)\b/.test(any) && /\b(layout|floor plan|2 story|two story)\b/.test(any)) return "home_layout";
   if (/\b(app|mobile app)\b/.test(any)) return "generic_app";
+
   return "wireframe";
 }
 
-// PRO upgrade helpers (pure HTML/CSS blocks)
 function proChip(label) {
-  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.35);background:rgba(57,217,138,.12);color:rgba(234,240,255,.92);font-size:12px;font-weight:900;">PRO • ${escapeHtml(label)}</span>`;
+  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:999px;border:1px solid rgba(57,217,138,.35);background:rgba(57,217,138,.12);color:rgba(234,240,255,.92);font-size:12px;font-weight:900;">PRO • ${escapeHtml(
+    label
+  )}</span>`;
 }
 
 function buildPreviewHtml(kind, userText = "", isPro = false) {
@@ -194,15 +207,39 @@ function buildPreviewHtml(kind, userText = "", isPro = false) {
       .badgePro{
         display:inline-flex;align-items:center;gap:6px;
         padding:6px 10px;border-radius:999px;
-        border:1px solid rgba(57,217,138,.35);
-        background:rgba(57,217,138,.12);
-        color:rgba(234,240,255,.92);
+        border:1px solid rgba(57,217,138,.45);
+        background:rgba(57,217,138,.14);
+        color:rgba(234,240,255,.95);
         font-size:12px;font-weight:900;
+        box-shadow: 0 0 22px rgba(57,217,138,.28);
       }
+
+      /* PRO glow (only when Pro ON) */
+      .proOn .card,
+      .proOn .bar{
+        border-color: rgba(57,217,138,.22);
+        box-shadow:
+          0 0 0 1px rgba(57,217,138,.12),
+          0 0 28px rgba(57,217,138,.10);
+      }
+      .proOn .badgePro{
+        animation: proPulse 1.8s ease-in-out infinite;
+      }
+      @keyframes proPulse{
+        0%,100%{
+          box-shadow: 0 0 18px rgba(57,217,138,.22);
+          transform: translateY(0);
+        }
+        50%{
+          box-shadow: 0 0 32px rgba(57,217,138,.40);
+          transform: translateY(-1px);
+        }
+      }
+
       @media (max-width: 860px){ .grid{grid-template-columns:1fr} .two{grid-template-columns:1fr} }
     </style>
   </head><body>
-    <div class="shell">
+    <div class="shell ${isPro ? "proOn" : ""}">
       <div class="top">
         <div>
           <div class="title">${escapeHtml(title)}</div>
@@ -510,11 +547,13 @@ async function serperWebSearch(query, apiKey) {
   if (!res.ok) return { ok: false, error: data?.message || `Serper HTTP ${res.status}` };
 
   const organic = Array.isArray(data?.organic) ? data.organic.slice(0, 6) : [];
-  const top = organic.map((r) => ({
-    title: r.title || "",
-    link: r.link || "",
-    snippet: r.snippet || "",
-  })).filter(x => x.title || x.link || x.snippet);
+  const top = organic
+    .map((r) => ({
+      title: r.title || "",
+      link: r.link || "",
+      snippet: r.snippet || "",
+    }))
+    .filter((x) => x.title || x.link || x.snippet);
 
   return { ok: true, top };
 }
@@ -573,7 +612,11 @@ exports.handler = async (event) => {
     }
 
     let body = {};
-    try { body = JSON.parse(event.body || "{}"); } catch { body = {}; }
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      body = {};
+    }
 
     const action = (body.action || "").toString();
     const userId = (body.user_id || "").toString();
@@ -615,13 +658,15 @@ exports.handler = async (event) => {
       try {
         const store = await getMemoryStore();
         mem = await store.get(userId, { type: "json" });
-      } catch { mem = null; }
+      } catch {
+        mem = null;
+      }
     }
 
     const intent = detectIntent(userText);
 
     const savedTopic = (mem?.last_topic || "").toString();
-    const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : (clientTopic || savedTopic);
+    const effectiveTopic = looksLikeJunkTopic(clientTopic) ? savedTopic : clientTopic || savedTopic;
 
     // Switch topics
     if (intent === "switch") {
@@ -644,21 +689,24 @@ exports.handler = async (event) => {
 
     // Preview decision
     const explicitPreview = wantsPreview(userText);
-    const autoPreview = (uiMode === "building") && !explicitPreview && seemsBuildRequest(userText) && intent !== "venting";
+    const autoPreview =
+      uiMode === "building" && !explicitPreview && seemsBuildRequest(userText) && intent !== "venting";
     const previewShouldRender = explicitPreview || autoPreview;
 
     let fastPreview = null;
     if (previewShouldRender) {
       const kind = detectPreviewKind(userText, effectiveTopic);
-      const title = ({
-        space_renting_app: "Space Rentals",
-        resume: "Resume Layout",
-        home_layout: "2-Story Home Layout",
-        landing_page: "Landing Page",
-        dashboard: "Dashboard UI",
-        generic_app: "App UI",
-        wireframe: "Wireframe Preview",
-      }[kind] || "Preview");
+      const title = (
+        {
+          space_renting_app: "Space Rentals",
+          resume: "Resume Layout",
+          home_layout: "2-Story Home Layout",
+          landing_page: "Landing Page",
+          dashboard: "Dashboard UI",
+          generic_app: "App UI",
+          wireframe: "Wireframe Preview",
+        }[kind] || "Preview"
+      );
 
       fastPreview = { kind, title, html: buildPreviewHtml(kind, userText, isPro) };
     }
@@ -670,7 +718,9 @@ exports.handler = async (event) => {
       if (s.ok && s.top?.length) {
         toolContext =
           "Live web results (use as facts; include direct links in reply):\n" +
-          s.top.map((r, i) => `${i + 1}. ${r.title}\n${r.link}\n${r.snippet}`.trim()).join("\n\n");
+          s.top
+            .map((r, i) => `${i + 1}. ${r.title}\n${r.link}\n${r.snippet}`.trim())
+            .join("\n\n");
       }
     }
 
@@ -680,17 +730,21 @@ exports.handler = async (event) => {
       .map((m) => ({ role: m.role, content: m.content }));
 
     const inferredMode =
-      intent === "venting" ? "bestfriend" :
-      (intent === "building" || intent === "continue" || uiMode === "building") ? "builder" :
-      intent === "solving" ? "builder" :
-      "bestfriend";
+      intent === "venting"
+        ? "bestfriend"
+        : intent === "building" || intent === "continue" || uiMode === "building"
+          ? "builder"
+          : intent === "solving"
+            ? "builder"
+            : "bestfriend";
 
-    const memoryBlock = (userId && mem)
-      ? `Saved user memory:
+    const memoryBlock =
+      userId && mem
+        ? `Saved user memory:
 - preferred_mode: ${mem?.preferred_mode || "auto"}
 - last_topic: ${mem?.last_topic || ""}
 - project_brief: ${mem?.project_brief || ""}`.trim()
-      : "";
+        : "";
 
     const SYSTEM_PROMPT = `
 You are Simo — a private best-friend + creator hybrid.
@@ -751,9 +805,13 @@ Preview rules:
     const parsed = safeJsonParse(outText) || extractJsonObject(outText);
 
     const mode =
-      parsed?.mode === "builder" ? "builder" :
-      parsed?.mode === "bestfriend" ? "bestfriend" :
-      inferredMode === "builder" ? "builder" : "bestfriend";
+      parsed?.mode === "builder"
+        ? "builder"
+        : parsed?.mode === "bestfriend"
+          ? "bestfriend"
+          : inferredMode === "builder"
+            ? "builder"
+            : "bestfriend";
 
     let reply = "";
     if (parsed && typeof parsed.reply === "string" && parsed.reply.trim()) {
@@ -763,9 +821,28 @@ Preview rules:
     }
     reply = reply.replace(/^\s*#{1,6}\s+/gm, "").trim();
 
-    // Preview: we always prefer fastPreview for consistency
-    const preview_kind = (previewShouldRender && fastPreview) ? fastPreview.kind : "";
-    const preview_html = (previewShouldRender && fastPreview) ? fastPreview.html : "";
+    // --- hard guard: never let JSON leak into chat ---
+    function looksLikeJsonLeak(s = "") {
+      const t = String(s).trim();
+      if (!t.startsWith("{")) return false;
+      return /"mode"\s*:|"reply"\s*:|"preview_html"\s*:|"headline"\s*:|"features?_section"\s*:|"pricing_section"\s*:|"testimonials_section"\s*:/.test(
+        t
+      );
+    }
+
+    if (looksLikeJsonLeak(reply)) {
+      const parsedLeak = safeJsonParse(reply) || extractJsonObject(reply);
+      if (parsedLeak && typeof parsedLeak.reply === "string" && parsedLeak.reply.trim()) {
+        reply = parsedLeak.reply.trim();
+      } else {
+        reply =
+          "Got it. Tell me what you want changed on that landing page (headline, buttons, pricing, testimonials) and I’ll adjust it.";
+      }
+    }
+
+    // Preview: prefer fastPreview for consistency
+    const preview_kind = previewShouldRender && fastPreview ? fastPreview.kind : "";
+    const preview_html = previewShouldRender && fastPreview ? fastPreview.html : "";
     const preview =
       previewShouldRender && fastPreview && preview_html
         ? { title: fastPreview.title, html: preview_html }
@@ -781,7 +858,7 @@ Preview rules:
           preferred_mode: mode,
           last_topic: nextTopic,
           project_brief: nextBrief,
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
         });
       } catch {}
     }
