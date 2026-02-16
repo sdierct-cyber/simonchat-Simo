@@ -6,7 +6,7 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020; --panel:#0f1730; --text:#eaf0ff; --muted:#a9b6d3;
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39d98a; --bad:#ff4d4d; --warn:#ffcc66;
@@ -30,7 +30,12 @@
     }
     .brand{display:flex;align-items:center;gap:10px; min-width:240px}
     .dot{width:10px;height:10px;border-radius:999px;background:var(--good);box-shadow:0 0 18px rgba(57,217,138,.55)}
-    .title{font-weight:700; letter-spacing:.2px}
+    .title{font-weight:700; letter-spacing:.2px; display:flex; gap:8px; align-items:center}
+    .badge{
+      font-size:11px; padding:3px 8px; border-radius:999px;
+      border:1px solid var(--line); background:rgba(255,255,255,.04); color:var(--muted);
+    }
+    .badge.pro{border-color: rgba(57,217,138,.35); color: var(--good); background: rgba(57,217,138,.10)}
     .subtitle{color:var(--muted); font-size:12px}
 
     .rightStack{display:flex; flex-direction:column; gap:8px; align-items:flex-end}
@@ -55,6 +60,8 @@
       padding:8px 10px; border-radius:999px;
     }
     .toggle input{accent-color: var(--btn)}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+
     .grid{
       margin-top:14px;
       display:grid;
@@ -116,10 +123,19 @@
       padding:10px 14px; cursor:pointer; font-weight:700;
     }
     button:disabled{opacity:.55; cursor:not-allowed}
+    .ghost{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+    }
+    .ghost:hover{background:rgba(255,255,255,.10)}
+    .smallBtns{display:flex; gap:8px; flex-wrap:wrap}
+
     .status{
       padding:10px 12px; border-top:1px solid var(--line);
       color:var(--muted); font-size:12px; display:flex; gap:10px; align-items:center;
       justify-content:space-between;
+      flex-wrap:wrap;
     }
     .pill{
       display:inline-flex; align-items:center; gap:6px;
@@ -129,14 +145,9 @@
     .warn{color:var(--warn)}
     .bad{color:var(--bad)}
     .good{color:var(--good)}
-    .previewWrap{
-      flex:1; background:rgba(0,0,0,.10);
-      display:flex; flex-direction:column;
-    }
-    .previewBody{
-      flex:1; overflow:auto;
-      padding:12px;
-    }
+
+    .previewWrap{flex:1; background:rgba(0,0,0,.10); display:flex; flex-direction:column;}
+    .previewBody{flex:1; overflow:auto; padding:12px;}
     .previewEmpty{
       border:1px dashed rgba(255,255,255,.18);
       border-radius:14px;
@@ -165,14 +176,6 @@
     }
     .imgCard img{width:100%; display:block}
     .imgCard .cap{padding:8px 10px; font-size:12px; color:var(--muted)}
-    .smallBtns{display:flex; gap:8px; flex-wrap:wrap}
-    .ghost{
-      background:rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      color:var(--text);
-    }
-    .ghost:hover{background:rgba(255,255,255,.10)}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
 
     .hintRow{
       display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;
@@ -184,6 +187,29 @@
       color:var(--text); cursor:pointer;
     }
     .hintBtn:hover{background:rgba(255,255,255,.08)}
+
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0; background:rgba(0,0,0,.55);
+      display:none; align-items:center; justify-content:center; padding:16px;
+      z-index:50;
+    }
+    .modal{
+      width:min(560px, 100%);
+      border:1px solid var(--line);
+      background:rgba(16,22,44,.96);
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      padding:14px;
+    }
+    .modal h3{margin:6px 0 2px}
+    .modal p{margin:8px 0; color:var(--muted); line-height:1.35}
+    .modal .actions{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end; margin-top:12px}
+    .danger{
+      border-color: rgba(255,77,77,.35);
+      background: rgba(255,77,77,.12);
+      color: #ffd6d6;
+    }
 
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
@@ -197,9 +223,12 @@
   <div class="wrap">
     <div class="top">
       <div class="brand">
-        <div class="dot" id="dot"></div>
+        <div class="dot"></div>
         <div>
-          <div class="title">Simo</div>
+          <div class="title">
+            Simo
+            <span class="badge" id="proBadge">FREE</span>
+          </div>
           <div class="subtitle">Best friend + builder — with live previews</div>
         </div>
       </div>
@@ -216,15 +245,18 @@
           </label>
         </div>
 
-        <!-- MODE -->
+        <!-- MODE + PRO -->
         <div class="bar">
           <div class="chip modeChip active" data-mode="venting" id="modeVenting">Venting</div>
           <div class="chip modeChip" data-mode="solving" id="modeSolving">Solving</div>
           <div class="chip modeChip" data-mode="building" id="modeBuilding">Building</div>
-          <div class="toggle" title="When Building, Simo will return HTML in ```html``` fences so previews always render.">
-            <span class="mono">Build Assist</span>
-            <span id="buildAssistState" class="good">ON</span>
+
+          <div class="toggle" title="Daily build limit applies on FREE.">
+            <span class="mono">Builds</span>
+            <span id="buildCount" class="warn">0/10</span>
           </div>
+
+          <button class="ghost" id="unlockBtn" type="button">Unlock Pro</button>
         </div>
       </div>
     </div>
@@ -283,10 +315,28 @@
             <div class="previewEmpty">
               Nothing to preview yet.<br><br>
               Try: <span class="mono">build me a simple website</span> or click <b>Space app</b>.
-              If Simo outputs HTML or image links, I’ll render them here automatically.
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PRO MODAL -->
+  <div class="modalBack" id="modalBack">
+    <div class="modal">
+      <h3>Unlock Pro (placeholder)</h3>
+      <p>
+        For now this is a safe UI toggle so you can test the Pro gate without Stripe.
+        Later we’ll wire this button to Stripe Checkout.
+      </p>
+      <p class="mono">
+        Free: 10 builds/day • Pro: unlimited builds
+      </p>
+      <div class="actions">
+        <button class="ghost" id="closeModalBtn" type="button">Cancel</button>
+        <button id="enableProBtn" type="button">Enable Pro (Test)</button>
+        <button class="ghost danger" id="disableProBtn" type="button">Disable Pro</button>
       </div>
     </div>
   </div>
@@ -300,7 +350,6 @@
   const apiStateEl = document.getElementById("apiState");
   const previewStateEl = document.getElementById("previewState");
   const modeStateEl = document.getElementById("modeState");
-  const buildAssistStateEl = document.getElementById("buildAssistState");
 
   const gridEl = document.getElementById("grid");
   const chatPanel = document.getElementById("chatPanel");
@@ -320,26 +369,43 @@
   const openNewTabBtn = document.getElementById("openNewTabBtn");
   const quickPreviewBtn = document.getElementById("quickPreviewBtn");
 
+  // Pro UI
+  const proBadge = document.getElementById("proBadge");
+  const buildCountEl = document.getElementById("buildCount");
+  const unlockBtn = document.getElementById("unlockBtn");
+
+  const modalBack = document.getElementById("modalBack");
+  const closeModalBtn = document.getElementById("closeModalBtn");
+  const enableProBtn = document.getElementById("enableProBtn");
+  const disableProBtn = document.getElementById("disableProBtn");
+
   // ---- State ----
   let lastSimoText = "";
   let lastPreview = { type: "none", html: "", images: [] };
   let lastPreviewBlobUrl = "";
+
   let mode = localStorage.getItem("simo_mode") || "venting"; // venting | solving | building
 
-  // When Building, we enforce consistent preview-friendly formatting.
-  const BUILD_ASSIST_ON = true;
+  // Pro + rate limit (frontend-only)
+  const FREE_DAILY_BUILD_LIMIT = 10;
+  let proEnabled = (localStorage.getItem("simo_pro") === "true");
 
-  function applyModeUI(){
-    [modeVenting, modeSolving, modeBuilding].forEach(x => x.classList.remove("active"));
-    if (mode === "venting") modeVenting.classList.add("active");
-    if (mode === "solving") modeSolving.classList.add("active");
-    if (mode === "building") modeBuilding.classList.add("active");
-
-    modeStateEl.textContent = mode;
-    modeStateEl.className = (mode === "building") ? "good" : "warn";
-
-    buildAssistStateEl.textContent = BUILD_ASSIST_ON ? "ON" : "OFF";
-    buildAssistStateEl.className = BUILD_ASSIST_ON ? "good" : "warn";
+  // usage stored per day
+  function todayKey(){
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,"0");
+    const day = String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
+  }
+  function usageKey(){ return `simo_builds_${todayKey()}`; }
+  function getBuildCount(){
+    return Number(localStorage.getItem(usageKey()) || "0");
+  }
+  function incBuildCount(){
+    const n = getBuildCount() + 1;
+    localStorage.setItem(usageKey(), String(n));
+    return n;
   }
 
   // ---- Helpers ----
@@ -373,7 +439,6 @@
   }
 
   function setView(view){
-    // view: split | chat | preview
     [viewSplit, viewChat, viewPreview].forEach(x => x.classList.remove("active"));
     if (view === "split") viewSplit.classList.add("active");
     if (view === "chat") viewChat.classList.add("active");
@@ -495,39 +560,33 @@ ${preview.html}
     return false;
   }
 
+  // Stronger Venting style: more direct, less “therapy speak”
   function buildHiddenModeInstruction(){
     if (mode === "venting"){
       return [
         "MODE: VENTING.",
-        "Be warm, loyal, direct. No therapy-speak.",
-        "Ask 1 short question max if needed. Otherwise respond naturally."
+        "Be a loyal best friend. Direct, grounded, no therapy tone.",
+        "Avoid phrases like: 'it sounds', 'it's tough', 'valid', 'processing', 'journey'.",
+        "Short responses. Ask at most 1 quick question if needed."
       ].join("\n");
     }
-
     if (mode === "solving"){
       return [
         "MODE: SOLVING.",
-        "Be structured and practical.",
-        "Give steps and checks. Keep it tight."
+        "Be structured and practical. Give steps and checks."
       ].join("\n");
     }
-
-    // building
-    const buildAssist = BUILD_ASSIST_ON ? [
+    return [
       "MODE: BUILDING.",
-      "When you provide a previewable output, include the FULL HTML inside a fenced block exactly like:",
+      "When output is previewable, include FULL HTML in a fenced block exactly:",
       "```html",
       "<!doctype html> ...",
       "```",
-      "If images are relevant, include direct image URLs.",
-      "Keep chat explanation short; prioritize usable output."
-    ].join("\n") : "MODE: BUILDING.";
-    return buildAssist;
+      "Keep explanation short; prioritize usable output."
+    ].join("\n");
   }
 
   function wrapUserMessageWithMode(userText){
-    // Hidden steering. Backend receives a single string like before.
-    // We keep it readable if you ever inspect logs.
     const steer = buildHiddenModeInstruction();
     return `${steer}\n\nUSER:\n${userText}`;
   }
@@ -571,9 +630,68 @@ ${preview.html}
     }
   }
 
+  // ---- UI State ----
+  function applyModeUI(){
+    [modeVenting, modeSolving, modeBuilding].forEach(x => x.classList.remove("active"));
+    if (mode === "venting") modeVenting.classList.add("active");
+    if (mode === "solving") modeSolving.classList.add("active");
+    if (mode === "building") modeBuilding.classList.add("active");
+
+    modeStateEl.textContent = mode;
+    modeStateEl.className = (mode === "building") ? "good" : "warn";
+  }
+
+  function applyProUI(){
+    if (proEnabled){
+      proBadge.textContent = "PRO";
+      proBadge.classList.add("pro");
+      unlockBtn.textContent = "Pro: Enabled";
+      unlockBtn.classList.add("ghost");
+      buildCountEl.textContent = "∞";
+      buildCountEl.className = "good";
+    } else {
+      proBadge.textContent = "FREE";
+      proBadge.classList.remove("pro");
+      unlockBtn.textContent = "Unlock Pro";
+      const n = getBuildCount();
+      buildCountEl.textContent = `${n}/${FREE_DAILY_BUILD_LIMIT}`;
+      buildCountEl.className = (n >= FREE_DAILY_BUILD_LIMIT) ? "bad" : "warn";
+    }
+  }
+
+  function setMode(next){
+    mode = next;
+    localStorage.setItem("simo_mode", mode);
+    applyModeUI();
+    addMsg("simo", `Mode set to: ${mode}. Talk normally — I’ll follow.`);
+  }
+
+  // ---- Sending / gating ----
+  function canUseBuilding(){
+    if (proEnabled) return { ok:true };
+    const n = getBuildCount();
+    if (n >= FREE_DAILY_BUILD_LIMIT){
+      return {
+        ok:false,
+        reason:`Free build limit reached (${FREE_DAILY_BUILD_LIMIT}/day). Click “Unlock Pro”.`
+      };
+    }
+    return { ok:true };
+  }
+
   async function send(){
     const t = (inputEl.value || "").trim();
     if (!t) return;
+
+    // If user is in building mode, enforce limit BEFORE sending to backend
+    if (mode === "building"){
+      const gate = canUseBuilding();
+      if (!gate.ok){
+        addMsg("simo", gate.reason);
+        openProModal();
+        return;
+      }
+    }
 
     inputEl.value = "";
     addMsg("you", t);
@@ -582,20 +700,21 @@ ${preview.html}
     lastSimoText = simoText;
     addMsg("simo", simoText);
 
-    const found = updateLastPreviewFromText(simoText);
+    // Count a build if we were in building mode (even if the user asked something small)
+    if (mode === "building" && !proEnabled){
+      incBuildCount();
+      applyProUI();
+    }
 
-    // Auto show preview if:
-    // - autoPreview on AND we found previewable content
-    // - OR we are in building mode and found previewable content
-    if ((autoPreviewEl.checked && found) || (mode === "building" && found)){
+    const found = updateLastPreviewFromText(simoText);
+    if (autoPreviewEl.checked && found){
       renderPreview(lastPreview);
       setView("split");
     }
   }
 
   // ---- Events ----
-  sendBtn.addEventListener("click", send);
-
+  document.getElementById("sendBtn").addEventListener("click", send);
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey){
       e.preventDefault();
@@ -610,27 +729,16 @@ ${preview.html}
     renderPreview(lastPreview);
   });
 
-  // View toggles
   viewSplit.addEventListener("click", () => setView("split"));
   viewChat.addEventListener("click", () => setView("chat"));
   viewPreview.addEventListener("click", () => setView("preview"));
 
-  // Modes
-  function setMode(next){
-    mode = next;
-    localStorage.setItem("simo_mode", mode);
-    applyModeUI();
-    addMsg("simo", `Mode set to: ${mode}. Talk normally — I’ll follow.`);
-  }
   modeVenting.addEventListener("click", () => setMode("venting"));
   modeSolving.addEventListener("click", () => setMode("solving"));
   modeBuilding.addEventListener("click", () => setMode("building"));
 
-  // Preview controls
   renderLastBtn.addEventListener("click", () => {
-    if (lastSimoText){
-      updateLastPreviewFromText(lastSimoText);
-    }
+    if (lastSimoText) updateLastPreviewFromText(lastSimoText);
     renderPreview(lastPreview);
     setView("preview");
   });
@@ -649,12 +757,11 @@ ${preview.html}
     window.open(lastPreviewBlobUrl, "_blank", "noopener,noreferrer");
   });
 
-  quickPreviewBtn.addEventListener("click", async () => {
+  quickPreviewBtn.addEventListener("click", () => {
     inputEl.value = "show me a preview";
     send();
   });
 
-  // Hint buttons
   document.querySelectorAll(".hintBtn").forEach(btn => {
     btn.addEventListener("click", () => {
       const hint = btn.getAttribute("data-hint") || "";
@@ -663,11 +770,73 @@ ${preview.html}
     });
   });
 
-  // Init
+  // ---- Modal ----
+  function openProModal(){
+    modalBack.style.display = "flex";
+  }
+  function closeProModal(){
+    modalBack.style.display = "none";
+  }
+
+  unlockBtn.addEventListener("click", openProModal);
+  closeModalBtn.addEventListener("click", closeProModal);
+  modalBack.addEventListener("click", (e) => {
+    if (e.target === modalBack) closeProModal();
+  });
+
+  enableProBtn.addEventListener("click", () => {
+    proEnabled = true;
+    localStorage.setItem("simo_pro", "true");
+    applyProUI();
+    closeProModal();
+    addMsg("simo", "Pro enabled (test). Unlimited Building mode.");
+  });
+
+  disableProBtn.addEventListener("click", () => {
+    proEnabled = false;
+    localStorage.setItem("simo_pro", "false");
+    applyProUI();
+    closeProModal();
+    addMsg("simo", "Pro disabled. Free build limits apply.");
+  });
+
+  // ---- Init ----
+  function setApiState(text, cls){
+    apiStateEl.textContent = text;
+    apiStateEl.className = (cls || "warn");
+  }
+  function setPreviewState(text, cls){
+    previewStateEl.textContent = text;
+    previewStateEl.className = (cls || "warn");
+  }
+  function setView(view){
+    [viewSplit, viewChat, viewPreview].forEach(x => x.classList.remove("active"));
+    if (view === "split") viewSplit.classList.add("active");
+    if (view === "chat") viewChat.classList.add("active");
+    if (view === "preview") viewPreview.classList.add("active");
+
+    if (view === "split"){
+      gridEl.style.gridTemplateColumns = "1fr 1fr";
+      chatPanel.style.display = "flex";
+      previewPanel.style.display = "flex";
+    } else if (view === "chat"){
+      gridEl.style.gridTemplateColumns = "1fr";
+      chatPanel.style.display = "flex";
+      previewPanel.style.display = "none";
+    } else {
+      gridEl.style.gridTemplateColumns = "1fr";
+      chatPanel.style.display = "none";
+      previewPanel.style.display = "flex";
+    }
+  }
+
   applyModeUI();
+  applyProUI();
   setView("split");
   renderPreview(lastPreview);
-  addMsg("simo", "I’m here. Switch modes anytime. Building mode makes previews consistent (HTML in ```html``` blocks).");
+
+  addMsg("simo", "Pro gate is live (frontend-only). Venting + Solving are free. Building has a daily free limit unless Pro is enabled.");
+  setApiState("idle", "warn");
 })();
 </script>
 </body>
