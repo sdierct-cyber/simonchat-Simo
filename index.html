@@ -22,9 +22,6 @@
       --radius:18px;
       --radius2:14px;
 
-      /* Pro neon */
-      --proA: rgba(57,217,138,.28);
-      --proB: rgba(57,217,138,.55);
       --proGlow: 0 0 0 1px rgba(57,217,138,.22), 0 0 18px rgba(57,217,138,.22), 0 0 38px rgba(57,217,138,.14);
     }
 
@@ -189,7 +186,7 @@
       line-height:1.25;
     }
     .hintRow{
-      padding:0 14px 14px;
+      padding:0 14px 14px; /* ✅ fixed */
       color:rgba(234,240,255,.65);
       font-size:12px;
       display:flex;align-items:center;justify-content:space-between;gap:10px;
@@ -204,7 +201,6 @@
     .dot{width:8px;height:8px;border-radius:50%;background:var(--good)}
     .dot.busy{background:rgba(255,255,255,.35)}
 
-    /* Preview */
     .previewBody{
       padding:14px;
       height:470px;
@@ -250,7 +246,6 @@
       color:rgba(234,240,255,.85);
     }
 
-    /* Modal */
     .modalBack{
       position:fixed; inset:0;
       background:rgba(0,0,0,.55);
@@ -335,7 +330,6 @@
     }
     .proBadge.on{display:inline-flex;}
 
-    /* ✅ Pro “more pronounced” (no pulse) */
     body.proGlow .toggle{
       border-color: rgba(57,217,138,.28);
       box-shadow: var(--proGlow);
@@ -379,7 +373,6 @@
     </div>
 
     <div class="grid">
-      <!-- CHAT -->
       <section class="panel" aria-label="Chat panel">
         <div class="panelHead">
           <div class="title">CHAT</div>
@@ -405,7 +398,6 @@
         </div>
       </section>
 
-      <!-- PREVIEW -->
       <section class="panel" aria-label="Preview panel">
         <div class="panelHead">
           <div class="title">PREVIEW</div>
@@ -420,7 +412,6 @@
         <div class="previewBody">
           <div class="previewMeta">
             <div>Current: <b id="previewTitle">Untitled preview</b></div>
-            <!-- IMPORTANT: badge shows PREVIEW'S mode, not current chat mode -->
             <div class="pill" id="previewModePill">None</div>
           </div>
 
@@ -446,7 +437,6 @@
     </div>
   </div>
 
-  <!-- SAVE MODAL -->
   <div id="saveModalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Save build modal">
     <div class="modal">
       <div class="modalHead">
@@ -466,7 +456,6 @@
     </div>
   </div>
 
-  <!-- LIBRARY MODAL -->
   <div id="libModalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Library modal">
     <div class="modal">
       <div class="modalHead">
@@ -485,30 +474,19 @@
   <div id="toast" class="toast">Copied</div>
 
   <script>
-    // ----------------------------
-    // State
-    // ----------------------------
     const state = {
-      mode: "building",             // "venting" | "solving" | "building"
+      mode: "building",
       pro: false,
       busy: false,
       userId: getOrCreateUserId(),
-      history: [],                  // {role:"user"|"assistant", content:string}
-
-      // Preview state:
+      history: [],
       previewTitle: "Untitled preview",
       previewHtml: "",
-      previewMode: "none",          // "building" | "solving" | "venting" | "none"
+      previewMode: "none",
       previewKind: "",
-
-      // Pro builder: local edit safety net (so Scenario 2 passes even if server doesn't)
-      proDoc: null,                 // optional structured state for simple edits
-      proLastApplied: "",           // last pro edit command applied
+      proLastApplied: ""
     };
 
-    // ----------------------------
-    // Elements
-    // ----------------------------
     const chatBody = document.getElementById("chatBody");
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
@@ -546,20 +524,13 @@
 
     const toast = document.getElementById("toast");
 
-    // ----------------------------
-    // Boot
-    // ----------------------------
     boot();
-
     function boot(){
       setMode("building");
       addAssistant("I’m here. Pick a mode — or just talk.");
       updatePreviewUI();
     }
 
-    // ----------------------------
-    // UI helpers
-    // ----------------------------
     function setBusy(isBusy){
       state.busy = isBusy;
       dot.classList.toggle("busy", isBusy);
@@ -570,7 +541,6 @@
 
     function setMode(mode){
       state.mode = mode;
-
       pillVenting.classList.toggle("active", mode==="venting");
       pillSolving.classList.toggle("active", mode==="solving");
       pillBuilding.classList.toggle("active", mode==="building");
@@ -591,7 +561,6 @@
       head.textContent = who;
       const body = document.createElement("div");
       body.textContent = text;
-
       msg.appendChild(head);
       msg.appendChild(body);
       chatBody.appendChild(msg);
@@ -640,9 +609,6 @@
       }
     }
 
-    // ----------------------------
-    // Mode pills
-    // ----------------------------
     pillVenting.addEventListener("click", ()=>{
       setMode("venting");
       addAssistant("Venting mode. Say it straight — I’m with you.");
@@ -656,9 +622,6 @@
       addAssistant("Builder mode on. Tell me what you want to build — I’ll render a preview on the right.");
     });
 
-    // ----------------------------
-    // Pro toggle
-    // ----------------------------
     function setPro(on){
       state.pro = !!on;
       proSwitch.classList.toggle("on", state.pro);
@@ -672,9 +635,6 @@
       if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setPro(!state.pro); }
     });
 
-    // ----------------------------
-    // Send logic
-    // ----------------------------
     sendBtn.addEventListener("click", send);
     input.addEventListener("keydown", (e)=>{
       if (e.key === "Enter" && !e.shiftKey){
@@ -693,9 +653,15 @@
       addUser(text);
       setBusy(true);
 
-      // ✅ Local Pro edit safety net: if the server doesn't update preview for targeted edits,
-      // we can apply it to the existing preview HTML after the reply comes back.
+      const prevSnapshot = {
+        html: state.previewHtml,
+        title: state.previewTitle,
+        kind: state.previewKind,
+        mode: state.previewMode
+      };
+
       const proEditPlan = state.pro ? planLocalProEdit(text) : null;
+      const isEditIntent = !!proEditPlan;
 
       try{
         const resp = await fetch("/.netlify/functions/simon", {
@@ -707,7 +673,13 @@
             mode: state.mode,
             pro: state.pro,
             topic: "",
-            user_id: state.userId
+            user_id: state.userId,
+            current_preview: {
+              title: state.previewTitle,
+              kind: state.previewKind,
+              mode: state.previewMode,
+              html: state.previewHtml
+            }
           })
         });
 
@@ -727,7 +699,6 @@
 
         addAssistant(reply);
 
-        // Preview handling
         const p = data.preview && typeof data.preview === "object" ? data.preview : null;
 
         const nextHtml =
@@ -739,30 +710,44 @@
           (typeof data.preview_kind === "string" && data.preview_kind.trim() ? data.preview_kind : "") ||
           state.previewTitle;
 
+        const nextKind =
+          (typeof data.preview_kind === "string" ? data.preview_kind : "") ||
+          (p && typeof p.kind === "string" ? p.kind : "") ||
+          "";
+
         const gotServerPreview = !!(nextHtml && nextHtml.trim());
+
+        if (isEditIntent){
+          const serverSeemsLikeRebuild =
+            (String(nextKind||"").toLowerCase().includes("wireframe")) ||
+            (String(nextTitle||"").toLowerCase().includes("wireframe")) ||
+            (String(reply||"").toLowerCase().includes("follow these steps"));
+
+          if (serverSeemsLikeRebuild){
+            state.previewHtml = prevSnapshot.html || state.previewHtml;
+            state.previewTitle = prevSnapshot.title || state.previewTitle;
+            state.previewKind = prevSnapshot.kind || state.previewKind;
+            state.previewMode = prevSnapshot.mode || state.previewMode || state.mode || "building";
+
+            const changed = applyLocalProEditToPreview(proEditPlan);
+            if (changed){
+              updatePreviewUI();
+              setBusy(false);
+              return;
+            }
+          }
+        }
 
         if (gotServerPreview){
           state.previewHtml = nextHtml;
           state.previewTitle = nextTitle || "Untitled preview";
-          state.previewKind = (typeof data.preview_kind === "string" ? data.preview_kind : "") || state.previewKind;
-
-          // tie previewMode to the mode that generated it
+          state.previewKind = nextKind || state.previewKind;
           state.previewMode = state.mode || "building";
-
-          // reset local proDoc whenever server gives a fresh full preview
-          state.proDoc = null;
-          state.proLastApplied = "";
-
           updatePreviewUI();
         } else {
-          // ✅ If no server preview came back, try local Pro edit (Scenario 2)
-          if (proEditPlan && state.previewHtml && state.previewHtml.trim()){
+          if (isEditIntent && state.previewHtml && state.previewHtml.trim()){
             const changed = applyLocalProEditToPreview(proEditPlan);
-            if (changed){
-              state.previewMode = state.mode || state.previewMode || "building";
-              updatePreviewUI();
-              // keep assistant message as-is, but we still updated the preview (feels like a real builder)
-            }
+            if (changed) updatePreviewUI();
           }
         }
 
@@ -773,24 +758,17 @@
       }
     }
 
-    // Auto grow textarea
     input.addEventListener("input", ()=>{
       input.style.height = "44px";
       input.style.height = Math.min(input.scrollHeight, 140) + "px";
     });
 
-    // ----------------------------
-    // Reset
-    // ----------------------------
     resetBtn.addEventListener("click", ()=>{
       chatBody.innerHTML = "";
       state.history = [];
       addAssistant("Fresh start. I’m here.");
     });
 
-    // ----------------------------
-    // Copy / Download
-    // ----------------------------
     copyHtmlBtn.addEventListener("click", async ()=>{
       if (!state.previewHtml || !state.previewHtml.trim()){
         showToast("No preview");
@@ -832,9 +810,6 @@
       showToast("Downloaded");
     });
 
-    // ----------------------------
-    // Save Build / Library
-    // ----------------------------
     const LS_KEY = "simo_build_library_v1";
 
     function loadLibrary(){
@@ -953,11 +928,6 @@
           state.previewHtml = it.html || "";
           state.previewMode = it.mode || "building";
           state.previewKind = it.kind || "";
-
-          // reset local proDoc on load (we can rebuild it on-demand)
-          state.proDoc = null;
-          state.proLastApplied = "";
-
           updatePreviewUI();
           showToast("Loaded");
           closeLibrary();
@@ -983,35 +953,29 @@
     }
 
     // ----------------------------
-    // ✅ Local Pro Edits (Scenario 2 fix)
+    // Local Pro edits (ROBUST)
     // ----------------------------
     function norm(s){ return String(s||"").toLowerCase().trim(); }
 
     function planLocalProEdit(userText){
       const t = norm(userText);
       if (!t) return null;
-
-      // Only apply if we have a preview and Pro is on
       if (!state.pro || !state.previewHtml || !state.previewHtml.trim()) return null;
-
-      // Avoid double-applying exact same command
       if (state.proLastApplied && state.proLastApplied === t) return null;
 
-      // Add section intents
-      if (/\badd\b.*\bpricing\b/.test(t)) return { type:"add_section", section:"pricing", raw:userText };
-      if (/\badd\b.*\btestimonials?\b/.test(t)) return { type:"add_section", section:"testimonials", raw:userText };
-      if (/\badd\b.*\bfaq\b/.test(t)) return { type:"add_section", section:"faq", raw:userText };
+      const changeWord = "(change|update|set|make|edit|adjust|hange)";
+      const planWord = "(starter|pro|team)";
 
-      // Change plan price intents (e.g. "change Pro price to $19/mo")
-      const m = t.match(/\bchange\b\s+(starter|pro|team)\s+price\s+to\s+\$?\s*([0-9]{1,4})\s*(\/?\s*(mo|month))?/);
+      // change pro price to $19/mo
+      let m = t.match(new RegExp(`\\b${changeWord}\\b\\s+${planWord}\\s+price\\s+to\\s+\\$?\\s*([0-9]{1,4})\\s*(\\/\\s*(mo|month))?`));
       if (m){
-        return { type:"change_price", plan:m[1], price:Number(m[2]), raw:userText };
+        return { type:"change_price", plan:m[2], price:Number(m[3]), raw:userText };
       }
 
-      // Also allow: "set pro to $19/mo"
-      const m2 = t.match(/\b(set|make)\b\s+(starter|pro|team)\s+(price\s+)?to\s+\$?\s*([0-9]{1,4})\s*(\/?\s*(mo|month))?/);
-      if (m2){
-        return { type:"change_price", plan:m2[2], price:Number(m2[4]), raw:userText };
+      // change the pro to $19/mo
+      m = t.match(new RegExp(`\\b${changeWord}\\b\\s+(the\\s+)?${planWord}\\s+to\\s+\\$?\\s*([0-9]{1,4})\\s*(\\/\\s*(mo|month))?`));
+      if (m){
+        return { type:"change_price", plan:m[3], price:Number(m[4]), raw:userText };
       }
 
       return null;
@@ -1026,115 +990,66 @@
         state.previewHtml = changed.html;
         state.previewTitle = state.previewTitle || "Untitled preview";
         state.proLastApplied = norm(plan.raw || "");
-        showToast("Pro edit applied");
+        showToast(changed.toast || "Pro edit applied");
         return true;
       }
+      showToast("Couldn’t find that in this preview");
       return false;
     }
 
+    // ✅ NEW: exact plan-card targeting
     function mutatePreviewHtml(html, plan){
       try{
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
 
-        // Helpers
-        const textIncludes = (el, s)=> (el && el.textContent || "").toLowerCase().includes(String(s).toLowerCase());
-        const findSectionHeading = (label)=>{
-          const hs = Array.from(doc.querySelectorAll("h1,h2,h3,h4,div,strong"));
-          return hs.find(h => textIncludes(h, label));
-        };
-
-        // We try to find a "main" container; otherwise use body
-        const root = doc.querySelector(".shell") || doc.body;
-
-        if (plan.type === "add_section"){
-          const sec = plan.section;
-
-          // If already present, do nothing
-          if (sec === "pricing" && findSectionHeading("Pricing")) return { html, ok:true };
-          if (sec === "testimonials" && (findSectionHeading("Testimonials") || findSectionHeading("What people say"))) return { html, ok:true };
-          if (sec === "faq" && findSectionHeading("FAQ")) return { html, ok:true };
-
-          const wrap = doc.createElement("div");
-          wrap.style.marginTop = "12px";
-
-          if (sec === "pricing"){
-            wrap.innerHTML = `
-              <div style="border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.22);border-radius:14px;overflow:hidden;">
-                <div style="padding:12px;border-bottom:1px solid rgba(255,255,255,.10);font-weight:900;">Pricing</div>
-                <div style="padding:12px;display:grid;gap:10px;">
-                  ${pricingRowHtml("Starter", 9, "Good for trying it", "Core features")}
-                  ${pricingRowHtml("Pro", 29, "Auto-preview + editing", "Best value")}
-                  ${pricingRowHtml("Team", 79, "Collaboration", "Seats + roles")}
-                </div>
-              </div>
-            `;
-          }
-
-          if (sec === "testimonials"){
-            wrap.innerHTML = `
-              <div style="border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.22);border-radius:14px;overflow:hidden;">
-                <div style="padding:12px;border-bottom:1px solid rgba(255,255,255,.10);font-weight:900;">Testimonials</div>
-                <div style="padding:12px;display:grid;gap:10px;">
-                  <div style="border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);">
-                    <div style="font-weight:900;">“Fastest way I’ve built a UI.”</div>
-                    <div style="margin-top:6px;color:rgba(234,240,255,.65);font-size:12px;">Saved me hours. <span style="float:right;color:rgba(234,240,255,.55)">— Customer</span></div>
-                  </div>
-                  <div style="border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);">
-                    <div style="font-weight:900;">“Pro edits are the killer feature.”</div>
-                    <div style="margin-top:6px;color:rgba(234,240,255,.65);font-size:12px;">Feels like a real builder. <span style="float:right;color:rgba(234,240,255,.55)">— Builder</span></div>
-                  </div>
-                </div>
-              </div>
-            `;
-          }
-
-          if (sec === "faq"){
-            wrap.innerHTML = `
-              <div style="border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.22);border-radius:14px;overflow:hidden;">
-                <div style="padding:12px;border-bottom:1px solid rgba(255,255,255,.10);font-weight:900;">FAQ</div>
-                <div style="padding:12px;display:grid;gap:10px;">
-                  ${faqItemHtml("What is Pro auto-preview?", "With Pro on, Simo renders a preview automatically when you ask to build something.")}
-                  ${faqItemHtml("Can I edit existing sections?", "Yes. Say what to change (price, text, order). Pro tries to update without duplicating sections.")}
-                  ${faqItemHtml("Where are builds saved?", "In your browser on this device (Library).")}
-                </div>
-              </div>
-            `;
-          }
-
-          root.appendChild(wrap);
-          return { html: "<!doctype html>\n" + doc.documentElement.outerHTML, ok:true };
-        }
-
         if (plan.type === "change_price"){
           const planName = String(plan.plan||"").toLowerCase();
           const dollars = Number(plan.price);
-          if (!dollars || dollars < 0) return { html, ok:false };
+          if (!dollars && dollars !== 0) return { html, ok:false };
 
-          // Try to find the Pricing block and then the row containing the plan name
-          // Works on our injected markup + many simple templates.
-          const pricingHead = findSectionHeading("Pricing");
-          if (!pricingHead) return { html, ok:false };
+          // Find elements whose visible text is exactly the plan label
+          const candidates = Array.from(doc.querySelectorAll("div,strong,h1,h2,h3,h4,span"))
+            .filter(el => (el.textContent||"").trim().toLowerCase() === planName);
 
-          // Find a container near pricing
-          let container = pricingHead.closest("div") || pricingHead.parentElement;
-          if (!container) container = doc.body;
+          let updated = false;
 
-          // Find row that includes plan name
-          const rows = Array.from(container.querySelectorAll("div"));
-          const row = rows.find(r => (r.textContent||"").toLowerCase().includes(planName) && (r.textContent||"").includes("/mo"));
-          if (!row) return { html, ok:false };
+          for (const labelEl of candidates){
+            // climb to a “card-like” container (div) that holds label + price
+            let card = labelEl;
+            for (let i=0; i<8 && card; i++){
+              card = card.parentElement;
+              if (!card) break;
+              const txt = (card.textContent||"");
+              if (txt.toLowerCase().includes("/mo") && txt.toLowerCase().includes(planName)){
+                break;
+              }
+            }
+            if (!card) continue;
 
-          // Replace the first "$xx/mo" in that row
-          const re = /\$\s*\d{1,4}\s*\/\s*mo/;
-          if (re.test(row.innerHTML)){
-            row.innerHTML = row.innerHTML.replace(re, `$${dollars}/mo`);
-            return { html: "<!doctype html>\n" + doc.documentElement.outerHTML, ok:true };
+            // Inside that card, find the first node that contains $__/mo
+            const priceNode = Array.from(card.querySelectorAll("*"))
+              .find(n => /\$\s*\d{1,4}\s*\/\s*mo/i.test(n.textContent||""));
+
+            if (priceNode){
+              priceNode.textContent = (priceNode.textContent||"").replace(/\$\s*\d{1,4}\s*\/\s*mo/i, `$${dollars}/mo`);
+              updated = true;
+              break;
+            }
+
+            // fallback: replace on card text
+            if (/\$\s*\d{1,4}\s*\/\s*mo/i.test(card.textContent||"")){
+              card.innerHTML = card.innerHTML.replace(/\$\s*\d{1,4}\s*\/\s*mo/i, `$${dollars}/mo`);
+              updated = true;
+              break;
+            }
           }
 
-          // Fallback: replace in text nodes
-          row.textContent = row.textContent.replace(/\$\s*\d{1,4}\s*\/\s*mo/, `$${dollars}/mo`);
-          return { html: "<!doctype html>\n" + doc.documentElement.outerHTML, ok:true };
+          if (!updated){
+            return { html, ok:false, toast:"Couldn’t find Pro price in this preview" };
+          }
+
+          return { html: "<!doctype html>\n" + doc.documentElement.outerHTML, ok:true, toast:"Pro price updated" };
         }
 
         return { html, ok:false };
@@ -1143,44 +1058,6 @@
       }
     }
 
-    function pricingRowHtml(name, price, leftSub, rightSub){
-      // Adds a tiny marker in the DOM for easier price edits
-      const n = String(name||"");
-      return `
-        <div style="border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);display:flex;justify-content:space-between;gap:12px;">
-          <div>
-            <div style="font-weight:900;">${escapeHtml(n)}</div>
-            <div style="margin-top:4px;color:rgba(234,240,255,.65);font-size:12px;">${escapeHtml(leftSub||"")}</div>
-          </div>
-          <div style="text-align:right">
-            <div style="font-weight:900;">$${Number(price)||0}/mo</div>
-            <div style="margin-top:4px;color:rgba(234,240,255,.55);font-size:12px;">${escapeHtml(rightSub||"")}</div>
-          </div>
-        </div>
-      `;
-    }
-
-    function faqItemHtml(q, a){
-      return `
-        <div style="border:1px solid rgba(255,255,255,.10);border-radius:14px;padding:12px;background:rgba(255,255,255,.04);">
-          <div style="font-weight:900;">${escapeHtml(q)}</div>
-          <div style="margin-top:6px;color:rgba(234,240,255,.65);font-size:12px;line-height:1.45;">${escapeHtml(a)}</div>
-        </div>
-      `;
-    }
-
-    function escapeHtml(s){
-      return String(s||"")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    // ----------------------------
-    // Utilities
-    // ----------------------------
     function getOrCreateUserId(){
       const k = "simo_user_id_v1";
       let v = localStorage.getItem(k);
