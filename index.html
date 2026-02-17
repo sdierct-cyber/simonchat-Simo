@@ -9,13 +9,10 @@
       --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
       --card:rgba(255,255,255,.04);
-      --card2:rgba(255,255,255,.06);
-      --btn:#2a66ff; --btn2:#1f4dd6;
       --pill:rgba(255,255,255,.06);
       --pillOn:rgba(42,102,255,.22);
+      --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39d98a;
-      --warn:#ffcc66;
-      --bad:#ff4d4d;
       --shadow: 0 20px 60px rgba(0,0,0,.45);
     }
     *{box-sizing:border-box}
@@ -41,6 +38,7 @@
     }
     .brand h1{font-size:22px;margin:0;line-height:1}
     .brand small{display:block;color:var(--muted);margin-top:3px}
+
     .rightControls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .toggle{
       display:flex;gap:10px;align-items:center;
@@ -65,6 +63,7 @@
       font-weight:650;letter-spacing:.2px;
     }
     .btn.primary{background:linear-gradient(180deg, var(--btn), var(--btn2));border-color:rgba(42,102,255,.45)}
+
     .grid{display:grid;grid-template-columns: 1fr 1fr; gap:14px; margin-top:14px}
     .panel{
       border:1px solid var(--line);border-radius:18px;
@@ -79,7 +78,6 @@
       background:rgba(0,0,0,.12);
     }
     .panelHead h2{margin:0;font-size:18px;letter-spacing:.3px}
-    .subhead{color:var(--muted);font-size:13px;margin-top:4px}
     .tabs{display:flex;gap:8px}
     .tab{
       padding:8px 12px;border-radius:999px;border:1px solid var(--line);
@@ -89,20 +87,16 @@
     }
     .tab.on{background:var(--pillOn);border-color:rgba(42,102,255,.45);opacity:1}
     .panelBody{display:flex;flex-direction:column;height:calc(100% - 56px)}
-    .chatlog{
-      padding:14px;
-      overflow:auto;
-      flex:1;
-    }
-    .msg{max-width:86%;padding:12px 12px;border-radius:16px;margin:10px 0;border:1px solid var(--line)}
+    .chatlog{padding:14px;overflow:auto;flex:1}
+    .msg{max-width:86%;padding:12px;border-radius:16px;margin:10px 0;border:1px solid var(--line)}
     .msg.you{margin-left:auto;background:rgba(42,102,255,.14);border-color:rgba(42,102,255,.35)}
     .msg.simo{background:rgba(255,255,255,.04)}
     .msg .who{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700}
     .msg .txt{white-space:pre-wrap;line-height:1.35}
+
     .composer{
       border-top:1px solid var(--line);
-      padding:12px 12px;
-      display:flex;gap:10px;align-items:flex-end;
+      padding:12px;display:flex;gap:10px;align-items:flex-end;
       background:rgba(0,0,0,.10);
     }
     textarea{
@@ -112,43 +106,23 @@
       padding:10px 12px;font-size:14px;outline:none;
     }
     .sendRow{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
-    .status{
-      display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;
-      padding-right:4px;
-    }
+    .status{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;padding-right:4px}
     .dot{width:8px;height:8px;border-radius:99px;background:var(--good);box-shadow:0 0 0 4px rgba(57,217,138,.10)}
     .dot.off{background:rgba(255,255,255,.22);box-shadow:none}
     .hint{color:var(--muted);font-size:12px;padding:0 14px 12px}
+
     .previewTools{display:flex;gap:10px;flex-wrap:wrap}
-    .previewMeta{display:flex;gap:10px;align-items:center;color:var(--muted);font-size:12px}
+    .previewWrap{padding:14px;height:100%;display:flex;flex-direction:column;gap:10px}
+    .previewTop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
     .pillSmall{
       padding:6px 10px;border-radius:999px;border:1px solid var(--line);
       background:rgba(0,0,0,.15);color:var(--text);font-weight:700;font-size:12px;
     }
-    iframe{
-      width:100%;height:100%;
-      border:0;
-      background:#0b1020;
-    }
-    .previewWrap{
-      padding:14px;
-      height:100%;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .previewTop{
-      display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap
-    }
-    .previewTitle{display:flex;flex-direction:column;gap:2px}
-    .previewTitle .cur{color:var(--muted);font-size:13px}
     .previewBox{
-      flex:1;
-      border:1px solid var(--line);
-      border-radius:16px;
-      overflow:hidden;
-      background:rgba(0,0,0,.12);
+      flex:1;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:rgba(0,0,0,.12)
     }
+    iframe{width:100%;height:100%;border:0;background:#0b1020}
+
     .toast{
       position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
       background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);
@@ -159,6 +133,7 @@
     }
     .toast.show{display:flex}
     .toast .ticon{color:var(--good);font-weight:900}
+
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
       .panel{min-height:560px}
@@ -189,9 +164,7 @@
       <!-- CHAT -->
       <div class="panel">
         <div class="panelHead">
-          <div>
-            <h2>CHAT</h2>
-          </div>
+          <h2>CHAT</h2>
           <div class="tabs">
             <button class="tab" data-mode="venting">Venting</button>
             <button class="tab" data-mode="solving">Solving</button>
@@ -221,9 +194,7 @@
       <!-- PREVIEW -->
       <div class="panel">
         <div class="panelHead">
-          <div>
-            <h2>PREVIEW</h2>
-          </div>
+          <h2>PREVIEW</h2>
           <div class="previewTools">
             <button id="saveBuildBtn" class="btn">Save Build</button>
             <button id="openLibraryBtn" class="btn">Library</button>
@@ -235,18 +206,18 @@
         <div class="panelBody">
           <div class="previewWrap">
             <div class="previewTop">
-              <div class="previewTitle">
-                <div class="cur">Current: <b id="curName">Untitled preview</b></div>
-              </div>
-              <div class="previewMeta">
+              <div class="cur">Current: <b id="curName">Untitled preview</b></div>
+              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
                 <span id="modePill" class="pillSmall">Building</span>
                 <span id="proPill" class="pillSmall">PRO enabled</span>
               </div>
             </div>
+
             <div class="previewBox">
               <iframe id="previewFrame" title="Preview"></iframe>
             </div>
-            <div class="subhead">Library is saved on this device</div>
+
+            <div style="color:var(--muted);font-size:12px">Library is saved on this device</div>
           </div>
         </div>
       </div>
@@ -281,20 +252,14 @@
     proPill: document.getElementById("proPill"),
   };
 
-  // --------- State
   const state = {
     mode: "building",
     pro: true,
-    messages: [],
-    current: {
-      name: "Untitled preview",
-      html: "",
-      kind: "none"
-    },
+    current: { name: "Untitled preview", html: "", kind: "none" },
     library: []
   };
 
-  // Load persisted
+  // Persisted state
   try {
     const saved = JSON.parse(localStorage.getItem("simo_library_v1") || "[]");
     if (Array.isArray(saved)) state.library = saved;
@@ -304,7 +269,6 @@
     if (pro !== null) state.pro = (pro === "1");
   } catch {}
 
-  // --------- UI helpers
   const toast = (msg) => {
     els.toastTxt.textContent = msg;
     els.toast.classList.add("show");
@@ -327,16 +291,6 @@
     els.chatlog.scrollTop = els.chatlog.scrollHeight;
   };
 
-  const setPreview = ({name, html, kind}) => {
-    state.current.name = name || "Untitled preview";
-    state.current.html = html || "";
-    state.current.kind = kind || "none";
-    els.curName.textContent = state.current.name;
-
-    const doc = state.current.html || defaultEmptyPreviewHTML();
-    els.previewFrame.srcdoc = doc;
-  };
-
   const defaultEmptyPreviewHTML = () => `
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
@@ -347,10 +301,15 @@
 </style></head>
 <body><div class="card">
   <h1>No preview yet.</h1>
-  <p>Switch to <b>Building</b> and ask for something like: “build a landing page”.</p>
+  <p>Switch to <b>Building</b> and ask: “build a landing page preview”.</p>
 </div></body></html>`;
 
-  // --------- Tabs / Pro
+  const setPreview = ({name, html, kind}) => {
+    state.current = { name: name || "Untitled preview", html: html || "", kind: kind || "html" };
+    els.curName.textContent = state.current.name;
+    els.previewFrame.srcdoc = state.current.html || defaultEmptyPreviewHTML();
+  };
+
   const applyMode = (m) => {
     state.mode = m;
     els.tabs.forEach(t => t.classList.toggle("on", t.dataset.mode === m));
@@ -364,7 +323,6 @@
     localStorage.setItem("simo_pro_v1", state.pro ? "1" : "0");
   };
 
-  // --------- Library
   const saveToLibrary = () => {
     if (!state.current.html) return toast("No HTML to save yet.");
     const item = {
@@ -381,7 +339,6 @@
 
   const openLibrary = () => {
     if (!state.library.length) return toast("Library is empty.");
-    // Simple picker prompt (kept minimal on purpose)
     const list = state.library.slice(0, 10).map((x, i) => `${i+1}. ${x.name}`).join("\n");
     const pick = prompt("Open which saved build?\n\n" + list + "\n\nEnter 1-" + Math.min(10, state.library.length));
     const n = Number(pick);
@@ -397,7 +354,7 @@
       await navigator.clipboard.writeText(state.current.html);
       toast("Copied HTML.");
     } catch {
-      toast("Copy blocked. Try Download.");
+      toast("Copy blocked. Use Download.");
     }
   };
 
@@ -415,21 +372,14 @@
     toast("Downloaded.");
   };
 
-  // --------- Call backend
   const callSimo = async (message) => {
     const payload = { message, mode: state.mode, pro: state.pro };
-
     const res = await fetch(API_URL, {
       method: "POST",
       headers: {"Content-Type":"application/json"},
       body: JSON.stringify(payload)
     });
-
-    if (!res.ok) {
-      let txt = "";
-      try { txt = await res.text(); } catch {}
-      throw new Error("Server error");
-    }
+    if (!res.ok) throw new Error("Server error");
     return await res.json();
   };
 
@@ -443,43 +393,32 @@
 
     try {
       const data = await callSimo(text);
+      renderMsg("Simo", data?.reply || "Okay.");
 
-      // data: { ok, reply, preview?: {name, html, kind} }
-      if (data && data.reply) renderMsg("Simo", data.reply);
-      else renderMsg("Simo", "Okay.");
-
-      if (data && data.preview && data.preview.html) {
+      if (data?.preview?.html) {
         setPreview({
           name: data.preview.name || "Preview",
           html: data.preview.html,
           kind: data.preview.kind || "html"
         });
-      } else if (state.pro && state.mode === "building") {
-        // In pro+building we expect a preview often; don't overwrite existing preview
       }
-    } catch (e) {
+    } catch {
       renderMsg("Simo", "⚠️ Server error");
     } finally {
       setBusy(false, "Ready");
     }
   };
 
-  // --------- Events
+  // Events
   els.sendBtn.addEventListener("click", handleSend);
-
   els.input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
   });
 
   els.tabs.forEach(t => t.addEventListener("click", () => applyMode(t.dataset.mode)));
-
   els.proSwitch.addEventListener("click", () => applyPro(!state.pro));
 
   els.resetBtn.addEventListener("click", () => {
-    state.messages = [];
     els.chatlog.innerHTML = "";
     renderMsg("Simo", "I’m here. Pick a mode — or just talk.");
     setPreview({name:"Untitled preview", html:"", kind:"none"});
