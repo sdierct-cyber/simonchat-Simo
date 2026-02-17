@@ -1,255 +1,371 @@
 // netlify/functions/simon.js
-// Simo backend (CommonJS) — versioned + stable preview contract
-// If OpenAI key exists, you can wire it later — for now this never crashes and always returns predictable JSON.
+// Simo backend: best-friend + solver + builder with edit-in-place previews.
+// Endpoint: POST { message, mode, pro, state }  (mode: venting|solving|building)
+// Returns: { ok, assistant, preview_html?, kind?, title?, state }
 
-let state = {
-  currentPreviewKind: null,
-  currentPreviewTitle: null,
-  currentPreviewHTML: null,
-};
-
-const VERSION = "simo-backend-2026-02-17a";
+const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"; // change in Netlify env if needed
 
 exports.handler = async (event) => {
   try {
-    // ✅ Quick browser check: open /.netlify/functions/simon
+    // Health / info
     if (event.httpMethod === "GET") {
-      return json200({
-        version: VERSION,
+      return json(200, {
+        version: "simo-backend-2026-02-17a",
         ok: true,
-        note: "POST {message, mode} to generate previews.",
+        note: "POST {message, mode} to generate previews."
       });
     }
 
-    const body = JSON.parse(event.body || "{}");
+    if (event.httpMethod !== "POST") {
+      return json(405, { ok: false, error: "Method not allowed" });
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      return json(500, { ok: false, error: "Missing OPENAI_API_KEY in Netlify environment variables." });
+    }
+
+    let body = {};
+    try {
+      body = JSON.parse(event.body || "{}");
+    } catch {
+      return json(400, { ok: false, error: "Invalid JSON body." });
+    }
+
     const message = (body.message || "").toString().trim();
-    const mode = (body.mode || "building").toString().toLowerCase();
+    const mode = (body.mode || "building").toString().trim().toLowerCase();
+    const pro = !!body.pro;
+
+    const incomingState = body.state && typeof body.state === "object" ? body.state : {};
+    const state = {
+      current_kind: incomingState.current_kind || null,
+      current_title: incomingState.current_title || null,
+      current_html: incomingState.current_html || null,
+      // lightweight memory of what we built last
+      last_user_goal: incomingState.last_user_goal || null
+    };
 
     if (!message) {
-      return json200({ ok: true, assistant: "Say something and I’ll respond." });
+      return json(400, { ok: false, error: "Missing message" });
     }
 
-    // ---- MODE BEHAVIOR (best friend + builder) ----
-    if (mode === "venting") {
-      return json200({
+    // 1) Quick deterministic “edit Pro price” (fast + reliable)
+    const priceEdit = detectProPriceEdit(message, state.current_html);
+    if (priceEdit && state.current_html) {
+      const updated = applyProPriceEdit(state.current_html, priceEdit.newPrice);
+      state.current_html = updated;
+      state.current_kind = state.current_kind || "landing_page";
+      state.current_title = state.current_title || "Updated (price edit)";
+      return json(200, {
         ok: true,
-        assistant:
-          "I’m here. What happened — and what’s the part that’s hitting you the hardest right now?",
+        assistant: `Done. I updated the **Pro** price to **$${priceEdit.newPrice}/mo** (kept layout).`,
+        preview_html: state.current_html,
+        kind: state.current_kind,
+        title: state.current_title,
+        state
       });
     }
 
-    if (mode === "solving") {
-      return json200({
+    // 2) Decide whether to BUILD or EDIT or just CHAT
+    // Heuristic: if there's current_html and user says "change/edit/update" => edit
+    // otherwise if building mode or user asks for preview/layout/page => build
+    const wantsEdit = !!state.current_html && /\b(edit|change|update|swap|replace|fix|adjust|modify)\b/i.test(message);
+    const wantsBuild = (mode === "building") || /\b(preview|mockup|landing page|pricing|dashboard|layout|resume|site|webpage)\b/i.test(message);
+
+    let action = "chat";
+    if (wantsEdit) action = "edit";
+    else if (wantsBuild) action = "build";
+
+    // 3) Compose system prompt (ChatGPT-like personality)
+    const system = makeSystemPrompt({ mode, pro });
+
+    // 4) Call OpenAI once to generate assistant text + (optional) html
+    const result = await callOpenAI_JSON(apiKey, DEFAULT_MODEL, system, {
+      action,
+      mode,
+      pro,
+      message,
+      state
+    });
+
+    // If model fails to return JSON, fall back gracefully
+    if (!result || typeof result !== "object") {
+      return json(200, {
         ok: true,
-        assistant:
-          "Got you. What’s the goal, what’s blocking you, and what have you tried so far?",
+        assistant: fallbackAssistant(mode),
+        state
       });
     }
 
-    // ---- BUILDING MODE ----
-    const lower = message.toLowerCase();
+    // expected result shape:
+    // { assistant: string, kind?: string, title?: string, html?: string, update_html_only?: boolean }
+    const assistant = (result.assistant || "").toString().trim() || "Okay.";
+    const kind = (result.kind || "").toString().trim() || state.current_kind || null;
+    const title = (result.title || "").toString().trim() || state.current_title || null;
 
-    // BUILD: landing page preview
-    if (lower.includes("landing page") || lower.includes("landingpage")) {
-      state.currentPreviewKind = "landing_page";
-      state.currentPreviewTitle = "Landing Page";
-      state.currentPreviewHTML = buildFlowProLandingHTML();
+    let preview_html = null;
 
-      return json200({
-        ok: true,
-        assistant: "Preview rendered on the right.",
-        preview: {
-          kind: state.currentPreviewKind,
-          title: state.currentPreviewTitle,
-          html: state.currentPreviewHTML,
-        },
-      });
-    }
-
-    // EDIT: price change (works on the existing preview)
-    if (
-      /(change|edit|update)/i.test(message) &&
-      state.currentPreviewHTML &&
-      /\bpro\b/i.test(message)
-    ) {
-      // detect $19
-      if (/\$?\s*19\b/.test(message) || /19\/mo/i.test(message)) {
-        state.currentPreviewHTML = state.currentPreviewHTML.replace(
-          /\$29\/mo/g,
-          "$19/mo"
-        );
-        return json200({
-          ok: true,
-          assistant: "Done — Pro updated to $19/mo.",
-          preview: {
-            kind: state.currentPreviewKind || "landing_page",
-            title: state.currentPreviewTitle || "Updated Preview",
-            html: state.currentPreviewHTML,
-          },
-        });
+    if (result.html && typeof result.html === "string" && result.html.trim().length > 20) {
+      // If action is edit, model should return a full HTML doc
+      preview_html = normalizeHtmlDoc(result.html);
+      state.current_html = preview_html;
+      state.current_kind = kind || state.current_kind || "preview";
+      state.current_title = title || state.current_title || "Preview";
+      state.last_user_goal = message;
+    } else {
+      // no html returned
+      if (action === "edit" && state.current_html) {
+        // model didn't edit; gently tell user what to do
+        // (but keep current preview)
       }
-
-      return json200({
-        ok: true,
-        assistant:
-          "Tell me the exact Pro price you want (example: “change Pro price to $19/mo”).",
-      });
     }
 
-    // If they said “change pro price” but we don’t have a preview yet
-    if (/\bpro\b/i.test(message) && /price/i.test(message) && !state.currentPreviewHTML) {
-      return json200({
-        ok: true,
-        assistant:
-          "I can do that — but first generate a preview: “build a landing page preview”.",
-      });
-    }
-
-    // Default builder reply (keeps you moving forward)
-    return json200({
+    return json(200, {
       ok: true,
-      assistant:
-        "In Building mode, try: “build a landing page preview” or “build a pricing section preview”.",
+      assistant,
+      preview_html,
+      kind: state.current_kind,
+      title: state.current_title,
+      state
     });
   } catch (err) {
-    return {
-      statusCode: 500,
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ok: false,
-        error: "Server error in simon.js",
-        details: String(err && err.message ? err.message : err),
-      }),
-    };
+    return json(500, { ok: false, error: "Server error", details: String(err?.stack || err?.message || err) });
   }
 };
 
-function json200(obj) {
-  return {
-    statusCode: 200,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(obj),
+// -----------------------------
+// Prompts
+// -----------------------------
+function makeSystemPrompt({ mode, pro }) {
+  const bestFriend = `
+You are "Simo" — a private best friend + builder.
+Be natural, supportive, and direct. Avoid generic therapy-speak unless asked.
+If user vents, validate feelings and ask 1 grounded question.
+If user wants solutions, give steps and options. If user wants building, produce real artifacts.
+`;
+
+  const modeRules = {
+    venting: `
+MODE: VENTING
+- Keep it human and supportive.
+- No lectures. No clichés.
+- Ask one simple question that helps them continue.
+`,
+    solving: `
+MODE: SOLVING
+- Ask at most ONE clarifying question only if absolutely necessary.
+- Otherwise give a short plan + next action.
+`,
+    building: `
+MODE: BUILDING
+- Default to producing an artifact (HTML preview) when user asks for layouts/pages/previews.
+- If user asks to edit, edit the existing HTML in-place. Keep layout unless asked to redesign.
+`
   };
+
+  const proNote = pro
+    ? `PRO: enabled. You may suggest tool-like capabilities (research, resume builder, etc.), but do not claim to browse unless the system provides it.`
+    : `PRO: disabled. Keep outputs lightweight; still can build HTML previews locally (no browsing).`;
+
+  // JSON response contract:
+  // Must respond ONLY in strict JSON with keys:
+  // assistant (string)
+  // kind (string optional)
+  // title (string optional)
+  // html (string optional) -> full HTML document if building/editing
+  // If editing: use provided state.current_html and modify it.
+
+  return `
+${bestFriend}
+
+${modeRules[mode] || modeRules.building}
+
+${proNote}
+
+YOU MUST OUTPUT STRICT JSON ONLY (no markdown, no backticks).
+Schema:
+{
+  "assistant": "string",
+  "kind": "landing_page|pricing_section|resume|dashboard|layout|wireframe|preview",
+  "title": "short title",
+  "html": "FULL HTML DOCUMENT (optional)"
 }
 
-function buildFlowProLandingHTML() {
-  return `<!doctype html>
+BUILDING RULES:
+- When action="build": return a complete, standalone HTML document.
+- Use a dark, clean style similar to a modern SaaS landing page.
+- Include sections: Hero, 3 feature rows, pricing cards (Starter/Pro/Enterprise), and buttons.
+- Keep HTML self-contained (inline CSS, no external assets).
+
+EDITING RULES:
+- When action="edit": you will be given state.current_html.
+- Return the SAME document with ONLY requested changes.
+- Do NOT wipe content. Do NOT return commentary in html.
+- Keep layout; only modify what user asked.
+
+If user request is unclear, still respond as Simo and propose a next step, and only include html if it's clearly a build/edit request.
+`.trim();
+}
+
+function fallbackAssistant(mode) {
+  if (mode === "venting") return "I got you. Tell me what part is hitting the hardest right now.";
+  if (mode === "solving") return "Okay—what’s the goal and what’s the one thing blocking you right now?";
+  return "Okay. Tell me what you want to build (landing page, pricing section, dashboard, resume), and I’ll render it.";
+}
+
+// -----------------------------
+// OpenAI call (Chat Completions)
+// -----------------------------
+async function callOpenAI_JSON(apiKey, model, systemPrompt, payload) {
+  const userPrompt = `
+Action: ${payload.action}
+Mode: ${payload.mode}
+Pro: ${payload.pro ? "true" : "false"}
+
+User message:
+${payload.message}
+
+Current state:
+${JSON.stringify(payload.state || {}, null, 2)}
+
+If action="edit", state.current_html contains the current HTML document to modify.
+Return JSON only.
+`.trim();
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model,
+      temperature: 0.35,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ]
+    })
+  });
+
+  const text = await resp.text();
+  if (!resp.ok) {
+    throw new Error(`OpenAI error ${resp.status}: ${text}`);
+  }
+
+  let data = {};
+  try { data = JSON.parse(text); } catch { throw new Error("OpenAI returned non-JSON."); }
+
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) return null;
+
+  // Parse the model JSON safely
+  const parsed = safeJsonParse(content);
+  return parsed;
+}
+
+function safeJsonParse(s) {
+  try {
+    return JSON.parse(s);
+  } catch {
+    // try to extract first JSON object if the model included extra text
+    const start = s.indexOf("{");
+    const end = s.lastIndexOf("}");
+    if (start >= 0 && end > start) {
+      try { return JSON.parse(s.slice(start, end + 1)); } catch {}
+    }
+    return null;
+  }
+}
+
+// -----------------------------
+// Deterministic Pro price editing
+// -----------------------------
+function detectProPriceEdit(message, html) {
+  if (!html) return null;
+  const m = message.match(/\bpro\b.*\$(\d{1,4})\s*(?:\/\s*mo|mo|month|\/month)?/i) ||
+            message.match(/\bchange\b.*\bpro\b.*\bto\b.*\$(\d{1,4})/i);
+  if (!m) return null;
+  const newPrice = parseInt(m[1], 10);
+  if (!Number.isFinite(newPrice) || newPrice <= 0) return null;
+  return { newPrice };
+}
+
+function applyProPriceEdit(html, newPrice) {
+  // Attempt to replace price inside the "Pro" card only.
+  // We try a few patterns, but keep it safe.
+  const pricePatterns = [
+    /\$29\/mo/g,
+    /\$29\s*\/\s*mo/g,
+    /\$29\/month/g,
+    /\$29\s*\/\s*month/g
+  ];
+
+  // First: narrow to a chunk around "Pro"
+  const idx = html.search(/>\s*Pro\s*</i);
+  if (idx >= 0) {
+    const start = Math.max(0, idx - 4000);
+    const end = Math.min(html.length, idx + 6000);
+    const before = html.slice(0, start);
+    let chunk = html.slice(start, end);
+    const after = html.slice(end);
+
+    // Replace only the first matching $xx/mo in that chunk
+    chunk = chunk.replace(/\$(\d{1,4})\s*\/\s*mo/i, `$${newPrice}/mo`);
+    chunk = chunk.replace(/\$(\d{1,4})\s*\/\s*month/i, `$${newPrice}/mo`);
+    // If Pro card uses "$29/mo" with no spaces
+    chunk = chunk.replace(/\$29\/mo/i, `$${newPrice}/mo`);
+
+    return before + chunk + after;
+  }
+
+  // Fallback: replace first occurrence globally (least ideal)
+  let out = html;
+  for (const p of pricePatterns) {
+    if (p.test(out)) {
+      out = out.replace(p, `$${newPrice}/mo`);
+      break;
+    }
+  }
+  // Also handle "$29/mo" with other digits
+  out = out.replace(/\$29\s*\/\s*mo/i, `$${newPrice}/mo`);
+  return out;
+}
+
+function normalizeHtmlDoc(html) {
+  const s = html.trim();
+  // If model returned only a fragment, wrap it
+  const hasHtml = /<html[\s>]/i.test(s);
+  const hasBody = /<body[\s>]/i.test(s);
+  if (hasHtml && hasBody) return s;
+
+  return `
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>FlowPro</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Preview</title>
 <style>
-  :root{
-    --bg:#0b1020;
-    --text:#eaf0ff;
-    --muted:#a9b6d3;
-    --line:rgba(255,255,255,.10);
-    --card:rgba(255,255,255,.06);
-    --btn:#2a66ff;
-    --btn2:#1f4dd6;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
-    color:var(--text);
-  }
-  .wrap{max-width:1040px;margin:0 auto;padding:54px 22px 70px}
-  h1{font-size:56px;line-height:1.05;margin:0 0 10px}
-  .sub{color:var(--muted);margin:0 0 22px;font-size:18px}
-  .btnrow{display:flex;gap:14px;margin:18px 0 34px;flex-wrap:wrap}
-  .btn{
-    background:var(--btn); border:none; color:#fff; font-weight:800;
-    padding:12px 18px; border-radius:12px; cursor:pointer;
-    box-shadow:0 12px 30px rgba(0,0,0,.25);
-  }
-  .btn.secondary{background:rgba(255,255,255,.10); color:#eaf0ff}
-  .btn:hover{background:var(--btn2)}
-  .btn.secondary:hover{background:rgba(255,255,255,.14)}
-  .featureList{display:grid;gap:14px;margin:0 0 44px}
-  .pill{
-    background:rgba(255,255,255,.06);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:18px 18px;
-    color:#eaf0ff;
-  }
-  .pricing{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
-  .card{
-    background:rgba(255,255,255,.06);
-    border:1px solid var(--line);
-    border-radius:18px;
-    padding:22px;
-    text-align:center;
-    box-shadow:0 16px 50px rgba(0,0,0,.22);
-  }
-  .card h2{margin:6px 0 10px;font-size:22px}
-  .price{font-size:42px;font-weight:900;margin:10px 0 14px}
-  .meta{color:var(--muted);margin:8px 0}
-  .tag{
-    display:inline-block;
-    background:rgba(42,102,255,.25);
-    border:1px solid rgba(42,102,255,.45);
-    color:#dbe6ff;
-    font-weight:800;
-    padding:6px 10px;
-    border-radius:999px;
-    font-size:12px;
-    margin-bottom:10px;
-  }
-  @media (max-width: 900px){
-    h1{font-size:44px}
-    .pricing{grid-template-columns:1fr}
-  }
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;margin:0;padding:24px;background:#0b1020;color:#eaf0ff}
 </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>FlowPro helps you automate your workflow.</h1>
-    <div class="sub">Save time. Reduce manual work. Scale smarter.</div>
-
-    <div class="btnrow">
-      <button class="btn">Get Started</button>
-      <button class="btn secondary">See Demo</button>
-    </div>
-
-    <div class="featureList">
-      <div class="pill">Automated task pipelines</div>
-      <div class="pill">Smart scheduling</div>
-      <div class="pill">Real-time analytics dashboard</div>
-    </div>
-
-    <div class="pricing">
-      <div class="card">
-        <h2>Starter</h2>
-        <div class="price">$9/mo</div>
-        <div class="meta">Basic support</div>
-        <div class="meta">Core features</div>
-        <div class="meta">1 user</div>
-        <button class="btn" style="margin-top:16px">Choose Plan</button>
-      </div>
-
-      <div class="card">
-        <div class="tag">Most Popular</div>
-        <h2>Pro</h2>
-        <div class="price">$29/mo</div>
-        <div class="meta">Priority support</div>
-        <div class="meta">All features</div>
-        <div class="meta">5 users</div>
-        <button class="btn" style="margin-top:16px">Choose Plan</button>
-      </div>
-
-      <div class="card">
-        <h2>Enterprise</h2>
-        <div class="price">$99/mo</div>
-        <div class="meta">Dedicated support</div>
-        <div class="meta">Custom integrations</div>
-        <div class="meta">Unlimited users</div>
-        <button class="btn" style="margin-top:16px">Contact Sales</button>
-      </div>
-    </div>
-  </div>
+${s}
 </body>
-</html>`;
+</html>
+`.trim();
+}
+
+function json(statusCode, obj) {
+  return {
+    statusCode,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type",
+      "access-control-allow-methods": "POST,GET,OPTIONS"
+    },
+    body: JSON.stringify(obj)
+  };
 }
