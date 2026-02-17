@@ -1,11 +1,19 @@
 // netlify/functions/simon.js
-// CommonJS Netlify Function
+// CommonJS for Netlify Functions
 
 const OpenAI = require("openai");
+const { getStore } = require("@netlify/blobs");
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+const VERSION = "simo-backend-2026-02-17b";
+
+// --- OpenAI client (only used for non-preview chat to reduce errors/latency)
+const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+// Choose a safer default model; you can override with SIMO_MODEL in Netlify env vars.
+const DEFAULT_MODEL = process.env.SIMO_MODEL || "gpt-4o-mini";
+
+// Netlify Blobs store for per-device state (preview persists across refresh)
+const store = getStore("simo");
 
 function json(statusCode, obj) {
   return {
@@ -14,7 +22,7 @@ function json(statusCode, obj) {
       "content-type": "application/json",
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "POST,OPTIONS",
+      "access-control-allow-methods": "POST,OPTIONS,GET",
     },
     body: JSON.stringify(obj),
   };
@@ -145,92 +153,194 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
   return htmlShell({ title: `${brand} – Landing`, body });
 }
 
+function normalizeMode(mode) {
+  const m = String(mode || "building").toLowerCase();
+  if (m.startsWith("vent")) return "venting";
+  if (m.startsWith("solv")) return "solving";
+  return "building";
+}
+
+function parsePrice(message = "") {
+  const m = String(message);
+  const match = m.match(/\$?\s*(\d{1,4})\s*(?:\/?\s*(mo|month|monthly))?/i);
+  if (!match) return null;
+  return `$${match[1]}/mo`;
+}
+
+// Intent detection: keep it simple + reliable
 function detectIntent(message = "", mode = "building") {
-  const m = message.toLowerCase();
-  if (/(change|update|edit).*(pro).*\$?\s*\d+/i.test(message) || /pro.*price/i.test(m)) return "pricing_edit";
-  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
-  return mode === "building" ? "builder_general" : "chat_general";
+  const s = message.toLowerCase();
+
+  if (mode === "building") {
+    if (/(build|make|create).*(landing page|landing|landing preview)/i.test(message)) return "landing_build";
+    if (/(change|update|edit).*(pro).*(price|pricing)/i.test(message) || /pro.*\$\s*\d+/i.test(message)) return "pricing_edit";
+    if (/change\s+pro\s+price\s+to\s+\$?\s*\d+/i.test(message)) return "pricing_edit";
+  }
+
+  return "chat";
 }
 
-function getNumberFromText(message) {
-  const m = String(message || "");
-  const match = m.match(/\$?\s*(\d{1,4})/);
-  return match ? match[1] : null;
+async function loadState(clientId) {
+  if (!clientId) return { preview: null };
+  try {
+    const raw = await store.get(`state:${clientId}`, { type: "json" });
+    return raw || { preview: null };
+  } catch {
+    return { preview: null };
+  }
 }
 
-async function generateReply({ message, mode }) {
-  // Keep it lightweight + consistent.
+async function saveState(clientId, state) {
+  if (!clientId) return;
+  try {
+    await store.set(`state:${clientId}`, state, { type: "json" });
+  } catch {
+    // ignore
+  }
+}
+
+function localReply(mode, message) {
+  if (mode === "building") {
+    // Keep it short in building mode; preview speaks for itself.
+    if (/landing/i.test(message)) return "Done — preview is on the right.";
+    if (/price/i.test(message) && /pro/i.test(message)) return "Updated — Pro price changed in the preview.";
+    return "Got it. Tell me what you want to build, and I’ll show a preview if I can.";
+  }
+  if (mode === "venting") {
+    return "I’m here. Talk to me — what happened?";
+  }
+  // solving
+  return "Okay — what’s the goal, and what’s blocking you right now?";
+}
+
+async function openaiReply({ mode, message, history }) {
+  // Hard timeout so we don’t hang and cause “Server error”.
+  const TIMEOUT_MS = 8500;
+
   const system = `
-You are Simo: best friend + builder.
+You are Simo: a private best friend + builder.
 
 Mode rules:
-- Venting: supportive best-friend. No therapy clichés. Short, human.
-- Solving: practical steps, concise.
-- Building: ask 1 clarifying question max; otherwise move forward.
+- venting: supportive, human, no generic therapy clichés unless asked.
+- solving: practical steps, checklists, choices.
+- building: helpful, concise, can propose a plan; previews handled separately.
 
-Never say you are an AI model. Avoid long menus.
-Return plain text only.
+Keep it short and natural. No lecturing.
 `.trim();
 
-  const model = process.env.OPENAI_MODEL || "gpt-5-mini";
+  const input = [
+    { role: "system", content: system },
+    ...(Array.isArray(history) ? history.slice(-10).map(x => ({
+      role: x.role === "assistant" ? "assistant" : "user",
+      content: String(x.content || "")
+    })) : []),
+    { role: "user", content: `Mode: ${mode}\nUser: ${message}` },
+  ];
 
-  const resp = await client.responses.create({
-    model,
-    input: [
-      { role: "system", content: system },
-      { role: "user", content: `Mode: ${mode}\nUser: ${message}` }
-    ],
-    max_output_tokens: 220
+  const p = client.responses.create({
+    model: DEFAULT_MODEL,
+    input
   });
 
-  return (resp.output_text || "Okay.").trim();
+  const resp = await Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), TIMEOUT_MS)),
+  ]);
+
+  return (resp.output_text || "").trim();
 }
 
 exports.handler = async (event) => {
+  // Version / health
+  if (event.httpMethod === "GET") {
+    return json(200, { version: VERSION, ok: true, note: "POST {message, mode, pro, clientId} to generate previews." });
+  }
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
 
   try {
     const body = JSON.parse(event.body || "{}");
-    const message = String(body.message || "");
-    const mode = String(body.mode || "building");
+    const message = String(body.message || "").trim();
+    const mode = normalizeMode(body.mode);
     const pro = !!body.pro;
+    const clientId = String(body.clientId || "").trim();
+    const history = body.history;
 
-    if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
+    if (!message) return json(400, { ok: false, error: "Missing message" });
 
-    // Preview generation is deterministic (no OpenAI required)
+    // If you want “chat only” without OpenAI key for now, you can still build previews.
+    const hasKey = !!process.env.OPENAI_API_KEY;
+
+    // Load persisted state (preview survives refresh)
+    const state = await loadState(clientId);
+    let preview = state.preview || null;
+
     const intent = detectIntent(message, mode);
 
-    let preview = null;
+    // --- FAST PATH: build/edit preview locally (no OpenAI call)
     if (mode === "building" && pro) {
-      if (intent === "landing_page") {
+      if (intent === "landing_build") {
         preview = {
           name: "landing_page",
           kind: "html",
           html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
         };
-      } else if (intent === "pricing_edit") {
-        const num = getNumberFromText(message) || "19";
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: `$${num}/mo` }),
-        };
+        state.preview = preview;
+        await saveState(clientId, state);
+
+        return json(200, {
+          ok: true,
+          reply: localReply(mode, message),
+          preview
+        });
+      }
+
+      if (intent === "pricing_edit") {
+        const newPrice = parsePrice(message) || "$19/mo";
+
+        // If no preview yet, create one so the edit always works.
+        if (!preview || preview.name !== "landing_page") {
+          preview = {
+            name: "landing_page",
+            kind: "html",
+            html: makeLandingPreview({ brand: "FlowPro", proPrice: newPrice }),
+          };
+        } else {
+          // Regenerate the same preview with updated pro price
+          preview = {
+            name: "landing_page",
+            kind: "html",
+            html: makeLandingPreview({ brand: "FlowPro", proPrice: newPrice }),
+          };
+        }
+
+        state.preview = preview;
+        await saveState(clientId, state);
+
+        return json(200, {
+          ok: true,
+          reply: localReply(mode, message),
+          preview
+        });
       }
     }
 
-    // Reply: try OpenAI, but NEVER break the UI if it errors
+    // --- CHAT PATH: use OpenAI only when needed
+    // If no key, fall back to local replies (so you never get “Server error” just for chatting).
     let reply = "";
-    if (!process.env.OPENAI_API_KEY) {
-      reply = "Heads up: OPENAI_API_KEY isn’t set on Netlify, so chat replies are in fallback mode. Previews can still render in Pro.";
-    } else {
-      try {
-        reply = await generateReply({ message, mode });
-      } catch (err) {
-        reply = "I hit a backend hiccup talking to OpenAI — but your preview tools still work. Try again in a moment.";
-      }
+    if (!hasKey) {
+      reply = localReply(mode, message);
+      return json(200, { ok: true, reply, preview: null });
     }
 
-    return json(200, { ok: true, reply, preview });
+    try {
+      reply = await openaiReply({ mode, message, history });
+      if (!reply) reply = localReply(mode, message);
+    } catch (e) {
+      // Don’t fail the whole request — return a safe fallback
+      reply = localReply(mode, message);
+    }
+
+    return json(200, { ok: true, reply, preview: null });
   } catch (e) {
     return json(500, { ok: false, error: "Server error" });
   }
