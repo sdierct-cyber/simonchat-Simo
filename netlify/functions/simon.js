@@ -152,24 +152,35 @@ function detectIntent(message = "", mode = "building") {
   return mode === "building" ? "builder_general" : "chat_general";
 }
 
-async function generateReply({ message, mode, pro }) {
+function extractPriceNumber(message = "") {
+  // grab the last number in the message (handles: "change pro to 19", "pro $19", etc.)
+  const matches = message.match(/(\d{1,4})/g);
+  return matches && matches.length ? matches[matches.length - 1] : null;
+}
+
+async function generateReply({ message, mode, pro, intent }) {
   const system = `
 You are Simo: best friend + builder.
 
-Rules:
-- Venting: supportive best-friend (avoid therapy clichés).
-- Solving: practical steps.
-- Building: build + preview.
+Style rules:
+- Venting: supportive best-friend, no therapy clichés unless asked.
+- Solving: practical, step-by-step.
+- Building: build and explain what you rendered.
 
-If user asks to change pricing (ex: "change Pro to $19"), confirm the new value and show it in the preview.
+Behavior rules:
+- If user requests an edit (e.g., "change Pro to $19"), acknowledge the edit and reflect the new value.
+- Keep responses concise and confident.
 Return plain text only.
-`.trim();
+  `.trim();
 
+  const userText = `Mode: ${mode}\nPro: ${pro}\nIntent: ${intent}\n\nUser: ${message}`;
+
+  // Use a commonly-available model (this is the big fix vs "gpt-5-mini")
   const resp = await client.responses.create({
-    model: "gpt-5-mini",
+    model: "gpt-4.1-mini",
     input: [
       { role: "system", content: system },
-      { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` },
+      { role: "user", content: userText },
     ],
   });
 
@@ -191,6 +202,8 @@ exports.handler = async (event) => {
     const intent = detectIntent(message, mode);
 
     let preview = null;
+
+    // Pro preview generation (this is your right-panel renderer data)
     if (mode === "building" && pro) {
       if (intent === "landing_page") {
         preview = {
@@ -199,8 +212,7 @@ exports.handler = async (event) => {
           html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
         };
       } else if (intent === "pricing_edit") {
-        const match = message.match(/\$?\s*(\d{1,4})/);
-        const num = match ? match[1] : "19";
+        const num = extractPriceNumber(message) || "19";
         preview = {
           name: "landing_page",
           kind: "html",
@@ -209,9 +221,17 @@ exports.handler = async (event) => {
       }
     }
 
-    const reply = await generateReply({ message, mode, pro });
+    const reply = await generateReply({ message, mode, pro, intent });
     return json(200, { ok: true, reply, preview });
   } catch (e) {
-    return json(500, { ok: false, error: "Server error" });
+    console.error("SIMO ERROR:", e);
+
+    // IMPORTANT: show the real reason (so you’re not stuck guessing)
+    const details =
+      (e && e.response && e.response.data) ? e.response.data :
+      (e && e.message) ? e.message :
+      String(e);
+
+    return json(500, { ok: false, error: "Server error", details });
   }
 };
