@@ -1,7 +1,11 @@
 // netlify/functions/simon.js
-// CommonJS export for Netlify Functions
+// CommonJS for Netlify Functions
 
 const OpenAI = require("openai");
+
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 function json(statusCode, obj) {
   return {
@@ -14,14 +18,6 @@ function json(statusCode, obj) {
     },
     body: JSON.stringify(obj),
   };
-}
-
-function safeParseJSON(s, fallback = {}) {
-  try {
-    return JSON.parse(s || "{}");
-  } catch {
-    return fallback;
-  }
 }
 
 function escapeHtml(s = "") {
@@ -107,10 +103,10 @@ function htmlShell({ title = "Preview", body = "" } = {}) {
 </html>`;
 }
 
-function makeLandingPreview({ brand = "FlowPro", headline, subhead, proPrice = "$29/mo" } = {}) {
+function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
   const body = `
-    <h1>${escapeHtml(headline || `${brand} helps you automate your workflow.`)}</h1>
-    <p>${escapeHtml(subhead || "Save time. Reduce manual work. Scale smarter.")}</p>
+    <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
+    <p>Save time. Reduce manual work. Scale smarter.</p>
     <div class="row">
       <a class="btn primary" href="#">Get Started</a>
       <a class="btn" href="#">See Demo</a>
@@ -149,190 +145,144 @@ function makeLandingPreview({ brand = "FlowPro", headline, subhead, proPrice = "
   return htmlShell({ title: `${brand} – Landing`, body });
 }
 
-function pickMode(modeRaw) {
-  const m = String(modeRaw || "").toLowerCase();
-  if (m === "venting" || m === "solving" || m === "building") return m;
-  return "building";
-}
-
 function detectIntent(message = "", mode = "building") {
-  const raw = String(message || "");
-  const m = raw.toLowerCase();
+  const m = message.toLowerCase();
 
-  // price edit intent
-  if (/(change|update|edit).*(pro).*(price|\$)/i.test(raw) || /pro.*price/i.test(m)) return "pricing_edit";
-  if (/(change|update|edit).*(starter|enterprise).*(price|\$)/i.test(raw)) return "pricing_edit";
+  // pricing edit phrases
+  if (/(change|update|edit).*(pro).*(price|\$)/i.test(message)) return "pricing_edit";
+  if (/pro\s*price/i.test(m) && /\$?\s*\d{1,4}/.test(message)) return "pricing_edit";
 
-  // landing build
-  if (/(landing page|build a landing|landing preview|landing page preview)/i.test(raw)) return "landing_page";
+  // landing page build
+  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
 
-  // generic builder
   return mode === "building" ? "builder_general" : "chat_general";
 }
 
-function extractPriceDollars(message = "") {
-  const s = String(message || "");
-  // grab first integer that looks like price
-  const match = s.match(/\$?\s*(\d{1,4})(?:\s*\/\s*mo|\s*per\s*mo|\s*monthly|\s*month)?/i);
-  return match ? match[1] : null;
+function extractPrice(message) {
+  const m = message.match(/\$?\s*(\d{1,4})/);
+  if (!m) return 19;
+  const n = parseInt(m[1], 10);
+  if (!Number.isFinite(n) || n <= 0) return 19;
+  return n;
 }
 
-async function tryOpenAIReply({ message, mode, pro }) {
-  if (!process.env.OPENAI_API_KEY) return null;
-
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini"; // change in Netlify env if you want
-  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-  const system = `
-You are Simo: best friend + builder.
-
-Behavior:
-- Venting: supportive best-friend. No corny therapy clichés. Short, human, specific.
-- Solving: practical steps and options.
-- Building: ask 1 tight clarifying question only if needed, otherwise generate.
-
-Always keep responses concise.
-Never say "Preview is on the right" unless a preview is actually returned.
-`.trim();
-
-  const input = [
-    { role: "system", content: system },
-    { role: "user", content: `Mode: ${mode}\nPro: ${pro}\nUser message: ${message}` },
-  ];
-
-  const resp = await client.responses.create({ model, input });
-  const text = (resp && resp.output_text) ? String(resp.output_text).trim() : "";
-  return text || null;
-}
-
-function fallbackReply({ mode, intent, message, pro }) {
-  const m = String(message || "").trim();
-
+function quickReply({ mode, intent, pro, newPrice }) {
+  // Keep it short + “best friend” vibe without therapy-speak.
   if (mode === "venting") {
-    return `I got you. Tell me the part that’s bugging you the most — what happened, and what do you want to happen next?`;
+    return "I’m here. Tell me what’s going on — I’ll stay with you on it.";
   }
-
   if (mode === "solving") {
-    return `Alright. Paste the exact goal in one line (what you want), and what’s currently breaking. I’ll give you the shortest fix steps.`;
+    return "Alright. Give me the goal + what you’ve tried so far, and I’ll map the fastest next steps.";
   }
 
   // building
   if (!pro) {
-    return `You’re in Building mode. Turn **Pro Mode** on to auto-render previews, or say “give me HTML” and I’ll output the code.`;
+    return "I can outline it here, but Pro is what turns on the rendered preview + export. Flip Pro Mode on and ask again.";
   }
 
   if (intent === "landing_page") {
-    return `Done — rendered a clean landing page preview. Want me to add pricing + testimonials, or keep it minimal?`;
+    return "Done — landing page preview is on the right. Want it simpler, or do we add testimonials + FAQ next?";
   }
-
   if (intent === "pricing_edit") {
-    return `Done — I updated the Pro price in the preview. Want Starter/Enterprise changed too or keep those?`;
+    return `Locked. Pro price updated to $${newPrice}/mo on the preview. Want the badge to stay “Most Popular” or move it?`;
   }
+  return "Got you. Tell me what you want to build in one sentence and I’ll generate the preview.";
+}
 
-  if (!m) return `Tell me what we’re building in one sentence.`;
-  return `Got it. Want a rendered mockup preview, HTML code, or both?`;
+async function modelReply({ message, mode, pro, history }) {
+  const system = `
+You are Simo: best friend + builder.
+
+Tone rules:
+- Venting: supportive best-friend. No generic therapy clichés.
+- Solving: practical, direct steps.
+- Building: ask ONE clarifying question max if needed, otherwise produce something concrete.
+
+If Pro is off and the user asks for a preview/export, explain Pro enables rendered previews.
+Keep responses tight and useful.
+`.trim();
+
+  // If user passes history, include it lightly (last few items) to avoid token blowups.
+  const context = Array.isArray(history) ? history.slice(-8) : [];
+
+  const input = [
+    { role: "system", content: system },
+    ...context.map(x => ({
+      role: x.role === "user" ? "user" : "assistant",
+      content: String(x.content || "").slice(0, 1200),
+    })),
+    { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` },
+  ];
+
+  const resp = await client.responses.create({
+    model: "gpt-4.1-mini",
+    input,
+  });
+
+  return (resp.output_text || "Okay.").trim();
 }
 
 exports.handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
 
-  const started = Date.now();
-
   try {
-    const body = safeParseJSON(event.body, {});
+    const body = JSON.parse(event.body || "{}");
     const message = String(body.message || "");
-    const mode = pickMode(body.mode);
+    const mode = String(body.mode || "building");
     const pro = !!body.pro;
-
-    // "state" lets the UI send last preview settings so edits are consistent
-    const state = body.state && typeof body.state === "object" ? body.state : {};
-    const last = state.lastPreview && typeof state.lastPreview === "object" ? state.lastPreview : null;
+    const history = body.history;
 
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
 
+    // Allow the UI to still work without previews if key missing, but explain it.
+    const hasKey = !!process.env.OPENAI_API_KEY;
+
     const intent = detectIntent(message, mode);
 
-    // build preview first (so preview can still work even if OpenAI fails)
+    // ===== Preview generation (FAST path, no model call) =====
     let preview = null;
-    let nextState = { ...state };
 
     if (mode === "building" && pro) {
       if (intent === "landing_page") {
-        const params = {
-          brand: state.brand || "FlowPro",
-          headline: state.headline || "FlowPro helps you automate your workflow.",
-          subhead: state.subhead || "Save time. Reduce manual work. Scale smarter.",
-          proPrice: state.proPrice || "$29/mo",
-        };
-
         preview = {
           name: "landing_page",
           kind: "html",
-          html: makeLandingPreview(params),
+          html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
         };
-
-        nextState = { ...nextState, ...params, lastPreview: { name: "landing_page" } };
       }
-
       if (intent === "pricing_edit") {
-        const dollars = extractPriceDollars(message) || "19";
-
-        // If last preview was a landing page, keep its brand/headline/subhead
-        const params = {
-          brand: state.brand || (last && last.name === "landing_page" ? "FlowPro" : "FlowPro"),
-          headline: state.headline || "FlowPro helps you automate your workflow.",
-          subhead: state.subhead || "Save time. Reduce manual work. Scale smarter.",
-          proPrice: `$${dollars}/mo`,
-        };
-
+        const num = extractPrice(message);
         preview = {
           name: "landing_page",
           kind: "html",
-          html: makeLandingPreview(params),
+          html: makeLandingPreview({ brand: "FlowPro", proPrice: `$${num}/mo` }),
         };
-
-        nextState = { ...nextState, ...params, lastPreview: { name: "landing_page" } };
       }
     }
 
-    // Try OpenAI (optional). If it fails or is slow, fallback.
-    let reply = null;
-    let usedOpenAI = false;
+    // ===== Reply strategy =====
+    // If it's a known builder action (landing/pricing), answer instantly.
+    if (mode === "building" && pro && (intent === "landing_page" || intent === "pricing_edit")) {
+      const newPrice = intent === "pricing_edit" ? extractPrice(message) : undefined;
+      const reply = quickReply({ mode, intent, pro, newPrice });
+      return json(200, { ok: true, reply, preview });
+    }
+
+    // Otherwise use model when possible; if no key or model fails, fallback.
+    let reply = "";
+    if (!hasKey) {
+      reply = "Your OPENAI_API_KEY isn’t set on Netlify yet, so I can’t do full ChatGPT-style replies. Previews can still work in limited mode, but chat needs the key.";
+      return json(200, { ok: true, reply, preview });
+    }
 
     try {
-      const ai = await tryOpenAIReply({ message, mode, pro });
-      if (ai) {
-        reply = ai;
-        usedOpenAI = true;
-      }
+      reply = await modelReply({ message, mode, pro, history });
     } catch (e) {
-      // swallow OpenAI errors; we still respond successfully
-      usedOpenAI = false;
+      reply = quickReply({ mode, intent, pro, newPrice: extractPrice(message) });
     }
 
-    if (!reply) reply = fallbackReply({ mode, intent, message, pro });
-
-    return json(200, {
-      ok: true,
-      reply,
-      preview,
-      state: nextState,
-      debug: {
-        intent,
-        mode,
-        pro,
-        usedOpenAI,
-        ms: Date.now() - started,
-        version: "simo-backend-2026-02-17b",
-      },
-    });
+    return json(200, { ok: true, reply, preview });
   } catch (e) {
-    // IMPORTANT: return the actual error to the UI so you can see what happened
-    return json(500, {
-      ok: false,
-      error: "Server error",
-      details: String(e && e.message ? e.message : e),
-      version: "simo-backend-2026-02-17b",
-    });
+    return json(500, { ok: false, error: "Server error" });
   }
 };
