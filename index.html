@@ -1,816 +1,108 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
-  <style>
-    :root{
-      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
-      --line:rgba(255,255,255,.10);
-      --card:rgba(0,0,0,.18);
-      --card2:rgba(255,255,255,.05);
-      --shadow:0 18px 55px rgba(0,0,0,.45);
-      --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#31ffa6; --bad:#ff4d4d;
-      --pill:rgba(0,0,0,.25);
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
-      color:var(--text);
-    }
-
-    .wrap{max-width:1180px;margin:0 auto;padding:18px}
-    .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:14px 16px;
-      border:1px solid var(--line);
-      border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
-      gap:12px;
-    }
-    .brand{display:flex;align-items:center;gap:12px}
-    .logo{
-      width:38px;height:38px;border-radius:12px;
-      background:linear-gradient(180deg, rgba(42,102,255,.55), rgba(0,0,0,.25));
-      border:1px solid rgba(255,255,255,.10);
-      box-shadow:0 12px 28px rgba(0,0,0,.35);
-    }
-    .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
-    .brand .sub{color:rgba(234,240,255,.72);font-size:13px;margin-top:2px}
-
-    .rightTools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-
-    /* Pro toggle (OFF looks OFF, ON glows) */
-    .toggle{
-      display:flex;align-items:center;gap:10px;
-      padding:10px 12px;border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      box-shadow:0 10px 30px rgba(0,0,0,.18);
-      user-select:none;
-      cursor:pointer;
-      outline:none;
-    }
-    .toggle .toggleLabel{font-weight:900}
-    .toggle.on{
-      border:1px solid rgba(49,255,166,.35);
-      background:rgba(49,255,166,.08);
-      box-shadow:0 0 0 2px rgba(49,255,166,.14), 0 0 24px rgba(49,255,166,.22);
-    }
-    .toggle.off{opacity:.92}
-
-    .switch{position:relative;width:54px;height:28px;flex:0 0 auto}
-    .switch input{opacity:0;width:0;height:0;position:absolute}
-    .slider{
-      position:absolute;inset:0;border-radius:999px;
-      background:rgba(255,255,255,.12);
-      border:1px solid rgba(255,255,255,.14);
-      transition:.18s ease;
-    }
-    .slider:before{
-      content:""; position:absolute; top:3px; left:3px;
-      width:22px;height:22px;border-radius:999px;
-      background:linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.20));
-      box-shadow:0 10px 22px rgba(0,0,0,.35);
-      transition:.18s ease;
-    }
-    .switch input:checked + .slider{
-      background:rgba(49,255,166,.22);
-      border-color:rgba(49,255,166,.35);
-    }
-    .switch input:checked + .slider:before{transform:translateX(26px)}
-
-    .btn{
-      display:inline-flex;align-items:center;justify-content:center;
-      padding:10px 14px;border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.20);
-      color:var(--text);
-      font-weight:900;
-      text-decoration:none;
-      cursor:pointer;
-      transition:.15s ease;
-    }
-    .btn:hover{transform:translateY(-1px)}
-    .btn.primary{background:linear-gradient(180deg,var(--btn),var(--btn2));border-color:rgba(42,102,255,.45)}
-    .btn.ghost{background:transparent}
-
-    .grid{
-      margin-top:16px;
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:16px;
-    }
-    @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
-    }
-
-    .panel{
-      border:1px solid var(--line);
-      border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      min-height:560px;
-      display:flex;
-      flex-direction:column;
-    }
-    .panelHead{
-      padding:14px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex;align-items:center;justify-content:space-between;
-      gap:10px;
-    }
-    .panelHead h2{margin:0;font-size:18px;letter-spacing:.4px}
-    .pills{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .pill{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:8px 10px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.18);
-      font-weight:900;font-size:12px;
-      color:rgba(234,240,255,.82);
-    }
-    .pill.good{
-      border-color:rgba(49,255,166,.35);
-      background:rgba(49,255,166,.10);
-      color:rgba(234,240,255,.92);
-      box-shadow:0 0 0 2px rgba(49,255,166,.10);
-    }
-    .pill.dim{opacity:.55}
-    .pill.blue{
-      border-color:rgba(42,102,255,.45);
-      background:rgba(42,102,255,.14);
-    }
-
-    /* Mode tabs */
-    .modes{
-      display:flex;gap:10px;align-items:center;
-      justify-content:center;
-    }
-    .modeBtn{
-      padding:10px 14px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:rgba(234,240,255,.85);
-      font-weight:900;
-      cursor:pointer;
-      transition:.15s ease;
-      min-width:92px;
-      text-align:center;
-    }
-    .modeBtn.active{
-      border-color:rgba(42,102,255,.55);
-      background:rgba(42,102,255,.16);
-      box-shadow:0 0 0 2px rgba(42,102,255,.12);
-      color:rgba(234,240,255,.96);
-    }
-
-    /* Chat */
-    .chatBody{
-      padding:14px 14px 0;
-      overflow:auto;
-      flex:1;
-    }
-    .msg{
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.16);
-      border-radius:16px;
-      padding:14px;
-      margin-bottom:12px;
-      max-width: 92%;
-      white-space:pre-wrap;
-      line-height:1.45;
-    }
-    .msg.you{
-      margin-left:auto;
-      background:rgba(42,102,255,.14);
-      border-color:rgba(42,102,255,.26);
-    }
-    .msg .who{
-      display:block;
-      font-weight:900;
-      font-size:13px;
-      color:rgba(234,240,255,.70);
-      margin-bottom:6px;
-    }
-    .warn{
-      display:inline-flex;align-items:center;gap:8px;
-      color:rgba(255,255,255,.85);
-    }
-    .warn b{color:var(--bad)}
-    .chatFoot{
-      padding:14px;
-      border-top:1px solid rgba(255,255,255,.08);
-      display:flex;
-      gap:12px;
-      align-items:flex-end;
-    }
-    textarea{
-      flex:1;
-      resize:none;
-      height:54px;
-      max-height:160px;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      outline:none;
-      font-size:15px;
-    }
-    .sendCol{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
-    .ready{
-      display:flex;align-items:center;gap:8px;
-      color:rgba(234,240,255,.72);
-      font-weight:800;
-      font-size:12px;
-      opacity:.9;
-    }
-    .dot{
-      width:9px;height:9px;border-radius:999px;background:var(--good);
-      box-shadow:0 0 0 2px rgba(49,255,166,.14);
-    }
-
-    /* Preview */
-    .previewBody{
-      padding:12px 14px 14px;
-      overflow:hidden;
-      flex:1;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
-    .previewMeta{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      color:rgba(234,240,255,.70);
-      font-size:13px;
-      padding:2px 2px;
-    }
-    .frameWrap{
-      flex:1;
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:16px;
-      background:rgba(0,0,0,.12);
-      overflow:hidden;
-      position:relative;
-      min-height:420px;
-    }
-    iframe{
-      width:100%;
-      height:100%;
-      border:0;
-      background:#fff;
-    }
-    .emptyPreview{
-      position:absolute;inset:0;
-      display:flex;align-items:center;justify-content:center;
-      text-align:center;
-      padding:18px;
-      color:rgba(234,240,255,.82);
-    }
-    .emptyPreview h3{margin:0 0 8px;font-size:28px}
-    .emptyPreview p{margin:0;color:rgba(234,240,255,.68);line-height:1.4}
-    .tip{
-      margin-top:10px;
-      color:rgba(234,240,255,.55);
-      font-size:12px;
-      padding:0 14px 14px;
-    }
-
-    /* Bottom right PRO pill */
-    .bottomPill{
-      position:fixed;
-      right:16px; bottom:16px;
-      z-index:50;
-      display:flex;gap:10px;align-items:center;
-    }
-
-    /* Modal */
-    .modalBack{
-      position:fixed;inset:0;
-      background:rgba(0,0,0,.55);
-      display:none;
-      align-items:center;justify-content:center;
-      padding:18px;
-      z-index:100;
-    }
-    .modal{
-      width:min(780px, 100%);
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
-      overflow:hidden;
-    }
-    .modalHead{
-      padding:14px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex;align-items:center;justify-content:space-between;
-      gap:10px;
-    }
-    .modalHead h3{margin:0;font-size:16px}
-    .modalBody{padding:12px 16px;max-height:60vh;overflow:auto}
-    .item{
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.16);
-      border-radius:16px;
-      padding:12px;
-      display:flex;align-items:center;justify-content:space-between;
-      gap:12px;
-      margin-bottom:10px;
-    }
-    .item .meta2{color:rgba(234,240,255,.72);font-size:13px}
-    .item .name{font-weight:900}
-    .itemBtns{display:flex;gap:8px;flex-wrap:wrap}
-    .small{padding:8px 10px;border-radius:12px;font-size:13px}
-  </style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>FlowPro – Landing</title>
+<style>
+  :root{
+    --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+    --line:rgba(255,255,255,.10);
+    --shadow: 0 18px 55px rgba(0,0,0,.45);
+    --btn:#2a66ff; --btn2:#1f4dd6;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+    color:var(--text);
+    padding:24px;
+  }
+  .card{
+    max-width:980px;margin:0 auto;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+    box-shadow:var(--shadow);
+    padding:18px 18px 22px;
+  }
+  h1{margin:0 0 10px;font-size:44px;letter-spacing:.2px}
+  p{margin:0 0 16px;color:rgba(234,240,255,.78);line-height:1.4;font-size:18px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:10px 14px;border-radius:12px;
+    border:1px solid var(--line);
+    background:rgba(0,0,0,.18);
+    color:var(--text);
+    font-weight:800;text-decoration:none;
+  }
+  .btn.primary{background:linear-gradient(180deg,var(--btn),var(--btn2));border-color:rgba(42,102,255,.45)}
+  .features{display:grid;gap:12px;margin:18px 0 18px}
+  .feat{
+    border:1px solid var(--line);border-radius:14px;padding:16px;
+    background:rgba(0,0,0,.14);font-size:18px;
+  }
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+  .plan{
+    border:1px solid var(--line);border-radius:16px;padding:16px 16px 18px;
+    background:rgba(0,0,0,.14);
+    min-height:240px;
+    text-align:center;
+  }
+  .plan h3{margin:0 0 6px;font-size:22px}
+  .price{font-size:42px;font-weight:900;margin:10px 0 12px}
+  .muted{color:rgba(234,240,255,.70);font-size:16px;line-height:1.6}
+  .badge{
+    display:inline-block;
+    padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(42,102,255,.45);
+    background:rgba(42,102,255,.18);
+    font-weight:900;font-size:12px;margin-bottom:10px;
+  }
+  @media (max-width:860px){ .grid{grid-template-columns:1fr} h1{font-size:34px} }
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div class="logo"></div>
-        <div>
-          <h1>Simo</h1>
-          <div class="sub">best friend + builder</div>
-        </div>
-      </div>
+  <div class="card">
+    
+    <h1>FlowPro helps you automate your workflow.</h1>
+    <p>Save time. Reduce manual work. Scale smarter.</p>
+    <div class="row">
+      <a class="btn primary" href="#">Get Started</a>
+      <a class="btn" href="#">See Demo</a>
+    </div>
 
-      <div class="rightTools">
-        <div id="proWrap" class="toggle off" role="button" tabindex="0" title="Pro enables auto-preview + advanced builder tools">
-          <span class="toggleLabel">Pro Mode</span>
-          <div class="switch" aria-hidden="true">
-            <input id="proToggle" type="checkbox" />
-            <span class="slider"></span>
-          </div>
-        </div>
-        <button id="resetBtn" class="btn ghost" type="button">Reset</button>
-        <button id="openLibraryBtn" class="btn ghost" type="button">Library</button>
-      </div>
+    <div class="features">
+      <div class="feat">Automated task pipelines</div>
+      <div class="feat">Smart scheduling</div>
+      <div class="feat">Real-time analytics dashboard</div>
     </div>
 
     <div class="grid">
-      <!-- CHAT -->
-      <section class="panel" aria-label="chat panel">
-        <div class="panelHead">
-          <h2>CHAT</h2>
-          <div class="modes">
-            <button class="modeBtn" data-mode="venting" type="button">Venting</button>
-            <button class="modeBtn" data-mode="solving" type="button">Solving</button>
-            <button class="modeBtn active" data-mode="building" type="button">Building</button>
-          </div>
-        </div>
-
-        <div id="chatBody" class="chatBody">
-          <div class="msg">
-            <span class="who">Simo</span>
-            I’m here. Pick a mode — or just talk.
-          </div>
-        </div>
-
-        <div class="chatFoot">
-          <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
-          <div class="sendCol">
-            <button id="sendBtn" class="btn primary" type="button">Send</button>
-            <div class="ready"><span class="dot"></span><span id="statusTxt">Ready</span></div>
-          </div>
-        </div>
-
-        <div class="tip">Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).</div>
-      </section>
-
-      <!-- PREVIEW -->
-      <section class="panel" aria-label="preview panel">
-        <div class="panelHead">
-          <h2>PREVIEW</h2>
-          <div class="pills">
-            <button id="saveBuildBtn" class="btn small" type="button">Save Build</button>
-            <button id="copyHtmlBtn" class="btn small" type="button">Copy HTML</button>
-            <button id="downloadBtn" class="btn small" type="button">Download</button>
-          </div>
-        </div>
-
-        <div class="previewBody">
-          <div class="previewMeta">
-            <div>Current: <b id="currentName">Untitled preview</b></div>
-            <div class="pills">
-              <span id="modePill" class="pill blue">Building</span>
-              <span id="proPillInline" class="pill dim">PRO disabled</span>
-            </div>
-          </div>
-
-          <div class="frameWrap">
-            <iframe id="frame" sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"></iframe>
-            <div id="emptyPreview" class="emptyPreview">
-              <div>
-                <h3>No preview yet.</h3>
-                <p>Switch to <b>Building</b> and ask: “build a landing page preview”.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="tip">Library is saved on this device.</div>
-        </div>
-      </section>
-    </div>
-  </div>
-
-  <div class="bottomPill">
-    <span id="proPill" class="pill dim">PRO disabled</span>
-  </div>
-
-  <!-- LIBRARY MODAL -->
-  <div id="modalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Library">
-    <div class="modal">
-      <div class="modalHead">
-        <h3>Library</h3>
-        <button id="closeModalBtn" class="btn small" type="button">Close</button>
+      <div class="plan">
+        <h3>Starter</h3>
+        <div class="price">$9/mo</div>
+        <div class="muted">Basic support<br/>Core features<br/>1 user</div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
-      <div class="modalBody" id="libraryList"></div>
+
+      <div class="plan">
+        <div class="badge">Most Popular</div>
+        <h3>Pro</h3>
+        <div class="price">$19/mo</div>
+        <div class="muted">Priority support<br/>All features<br/>5 users</div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
+      </div>
+
+      <div class="plan">
+        <h3>Enterprise</h3>
+        <div class="price">$99/mo</div>
+        <div class="muted">Dedicated support<br/>Custom integrations<br/>Unlimited users</div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Contact Sales</a></div>
+      </div>
     </div>
+  
   </div>
-
-  <script>
-    // ---------- State ----------
-    const STORAGE_KEY = "simo_state_v1";
-    const LIB_KEY = "simo_library_v1";
-
-    let mode = "building";
-    let pro = false;
-
-    let currentPreview = {
-      name: "Untitled preview",
-      kind: null,
-      html: ""
-    };
-
-    // ---------- Elements ----------
-    const chatBody = document.getElementById("chatBody");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
-    const statusTxt = document.getElementById("statusTxt");
-
-    const modeBtns = Array.from(document.querySelectorAll(".modeBtn"));
-    const modePill = document.getElementById("modePill");
-
-    const proWrap = document.getElementById("proWrap");
-    const proToggle = document.getElementById("proToggle");
-    const proPill = document.getElementById("proPill");
-    const proPillInline = document.getElementById("proPillInline");
-
-    const frame = document.getElementById("frame");
-    const emptyPreview = document.getElementById("emptyPreview");
-    const currentName = document.getElementById("currentName");
-
-    const saveBuildBtn = document.getElementById("saveBuildBtn");
-    const openLibraryBtn = document.getElementById("openLibraryBtn");
-    const copyHtmlBtn = document.getElementById("copyHtmlBtn");
-    const downloadBtn = document.getElementById("downloadBtn");
-    const resetBtn = document.getElementById("resetBtn");
-
-    const modalBack = document.getElementById("modalBack");
-    const closeModalBtn = document.getElementById("closeModalBtn");
-    const libraryList = document.getElementById("libraryList");
-
-    // ---------- Helpers ----------
-    function nowStamp(){
-      const d = new Date();
-      const pad = (n)=>String(n).padStart(2,"0");
-      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-    }
-
-    function persistState(){
-      try{
-        const data = {
-          mode,
-          pro,
-          currentPreview
-        };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-      }catch(e){}
-    }
-
-    function loadState(){
-      try{
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if(!raw) return;
-        const data = JSON.parse(raw);
-        if(data && typeof data === "object"){
-          if(data.mode) mode = data.mode;
-          if(typeof data.pro === "boolean") pro = data.pro;
-          if(data.currentPreview) currentPreview = data.currentPreview;
-        }
-      }catch(e){}
-    }
-
-    function setMode(next){
-      mode = next;
-      modeBtns.forEach(b=>b.classList.toggle("active", b.dataset.mode === mode));
-      modePill.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      persistState();
-    }
-
-    function setPro(next){
-      pro = !!next;
-      proToggle.checked = pro;
-
-      proWrap.classList.toggle("on", pro);
-      proWrap.classList.toggle("off", !pro);
-
-      const txt = pro ? "PRO enabled" : "PRO disabled";
-      proPill.textContent = txt;
-      proPillInline.textContent = txt;
-
-      proPill.classList.toggle("dim", !pro);
-      proPillInline.classList.toggle("dim", !pro);
-
-      persistState();
-    }
-
-    function addMsg(who, text, isYou=false){
-      const div = document.createElement("div");
-      div.className = "msg" + (isYou ? " you" : "");
-      const whoSpan = document.createElement("span");
-      whoSpan.className = "who";
-      whoSpan.textContent = who;
-      div.appendChild(whoSpan);
-      div.appendChild(document.createTextNode(text));
-      chatBody.appendChild(div);
-      chatBody.scrollTop = chatBody.scrollHeight;
-    }
-
-    function setBusy(isBusy){
-      statusTxt.textContent = isBusy ? "Thinking…" : "Ready";
-      sendBtn.disabled = isBusy;
-      input.disabled = isBusy;
-      sendBtn.style.opacity = isBusy ? .7 : 1;
-    }
-
-    function toast(text, kind="good"){
-      addMsg("Simo", text, false);
-    }
-
-    function setPreview(preview){
-      if(!preview || !preview.html){
-        // keep existing preview, don't blank it
-        return;
-      }
-      currentPreview = {
-        name: preview.name || "Untitled preview",
-        kind: preview.kind || "html",
-        html: preview.html
-      };
-      currentName.textContent = currentPreview.name;
-      frame.srcdoc = currentPreview.html;
-      emptyPreview.style.display = "none";
-      persistState();
-    }
-
-    function getLibrary(){
-      try{
-        return JSON.parse(localStorage.getItem(LIB_KEY) || "[]");
-      }catch(e){
-        return [];
-      }
-    }
-    function setLibrary(items){
-      localStorage.setItem(LIB_KEY, JSON.stringify(items));
-    }
-
-    function openModal(){
-      renderLibrary();
-      modalBack.style.display = "flex";
-    }
-    function closeModal(){
-      modalBack.style.display = "none";
-    }
-
-    function renderLibrary(){
-      const items = getLibrary();
-      if(items.length === 0){
-        libraryList.innerHTML = `<div class="msg"><span class="who">Simo</span>No saved builds yet. Use <b>Save Build</b> after you generate a preview.</div>`;
-        return;
-      }
-      libraryList.innerHTML = "";
-      items.slice().reverse().forEach((item, idxFromEnd)=>{
-        const realIdx = items.length - 1 - idxFromEnd;
-        const row = document.createElement("div");
-        row.className = "item";
-
-        const left = document.createElement("div");
-        left.innerHTML = `<div class="name">${escapeHtml(item.name || "Untitled")}</div>
-                          <div class="meta2">${escapeHtml(item.savedAt || "")}</div>`;
-
-        const btns = document.createElement("div");
-        btns.className = "itemBtns";
-
-        const loadBtn = document.createElement("button");
-        loadBtn.className = "btn small primary";
-        loadBtn.textContent = "Load";
-        loadBtn.onclick = ()=>{
-          currentPreview = item.preview;
-          currentName.textContent = currentPreview.name || "Untitled preview";
-          frame.srcdoc = currentPreview.html || "";
-          emptyPreview.style.display = currentPreview.html ? "none" : "flex";
-          persistState();
-          closeModal();
-          addMsg("Simo", `Loaded: ${currentPreview.name || "Untitled preview"}`);
-        };
-
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn small";
-        delBtn.textContent = "Delete";
-        delBtn.onclick = ()=>{
-          const next = getLibrary();
-          next.splice(realIdx, 1);
-          setLibrary(next);
-          renderLibrary();
-        };
-
-        btns.appendChild(loadBtn);
-        btns.appendChild(delBtn);
-
-        row.appendChild(left);
-        row.appendChild(btns);
-        libraryList.appendChild(row);
-      });
-    }
-
-    function escapeHtml(s=""){
-      return String(s)
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    function downloadText(filename, text){
-      const blob = new Blob([text], {type:"text/html;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    async function copyToClipboard(text){
-      try{
-        await navigator.clipboard.writeText(text);
-        addMsg("Simo", "Copied HTML to clipboard.");
-      }catch(e){
-        addMsg("Simo", "Copy failed. Your browser blocked clipboard. Try Ctrl+C from the HTML you downloaded.");
-      }
-    }
-
-    // ---------- API ----------
-    async function callSimo(message){
-      const payload = { message, mode, pro };
-      const res = await fetch("/api/simon", {
-        method:"POST",
-        headers:{ "content-type":"application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json().catch(()=>({ok:false,error:"Bad JSON"}));
-      if(!res.ok || !data.ok){
-        throw new Error(data.error || "Server error");
-      }
-      return data;
-    }
-
-    // ---------- Events ----------
-    modeBtns.forEach(btn=>{
-      btn.addEventListener("click", ()=> setMode(btn.dataset.mode));
-    });
-
-    // click anywhere on pro control toggles it
-    function togglePro(){
-      proToggle.checked = !proToggle.checked;
-      setPro(proToggle.checked);
-      addMsg("Simo", pro ? "Pro enabled." : "Pro disabled.");
-    }
-    proWrap.addEventListener("click", (e)=>{ e.preventDefault(); togglePro(); });
-    proWrap.addEventListener("keydown", (e)=>{
-      if(e.key === "Enter" || e.key === " "){
-        e.preventDefault(); togglePro();
-      }
-    });
-    proToggle.addEventListener("change", ()=> setPro(proToggle.checked));
-
-    // Send: Enter = send, Shift+Enter = newline
-    input.addEventListener("keydown", (e)=>{
-      if(e.key === "Enter" && !e.shiftKey){
-        e.preventDefault();
-        onSend();
-      }
-    });
-    sendBtn.addEventListener("click", onSend);
-
-    async function onSend(){
-      const message = input.value.trim();
-      if(!message) return;
-
-      addMsg("You", message, true);
-      input.value = "";
-      input.style.height = "54px";
-
-      setBusy(true);
-      try{
-        const data = await callSimo(message);
-        addMsg("Simo", data.reply || "Okay.");
-        if(data.preview && data.preview.html){
-          setPreview(data.preview);
-        }
-      }catch(err){
-        addMsg("Simo", `⚠ Server error. (${String(err.message || err)})`);
-      }finally{
-        setBusy(false);
-      }
-    }
-
-    input.addEventListener("input", ()=>{
-      input.style.height = "54px";
-      input.style.height = Math.min(160, input.scrollHeight) + "px";
-    });
-
-    saveBuildBtn.addEventListener("click", ()=>{
-      if(!currentPreview || !currentPreview.html){
-        addMsg("Simo", "No preview to save yet. Generate a preview first.");
-        return;
-      }
-      const items = getLibrary();
-      const name = currentPreview.name || "Untitled preview";
-      items.push({
-        name,
-        savedAt: nowStamp(),
-        preview: currentPreview
-      });
-      setLibrary(items);
-      addMsg("Simo", `Saved build: ${name}`);
-    });
-
-    openLibraryBtn.addEventListener("click", openModal);
-    closeModalBtn.addEventListener("click", closeModal);
-    modalBack.addEventListener("click", (e)=>{
-      if(e.target === modalBack) closeModal();
-    });
-
-    copyHtmlBtn.addEventListener("click", ()=>{
-      if(!currentPreview || !currentPreview.html){
-        addMsg("Simo", "No HTML to copy yet. Generate a preview first.");
-        return;
-      }
-      copyToClipboard(currentPreview.html);
-    });
-
-    downloadBtn.addEventListener("click", ()=>{
-      if(!currentPreview || !currentPreview.html){
-        addMsg("Simo", "No HTML to download yet. Generate a preview first.");
-        return;
-      }
-      const safe = (currentPreview.name || "preview").toLowerCase().replace(/[^a-z0-9_-]+/g,"-");
-      downloadText(`${safe}.html`, currentPreview.html);
-      addMsg("Simo", "Downloaded HTML.");
-    });
-
-    resetBtn.addEventListener("click", ()=>{
-      // soft reset: clears chat + preview only (keeps Library)
-      chatBody.innerHTML = "";
-      addMsg("Simo", "Fresh start. I’m here.");
-      currentPreview = { name:"Untitled preview", kind:null, html:"" };
-      currentName.textContent = currentPreview.name;
-      frame.srcdoc = "";
-      emptyPreview.style.display = "flex";
-      setMode("building");
-      // keep pro state as-is, but refresh UI
-      setPro(pro);
-      persistState();
-    });
-
-    // ---------- Init ----------
-    loadState();
-    setMode(mode);
-    setPro(pro);
-
-    // restore preview if exists
-    if(currentPreview && currentPreview.html){
-      currentName.textContent = currentPreview.name || "Untitled preview";
-      frame.srcdoc = currentPreview.html;
-      emptyPreview.style.display = "none";
-    } else {
-      currentName.textContent = "Untitled preview";
-      emptyPreview.style.display = "flex";
-    }
-  </script>
 </body>
 </html>
