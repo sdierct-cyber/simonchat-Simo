@@ -1,20 +1,24 @@
 // netlify/functions/simon.js
-// POST { message, mode, pro } -> { ok, reply, preview?: { name, html, kind } }
+// Netlify Functions expects CommonJS: exports.handler
 
-import OpenAI from "openai";
+const OpenAI = require("openai");
 
-const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-const json = (statusCode, obj) => ({
-  statusCode,
-  headers: {
-    "content-type": "application/json",
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
-    "access-control-allow-methods": "POST,OPTIONS",
-  },
-  body: JSON.stringify(obj),
+const client = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
 });
+
+function json(statusCode, obj) {
+  return {
+    statusCode,
+    headers: {
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type",
+      "access-control-allow-methods": "POST,OPTIONS",
+    },
+    body: JSON.stringify(obj),
+  };
+}
 
 function escapeHtml(s = "") {
   return String(s)
@@ -25,7 +29,8 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
+function htmlShell({ title = "Preview", body = "" } = {}) {
+  return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
@@ -96,6 +101,7 @@ const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
   </div>
 </body>
 </html>`;
+}
 
 function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
   const body = `
@@ -150,16 +156,12 @@ async function generateReply({ message, mode, pro }) {
   const system = `
 You are Simo: best friend + builder.
 
-Style rules:
-- Keep it natural and helpful, like ChatGPT.
-- If mode=venting: supportive best friend (no therapy clichés).
-- If mode=solving: practical steps.
-- If mode=building: help build. If user asks for preview or edits, confirm what changed.
+Rules:
+- Venting: supportive best-friend (avoid therapy clichés).
+- Solving: practical steps.
+- Building: build + preview.
 
-Behavior:
-- If the user asks to change pricing (ex: "change Pro to $19"), acknowledge and confirm the new value.
-- Don’t say “Okay.” as a full answer unless user is confirming something tiny.
-
+If user asks to change pricing (ex: "change Pro to $19"), confirm the new value and show it in the preview.
 Return plain text only.
 `.trim();
 
@@ -167,47 +169,47 @@ Return plain text only.
     model: "gpt-5-mini",
     input: [
       { role: "system", content: system },
-      { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` }
-    ]
+      { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` },
+    ],
   });
 
-  const text =
-    resp.output_text ||
-    (resp.output?.map(o => o.content?.map(c => c.text).join("")).join("\n")) ||
-    "Okay.";
-
-  return text.trim();
+  return (resp.output_text || "Okay.").trim();
 }
 
-export default async (req) => {
-  if (req.httpMethod === "OPTIONS") return json(200, { ok: true });
+exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
 
   try {
-    const body = JSON.parse(req.body || "{}");
-    const message = (body.message || "").toString();
-    const mode = (body.mode || "building").toString();
+    const body = JSON.parse(event.body || "{}");
+    const message = String(body.message || "");
+    const mode = String(body.mode || "building");
     const pro = !!body.pro;
 
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
+    if (!process.env.OPENAI_API_KEY) return json(500, { ok: false, error: "Missing OPENAI_API_KEY env var" });
 
     const intent = detectIntent(message, mode);
-    let preview = null;
 
+    let preview = null;
     if (mode === "building" && pro) {
       if (intent === "landing_page") {
-        preview = { name: "landing_page", kind: "html", html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }) };
-      }
-
-      if (intent === "pricing_edit") {
-        const match = message.match(/\$?\s*(\d{1,4})\s*(?:\/\s*(mo|month))?/i);
+        preview = {
+          name: "landing_page",
+          kind: "html",
+          html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
+        };
+      } else if (intent === "pricing_edit") {
+        const match = message.match(/\$?\s*(\d{1,4})/);
         const num = match ? match[1] : "19";
-        const proPrice = `$${num}/mo`;
-        preview = { name: "landing_page", kind: "html", html: makeLandingPreview({ brand: "FlowPro", proPrice }) };
+        preview = {
+          name: "landing_page",
+          kind: "html",
+          html: makeLandingPreview({ brand: "FlowPro", proPrice: `$${num}/mo` }),
+        };
       }
     }
 
     const reply = await generateReply({ message, mode, pro });
-
     return json(200, { ok: true, reply, preview });
   } catch (e) {
     return json(500, { ok: false, error: "Server error" });
