@@ -1,11 +1,7 @@
 // netlify/functions/simon.js
-// CommonJS Netlify Function
+// CommonJS export for Netlify Functions
 
 const OpenAI = require("openai");
-
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 function json(statusCode, obj) {
   return {
@@ -14,10 +10,18 @@ function json(statusCode, obj) {
       "content-type": "application/json",
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-methods": "POST,OPTIONS",
     },
     body: JSON.stringify(obj),
   };
+}
+
+function safeParseJSON(s, fallback = {}) {
+  try {
+    return JSON.parse(s || "{}");
+  } catch {
+    return fallback;
+  }
 }
 
 function escapeHtml(s = "") {
@@ -103,15 +107,10 @@ function htmlShell({ title = "Preview", body = "" } = {}) {
 </html>`;
 }
 
-function makeLandingPreview({
-  brand = "FlowPro",
-  starterPrice = "$9/mo",
-  proPrice = "$29/mo",
-  enterprisePrice = "$99/mo",
-} = {}) {
+function makeLandingPreview({ brand = "FlowPro", headline, subhead, proPrice = "$29/mo" } = {}) {
   const body = `
-    <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
-    <p>Save time. Reduce manual work. Scale smarter.</p>
+    <h1>${escapeHtml(headline || `${brand} helps you automate your workflow.`)}</h1>
+    <p>${escapeHtml(subhead || "Save time. Reduce manual work. Scale smarter.")}</p>
     <div class="row">
       <a class="btn primary" href="#">Get Started</a>
       <a class="btn" href="#">See Demo</a>
@@ -126,7 +125,7 @@ function makeLandingPreview({
     <div class="grid">
       <div class="plan">
         <h3>Starter</h3>
-        <div class="price">${escapeHtml(starterPrice)}</div>
+        <div class="price">$9/mo</div>
         <div class="muted">Basic support<br/>Core features<br/>1 user</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
@@ -141,7 +140,7 @@ function makeLandingPreview({
 
       <div class="plan">
         <h3>Enterprise</h3>
-        <div class="price">${escapeHtml(enterprisePrice)}</div>
+        <div class="price">$99/mo</div>
         <div class="muted">Dedicated support<br/>Custom integrations<br/>Unlimited users</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Contact Sales</a></div>
       </div>
@@ -150,109 +149,190 @@ function makeLandingPreview({
   return htmlShell({ title: `${brand} – Landing`, body });
 }
 
-function extractMoneyNumber(message = "") {
-  const m = message.match(/\$?\s*(\d{1,4})\s*(?:\/?\s*mo|month|monthly)?/i);
-  return m ? m[1] : null;
+function pickMode(modeRaw) {
+  const m = String(modeRaw || "").toLowerCase();
+  if (m === "venting" || m === "solving" || m === "building") return m;
+  return "building";
 }
 
 function detectIntent(message = "", mode = "building") {
-  const txt = message.toLowerCase();
+  const raw = String(message || "");
+  const m = raw.toLowerCase();
 
-  // pricing edit intent
-  if (
-    /(change|update|edit).*(pro).*(price|\$)/i.test(message) ||
-    /pro.*(price|\$)/i.test(txt)
-  ) return "pricing_edit";
+  // price edit intent
+  if (/(change|update|edit).*(pro).*(price|\$)/i.test(raw) || /pro.*price/i.test(m)) return "pricing_edit";
+  if (/(change|update|edit).*(starter|enterprise).*(price|\$)/i.test(raw)) return "pricing_edit";
 
-  // landing build intent
-  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
+  // landing build
+  if (/(landing page|build a landing|landing preview|landing page preview)/i.test(raw)) return "landing_page";
 
+  // generic builder
   return mode === "building" ? "builder_general" : "chat_general";
 }
 
-async function generateReply({ message, mode, pro }) {
-  const system = `
-You are Simo — best friend + builder.
+function extractPriceDollars(message = "") {
+  const s = String(message || "");
+  // grab first integer that looks like price
+  const match = s.match(/\$?\s*(\d{1,4})(?:\s*\/\s*mo|\s*per\s*mo|\s*monthly|\s*month)?/i);
+  return match ? match[1] : null;
+}
 
-Style rules:
-- Venting: supportive best-friend tone, no corny therapy clichés unless asked.
-- Solving: practical, clear steps.
-- Building: concise plan + offer preview actions (save/copy/download).
+async function tryOpenAIReply({ message, mode, pro }) {
+  if (!process.env.OPENAI_API_KEY) return null;
+
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini"; // change in Netlify env if you want
+  const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+  const system = `
+You are Simo: best friend + builder.
 
 Behavior:
-- If user asks to change pricing (e.g., "change Pro to $19"), acknowledge the exact new price.
-- Keep it short; don't lecture.
+- Venting: supportive best-friend. No corny therapy clichés. Short, human, specific.
+- Solving: practical steps and options.
+- Building: ask 1 tight clarifying question only if needed, otherwise generate.
 
-Return plain text only.
+Always keep responses concise.
+Never say "Preview is on the right" unless a preview is actually returned.
 `.trim();
 
-  // NOTE: If you want, you can switch models later.
-  const resp = await client.responses.create({
-    model: "gpt-5-mini",
-    input: [
-      { role: "system", content: system },
-      { role: "user", content: `Mode: ${mode}\nPro: ${pro}\nUser: ${message}` },
-    ],
-  });
+  const input = [
+    { role: "system", content: system },
+    { role: "user", content: `Mode: ${mode}\nPro: ${pro}\nUser message: ${message}` },
+  ];
 
-  return (resp.output_text || "Okay.").trim();
+  const resp = await client.responses.create({ model, input });
+  const text = (resp && resp.output_text) ? String(resp.output_text).trim() : "";
+  return text || null;
+}
+
+function fallbackReply({ mode, intent, message, pro }) {
+  const m = String(message || "").trim();
+
+  if (mode === "venting") {
+    return `I got you. Tell me the part that’s bugging you the most — what happened, and what do you want to happen next?`;
+  }
+
+  if (mode === "solving") {
+    return `Alright. Paste the exact goal in one line (what you want), and what’s currently breaking. I’ll give you the shortest fix steps.`;
+  }
+
+  // building
+  if (!pro) {
+    return `You’re in Building mode. Turn **Pro Mode** on to auto-render previews, or say “give me HTML” and I’ll output the code.`;
+  }
+
+  if (intent === "landing_page") {
+    return `Done — rendered a clean landing page preview. Want me to add pricing + testimonials, or keep it minimal?`;
+  }
+
+  if (intent === "pricing_edit") {
+    return `Done — I updated the Pro price in the preview. Want Starter/Enterprise changed too or keep those?`;
+  }
+
+  if (!m) return `Tell me what we’re building in one sentence.`;
+  return `Got it. Want a rendered mockup preview, HTML code, or both?`;
 }
 
 exports.handler = async (event) => {
-  // health / version
-  if (event.httpMethod === "GET") {
-    return json(200, {
-      version: "simo-backend-2026-02-17b",
-      ok: true,
-      note: "POST {message, mode, pro} to generate chat + optional preview.",
-    });
-  }
-
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
 
+  const started = Date.now();
+
   try {
-    const body = JSON.parse(event.body || "{}");
+    const body = safeParseJSON(event.body, {});
     const message = String(body.message || "");
-    const mode = String(body.mode || "building"); // venting | solving | building
+    const mode = pickMode(body.mode);
     const pro = !!body.pro;
 
+    // "state" lets the UI send last preview settings so edits are consistent
+    const state = body.state && typeof body.state === "object" ? body.state : {};
+    const last = state.lastPreview && typeof state.lastPreview === "object" ? state.lastPreview : null;
+
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
-    if (!process.env.OPENAI_API_KEY) return json(500, { ok: false, error: "Missing OPENAI_API_KEY env var" });
 
     const intent = detectIntent(message, mode);
 
-    // default build state (frontend may send it back later if you expand this)
-    let brand = String(body.brand || "FlowPro");
-    let starterPrice = String(body.starterPrice || "$9/mo");
-    let proPrice = String(body.proPrice || "$29/mo");
-    let enterprisePrice = String(body.enterprisePrice || "$99/mo");
-
-    // If user edits Pro price, update proPrice
-    if (intent === "pricing_edit") {
-      const num = extractMoneyNumber(message);
-      if (num) proPrice = `$${num}/mo`;
-    }
-
+    // build preview first (so preview can still work even if OpenAI fails)
     let preview = null;
+    let nextState = { ...state };
+
     if (mode === "building" && pro) {
-      if (intent === "landing_page" || intent === "pricing_edit" || intent === "builder_general") {
+      if (intent === "landing_page") {
+        const params = {
+          brand: state.brand || "FlowPro",
+          headline: state.headline || "FlowPro helps you automate your workflow.",
+          subhead: state.subhead || "Save time. Reduce manual work. Scale smarter.",
+          proPrice: state.proPrice || "$29/mo",
+        };
+
         preview = {
           name: "landing_page",
           kind: "html",
-          html: makeLandingPreview({ brand, starterPrice, proPrice, enterprisePrice }),
-          state: { brand, starterPrice, proPrice, enterprisePrice }, // optional, useful later
+          html: makeLandingPreview(params),
         };
+
+        nextState = { ...nextState, ...params, lastPreview: { name: "landing_page" } };
+      }
+
+      if (intent === "pricing_edit") {
+        const dollars = extractPriceDollars(message) || "19";
+
+        // If last preview was a landing page, keep its brand/headline/subhead
+        const params = {
+          brand: state.brand || (last && last.name === "landing_page" ? "FlowPro" : "FlowPro"),
+          headline: state.headline || "FlowPro helps you automate your workflow.",
+          subhead: state.subhead || "Save time. Reduce manual work. Scale smarter.",
+          proPrice: `$${dollars}/mo`,
+        };
+
+        preview = {
+          name: "landing_page",
+          kind: "html",
+          html: makeLandingPreview(params),
+        };
+
+        nextState = { ...nextState, ...params, lastPreview: { name: "landing_page" } };
       }
     }
 
-    const reply = await generateReply({ message, mode, pro });
-    return json(200, { ok: true, reply, preview });
+    // Try OpenAI (optional). If it fails or is slow, fallback.
+    let reply = null;
+    let usedOpenAI = false;
+
+    try {
+      const ai = await tryOpenAIReply({ message, mode, pro });
+      if (ai) {
+        reply = ai;
+        usedOpenAI = true;
+      }
+    } catch (e) {
+      // swallow OpenAI errors; we still respond successfully
+      usedOpenAI = false;
+    }
+
+    if (!reply) reply = fallbackReply({ mode, intent, message, pro });
+
+    return json(200, {
+      ok: true,
+      reply,
+      preview,
+      state: nextState,
+      debug: {
+        intent,
+        mode,
+        pro,
+        usedOpenAI,
+        ms: Date.now() - started,
+        version: "simo-backend-2026-02-17b",
+      },
+    });
   } catch (e) {
-    // Give you real debugging info instead of silent "Server error"
+    // IMPORTANT: return the actual error to the UI so you can see what happened
     return json(500, {
       ok: false,
       error: "Server error",
-      details: String(e && (e.stack || e.message || e)),
+      details: String(e && e.message ? e.message : e),
+      version: "simo-backend-2026-02-17b",
     });
   }
 };
