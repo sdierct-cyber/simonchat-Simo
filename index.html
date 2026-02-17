@@ -1,401 +1,198 @@
-// netlify/functions/simon.js
-// Simo backend: stable preview contract (reply + optional preview_html).
-// Deterministic edits for common commands to prevent "what platform?" loops.
-
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-
-function json(statusCode, obj) {
-  return {
-    statusCode,
-    headers: {
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "POST,OPTIONS",
-      "access-control-allow-headers": "content-type",
-      "cache-control": "no-store",
-    },
-    body: JSON.stringify(obj),
-  };
-}
-
-function strip(s){ return (s||"").toString().trim(); }
-
-function extractMoney(text){
-  const m = text.match(/\$?\s*(\d{1,4})(?:\.\d{1,2})?/);
-  if(!m) return null;
-  return Number(m[1]);
-}
-
-function safeName(name){
-  const n = strip(name) || "Untitled preview";
-  return n.slice(0, 80);
-}
-
-// ---------- Preview templates ----------
-function landingPageTemplate({ proPrice = 29, starterPrice = 9 } = {}) {
-  // Self-contained HTML for iframe srcdoc (no white background)
-  return `<!doctype html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Landing Page</title>
-<style>
-  :root{
-    --bg:#070b16;
-    --card:#0b132a;
-    --card2:#0a1022;
-    --text:#eaf0ff;
-    --muted:#a9b6d3;
-    --line:rgba(255,255,255,.10);
-    --blue:#2a66ff; --blue2:#1f4dd6;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-    color:var(--text);
-    background:
-      radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.35), transparent 55%),
-      radial-gradient(800px 520px at 85% 10%, rgba(48,255,176,.12), transparent 55%),
-      var(--bg);
-  }
-  .wrap{max-width:980px;margin:0 auto;padding:22px}
-  .hero{
-    border:1px solid var(--line);
-    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    border-radius:22px;
-    padding:22px;
-  }
-  h1{margin:0 0 8px;font-size:44px;letter-spacing:.2px;line-height:1.05}
-  p{margin:0;color:rgba(233,240,255,.75);font-size:16px;line-height:1.45}
-  .cta{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
-  .btn{
-    padding:12px 16px;border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(255,255,255,.05);
-    color:var(--text);font-weight:800;
-  }
-  .btn.primary{
-    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-    border-color:rgba(42,102,255,.55);
-  }
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
-  .chip{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:16px;padding:14px;
-    color:rgba(233,240,255,.85);
-    min-height:64px;
-  }
-  .pricing{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px}
-  .plan{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:20px;
-    padding:18px;
-    text-align:center;
-  }
-  .plan .name{font-weight:900;letter-spacing:.3px;color:rgba(233,240,255,.85)}
-  .plan .price{font-size:54px;font-weight:1000;margin:6px 0 6px}
-  .plan .muted{color:rgba(233,240,255,.65)}
-  .badge{
-    display:inline-block;
-    padding:6px 10px;border-radius:999px;
-    border:1px solid rgba(42,102,255,.35);
-    background:rgba(42,102,255,.12);
-    font-size:12px;font-weight:900;
-    margin-bottom:8px;
-  }
-  .planBtn{
-    margin-top:12px;
-    display:inline-block;
-    padding:10px 16px;border-radius:12px;
-    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-    border:1px solid rgba(42,102,255,.55);
-    color:#fff;font-weight:900;
-  }
-  .section{margin-top:18px}
-  .section h2{margin:0 0 10px;font-size:18px;letter-spacing:.3px}
-  .faq{display:grid;gap:10px}
-  .q{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:16px;padding:14px;
-  }
-  .q b{display:block;margin-bottom:4px}
-  @media (max-width: 860px){
-    .grid{grid-template-columns:1fr}
-    .pricing{grid-template-columns:1fr}
-    h1{font-size:36px}
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.10);
+      --btn:#2a66ff; --btn2:#1f4dd6;
+      --card:rgba(255,255,255,.04);
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .brand{font-weight:900;letter-spacing:.3px}
+    .modes{display:flex;gap:8px;flex-wrap:wrap}
+    .pill{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      padding:8px 10px;border-radius:999px;
+      cursor:pointer;font-weight:800;
+      opacity:.9;
+    }
+    .pill.active{background:linear-gradient(180deg,var(--btn),var(--btn2));border-color:rgba(42,102,255,.45)}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+    .panel{
+      border:1px solid var(--line);
+      background:var(--card);
+      border-radius:16px;
+      padding:12px;
+      min-height:560px;
+    }
+    .chatlog{height:450px;overflow:auto;padding:8px}
+    .msg{margin:8px 0;padding:10px 12px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.14)}
+    .msg.you{background:rgba(42,102,255,.14);border-color:rgba(42,102,255,.25)}
+    .row{display:flex;gap:8px;margin-top:10px}
+    input{
+      flex:1;padding:12px 12px;border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      outline:none;
+    }
+    button{
+      padding:12px 14px;border-radius:12px;border:1px solid rgba(42,102,255,.45);
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      color:var(--text);font-weight:900;cursor:pointer;
+    }
+    .subrow{display:flex;gap:10px;align-items:center;justify-content:space-between;margin-top:8px;color:var(--muted);font-size:13px}
+    iframe{width:100%;height:520px;border:0;border-radius:12px;background:transparent}
+    .hint{color:var(--muted);font-size:13px;margin-top:6px}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} .panel{min-height:520px} iframe{height:480px} }
+  </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="hero">
-      <h1>FlowPro helps you automate your workflow.</h1>
-      <p>Save time. Reduce manual work. Scale smarter.</p>
-      <div class="cta">
-        <button class="btn primary">Get Started</button>
-        <button class="btn">See Demo</button>
+    <div class="top">
+      <div class="brand">Simo</div>
+      <div class="modes">
+        <div class="pill active" data-mode="building">Building</div>
+        <div class="pill" data-mode="solving">Solving</div>
+        <div class="pill" data-mode="venting">Venting</div>
+        <div class="pill" data-pro="toggle">Pro: <span id="proState">OFF</span></div>
       </div>
-      <div class="grid">
-        <div class="chip">Automated task pipelines</div>
-        <div class="chip">Smart scheduling</div>
-        <div class="chip">Real-time analytics dashboard</div>
-      </div>
+    </div>
 
-      <div class="pricing">
-        <div class="plan" data-plan="starter">
-          <div class="name">Starter</div>
-          <div class="price"><span data-price="starter">${starterPrice}</span>/mo</div>
-          <div class="muted">Basic support<br/>Core features<br/>1 user</div>
-          <div class="planBtn">Choose Plan</div>
+    <div class="grid">
+      <div class="panel">
+        <div class="chatlog" id="chatlog"></div>
+        <div class="row">
+          <input id="msg" placeholder='Try: "build landing page" then "change price to 19"' />
+          <button id="send">Send</button>
         </div>
-
-        <div class="plan" data-plan="pro">
-          <div class="badge">Most Popular</div>
-          <div class="name">Pro</div>
-          <div class="price">$<span data-price="pro">${proPrice}</span>/mo</div>
-          <div class="muted">Priority support<br/>All features<br/>5 users</div>
-          <div class="planBtn">Choose Plan</div>
+        <div class="subrow">
+          <div>Mode: <span id="modeLabel">building</span></div>
+          <div class="hint">Preview appears on the right when Pro is ON and Building mode is active.</div>
         </div>
       </div>
 
-      <div class="section" data-section="testimonials">
-        <h2>Testimonials</h2>
-        <div class="faq">
-          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
-        </div>
-      </div>
-
-      <div class="section" data-section="faq">
-        <h2>FAQ</h2>
-        <div class="faq">
-          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-        </div>
+      <div class="panel">
+        <iframe id="preview" title="preview"></iframe>
+        <div class="hint" id="previewHint">No preview yet. Turn Pro ON + Building mode, then ask: “build landing page”.</div>
       </div>
     </div>
   </div>
-</body>
-</html>`;
-}
 
-// ---------- Deterministic edit helpers ----------
-function replaceProPrice(html, newPrice){
-  // Prefer the data-price span so we don't blow up layout
-  if(html.includes('data-price="pro"')){
-    return html.replace(/data-price="pro">(\d{1,4})</, `data-price="pro">${newPrice}<`);
-  }
-  // fallback: try $29/mo style
-  return html.replace(/\$\s*\d{1,4}\s*\/mo/, `$${newPrice}/mo`);
-}
+<script>
+(() => {
+  const chatlog = document.getElementById("chatlog");
+  const msg = document.getElementById("msg");
+  const send = document.getElementById("send");
+  const preview = document.getElementById("preview");
+  const previewHint = document.getElementById("previewHint");
+  const modeLabel = document.getElementById("modeLabel");
+  const proState = document.getElementById("proState");
 
-function ensureSection(html, sectionKey){
-  // If section already exists, do nothing
-  if(html.includes(`data-section="${sectionKey}"`)) return html;
+  let mode = "building";
+  let pro = false;
 
-  // Insert before closing of hero
-  const insertAt = html.lastIndexOf("</div>\n  </div>\n</body>");
-  if(insertAt < 0) return html;
+  // Keep last preview so backend can edit it deterministically
+  let current = {
+    preview_html: "",
+    preview_name: "landing_page"
+  };
 
-  let block = "";
-  if(sectionKey === "faq"){
-    block = `
-      <div class="section" data-section="faq">
-        <h2>FAQ</h2>
-        <div class="faq">
-          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-        </div>
-      </div>`;
-  } else if(sectionKey === "testimonials"){
-    block = `
-      <div class="section" data-section="testimonials">
-        <h2>Testimonials</h2>
-        <div class="faq">
-          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
-        </div>
-      </div>`;
-  } else {
-    return html;
+  function add(role, text) {
+    const div = document.createElement("div");
+    div.className = "msg " + (role === "you" ? "you" : "simo");
+    div.textContent = (role === "you" ? "You: " : "Simo: ") + text;
+    chatlog.appendChild(div);
+    chatlog.scrollTop = chatlog.scrollHeight;
   }
 
-  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
-}
+  function setMode(next) {
+    mode = next;
+    modeLabel.textContent = mode;
+    document.querySelectorAll(".pill[data-mode]").forEach(p => {
+      p.classList.toggle("active", p.dataset.mode === mode);
+    });
+  }
 
-function isBuildRequest(text){
-  const t = text.toLowerCase();
-  return (
-    t.includes("build a landing page") ||
-    t.includes("landing page preview") ||
-    t.includes("build landing page preview")
-  );
-}
+  function setPro(next) {
+    pro = next;
+    proState.textContent = pro ? "ON" : "OFF";
+  }
 
-function isPriceEdit(text){
-  const t = text.toLowerCase();
-  return t.includes("change pro price") || t.includes("set pro price") || t.includes("pro price");
-}
-
-function isAddFaq(text){
-  const t = text.toLowerCase();
-  return t.includes("add faq") || t.includes("include faq");
-}
-
-function isAddTestimonials(text){
-  const t = text.toLowerCase();
-  return t.includes("add testimonials") || t.includes("include testimonials");
-}
-
-// Optional: AI helper for chat-only (not for preview)
-async function callOpenAIChat(prompt){
-  if(!OPENAI_API_KEY) return null;
-
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method:"POST",
-    headers:{
-      "content-type":"application/json",
-      "authorization":`Bearer ${OPENAI_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.6,
-      messages: [
-        { role:"system", content:
-          "You are Simo: a best-friend + builder. Be concise, natural, and helpful. Avoid therapy-speak unless asked."
-        },
-        { role:"user", content: prompt }
-      ]
-    })
+  document.querySelectorAll(".pill[data-mode]").forEach(p => {
+    p.addEventListener("click", () => setMode(p.dataset.mode));
   });
 
-  if(!resp.ok){
-    const txt = await resp.text().catch(()=> "");
-    throw new Error("OpenAI error: " + txt.slice(0, 220));
-  }
+  document.querySelector('.pill[data-pro="toggle"]').addEventListener("click", () => {
+    setPro(!pro);
+  });
 
-  const data = await resp.json();
-  const msg = data?.choices?.[0]?.message?.content;
-  return typeof msg === "string" ? msg.trim() : null;
-}
+  async function sendMsg() {
+    const text = msg.value.trim();
+    if (!text) return;
+    msg.value = "";
+    add("you", text);
 
-exports.handler = async (event) => {
-  if(event.httpMethod === "OPTIONS"){
-    return json(200, { ok:true });
-  }
-  if(event.httpMethod !== "POST"){
-    return json(405, { ok:false, error:"Method not allowed" });
-  }
+    const payload = {
+      message: text,
+      mode,
+      pro,
+      current_preview_html: current.preview_html,
+      current_preview_name: current.preview_name,
+    };
 
-  try{
-    const body = JSON.parse(event.body || "{}");
-
-    const text = strip(body.text);
-    const mode = strip(body.mode) || "building";
-    const pro = !!body.pro;
-
-    const currentHtml = strip(body.current_preview_html);
-    const currentName = safeName(body.current_preview_name);
-
-    if(!text){
-      return json(400, { ok:false, error:"Missing message" });
+    let data;
+    try {
+      const res = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      data = await res.json();
+    } catch (e) {
+      add("simo", "Network error. Check your deploy.");
+      return;
     }
 
-    // -----------------------------
-    // BUILDING MODE: Build/Preview + deterministic edits
-    // -----------------------------
-    if(mode === "building"){
-      // 1) Build request: always return preview_html
-      if(isBuildRequest(text) || !currentHtml){
-        const preview_html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
-        return json(200, {
-          ok:true,
-          reply: pro
-            ? "Preview is loaded. Tell me what to change (price, sections, CTA, colors)."
-            : "Preview is loaded. (Tip: turn on Pro Mode for more previews + exports.)",
-          preview_name: "landing_page",
-          preview_html
-        });
-      }
+    add("simo", data.reply || "Okay.");
 
-      // 2) Deterministic edits (NO platform questions)
-      let updated = currentHtml;
-      let didEdit = false;
+    // Accept BOTH formats (old + new)
+    const html = (data.preview && data.preview.html) || data.preview_html || "";
+    const name = (data.preview && data.preview.name) || data.preview_name || "landing_page";
 
-      if(isPriceEdit(text)){
-        const money = extractMoney(text);
-        if(money){
-          updated = replaceProPrice(updated, money);
-          didEdit = true;
-          return json(200, {
-            ok:true,
-            reply: `Got it. Changed the Pro price to $${money}. What’s next?`,
-            preview_name: currentName || "landing_page",
-            preview_html: updated
-          });
-        }
-      }
+    if (html && mode === "building" && pro) {
+      current.preview_html = html;
+      current.preview_name = name;
 
-      if(isAddFaq(text)){
-        updated = ensureSection(updated, "faq");
-        didEdit = true;
-        return json(200, {
-          ok:true,
-          reply: "Done. FAQ section added.",
-          preview_name: currentName || "landing_page",
-          preview_html: updated
-        });
-      }
-
-      if(isAddTestimonials(text)){
-        updated = ensureSection(updated, "testimonials");
-        didEdit = true;
-        return json(200, {
-          ok:true,
-          reply: "Done. Testimonials added.",
-          preview_name: currentName || "landing_page",
-          preview_html: updated
-        });
-      }
-
-      // 3) If we didn't match a deterministic edit, answer in chat ONLY
-      //    (IMPORTANT: no preview_html returned => preview will not get polluted)
-      const reply = pro
-        ? ("Tell me exactly what to change in the preview (e.g., “add FAQ”, “change Pro price to $19”, “change headline to …”).")
-        : ("Tell me what you want to change, and I’ll guide you. (Enable Pro for preview exports.)");
-
-      return json(200, { ok:true, reply });
+      // IMPORTANT: render HTML in iframe srcdoc
+      preview.srcdoc = html;
+      previewHint.textContent = "Preview loaded.";
     }
-
-    // -----------------------------
-    // VENTING / SOLVING: chat only
-    // -----------------------------
-    if(mode === "venting"){
-      const reply = await callOpenAIChat(
-        `User is venting. Respond like a private best friend. User said: ${text}`
-      ).catch(()=> null);
-
-      return json(200, { ok:true, reply: reply || "I’m here. Talk to me — what’s going on?" });
-    }
-
-    if(mode === "solving"){
-      const reply = await callOpenAIChat(
-        `User wants help solving a problem. Be practical, structured, and concise. User said: ${text}`
-      ).catch(()=> null);
-
-      return json(200, { ok:true, reply: reply || "Alright — what’s the goal and what’s blocking you?" });
-    }
-
-    // fallback
-    return json(200, { ok:true, reply: "I’m here. Pick a mode — or just talk." });
-  }catch(err){
-    return json(500, { ok:false, error:"Server error", details: String(err?.message || err) });
   }
-};
+
+  send.addEventListener("click", sendMsg);
+  msg.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendMsg();
+    }
+  });
+
+  add("simo", "Reset. I’m here.");
+})();
+</script>
+</body>
+</html>
