@@ -1,205 +1,416 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>FlowPro</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo</title>
+  <style>
+    :root{
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.10);
+      --btn:#2a66ff; --btn2:#1f4dd6;
+      --chip:#0f1836;
+      --card:#0f1732;
+      --good:#39d98a; --bad:#ff4d4d;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+      color:var(--text);
+    }
+    .wrap{max-width:1180px;margin:0 auto;padding:18px}
+    .top{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px; border-radius:18px;
+      background:rgba(10,14,28,.55); border:1px solid var(--line);
+      backdrop-filter: blur(10px);
+    }
+    .brand{display:flex; gap:12px; align-items:center}
+    .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#2a66ff,#0ea5e9);opacity:.35}
+    .brand h1{font-size:22px;margin:0}
+    .brand .sub{font-size:12px;color:var(--muted);margin-top:-2px}
+    .actions{display:flex; gap:10px; align-items:center}
+    .pill{
+      display:flex; gap:10px; align-items:center;
+      padding:8px 12px; border-radius:999px; border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+    }
+    .toggle{
+      width:44px;height:24px;border-radius:999px; border:1px solid var(--line);
+      background:#0c1430; position:relative; cursor:pointer;
+    }
+    .toggle i{
+      position:absolute; top:2px; left:2px; width:20px;height:20px;border-radius:999px;
+      background:#1f2f6b; transition:all .18s ease;
+    }
+    .toggle.on{background:#0c2b22;border-color:rgba(57,217,138,.35)}
+    .toggle.on i{left:22px;background:var(--good)}
+    button{
+      border:none; cursor:pointer;
+      padding:10px 14px; border-radius:14px;
+      background:rgba(0,0,0,.18); color:var(--text);
+      border:1px solid var(--line);
+      font-weight:700;
+    }
+    button.primary{background:linear-gradient(135deg,var(--btn),var(--btn2)); border:none}
+    button:active{transform:translateY(1px)}
+    .grid{
+      display:grid; grid-template-columns:1fr 1fr; gap:14px;
+      margin-top:14px;
+    }
+    .panel{
+      border:1px solid var(--line);
+      background:rgba(10,14,28,.55);
+      border-radius:18px;
+      overflow:hidden;
+      min-height:640px;
+    }
+    .panelHead{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 14px; border-bottom:1px solid var(--line);
+    }
+    .panelHead h2{margin:0;font-size:20px;letter-spacing:.4px}
+    .modeChips{display:flex; gap:8px}
+    .chip{
+      padding:8px 12px; border-radius:999px;
+      background:rgba(0,0,0,.18);
+      border:1px solid var(--line);
+      color:var(--muted);
+      font-weight:700;
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip.on{background:rgba(42,102,255,.18); color:var(--text); border-color:rgba(42,102,255,.35)}
+    .chatBody{padding:14px; height:520px; overflow:auto}
+    .msg{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      border-radius:16px;
+      padding:12px 12px;
+      margin-bottom:10px;
+      white-space:pre-wrap;
+      line-height:1.45;
+    }
+    .msg.you{margin-left:auto; max-width:80%; background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.25)}
+    .msg .who{font-size:12px;color:var(--muted); font-weight:800; margin-bottom:6px}
+    .composer{
+      display:flex; gap:10px; padding:12px 14px; border-top:1px solid var(--line);
+      align-items:center;
+    }
+    textarea{
+      flex:1; resize:none; height:46px; border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18); color:var(--text);
+      padding:12px 12px;
+      outline:none;
+    }
+    .hint{padding:0 14px 12px 14px; color:var(--muted); font-size:12px}
+    .status{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px}
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--good)}
+    .previewTools{display:flex; gap:10px}
+    .subline{font-size:13px;color:var(--muted)}
+    .previewBody{padding:14px; height:560px; overflow:auto}
+    .frameWrap{
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      border-radius:16px;
+      overflow:hidden;
+    }
+    iframe{
+      width:100%;
+      height:520px;
+      border:0;
+      background:#0b1020;
+    }
+    .toast{
+      position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
+      background:rgba(0,0,0,.65);
+      border:1px solid var(--line);
+      padding:10px 12px;
+      border-radius:999px;
+      color:var(--text);
+      font-weight:700;
+      display:none;
+      backdrop-filter: blur(10px);
+    }
+    .toast.on{display:block}
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+      .panel{min-height:520px}
+      .chatBody{height:420px}
+      iframe{height:420px}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <h1>Simo</h1>
+          <div class="sub">best friend + builder</div>
+        </div>
+      </div>
+      <div class="actions">
+        <div class="pill">
+          <div style="font-weight:800">Pro Mode</div>
+          <div id="proToggle" class="toggle"><i></i></div>
+        </div>
+        <button id="resetBtn">Reset</button>
+        <button id="libBtn">Library</button>
+      </div>
+    </div>
 
-<style>
-  body{
-    margin:0;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto;
-    background:linear-gradient(135deg,#0b1020,#162a66);
-    color:#eaf0ff;
+    <div class="grid">
+      <!-- CHAT -->
+      <div class="panel">
+        <div class="panelHead">
+          <h2>CHAT</h2>
+          <div class="modeChips">
+            <div class="chip" data-mode="venting">Venting</div>
+            <div class="chip" data-mode="solving">Solving</div>
+            <div class="chip on" data-mode="building">Building</div>
+          </div>
+        </div>
+
+        <div id="chatBody" class="chatBody"></div>
+
+        <div class="composer">
+          <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
+          <button id="sendBtn" class="primary">Send</button>
+        </div>
+        <div class="hint">
+          Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview.
+        </div>
+      </div>
+
+      <!-- PREVIEW -->
+      <div class="panel">
+        <div class="panelHead">
+          <div>
+            <h2>PREVIEW</h2>
+            <div class="subline">Current: <span id="currentName">Untitled preview</span></div>
+          </div>
+          <div class="previewTools">
+            <button id="saveBuildBtn">Save Build</button>
+            <button id="copyHtmlBtn">Copy HTML</button>
+            <button id="downloadBtn">Download</button>
+          </div>
+        </div>
+
+        <div class="previewBody">
+          <div class="frameWrap">
+            <iframe id="previewFrame" sandbox="allow-forms allow-modals allow-popups allow-scripts"></iframe>
+          </div>
+          <div class="status" style="margin-top:10px;">
+            <span class="dot"></span>
+            <span id="statusText">Ready</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Saved</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+
+  const chatBody = $("chatBody");
+  const input = $("input");
+  const sendBtn = $("sendBtn");
+  const proToggle = $("proToggle");
+  const resetBtn = $("resetBtn");
+  const libBtn = $("libBtn");
+  const saveBuildBtn = $("saveBuildBtn");
+  const copyHtmlBtn = $("copyHtmlBtn");
+  const downloadBtn = $("downloadBtn");
+  const previewFrame = $("previewFrame");
+  const currentName = $("currentName");
+  const statusText = $("statusText");
+  const toast = $("toast");
+
+  let mode = "building";
+  let pro = true;
+  let messages = [];
+  let current = { name: "Untitled preview", html: "" };
+
+  function showToast(text){
+    toast.textContent = text;
+    toast.classList.add("on");
+    setTimeout(() => toast.classList.remove("on"), 1400);
   }
 
-  .wrap{
-    max-width:1100px;
-    margin:0 auto;
-    padding:80px 20px;
+  function setStatus(text){
+    statusText.textContent = text;
   }
 
-  .hero{
-    margin-bottom:80px;
+  function renderChat(){
+    chatBody.innerHTML = "";
+    for(const m of messages){
+      const div = document.createElement("div");
+      div.className = "msg " + (m.role === "user" ? "you" : "");
+      div.innerHTML = `<div class="who">${m.role === "user" ? "You" : "Simo"}</div>${escapeHtml(m.text)}`;
+      chatBody.appendChild(div);
+    }
+    chatBody.scrollTop = chatBody.scrollHeight;
   }
 
-  .hero h1{
-    font-size:56px;
-    margin:0 0 20px 0;
+  function escapeHtml(str){
+    return String(str)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;");
   }
 
-  .hero p{
-    font-size:18px;
-    opacity:.85;
-    margin-bottom:30px;
+  function isEditRequest(text){
+    // Very intentional: only treat as edit if user is telling us to change/modify something.
+    return /\b(change|edit|update|replace|modify)\b/i.test(text);
   }
 
-  .btn{
-    padding:14px 26px;
-    border-radius:8px;
-    border:none;
-    cursor:pointer;
-    font-weight:600;
-    margin-right:12px;
-    font-size:15px;
+  function renderPreview(html, name){
+    current.html = html || "";
+    current.name = name || "Untitled preview";
+    currentName.textContent = current.name;
+
+    // iframe srcdoc render (fast + stable)
+    previewFrame.srcdoc = current.html || `
+      <html><body style="font-family:system-ui;background:#0b1020;color:#eaf0ff;padding:24px">
+      <h2>No preview yet.</h2>
+      <p>Switch to Building and ask for something like: “build a landing page”</p>
+      </body></html>`;
   }
 
-  .btn-primary{
-    background:#2a66ff;
-    color:white;
-  }
+  async function send(){
+    const text = input.value.trim();
+    if(!text) return;
 
-  .btn-secondary{
-    background:#2a2a2a;
-    color:#ccc;
-  }
+    messages.push({ role:"user", text });
+    renderChat();
+    input.value = "";
+    input.focus();
 
-  .features{
-    margin-bottom:80px;
-  }
+    setStatus("Thinking…");
 
-  .feature{
-    background:#111a3a;
-    padding:22px;
-    border-radius:12px;
-    margin-bottom:18px;
-    font-size:16px;
-  }
+    const wantsEdit = isEditRequest(text) && current.html && mode === "building";
 
-  .pricing{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-    gap:30px;
-    margin-top:30px;
-  }
+    // Build request payload
+    const payload = {
+      message: text,
+      mode,
+      pro,
+      current_html: wantsEdit ? current.html : "",
+      current_name: current.name || ""
+    };
 
-  .card{
-    background:#111a3a;
-    padding:35px 25px;
-    border-radius:16px;
-    text-align:center;
-    transition:transform .2s ease;
-    position:relative; /* needed for badge */
-  }
+    try{
+      const res = await fetch("/.netlify/functions/simon", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(payload)
+      });
 
-  .card:hover{
-    transform:translateY(-6px);
-  }
+      const data = await res.json().catch(() => ({}));
+      if(!res.ok){
+        throw new Error(data?.error || "Server error");
+      }
 
-  .badge{
-    position:absolute;
-    top:-12px;
-    right:20px;
-    background:linear-gradient(90deg,#3b82f6,#2563eb);
-    padding:6px 12px;
-    border-radius:999px;
-    font-size:12px;
-    font-weight:700;
-    color:#fff;
-    letter-spacing:.2px;
-    box-shadow:0 10px 20px rgba(0,0,0,.25);
-  }
+      // Always append assistant text
+      const reply = data?.text || "Okay.";
+      messages.push({ role:"assistant", text: reply });
+      renderChat();
 
-  .card h3{
-    margin:0;
-    font-size:22px;
-  }
+      // If backend returns UPDATED_HTML, render it (this is the price edit fix)
+      if(data?.updated_html){
+        renderPreview(data.updated_html, data.updated_name || current.name || "Updated preview");
+        showToast(data.toast || "Updated");
+      } else if(data?.preview_html){
+        renderPreview(data.preview_html, data.preview_name || "Preview");
+      }
 
-  .price{
-    font-size:34px;
-    margin:20px 0;
-    font-weight:700;
-  }
-
-  .card ul{
-    list-style:none;
-    padding:0;
-    margin:0 0 25px 0;
-  }
-
-  .card ul li{
-    margin:8px 0;
-    opacity:.85;
-  }
-
-  .card button{
-    border:none;
-    padding:12px 22px;
-    border-radius:8px;
-    color:white;
-    cursor:pointer;
-    font-weight:700;
-    background:#2a66ff;
-  }
-
-  .card button:hover{
-    opacity:.9;
-  }
-
-  @media (max-width:768px){
-    .hero h1{
-      font-size:38px;
+      setStatus("Ready");
+    } catch(err){
+      messages.push({ role:"assistant", text: "⚠️ " + (err?.message || "Something broke.") });
+      renderChat();
+      setStatus("Ready");
     }
   }
-</style>
-</head>
 
-<body>
+  // Mode chips
+  document.querySelectorAll(".chip").forEach(ch => {
+    ch.addEventListener("click", () => {
+      document.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
+      ch.classList.add("on");
+      mode = ch.dataset.mode;
+      showToast("Mode: " + mode);
+    });
+  });
 
-<div class="wrap">
+  // Pro toggle
+  proToggle.addEventListener("click", () => {
+    pro = !pro;
+    proToggle.classList.toggle("on", pro);
+    showToast(pro ? "PRO enabled" : "PRO off");
+  });
+  proToggle.classList.toggle("on", pro);
 
-  <section class="hero">
-    <h1>FlowPro helps you automate your workflow.</h1>
-    <p>Save time. Reduce manual work. Scale smarter.</p>
-    <button class="btn btn-primary">Get Started</button>
-    <button class="btn btn-secondary">See Demo</button>
-  </section>
+  // Buttons
+  resetBtn.addEventListener("click", () => {
+    messages = [];
+    current = { name:"Untitled preview", html:"" };
+    renderChat();
+    renderPreview("", "Untitled preview");
+    messages.push({ role:"assistant", text:"Fresh start. I’m here." });
+    renderChat();
+    showToast("Reset");
+  });
 
-  <section class="features">
-    <div class="feature">Automated task pipelines</div>
-    <div class="feature">Smart scheduling</div>
-    <div class="feature">Real-time analytics dashboard</div>
-  </section>
+  libBtn.addEventListener("click", () => {
+    showToast("Library is local (device)");
+    // Keeping it simple here; we can re-add your full library behaviors after this edit fix is stable.
+  });
 
-  <section class="pricing">
+  saveBuildBtn.addEventListener("click", () => {
+    if(!current.html){ showToast("Nothing to save"); return; }
+    localStorage.setItem("simo_saved_html", current.html);
+    localStorage.setItem("simo_saved_name", current.name);
+    showToast("Saved Build");
+  });
 
-    <div class="card">
-      <h3>Starter</h3>
-      <div class="price">$9/mo</div>
-      <ul>
-        <li>Basic support</li>
-        <li>Core features</li>
-        <li>1 user</li>
-      </ul>
-      <button>Choose Plan</button>
-    </div>
+  copyHtmlBtn.addEventListener("click", async () => {
+    if(!current.html){ showToast("Nothing to copy"); return; }
+    await navigator.clipboard.writeText(current.html);
+    showToast("Copied HTML");
+  });
 
-    <div class="card">
-      <div class="badge">Most Popular</div>
-      <h3>Pro</h3>
-      <div class="price">$19/mo</div>
-      <ul>
-        <li>Priority support</li>
-        <li>All features</li>
-        <li>5 users</li>
-      </ul>
-      <button>Choose Plan</button>
-    </div>
+  downloadBtn.addEventListener("click", () => {
+    if(!current.html){ showToast("Nothing to download"); return; }
+    const blob = new Blob([current.html], {type:"text/html"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = (current.name || "preview").replace(/\s+/g,"_").toLowerCase() + ".html";
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast("Downloaded");
+  });
 
-    <div class="card">
-      <h3>Enterprise</h3>
-      <div class="price">$99/mo</div>
-      <ul>
-        <li>Dedicated support</li>
-        <li>Custom integrations</li>
-        <li>Unlimited users</li>
-      </ul>
-      <button>Contact Sales</button>
-    </div>
+  // Enter to send
+  input.addEventListener("keydown", (e) => {
+    if(e.key === "Enter" && !e.shiftKey){
+      e.preventDefault();
+      send();
+    }
+  });
+  sendBtn.addEventListener("click", send);
 
-  </section>
-
-</div>
-
+  // Boot
+  messages.push({ role:"assistant", text:"I’m here. Pick a mode — or just talk." });
+  renderChat();
+  renderPreview("", "Untitled preview");
+})();
+</script>
 </body>
 </html>
