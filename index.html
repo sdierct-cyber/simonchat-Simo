@@ -6,233 +6,362 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
-      --line:rgba(255,255,255,.10);
-      --panel:rgba(255,255,255,.04);
-      --panel2:rgba(0,0,0,.22);
-      --shadow: 0 18px 60px rgba(0,0,0,.45);
-      --blue:#2a66ff; --blue2:#1f4dd6;
-      --good:#39d98a; --good2:#20c97a;
+      --bg:#0b1020;
+      --bg2:#0f1a3a;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(0,0,0,.18);
+      --text:#eaf0ff;
+      --muted:rgba(234,240,255,.70);
+      --line:rgba(255,255,255,.12);
+
+      --blue1:#2a66ff;
+      --blue2:#1f4dd6;
+
+      --green:#35ff9a;
+      --green2:#18c673;
+
       --bad:#ff4d4d;
-      --radius:22px;
+      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      --r1:22px;
+      --r2:18px;
     }
-    *{box-sizing:border-box}
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
     body{
       margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
+      background:
+        radial-gradient(1200px 700px at 20% 0%, #163075 0%, var(--bg) 55%),
+        radial-gradient(900px 520px at 90% 20%, #0a2a2a 0%, transparent 55%),
+        var(--bg);
     }
-    .wrap{max-width:1320px;margin:0 auto;padding:18px}
+
+    .wrap{
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
     .topbar{
-      display:flex; align-items:center; justify-content:space-between;
-      gap:14px; padding:14px 16px;
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
     }
-    .brand{display:flex;align-items:center;gap:12px}
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      min-width: 260px;
+    }
+
     .logo{
-      width:34px;height:34px;border-radius:12px;
-      background:rgba(42,102,255,.22);
+      width:44px;height:44px;
+      border-radius:14px;
+      background:linear-gradient(180deg, rgba(42,102,255,.35), rgba(42,102,255,.12));
       border:1px solid rgba(42,102,255,.35);
-      box-shadow:0 0 0 1px rgba(255,255,255,.06) inset;
+      box-shadow: 0 10px 28px rgba(42,102,255,.12);
+      position:relative;
+      overflow:hidden;
     }
-    .logo.pro{
-      background:rgba(57,217,138,.16);
-      border:1px solid rgba(57,217,138,.55);
-      box-shadow:0 0 22px rgba(57,217,138,.35);
+
+    /* PRO glow dot in the logo */
+    .logo::after{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:radial-gradient(18px 18px at 30% 30%, rgba(53,255,154,.75), transparent 70%);
+      opacity: var(--proglow, 0);
+      transition: opacity .2s ease;
     }
-    .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
-    .brand small{display:block;color:rgba(234,240,255,.65);margin-top:2px}
-    .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-    .btn{
+
+    .brand h1{
+      margin:0;
+      font-size:26px;
+      letter-spacing:.2px;
+      line-height:1.1;
+    }
+    .brand .sub{
+      margin-top:2px;
+      font-size:12px;
+      color:var(--muted);
+      letter-spacing:.3px;
+    }
+
+    .top-actions{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:10px;
+      padding:10px 14px;
+      border-radius:999px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
+      background:rgba(0,0,0,.20);
+      box-shadow: 0 10px 30px rgba(0,0,0,.18);
+      user-select:none;
+      cursor:pointer;
+    }
+    .pill strong{ font-size:14px; }
+
+    /* Toggle */
+    .toggle{
+      width:52px;
+      height:28px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.28);
+      position:relative;
+      flex:0 0 auto;
+      transition: background .15s ease, border-color .15s ease, box-shadow .15s ease;
+    }
+    .toggle::after{
+      content:"";
+      width:22px;height:22px;
+      border-radius:999px;
+      position:absolute;
+      top:2px; left:3px;
+      background:rgba(255,255,255,.88);
+      box-shadow: 0 8px 20px rgba(0,0,0,.35);
+      transition: transform .15s ease, background .15s ease;
+    }
+
+    .pill.pro-on{
+      border-color: rgba(53,255,154,.45);
+      box-shadow: 0 0 0 2px rgba(53,255,154,.10), 0 14px 40px rgba(0,0,0,.22);
+    }
+    .pill.pro-on .toggle{
+      border-color: rgba(53,255,154,.55);
+      background: rgba(24,198,115,.25);
+      box-shadow: 0 0 0 2px rgba(53,255,154,.12) inset;
+    }
+    .pill.pro-on .toggle::after{
+      transform: translateX(24px);
+      background: rgba(53,255,154,.95);
+    }
+
+    .btn{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
       padding:10px 14px;
       border-radius:14px;
-      font-weight:850;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.20);
+      color:var(--text);
+      font-weight:800;
+      letter-spacing:.2px;
       cursor:pointer;
       user-select:none;
     }
-    .btn:hover{background:rgba(0,0,0,.26)}
+    .btn:hover{ filter:brightness(1.06); }
     .btn.primary{
-      background:linear-gradient(180deg,var(--blue),var(--blue2));
-      border-color:rgba(42,102,255,.55);
+      background:linear-gradient(180deg,var(--blue1),var(--blue2));
+      border-color: rgba(42,102,255,.55);
+      box-shadow: 0 14px 44px rgba(42,102,255,.18);
     }
-    .btn.green{
-      background:linear-gradient(180deg,var(--good),var(--good2));
-      border-color:rgba(57,217,138,.55);
-      color:#081a11;
-      font-weight:900;
-    }
-    .btn:disabled{opacity:.55;cursor:not-allowed}
-    .toggle{
-      display:flex;align-items:center;gap:10px;
-      border:1px solid var(--line);
-      border-radius:999px;
-      padding:8px 10px;
-      background:rgba(0,0,0,.18);
-    }
-    .toggle strong{font-weight:900}
-    .switch{
-      width:44px;height:24px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(255,255,255,.08);
-      position:relative;
-      cursor:pointer;
-      flex:0 0 auto;
-    }
-    .switch::after{
-      content:"";
-      position:absolute; top:3px; left:3px;
-      width:18px;height:18px;border-radius:999px;
-      background:rgba(234,240,255,.88);
-      box-shadow:0 6px 18px rgba(0,0,0,.35);
-      transition:transform .18s ease;
-    }
-    .switch.on{
-      background:rgba(57,217,138,.16);
-      border-color:rgba(57,217,138,.65);
-      box-shadow:0 0 22px rgba(57,217,138,.22);
-    }
-    .switch.on::after{transform:translateX(20px); background:#bff3d7}
 
     .grid{
-      margin-top:14px;
       display:grid;
-      grid-template-columns: 1.05fr .95fr;
+      grid-template-columns: 1.08fr .92fr;
       gap:14px;
+      align-items:stretch;
     }
-    .panel{
+
+    .card{
       border:1px solid var(--line);
-      border-radius:var(--radius);
-      background:linear-gradient(180deg,var(--panel),rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
+      border-radius: var(--r1);
+      background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.03));
+      box-shadow: var(--shadow);
       overflow:hidden;
-      min-height:650px;
     }
-    .panelHeader{
-      padding:14px 16px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      border-bottom:1px solid var(--line);
+
+    .card-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      padding:14px 14px 10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.10);
     }
-    .panelHeader h2{margin:0;font-size:18px;letter-spacing:.3px}
-    .pills{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .pill{
-      padding:8px 12px;border-radius:999px;
+
+    .tabs{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+    }
+    .tab{
+      padding:10px 14px;
+      border-radius:999px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
+      background: rgba(0,0,0,.18);
       font-weight:900;
       cursor:pointer;
       user-select:none;
     }
-    .pill.active{
-      border-color:rgba(42,102,255,.6);
-      box-shadow:0 0 0 2px rgba(42,102,255,.12) inset;
-      background:rgba(42,102,255,.18);
-    }
-    .pill.good{
-      border-color:rgba(57,217,138,.55);
-      background:rgba(57,217,138,.14);
-      color:#c8ffe3;
-      cursor:default;
-    }
-    .pill.bad{
-      border-color:rgba(255,77,77,.6);
-      background:rgba(255,77,77,.12);
-      color:#ffd4d4;
-      cursor:default;
+    .tab.active{
+      background: rgba(42,102,255,.20);
+      border-color: rgba(42,102,255,.55);
+      box-shadow: 0 0 0 2px rgba(42,102,255,.10) inset;
     }
 
-    .chatBody{
-      padding:16px;
-      height:520px;
-      overflow:auto;
-    }
-    .msg{margin-bottom:12px; padding:14px 14px;border-radius:18px; border:1px solid var(--line); background:rgba(0,0,0,.14)}
-    .msg .who{font-weight:950; font-size:13px; color:rgba(234,240,255,.75); margin-bottom:6px}
-    .msg.user{background:rgba(42,102,255,.12); border-color:rgba(42,102,255,.30)}
-    .msg.error{background:rgba(255,77,77,.08); border-color:rgba(255,77,77,.35)}
-    .msg pre{white-space:pre-wrap;margin:0; font-family:inherit; line-height:1.35}
-
-    .chatInput{
-      border-top:1px solid var(--line);
+    .body{
       padding:14px;
-      display:flex; gap:10px; align-items:flex-end;
-      background:linear-gradient(180deg, rgba(0,0,0,.08), rgba(0,0,0,.16));
+    }
+
+    /* Chat */
+    .chatlog{
+      height: 560px;
+      overflow:auto;
+      padding: 10px;
+      border-radius: var(--r2);
+      background: rgba(0,0,0,.14);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    .msg{
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(0,0,0,.18);
+      border-radius: 18px;
+      padding: 12px 12px 12px;
+      margin-bottom: 10px;
+    }
+    .msg .who{
+      font-size:12px;
+      color: rgba(234,240,255,.72);
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .msg.you{
+      border-color: rgba(42,102,255,.40);
+      background: rgba(42,102,255,.10);
+    }
+
+    .composer{
+      margin-top:12px;
+      display:flex;
+      gap:10px;
+      align-items:flex-end;
     }
     textarea{
-      flex:1;
-      resize:none;
-      height:56px;
-      max-height:160px;
-      padding:12px 12px;
+      width:100%;
+      min-height:54px;
+      max-height:140px;
+      resize:vertical;
+      padding:14px;
       border-radius:16px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-      color:var(--text);
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
       outline:none;
-      font-size:16px;
+      font-size:15px;
+      line-height:1.25;
     }
-    .sendBtn{
-      padding:14px 18px;
-      border-radius:16px;
-      border:1px solid rgba(42,102,255,.55);
-      background:linear-gradient(180deg,var(--blue),var(--blue2));
-      color:var(--text);
-      font-weight:950;
-      cursor:pointer;
+    textarea:focus{
+      border-color: rgba(42,102,255,.55);
+      box-shadow: 0 0 0 3px rgba(42,102,255,.12);
     }
-    .sendBtn:disabled{opacity:.55;cursor:not-allowed}
 
-    .previewBody{
-      padding:14px 14px 18px;
+    .statusrow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:10px;
+      color: var(--muted);
+      font-size:12px;
     }
-    .previewTop{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-      margin-bottom:10px;
+
+    .dot{
+      width:8px;height:8px;border-radius:999px;display:inline-block;margin-right:8px;
+      background: rgba(255,255,255,.35);
+      vertical-align:middle;
     }
-    .previewTitle{
-      color:rgba(234,240,255,.72);
+    .dot.ok{ background: rgba(53,255,154,.85); box-shadow:0 0 0 3px rgba(53,255,154,.12); }
+    .dot.bad{ background: rgba(255,77,77,.85); box-shadow:0 0 0 3px rgba(255,77,77,.10); }
+
+    /* Preview */
+    .preview-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding: 0 14px 12px;
+    }
+    .meta{
+      color: var(--muted);
+      font-size:13px;
+      font-weight:800;
+    }
+    .chips{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .chip{
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
       font-weight:900;
+      font-size:12px;
+      letter-spacing:.2px;
+    }
+    .chip.pro{
+      border-color: rgba(53,255,154,.45);
+      background: rgba(24,198,115,.22);
+      color: rgba(229,255,245,.95);
+    }
+
+    /* This is the key part: the preview frame NEVER white */
+    .framewrap{
+      border-radius: var(--r2);
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(0,0,0,.18);
+      overflow:hidden;
+      height: 560px;
+      box-shadow: 0 14px 44px rgba(0,0,0,.24);
     }
     iframe{
       width:100%;
-      height:540px;
-      border-radius:18px;
-      border:1px solid var(--line);
-      background:#fff;
+      height:100%;
+      border:0;
+      display:block;
+      background: #0b1020; /* kill white flash */
     }
 
-    .footerTip{
-      margin-top:10px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      color:rgba(234,240,255,.65);
-      font-weight:700;
-      font-size:13px;
+    /* Bottom PRO pill */
+    .bottom-pill{
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      padding: 12px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(53,255,154,.45);
+      background: rgba(24,198,115,.22);
+      font-weight: 1000;
+      letter-spacing:.3px;
+      box-shadow: 0 14px 44px rgba(0,0,0,.30), 0 0 0 2px rgba(53,255,154,.10) inset;
+      color: rgba(229,255,245,.96);
+      user-select:none;
     }
-    .dot{width:9px;height:9px;border-radius:99px;background:rgba(57,217,138,.9);box-shadow:0 0 16px rgba(57,217,138,.35)}
-    .statusPill{
-      position:fixed;
-      right:18px;
-      bottom:18px;
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid rgba(57,217,138,.65);
-      background:rgba(57,217,138,.16);
-      box-shadow:0 10px 30px rgba(0,0,0,.35), 0 0 22px rgba(57,217,138,.25);
-      font-weight:950;
-      color:#c8ffe3;
+    .bottom-pill.off{
+      display:none;
     }
 
-    @media (max-width:1050px){
-      .grid{grid-template-columns:1fr}
-      .panel{min-height:auto}
-      .chatBody{height:420px}
-      iframe{height:460px}
+    @media (max-width: 1020px){
+      .grid{ grid-template-columns: 1fr; }
+      .chatlog, .framewrap{ height: 460px; }
     }
   </style>
 </head>
@@ -240,224 +369,83 @@
   <div class="wrap">
     <div class="topbar">
       <div class="brand">
-        <div id="logo" class="logo"></div>
+        <div id="logo" class="logo" aria-hidden="true"></div>
         <div>
           <h1>Simo</h1>
-          <small>best friend + builder</small>
+          <div class="sub">best friend + builder</div>
         </div>
       </div>
 
-      <div class="actions">
-        <div class="toggle">
+      <div class="top-actions">
+        <div id="proPill" class="pill" title="Toggle Pro Mode">
           <strong>Pro Mode</strong>
-          <div id="proSwitch" class="switch" role="switch" aria-checked="false" tabindex="0"></div>
+          <div class="toggle" aria-hidden="true"></div>
         </div>
         <button id="resetBtn" class="btn">Reset</button>
-        <button id="openLibraryBtn" class="btn">Library</button>
+        <button id="libraryBtn" class="btn">Library</button>
       </div>
     </div>
 
     <div class="grid">
       <!-- CHAT -->
-      <div class="panel">
-        <div class="panelHeader">
-          <h2>CHAT</h2>
-          <div class="pills">
-            <div class="pill" data-mode="venting">Venting</div>
-            <div class="pill" data-mode="solving">Solving</div>
-            <div class="pill active" data-mode="building">Building</div>
+      <div class="card">
+        <div class="card-head">
+          <div class="tabs" aria-label="Modes">
+            <div class="tab" data-mode="venting">Venting</div>
+            <div class="tab" data-mode="solving">Solving</div>
+            <div class="tab active" data-mode="building">Building</div>
           </div>
         </div>
+        <div class="body">
+          <div id="chatlog" class="chatlog" aria-live="polite"></div>
 
-        <div id="chatBody" class="chatBody"></div>
-
-        <div class="chatInput">
-          <textarea id="input" placeholder="Type here... (Enter to send, Shift+Enter for new line)"></textarea>
-          <button id="sendBtn" class="sendBtn">Send</button>
-        </div>
-
-        <div class="footerTip" style="padding:0 14px 14px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span class="dot"></span>
-            <span id="statusText">Ready</span>
+          <div class="composer">
+            <textarea id="input" placeholder="Type here... (Enter to send, Shift+Enter for new line)"></textarea>
+            <button id="sendBtn" class="btn primary" style="min-width:110px">Send</button>
           </div>
-          <span id="tipText">Tip: In Building mode, ask for a layout/app/site and I’ll render a preview (Pro).</span>
+
+          <div class="statusrow">
+            <div><span id="statusDot" class="dot ok"></span><span id="statusText">Ready</span></div>
+            <div class="muted">Tip: In <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).</div>
+          </div>
         </div>
       </div>
 
       <!-- PREVIEW -->
-      <div class="panel">
-        <div class="panelHeader">
-          <h2>PREVIEW</h2>
-          <div class="pills">
-            <button id="saveBtn" class="btn">Save Build</button>
-            <button id="libraryBtn" class="btn">Library</button>
-            <button id="copyBtn" class="btn" disabled>Copy HTML</button>
-            <button id="downloadBtn" class="btn" disabled>Download</button>
+      <div class="card">
+        <div class="card-head">
+          <div style="font-weight:1000;letter-spacing:.3px">PREVIEW</div>
+          <div class="tabs">
+            <button id="saveBuildBtn" class="btn">Save Build</button>
+            <button id="copyHtmlBtn" class="btn">Copy HTML</button>
+            <button id="downloadBtn" class="btn">Download</button>
           </div>
         </div>
 
-        <div class="previewBody">
-          <div class="previewTop">
-            <div class="previewTitle" id="currentLabel">Current: <span id="currentName" style="color:rgba(234,240,255,.92);font-weight:950;">Untitled preview</span></div>
-            <div class="pills">
-              <div class="pill active" id="modeBadge">Building</div>
-              <div class="pill good" id="proBadge">PRO enabled</div>
-            </div>
+        <div class="preview-head">
+          <div class="meta">Current: <span id="currentName">Untitled preview</span></div>
+          <div class="chips">
+            <div class="chip" id="modeChip">Building</div>
+            <div class="chip pro" id="proChip">PRO enabled</div>
           </div>
+        </div>
 
-          <iframe id="frame" title="preview"></iframe>
+        <div class="body" style="padding-top:0">
+          <div class="framewrap">
+            <iframe id="frame" title="Preview"></iframe>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="floatingPro" class="statusPill" style="display:none;">PRO enabled</div>
+  <div id="bottomPro" class="bottom-pill">PRO enabled</div>
 
   <script>
-    // -------- Storage keys
-    const K = {
-      pro: "simo_pro_enabled",
-      mode: "simo_mode",
-      chat: "simo_chat_history",
-      builds: "simo_build_library",
-      current: "simo_current_preview"
-    };
+    // ---------- helpers ----------
+    const $ = (s) => document.querySelector(s);
 
-    // -------- DOM
-    const logo = document.getElementById("logo");
-    const proSwitch = document.getElementById("proSwitch");
-    const resetBtn = document.getElementById("resetBtn");
-    const openLibraryBtn = document.getElementById("openLibraryBtn");
-
-    const chatBody = document.getElementById("chatBody");
-    const input = document.getElementById("input");
-    const sendBtn = document.getElementById("sendBtn");
-
-    const saveBtn = document.getElementById("saveBtn");
-    const libraryBtn = document.getElementById("libraryBtn");
-    const copyBtn = document.getElementById("copyBtn");
-    const downloadBtn = document.getElementById("downloadBtn");
-
-    const frame = document.getElementById("frame");
-    const currentName = document.getElementById("currentName");
-    const statusText = document.getElementById("statusText");
-    const tipText = document.getElementById("tipText");
-    const modeBadge = document.getElementById("modeBadge");
-    const proBadge = document.getElementById("proBadge");
-    const floatingPro = document.getElementById("floatingPro");
-
-    // -------- State
-    let state = {
-      pro: loadBool(K.pro, true),
-      mode: (localStorage.getItem(K.mode) || "building"),
-      chat: loadJSON(K.chat, []),
-      builds: loadJSON(K.builds, []),
-      current: loadJSON(K.current, { name: "Untitled preview", html: "" }),
-      busy: false
-    };
-
-    // -------- Init
-    applyProUI();
-    setMode(state.mode);
-    renderChat();
-    renderPreview(state.current);
-
-    // If no current HTML, show a safe empty placeholder instead of blank white
-    if (!state.current.html) {
-      frame.srcdoc = placeholderPreview();
-    }
-
-    // -------- Helpers
-    function loadBool(key, fallback){
-      const v = localStorage.getItem(key);
-      if (v === null) return fallback;
-      return v === "true";
-    }
-    function loadJSON(key, fallback){
-      try{
-        const v = localStorage.getItem(key);
-        if (!v) return fallback;
-        return JSON.parse(v);
-      }catch{
-        return fallback;
-      }
-    }
-    function save(){
-      localStorage.setItem(K.pro, String(state.pro));
-      localStorage.setItem(K.mode, state.mode);
-      localStorage.setItem(K.chat, JSON.stringify(state.chat));
-      localStorage.setItem(K.builds, JSON.stringify(state.builds));
-      localStorage.setItem(K.current, JSON.stringify(state.current));
-    }
-
-    function addMsg(who, text, kind){
-      state.chat.push({ who, text, kind: kind || "normal", ts: Date.now() });
-      save();
-      renderChat();
-      chatBody.scrollTop = chatBody.scrollHeight;
-    }
-
-    function renderChat(){
-      chatBody.innerHTML = "";
-      if (state.chat.length === 0) {
-        addMsg("Simo", "Fresh start. I’m here.", "normal");
-        return;
-      }
-      for (const m of state.chat) {
-        const el = document.createElement("div");
-        el.className = "msg" + (m.who === "You" ? " user" : "") + (m.kind === "error" ? " error" : "");
-        el.innerHTML = `<div class="who">${escapeHtml(m.who)}</div><pre>${escapeHtml(m.text)}</pre>`;
-        chatBody.appendChild(el);
-      }
-    }
-
-    function renderPreview(p){
-      currentName.textContent = p?.name || "Untitled preview";
-      if (p?.html) {
-        frame.srcdoc = p.html;
-        copyBtn.disabled = false;
-        downloadBtn.disabled = false;
-      } else {
-        frame.srcdoc = placeholderPreview();
-        copyBtn.disabled = true;
-        downloadBtn.disabled = true;
-      }
-    }
-
-    function setBusy(on, label){
-      state.busy = on;
-      sendBtn.disabled = on;
-      statusText.textContent = on ? (label || "Thinking…") : "Ready";
-    }
-
-    function applyProUI(){
-      proSwitch.classList.toggle("on", state.pro);
-      proSwitch.setAttribute("aria-checked", String(state.pro));
-      logo.classList.toggle("pro", state.pro);
-      proBadge.textContent = state.pro ? "PRO enabled" : "PRO disabled";
-      proBadge.classList.toggle("good", state.pro);
-      proBadge.classList.toggle("bad", !state.pro);
-      floatingPro.style.display = state.pro ? "block" : "none";
-    }
-
-    function setMode(mode){
-      state.mode = mode;
-      save();
-      document.querySelectorAll(".pill[data-mode]").forEach(p => {
-        p.classList.toggle("active", p.dataset.mode === mode);
-      });
-      modeBadge.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      modeBadge.classList.add("active");
-      tipText.textContent =
-        mode === "building"
-          ? "Tip: In Building mode, ask for a layout/app/site and I’ll render a preview (Pro)."
-          : mode === "venting"
-            ? "Tip: Vent it out. I’ll stay with you."
-            : "Tip: Tell me the goal. I’ll give steps + a plan.";
-    }
-
-    function escapeHtml(s){
+    function escapeHtml(s=""){
       return String(s)
         .replaceAll("&","&amp;")
         .replaceAll("<","&lt;")
@@ -466,160 +454,243 @@
         .replaceAll("'","&#039;");
     }
 
-    function placeholderPreview(){
-      return `<!doctype html><html><head><meta charset="utf-8">
-      <meta name="viewport" content="width=device-width,initial-scale=1">
-      <title>No preview yet</title>
-      <style>
-        body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:#fff;color:#0b1020}
-        .wrap{height:100vh;display:flex;align-items:center;justify-content:center;padding:28px}
-        .card{max-width:720px;border:1px solid rgba(0,0,0,.10);border-radius:16px;padding:22px}
-        h1{margin:0 0 10px;font-size:34px}
-        p{margin:0;color:rgba(0,0,0,.65);line-height:1.4}
-      </style></head><body>
-      <div class="wrap"><div class="card">
-        <h1>No preview yet.</h1>
-        <p>Switch to <b>Building</b> and ask: “build a landing page preview”.</p>
-      </div></div></body></html>`;
+    // Dark placeholder HTML (prevents white block)
+    function placeholderHtml(){
+      return `<!doctype html>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  :root{--bg:#0b1020;--text:#eaf0ff;--muted:rgba(234,240,255,.72);--line:rgba(255,255,255,.10);}
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+    color:var(--text);
+    display:flex;align-items:center;justify-content:center;
+    padding:22px;
+  }
+  .card{
+    width:min(820px, 96vw);
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    padding:18px 18px 20px;
+  }
+  h1{margin:0 0 8px;font-size:28px}
+  p{margin:0;color:var(--muted);line-height:1.5}
+  code{background:rgba(0,0,0,.22);padding:2px 6px;border-radius:8px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>No preview yet.</h1>
+    <p>In <b>Building</b> mode, ask: <code>build a landing page preview</code></p>
+    <p style="margin-top:10px">Then try: <code>change Pro price to $19</code></p>
+  </div>
+</body></html>`;
     }
 
-    // -------- Events
-    document.querySelectorAll(".pill[data-mode]").forEach(p => {
-      p.addEventListener("click", () => setMode(p.dataset.mode));
-    });
+    function setStatus(ok, text){
+      const dot = $("#statusDot");
+      dot.classList.remove("ok","bad");
+      dot.classList.add(ok ? "ok" : "bad");
+      $("#statusText").textContent = text;
+    }
 
-    function togglePro(){
+    function addMsg(who, text, isYou=false){
+      const box = document.createElement("div");
+      box.className = "msg" + (isYou ? " you" : "");
+      box.innerHTML = `<div class="who">${escapeHtml(who)}</div><div class="txt">${escapeHtml(text).replaceAll("\n","<br/>")}</div>`;
+      $("#chatlog").appendChild(box);
+      $("#chatlog").scrollTop = $("#chatlog").scrollHeight;
+    }
+
+    function setPreview(name, html){
+      $("#currentName").textContent = name || "Untitled preview";
+      window.__currentPreviewHtml = html || "";
+      $("#frame").srcdoc = html || placeholderHtml();
+    }
+
+    function loadLibrary(){
+      try { return JSON.parse(localStorage.getItem("simo_library") || "[]"); }
+      catch { return []; }
+    }
+    function saveLibrary(items){
+      localStorage.setItem("simo_library", JSON.stringify(items.slice(0, 60)));
+    }
+
+    // ---------- state ----------
+    const state = {
+      mode: localStorage.getItem("simo_mode") || "building",
+      pro: (localStorage.getItem("simo_pro") || "1") === "1",
+    };
+
+    // ---------- UI wiring ----------
+    const proPill = $("#proPill");
+    const bottomPro = $("#bottomPro");
+    const logo = $("#logo");
+
+    function renderPro(){
+      proPill.classList.toggle("pro-on", state.pro);
+      $("#proChip").textContent = state.pro ? "PRO enabled" : "PRO disabled";
+      $("#proChip").style.display = state.pro ? "inline-flex" : "inline-flex";
+      bottomPro.classList.toggle("off", !state.pro);
+
+      // logo glow
+      document.documentElement.style.setProperty("--proglow", state.pro ? "1" : "0");
+    }
+
+    function renderMode(){
+      document.querySelectorAll(".tab").forEach(t=>{
+        t.classList.toggle("active", t.dataset.mode === state.mode);
+      });
+      $("#modeChip").textContent = state.mode.charAt(0).toUpperCase() + state.mode.slice(1);
+      localStorage.setItem("simo_mode", state.mode);
+    }
+
+    proPill.addEventListener("click", ()=>{
       state.pro = !state.pro;
-      save();
-      applyProUI();
-    }
-    proSwitch.addEventListener("click", togglePro);
-    proSwitch.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); togglePro(); }
+      localStorage.setItem("simo_pro", state.pro ? "1" : "0");
+      renderPro();
     });
 
-    resetBtn.addEventListener("click", () => {
-      state.chat = [];
-      state.current = { name: "Untitled preview", html: "" };
-      save();
-      renderChat();
-      renderPreview(state.current);
-      addMsg("Simo", "Fresh start. I’m here.", "normal");
+    document.querySelectorAll(".tab").forEach(t=>{
+      t.addEventListener("click", ()=>{
+        state.mode = t.dataset.mode;
+        renderMode();
+      });
     });
 
-    openLibraryBtn.addEventListener("click", showLibrary);
-    libraryBtn.addEventListener("click", showLibrary);
+    $("#resetBtn").addEventListener("click", ()=>{
+      $("#chatlog").innerHTML = "";
+      addMsg("Simo", "Fresh start. I’m here.");
+      setStatus(true,"Ready");
+      setPreview("Untitled preview", placeholderHtml());
+    });
 
-    function showLibrary(){
-      const builds = state.builds || [];
-      if (builds.length === 0) {
-        addMsg("Simo", "Library is empty. Build a preview, then hit “Save Build”.", "normal");
+    $("#libraryBtn").addEventListener("click", ()=>{
+      const items = loadLibrary();
+      if (!items.length){
+        addMsg("Simo", "Library is empty. Use “Save Build” after you generate a preview.");
         return;
       }
-      // simple inline selector via prompt (keeps it single-file and stable)
-      const list = builds.map((b, i) => `${i+1}) ${b.name}`).join("\n");
-      const pick = prompt(`Library:\n\n${list}\n\nType a number to load:`);
-      const idx = parseInt(pick, 10);
-      if (!idx || idx < 1 || idx > builds.length) return;
-      const chosen = builds[idx - 1];
-      state.current = { name: chosen.name, html: chosen.html };
-      save();
-      renderPreview(state.current);
-      addMsg("Simo", `Loaded “${chosen.name}”.`, "normal");
-    }
-
-    saveBtn.addEventListener("click", () => {
-      if (!state.current?.html) {
-        addMsg("Simo", "Nothing to save yet. Generate a preview first.", "error");
-        return;
-      }
-      const name = prompt("Name this build:", state.current.name || "landing_page");
-      if (!name) return;
-      const item = { name, html: state.current.html, ts: Date.now() };
-      // replace if same name exists
-      state.builds = (state.builds || []).filter(b => b.name !== name);
-      state.builds.unshift(item);
-      // keep library small and fast
-      state.builds = state.builds.slice(0, 25);
-      state.current.name = name;
-      save();
-      renderPreview(state.current);
-      addMsg("Simo", `Saved build “${name}” to Library.`, "normal");
+      // Load last saved item
+      const last = items[0];
+      setPreview(last.name || "Saved preview", last.html || placeholderHtml());
+      addMsg("Simo", `Loaded from Library: ${last.name || "Saved preview"}`);
     });
 
-    copyBtn.addEventListener("click", async () => {
-      if (!state.current?.html) return;
+    $("#saveBuildBtn").addEventListener("click", ()=>{
+      const html = window.__currentPreviewHtml;
+      if (!html){
+        addMsg("Simo", "Nothing to save yet — generate a preview first.");
+        return;
+      }
+      const name = $("#currentName").textContent || "Saved preview";
+      const items = loadLibrary();
+      items.unshift({ name, html, ts: Date.now() });
+      saveLibrary(items);
+      addMsg("Simo", `Saved to Library: ${name}`);
+    });
+
+    $("#copyHtmlBtn").addEventListener("click", async ()=>{
+      const html = window.__currentPreviewHtml;
+      if (!html){
+        addMsg("Simo", "No HTML to copy yet — generate a preview first.");
+        return;
+      }
       try{
-        await navigator.clipboard.writeText(state.current.html);
-        addMsg("Simo", "Copied HTML to clipboard.", "normal");
-      }catch{
-        addMsg("Simo", "Copy failed (browser blocked clipboard). Try the Download button.", "error");
+        await navigator.clipboard.writeText(html);
+        addMsg("Simo", "Copied preview HTML to clipboard.");
+      }catch(e){
+        addMsg("Simo", "Clipboard blocked by browser. Try HTTPS or allow clipboard permissions.");
       }
     });
 
-    downloadBtn.addEventListener("click", () => {
-      if (!state.current?.html) return;
-      const blob = new Blob([state.current.html], { type: "text/html;charset=utf-8" });
+    $("#downloadBtn").addEventListener("click", ()=>{
+      const html = window.__currentPreviewHtml;
+      if (!html){
+        addMsg("Simo", "No preview to download yet — generate one first.");
+        return;
+      }
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      const safe = (state.current.name || "preview").replace(/[^\w\-]+/g,"_");
       a.href = url;
-      a.download = `${safe}.html`;
+      const safe = ($("#currentName").textContent || "preview").replaceAll(/[^\w\-]+/g,"_");
+      a.download = safe + ".html";
       document.body.appendChild(a);
       a.click();
       a.remove();
-      URL.revokeObjectURL(url);
-      addMsg("Simo", "Downloaded HTML file.", "normal");
+      setTimeout(()=>URL.revokeObjectURL(url), 500);
+      addMsg("Simo", "Downloaded preview HTML.");
     });
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+    // Enter to send
+    $("#input").addEventListener("keydown", (e)=>{
+      if (e.key === "Enter" && !e.shiftKey){
         e.preventDefault();
         send();
       }
     });
-    sendBtn.addEventListener("click", send);
+    $("#sendBtn").addEventListener("click", send);
 
     async function send(){
-      const text = input.value.trim();
-      if (!text || state.busy) return;
-      input.value = "";
-      addMsg("You", text, "normal");
-      setBusy(true, "Thinking…");
+      const ta = $("#input");
+      const message = ta.value.trim();
+      if (!message) return;
+
+      addMsg("You", message, true);
+      ta.value = "";
+      setStatus(true, "Thinking...");
 
       try{
-        const res = await fetch("/api/simon", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
+        const res = await fetch("/.netlify/functions/simon", {
+          method:"POST",
+          headers:{ "content-type":"application/json" },
           body: JSON.stringify({
-            message: text,
+            message,
             mode: state.mode,
             pro: state.pro
           })
         });
-        const data = await res.json().catch(() => ({}));
 
-        if (!res.ok || !data || data.ok === false) {
-          const detail = data?.details ? ` (${data.details})` : "";
-          addMsg("Simo", "Server error" + detail, "error");
-          setBusy(false);
+        const data = await res.json().catch(()=>({ ok:false, error:"Bad JSON response" }));
+
+        if (!res.ok || !data || data.ok === false){
+          setStatus(false, data && (data.error || data.message) ? (data.error || data.message) : "Server error");
+          addMsg("Simo", "⚠️ Server error");
           return;
         }
 
-        addMsg("Simo", data.reply || "Okay.", "normal");
+        const reply = (data.reply || "Okay.").trim();
+        addMsg("Simo", reply);
 
-        if (data.preview && data.preview.kind === "html" && data.preview.html) {
-          state.current = { name: data.preview.name || "preview", html: data.preview.html };
-          save();
-          renderPreview(state.current);
+        if (data.preview && data.preview.html){
+          const name = data.preview.name || "preview";
+          setPreview(name, data.preview.html);
+        } else {
+          // Keep dark placeholder instead of white flash
+          if (!window.__currentPreviewHtml) setPreview("Untitled preview", placeholderHtml());
         }
 
-        setBusy(false);
-      } catch (e) {
-        addMsg("Simo", "Server error", "error");
-        setBusy(false);
+        setStatus(true, "Ready");
+      }catch(err){
+        setStatus(false, "Network error");
+        addMsg("Simo", "⚠️ Network error");
       }
     }
+
+    // ---------- init ----------
+    function init(){
+      renderMode();
+      renderPro();
+      $("#chatlog").innerHTML = "";
+      addMsg("Simo", "I’m here. Pick a mode — or just talk.");
+      setPreview("Untitled preview", placeholderHtml());
+      setStatus(true, "Ready");
+    }
+    init();
   </script>
 </body>
 </html>
