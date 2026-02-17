@@ -1,5 +1,5 @@
 // netlify/functions/simon.js
-// Netlify Functions expects CommonJS: exports.handler
+// CommonJS Netlify Function
 
 const OpenAI = require("openai");
 
@@ -14,7 +14,7 @@ function json(statusCode, obj) {
       "content-type": "application/json",
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
-      "access-control-allow-methods": "POST,OPTIONS",
+      "access-control-allow-methods": "GET,POST,OPTIONS",
     },
     body: JSON.stringify(obj),
   };
@@ -103,7 +103,12 @@ function htmlShell({ title = "Preview", body = "" } = {}) {
 </html>`;
 }
 
-function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
+function makeLandingPreview({
+  brand = "FlowPro",
+  starterPrice = "$9/mo",
+  proPrice = "$29/mo",
+  enterprisePrice = "$99/mo",
+} = {}) {
   const body = `
     <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
     <p>Save time. Reduce manual work. Scale smarter.</p>
@@ -121,7 +126,7 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
     <div class="grid">
       <div class="plan">
         <h3>Starter</h3>
-        <div class="price">$9/mo</div>
+        <div class="price">${escapeHtml(starterPrice)}</div>
         <div class="muted">Basic support<br/>Core features<br/>1 user</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
@@ -136,7 +141,7 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
 
       <div class="plan">
         <h3>Enterprise</h3>
-        <div class="price">$99/mo</div>
+        <div class="price">${escapeHtml(enterprisePrice)}</div>
         <div class="muted">Dedicated support<br/>Custom integrations<br/>Unlimited users</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Contact Sales</a></div>
       </div>
@@ -145,42 +150,48 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
   return htmlShell({ title: `${brand} – Landing`, body });
 }
 
+function extractMoneyNumber(message = "") {
+  const m = message.match(/\$?\s*(\d{1,4})\s*(?:\/?\s*mo|month|monthly)?/i);
+  return m ? m[1] : null;
+}
+
 function detectIntent(message = "", mode = "building") {
-  const m = message.toLowerCase();
-  if (/(change|update|edit).*(pro).*\$?\s*\d+/i.test(message) || /pro.*price/i.test(m)) return "pricing_edit";
+  const txt = message.toLowerCase();
+
+  // pricing edit intent
+  if (
+    /(change|update|edit).*(pro).*(price|\$)/i.test(message) ||
+    /pro.*(price|\$)/i.test(txt)
+  ) return "pricing_edit";
+
+  // landing build intent
   if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
+
   return mode === "building" ? "builder_general" : "chat_general";
 }
 
-function extractPriceNumber(message = "") {
-  // grab the last number in the message (handles: "change pro to 19", "pro $19", etc.)
-  const matches = message.match(/(\d{1,4})/g);
-  return matches && matches.length ? matches[matches.length - 1] : null;
-}
-
-async function generateReply({ message, mode, pro, intent }) {
+async function generateReply({ message, mode, pro }) {
   const system = `
-You are Simo: best friend + builder.
+You are Simo — best friend + builder.
 
 Style rules:
-- Venting: supportive best-friend, no therapy clichés unless asked.
-- Solving: practical, step-by-step.
-- Building: build and explain what you rendered.
+- Venting: supportive best-friend tone, no corny therapy clichés unless asked.
+- Solving: practical, clear steps.
+- Building: concise plan + offer preview actions (save/copy/download).
 
-Behavior rules:
-- If user requests an edit (e.g., "change Pro to $19"), acknowledge the edit and reflect the new value.
-- Keep responses concise and confident.
+Behavior:
+- If user asks to change pricing (e.g., "change Pro to $19"), acknowledge the exact new price.
+- Keep it short; don't lecture.
+
 Return plain text only.
-  `.trim();
+`.trim();
 
-  const userText = `Mode: ${mode}\nPro: ${pro}\nIntent: ${intent}\n\nUser: ${message}`;
-
-  // Use a commonly-available model (this is the big fix vs "gpt-5-mini")
+  // NOTE: If you want, you can switch models later.
   const resp = await client.responses.create({
-    model: "gpt-4.1-mini",
+    model: "gpt-5-mini",
     input: [
       { role: "system", content: system },
-      { role: "user", content: userText },
+      { role: "user", content: `Mode: ${mode}\nPro: ${pro}\nUser: ${message}` },
     ],
   });
 
@@ -188,12 +199,21 @@ Return plain text only.
 }
 
 exports.handler = async (event) => {
+  // health / version
+  if (event.httpMethod === "GET") {
+    return json(200, {
+      version: "simo-backend-2026-02-17b",
+      ok: true,
+      note: "POST {message, mode, pro} to generate chat + optional preview.",
+    });
+  }
+
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
 
   try {
     const body = JSON.parse(event.body || "{}");
     const message = String(body.message || "");
-    const mode = String(body.mode || "building");
+    const mode = String(body.mode || "building"); // venting | solving | building
     const pro = !!body.pro;
 
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
@@ -201,37 +221,38 @@ exports.handler = async (event) => {
 
     const intent = detectIntent(message, mode);
 
-    let preview = null;
+    // default build state (frontend may send it back later if you expand this)
+    let brand = String(body.brand || "FlowPro");
+    let starterPrice = String(body.starterPrice || "$9/mo");
+    let proPrice = String(body.proPrice || "$29/mo");
+    let enterprisePrice = String(body.enterprisePrice || "$99/mo");
 
-    // Pro preview generation (this is your right-panel renderer data)
+    // If user edits Pro price, update proPrice
+    if (intent === "pricing_edit") {
+      const num = extractMoneyNumber(message);
+      if (num) proPrice = `$${num}/mo`;
+    }
+
+    let preview = null;
     if (mode === "building" && pro) {
-      if (intent === "landing_page") {
+      if (intent === "landing_page" || intent === "pricing_edit" || intent === "builder_general") {
         preview = {
           name: "landing_page",
           kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
-        };
-      } else if (intent === "pricing_edit") {
-        const num = extractPriceNumber(message) || "19";
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: `$${num}/mo` }),
+          html: makeLandingPreview({ brand, starterPrice, proPrice, enterprisePrice }),
+          state: { brand, starterPrice, proPrice, enterprisePrice }, // optional, useful later
         };
       }
     }
 
-    const reply = await generateReply({ message, mode, pro, intent });
+    const reply = await generateReply({ message, mode, pro });
     return json(200, { ok: true, reply, preview });
   } catch (e) {
-    console.error("SIMO ERROR:", e);
-
-    // IMPORTANT: show the real reason (so you’re not stuck guessing)
-    const details =
-      (e && e.response && e.response.data) ? e.response.data :
-      (e && e.message) ? e.message :
-      String(e);
-
-    return json(500, { ok: false, error: "Server error", details });
+    // Give you real debugging info instead of silent "Server error"
+    return json(500, {
+      ok: false,
+      error: "Server error",
+      details: String(e && (e.stack || e.message || e)),
+    });
   }
 };
