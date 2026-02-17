@@ -1,5 +1,5 @@
 // netlify/functions/simon.js
-// CommonJS for Netlify Functions
+// CommonJS Netlify Function
 
 const OpenAI = require("openai");
 
@@ -147,76 +147,40 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
 
 function detectIntent(message = "", mode = "building") {
   const m = message.toLowerCase();
-
-  // pricing edit phrases
-  if (/(change|update|edit).*(pro).*(price|\$)/i.test(message)) return "pricing_edit";
-  if (/pro\s*price/i.test(m) && /\$?\s*\d{1,4}/.test(message)) return "pricing_edit";
-
-  // landing page build
+  if (/(change|update|edit).*(pro).*\$?\s*\d+/i.test(message) || /pro.*price/i.test(m)) return "pricing_edit";
   if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
-
   return mode === "building" ? "builder_general" : "chat_general";
 }
 
-function extractPrice(message) {
-  const m = message.match(/\$?\s*(\d{1,4})/);
-  if (!m) return 19;
-  const n = parseInt(m[1], 10);
-  if (!Number.isFinite(n) || n <= 0) return 19;
-  return n;
+function getNumberFromText(message) {
+  const m = String(message || "");
+  const match = m.match(/\$?\s*(\d{1,4})/);
+  return match ? match[1] : null;
 }
 
-function quickReply({ mode, intent, pro, newPrice }) {
-  // Keep it short + “best friend” vibe without therapy-speak.
-  if (mode === "venting") {
-    return "I’m here. Tell me what’s going on — I’ll stay with you on it.";
-  }
-  if (mode === "solving") {
-    return "Alright. Give me the goal + what you’ve tried so far, and I’ll map the fastest next steps.";
-  }
-
-  // building
-  if (!pro) {
-    return "I can outline it here, but Pro is what turns on the rendered preview + export. Flip Pro Mode on and ask again.";
-  }
-
-  if (intent === "landing_page") {
-    return "Done — landing page preview is on the right. Want it simpler, or do we add testimonials + FAQ next?";
-  }
-  if (intent === "pricing_edit") {
-    return `Locked. Pro price updated to $${newPrice}/mo on the preview. Want the badge to stay “Most Popular” or move it?`;
-  }
-  return "Got you. Tell me what you want to build in one sentence and I’ll generate the preview.";
-}
-
-async function modelReply({ message, mode, pro, history }) {
+async function generateReply({ message, mode }) {
+  // Keep it lightweight + consistent.
   const system = `
 You are Simo: best friend + builder.
 
-Tone rules:
-- Venting: supportive best-friend. No generic therapy clichés.
-- Solving: practical, direct steps.
-- Building: ask ONE clarifying question max if needed, otherwise produce something concrete.
+Mode rules:
+- Venting: supportive best-friend. No therapy clichés. Short, human.
+- Solving: practical steps, concise.
+- Building: ask 1 clarifying question max; otherwise move forward.
 
-If Pro is off and the user asks for a preview/export, explain Pro enables rendered previews.
-Keep responses tight and useful.
+Never say you are an AI model. Avoid long menus.
+Return plain text only.
 `.trim();
 
-  // If user passes history, include it lightly (last few items) to avoid token blowups.
-  const context = Array.isArray(history) ? history.slice(-8) : [];
-
-  const input = [
-    { role: "system", content: system },
-    ...context.map(x => ({
-      role: x.role === "user" ? "user" : "assistant",
-      content: String(x.content || "").slice(0, 1200),
-    })),
-    { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` },
-  ];
+  const model = process.env.OPENAI_MODEL || "gpt-5-mini";
 
   const resp = await client.responses.create({
-    model: "gpt-4.1-mini",
-    input,
+    model,
+    input: [
+      { role: "system", content: system },
+      { role: "user", content: `Mode: ${mode}\nUser: ${message}` }
+    ],
+    max_output_tokens: 220
   });
 
   return (resp.output_text || "Okay.").trim();
@@ -230,18 +194,13 @@ exports.handler = async (event) => {
     const message = String(body.message || "");
     const mode = String(body.mode || "building");
     const pro = !!body.pro;
-    const history = body.history;
 
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
 
-    // Allow the UI to still work without previews if key missing, but explain it.
-    const hasKey = !!process.env.OPENAI_API_KEY;
-
+    // Preview generation is deterministic (no OpenAI required)
     const intent = detectIntent(message, mode);
 
-    // ===== Preview generation (FAST path, no model call) =====
     let preview = null;
-
     if (mode === "building" && pro) {
       if (intent === "landing_page") {
         preview = {
@@ -249,9 +208,8 @@ exports.handler = async (event) => {
           kind: "html",
           html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
         };
-      }
-      if (intent === "pricing_edit") {
-        const num = extractPrice(message);
+      } else if (intent === "pricing_edit") {
+        const num = getNumberFromText(message) || "19";
         preview = {
           name: "landing_page",
           kind: "html",
@@ -260,25 +218,16 @@ exports.handler = async (event) => {
       }
     }
 
-    // ===== Reply strategy =====
-    // If it's a known builder action (landing/pricing), answer instantly.
-    if (mode === "building" && pro && (intent === "landing_page" || intent === "pricing_edit")) {
-      const newPrice = intent === "pricing_edit" ? extractPrice(message) : undefined;
-      const reply = quickReply({ mode, intent, pro, newPrice });
-      return json(200, { ok: true, reply, preview });
-    }
-
-    // Otherwise use model when possible; if no key or model fails, fallback.
+    // Reply: try OpenAI, but NEVER break the UI if it errors
     let reply = "";
-    if (!hasKey) {
-      reply = "Your OPENAI_API_KEY isn’t set on Netlify yet, so I can’t do full ChatGPT-style replies. Previews can still work in limited mode, but chat needs the key.";
-      return json(200, { ok: true, reply, preview });
-    }
-
-    try {
-      reply = await modelReply({ message, mode, pro, history });
-    } catch (e) {
-      reply = quickReply({ mode, intent, pro, newPrice: extractPrice(message) });
+    if (!process.env.OPENAI_API_KEY) {
+      reply = "Heads up: OPENAI_API_KEY isn’t set on Netlify, so chat replies are in fallback mode. Previews can still render in Pro.";
+    } else {
+      try {
+        reply = await generateReply({ message, mode });
+      } catch (err) {
+        reply = "I hit a backend hiccup talking to OpenAI — but your preview tools still work. Try again in a moment.";
+      }
     }
 
     return json(200, { ok: true, reply, preview });
