@@ -8,158 +8,317 @@
     :root{
       --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.04);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --chip:#0f1836;
-      --card:#0f1732;
       --good:#39d98a; --bad:#ff4d4d;
+      --shadow: 0 18px 60px rgba(0,0,0,.35);
+      --radius: 18px;
     }
     *{box-sizing:border-box}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    .wrap{max-width:1180px;margin:0 auto;padding:18px}
-    .top{
+    .wrap{max-width:1240px;margin:0 auto;padding:18px}
+    .topbar{
       display:flex; align-items:center; justify-content:space-between;
-      padding:10px 14px; border-radius:18px;
-      background:rgba(10,14,28,.55); border:1px solid var(--line);
-      backdrop-filter: blur(10px);
-    }
-    .brand{display:flex; gap:12px; align-items:center}
-    .logo{width:34px;height:34px;border-radius:10px;background:linear-gradient(135deg,#2a66ff,#0ea5e9);opacity:.35}
-    .brand h1{font-size:22px;margin:0}
-    .brand .sub{font-size:12px;color:var(--muted);margin-top:-2px}
-    .actions{display:flex; gap:10px; align-items:center}
-    .pill{
-      display:flex; gap:10px; align-items:center;
-      padding:8px 12px; border-radius:999px; border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-    }
-    .toggle{
-      width:44px;height:24px;border-radius:999px; border:1px solid var(--line);
-      background:#0c1430; position:relative; cursor:pointer;
-    }
-    .toggle i{
-      position:absolute; top:2px; left:2px; width:20px;height:20px;border-radius:999px;
-      background:#1f2f6b; transition:all .18s ease;
-    }
-    .toggle.on{background:#0c2b22;border-color:rgba(57,217,138,.35)}
-    .toggle.on i{left:22px;background:var(--good)}
-    button{
-      border:none; cursor:pointer;
-      padding:10px 14px; border-radius:14px;
-      background:rgba(0,0,0,.18); color:var(--text);
+      gap:14px; padding:12px 14px;
       border:1px solid var(--line);
-      font-weight:700;
+      border-radius:22px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow:var(--shadow);
     }
-    button.primary{background:linear-gradient(135deg,var(--btn),var(--btn2)); border:none}
-    button:active{transform:translateY(1px)}
+    .brand{display:flex; align-items:center; gap:12px}
+    .logo{
+      width:44px; height:44px; border-radius:14px;
+      background:linear-gradient(180deg, rgba(255,255,255,.14), rgba(255,255,255,.05));
+      border:1px solid var(--line);
+    }
+    .brand h1{font-size:26px; margin:0; line-height:1}
+    .brand .tag{font-size:13px;color:var(--muted); margin-top:2px}
+    .top-actions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .btn{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      color:var(--text);
+      padding:10px 14px;
+      border-radius:14px;
+      cursor:pointer;
+      font-weight:800;
+    }
+    .btn:hover{background:rgba(255,255,255,.10)}
+    .btn.primary{
+      background:var(--btn);
+      border-color:transparent;
+    }
+    .btn.primary:hover{background:var(--btn2)}
+    .toggle{
+      display:flex; align-items:center; gap:10px;
+      padding:10px 12px; border-radius:999px;
+      border:1px solid rgba(57,217,138,.35);
+      background:rgba(57,217,138,.08);
+      box-shadow:0 10px 26px rgba(0,0,0,.2);
+    }
+    .toggle span{font-weight:900}
+    .switch{
+      width:44px; height:24px; border-radius:999px;
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(0,0,0,.25);
+      position:relative;
+      cursor:pointer;
+    }
+    .knob{
+      position:absolute; top:2px; left:2px;
+      width:20px; height:20px; border-radius:999px;
+      background:rgba(255,255,255,.85);
+      transition:all .18s ease;
+    }
+    .switch.on{background:rgba(57,217,138,.25); border-color:rgba(57,217,138,.35)}
+    .switch.on .knob{left:22px; background:rgba(255,255,255,.95)}
+
     .grid{
-      display:grid; grid-template-columns:1fr 1fr; gap:14px;
       margin-top:14px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
     }
     .panel{
       border:1px solid var(--line);
-      background:rgba(10,14,28,.55);
-      border-radius:18px;
+      border-radius:26px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      box-shadow:var(--shadow);
       overflow:hidden;
-      min-height:640px;
+      min-height:680px;
+      display:flex;
+      flex-direction:column;
     }
     .panelHead{
+      padding:14px 16px;
       display:flex; align-items:center; justify-content:space-between;
-      padding:12px 14px; border-bottom:1px solid var(--line);
+      border-bottom:1px solid var(--line);
     }
-    .panelHead h2{margin:0;font-size:20px;letter-spacing:.4px}
-    .modeChips{display:flex; gap:8px}
-    .chip{
-      padding:8px 12px; border-radius:999px;
-      background:rgba(0,0,0,.18);
+    .panelHead h2{margin:0;font-size:26px;letter-spacing:.5px}
+    .modes{display:flex; gap:10px}
+    .modeBtn{
+      padding:10px 16px;
+      border-radius:999px;
       border:1px solid var(--line);
-      color:var(--muted);
-      font-weight:700;
+      background:rgba(0,0,0,.12);
+      color:var(--text);
       cursor:pointer;
-      user-select:none;
+      font-weight:900;
     }
-    .chip.on{background:rgba(42,102,255,.18); color:var(--text); border-color:rgba(42,102,255,.35)}
-    .chatBody{padding:14px; height:520px; overflow:auto}
+    .modeBtn.active{
+      background:rgba(42,102,255,.22);
+      border-color:rgba(42,102,255,.45);
+    }
+
+    .chatBody{
+      padding:16px;
+      flex:1;
+      overflow:auto;
+    }
     .msg{
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      border-radius:16px;
-      padding:12px 12px;
-      margin-bottom:10px;
-      white-space:pre-wrap;
-      line-height:1.45;
+      background:rgba(0,0,0,.10);
+      border-radius:18px;
+      padding:14px 14px;
+      margin-bottom:12px;
+      max-width:92%;
+      box-shadow:0 10px 26px rgba(0,0,0,.18);
     }
-    .msg.you{margin-left:auto; max-width:80%; background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.25)}
-    .msg .who{font-size:12px;color:var(--muted); font-weight:800; margin-bottom:6px}
+    .msg.you{
+      margin-left:auto;
+      background:rgba(42,102,255,.16);
+      border-color:rgba(42,102,255,.35);
+    }
+    .msg .who{font-weight:900; font-size:13px; color:var(--muted); margin-bottom:6px}
+    .msg .txt{white-space:pre-wrap; line-height:1.35}
+    .statusRow{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px; padding:10px 14px;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.10);
+    }
+    .tip{font-size:12px; color:var(--muted)}
+    .ready{
+      display:flex; align-items:center; gap:8px;
+      font-size:12px; color:var(--muted);
+      user-select:none;
+    }
+    .dot{
+      width:9px;height:9px;border-radius:999px;background:var(--good);
+      box-shadow:0 0 0 4px rgba(57,217,138,.12);
+    }
+    .dot.bad{background:var(--bad); box-shadow:0 0 0 4px rgba(255,77,77,.12)}
+    .dot.think{background:#8aa7ff; box-shadow:0 0 0 4px rgba(138,167,255,.14)}
     .composer{
-      display:flex; gap:10px; padding:12px 14px; border-top:1px solid var(--line);
-      align-items:center;
+      padding:12px 14px;
+      display:flex; gap:10px; align-items:flex-end;
+      border-top:1px solid var(--line);
+      background:rgba(0,0,0,.12);
     }
     textarea{
-      flex:1; resize:none; height:46px; border-radius:14px;
+      flex:1;
+      min-height:46px;
+      max-height:140px;
+      resize:none;
+      border-radius:16px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18); color:var(--text);
+      background:rgba(0,0,0,.20);
+      color:var(--text);
       padding:12px 12px;
       outline:none;
+      font-size:14px;
     }
-    .hint{padding:0 14px 12px 14px; color:var(--muted); font-size:12px}
-    .status{display:flex; align-items:center; gap:8px; color:var(--muted); font-size:12px}
-    .dot{width:8px;height:8px;border-radius:999px;background:var(--good)}
-    .previewTools{display:flex; gap:10px}
-    .subline{font-size:13px;color:var(--muted)}
-    .previewBody{padding:14px; height:560px; overflow:auto}
-    .frameWrap{
+    .send{
+      padding:12px 18px;
+      border-radius:14px;
+      border:none;
+      background:var(--btn);
+      color:#fff;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .send:hover{background:var(--btn2)}
+    .send:disabled{opacity:.55; cursor:not-allowed}
+
+    /* Preview panel */
+    .previewTopActions{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .pillSmall{
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(57,217,138,.35);
+      background:rgba(57,217,138,.08);
+      font-weight:900;
+      font-size:12px;
+      color:var(--text);
+    }
+    .previewMeta{
+      padding:12px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      border-bottom:1px solid var(--line);
+      color:var(--muted);
+      font-size:13px;
+    }
+    .previewBody{
+      padding:14px 14px 0;
+      flex:1;
+      overflow:auto;
+    }
+    .previewFrameWrap{
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      border-radius:16px;
+      background:rgba(0,0,0,.10);
+      border-radius:18px;
       overflow:hidden;
+      height:100%;
+      min-height:560px;
+      box-shadow:0 14px 40px rgba(0,0,0,.22);
     }
     iframe{
       width:100%;
-      height:520px;
+      height:100%;
       border:0;
-      background:#0b1020;
+      background:#fff;
     }
-    .toast{
-      position:fixed; left:50%; bottom:18px; transform:translateX(-50%);
-      background:rgba(0,0,0,.65);
+    .emptyPreview{
+      padding:80px 20px;
+      text-align:center;
+      color:rgba(234,240,255,.88);
+    }
+    .emptyPreview h3{margin:0 0 10px; font-size:36px}
+    .emptyPreview .hint{color:var(--muted)}
+    .footNote{
+      padding:10px 16px 14px;
+      color:var(--muted);
+      font-size:12px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+    }
+
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0; background:rgba(0,0,0,.65);
+      display:none; align-items:center; justify-content:center;
+      padding:18px;
+    }
+    .modal{
+      width:min(860px, 98vw);
+      max-height:86vh;
+      overflow:auto;
+      border-radius:22px;
       border:1px solid var(--line);
-      padding:10px 12px;
-      border-radius:999px;
-      color:var(--text);
-      font-weight:700;
-      display:none;
-      backdrop-filter: blur(10px);
+      background:linear-gradient(180deg, rgba(20,28,58,.98), rgba(10,14,30,.98));
+      box-shadow:0 26px 100px rgba(0,0,0,.55);
+      padding:16px;
     }
-    .toast.on{display:block}
+    .modalHead{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px; margin-bottom:10px;
+    }
+    .modalHead h3{margin:0;font-size:22px}
+    .list{
+      display:grid; gap:10px;
+    }
+    .item{
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      border-radius:16px;
+      padding:12px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .item .left{
+      display:flex; flex-direction:column; gap:4px;
+      min-width:0;
+    }
+    .item .name{font-weight:900; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+    .item .date{font-size:12px;color:var(--muted)}
+    .item .actions{display:flex; gap:8px; flex-wrap:wrap}
+    .smallBtn{
+      padding:8px 12px;
+      border-radius:12px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.20);
+      color:var(--text);
+      font-weight:900;
+      cursor:pointer;
+    }
+    .smallBtn:hover{background:rgba(255,255,255,.10)}
+    .smallBtn.danger{border-color:rgba(255,77,77,.40)}
+    .smallBtn.danger:hover{background:rgba(255,77,77,.14)}
+
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
-      .panel{min-height:520px}
-      .chatBody{height:420px}
-      iframe{height:420px}
+      .panel{min-height:620px}
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
+    <div class="topbar">
       <div class="brand">
         <div class="logo"></div>
         <div>
           <h1>Simo</h1>
-          <div class="sub">best friend + builder</div>
+          <div class="tag">best friend + builder</div>
         </div>
       </div>
-      <div class="actions">
-        <div class="pill">
-          <div style="font-weight:800">Pro Mode</div>
-          <div id="proToggle" class="toggle"><i></i></div>
+
+      <div class="top-actions">
+        <div class="toggle" title="When ON, Simo will auto-render previews when provided by the backend.">
+          <span>Pro Mode</span>
+          <div id="proSwitch" class="switch on"><div class="knob"></div></div>
         </div>
-        <button id="resetBtn">Reset</button>
-        <button id="libBtn">Library</button>
+        <button id="resetBtn" class="btn">Reset</button>
+        <button id="openLibraryBtnTop" class="btn">Library</button>
       </div>
     </div>
 
@@ -168,10 +327,10 @@
       <div class="panel">
         <div class="panelHead">
           <h2>CHAT</h2>
-          <div class="modeChips">
-            <div class="chip" data-mode="venting">Venting</div>
-            <div class="chip" data-mode="solving">Solving</div>
-            <div class="chip on" data-mode="building">Building</div>
+          <div class="modes">
+            <button class="modeBtn" data-mode="venting">Venting</button>
+            <button class="modeBtn" data-mode="solving">Solving</button>
+            <button class="modeBtn active" data-mode="building">Building</button>
           </div>
         </div>
 
@@ -179,238 +338,432 @@
 
         <div class="composer">
           <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
-          <button id="sendBtn" class="primary">Send</button>
+          <button id="sendBtn" class="send">Send</button>
         </div>
-        <div class="hint">
-          Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview.
+
+        <div class="statusRow">
+          <div class="tip">Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview.</div>
+          <div class="ready">
+            <div id="statusDot" class="dot"></div>
+            <div id="statusText">Ready</div>
+          </div>
         </div>
       </div>
 
       <!-- PREVIEW -->
       <div class="panel">
         <div class="panelHead">
-          <div>
-            <h2>PREVIEW</h2>
-            <div class="subline">Current: <span id="currentName">Untitled preview</span></div>
-          </div>
-          <div class="previewTools">
-            <button id="saveBuildBtn">Save Build</button>
-            <button id="copyHtmlBtn">Copy HTML</button>
-            <button id="downloadBtn">Download</button>
+          <h2>PREVIEW</h2>
+          <div class="previewTopActions">
+            <button id="saveBuildBtn" class="btn">Save Build</button>
+            <button id="openLibraryBtn" class="btn">Library</button>
+            <button id="copyHtmlBtn" class="btn">Copy HTML</button>
+            <button id="downloadBtn" class="btn">Download</button>
           </div>
         </div>
 
+        <div class="previewMeta">
+          <div>Current: <b id="currentLabel">Untitled preview</b></div>
+          <div class="pillSmall" id="modePill">Building</div>
+        </div>
+
         <div class="previewBody">
-          <div class="frameWrap">
-            <iframe id="previewFrame" sandbox="allow-forms allow-modals allow-popups allow-scripts"></iframe>
+          <div class="previewFrameWrap" id="previewWrap">
+            <div id="emptyPreview" class="emptyPreview">
+              <h3>No preview yet.</h3>
+              <div class="hint">Switch to <b>Building</b> and ask for something like: “build a landing page preview”</div>
+            </div>
+            <iframe id="previewFrame" sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin" style="display:none;"></iframe>
           </div>
-          <div class="status" style="margin-top:10px;">
-            <span class="dot"></span>
-            <span id="statusText">Ready</span>
-          </div>
+        </div>
+
+        <div class="footNote">
+          <div>Library is saved on this device</div>
+          <div class="pillSmall">PRO enabled</div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast">Saved</div>
+  <!-- Library Modal -->
+  <div id="modalBack" class="modalBack">
+    <div class="modal">
+      <div class="modalHead">
+        <h3>Library</h3>
+        <button id="closeModalBtn" class="btn">Close</button>
+      </div>
+      <div id="libraryList" class="list"></div>
+    </div>
+  </div>
 
 <script>
-(() => {
-  const $ = (id) => document.getElementById(id);
-
-  const chatBody = $("chatBody");
-  const input = $("input");
-  const sendBtn = $("sendBtn");
-  const proToggle = $("proToggle");
-  const resetBtn = $("resetBtn");
-  const libBtn = $("libBtn");
-  const saveBuildBtn = $("saveBuildBtn");
-  const copyHtmlBtn = $("copyHtmlBtn");
-  const downloadBtn = $("downloadBtn");
-  const previewFrame = $("previewFrame");
-  const currentName = $("currentName");
-  const statusText = $("statusText");
-  const toast = $("toast");
-
+  // ---------------------------
+  // State
+  // ---------------------------
+  const API_URL = "/.netlify/functions/simon";
   let mode = "building";
-  let pro = true;
-  let messages = [];
-  let current = { name: "Untitled preview", html: "" };
+  let proMode = true;
 
-  function showToast(text){
-    toast.textContent = text;
-    toast.classList.add("on");
-    setTimeout(() => toast.classList.remove("on"), 1400);
+  let currentPreview = {
+    kind: null,
+    title: "Untitled preview",
+    html: null,
+  };
+
+  // chat history for your UI only (backend in this version is stateful by itself)
+  const chat = [];
+
+  // ---------------------------
+  // Elements
+  // ---------------------------
+  const chatBody = document.getElementById("chatBody");
+  const input = document.getElementById("input");
+  const sendBtn = document.getElementById("sendBtn");
+  const resetBtn = document.getElementById("resetBtn");
+
+  const modeButtons = Array.from(document.querySelectorAll(".modeBtn"));
+  const modePill = document.getElementById("modePill");
+
+  const proSwitch = document.getElementById("proSwitch");
+
+  const currentLabel = document.getElementById("currentLabel");
+  const emptyPreview = document.getElementById("emptyPreview");
+  const previewFrame = document.getElementById("previewFrame");
+
+  const saveBuildBtn = document.getElementById("saveBuildBtn");
+  const copyHtmlBtn = document.getElementById("copyHtmlBtn");
+  const downloadBtn = document.getElementById("downloadBtn");
+  const openLibraryBtn = document.getElementById("openLibraryBtn");
+  const openLibraryBtnTop = document.getElementById("openLibraryBtnTop");
+
+  const modalBack = document.getElementById("modalBack");
+  const closeModalBtn = document.getElementById("closeModalBtn");
+  const libraryList = document.getElementById("libraryList");
+
+  const statusDot = document.getElementById("statusDot");
+  const statusText = document.getElementById("statusText");
+
+  // ---------------------------
+  // Helpers
+  // ---------------------------
+  function setStatus(kind, text){
+    statusDot.classList.remove("bad","think");
+    if(kind === "ready"){
+      statusDot.classList.add();
+      statusDot.className = "dot";
+    } else if(kind === "thinking"){
+      statusDot.className = "dot think";
+    } else if(kind === "error"){
+      statusDot.className = "dot bad";
+    }
+    statusText.textContent = text;
   }
 
-  function setStatus(text){
-    statusText.textContent = text;
+  function pushMsg(who, text){
+    chat.push({ who, text });
+    renderChat();
   }
 
   function renderChat(){
     chatBody.innerHTML = "";
-    for(const m of messages){
+    for(const m of chat){
       const div = document.createElement("div");
-      div.className = "msg " + (m.role === "user" ? "you" : "");
-      div.innerHTML = `<div class="who">${m.role === "user" ? "You" : "Simo"}</div>${escapeHtml(m.text)}`;
+      div.className = "msg " + (m.who === "You" ? "you" : "simo");
+
+      const who = document.createElement("div");
+      who.className = "who";
+      who.textContent = m.who;
+
+      const txt = document.createElement("div");
+      txt.className = "txt";
+      txt.textContent = m.text;
+
+      div.appendChild(who);
+      div.appendChild(txt);
       chatBody.appendChild(div);
     }
     chatBody.scrollTop = chatBody.scrollHeight;
   }
 
-  function escapeHtml(str){
-    return String(str)
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;");
-  }
+  function setMode(newMode){
+    mode = newMode;
+    modeButtons.forEach(b => b.classList.toggle("active", b.dataset.mode === newMode));
+    modePill.textContent = newMode.charAt(0).toUpperCase() + newMode.slice(1);
 
-  function isEditRequest(text){
-    // Very intentional: only treat as edit if user is telling us to change/modify something.
-    return /\b(change|edit|update|replace|modify)\b/i.test(text);
-  }
-
-  function renderPreview(html, name){
-    current.html = html || "";
-    current.name = name || "Untitled preview";
-    currentName.textContent = current.name;
-
-    // iframe srcdoc render (fast + stable)
-    previewFrame.srcdoc = current.html || `
-      <html><body style="font-family:system-ui;background:#0b1020;color:#eaf0ff;padding:24px">
-      <h2>No preview yet.</h2>
-      <p>Switch to Building and ask for something like: “build a landing page”</p>
-      </body></html>`;
-  }
-
-  async function send(){
-    const text = input.value.trim();
-    if(!text) return;
-
-    messages.push({ role:"user", text });
-    renderChat();
-    input.value = "";
-    input.focus();
-
-    setStatus("Thinking…");
-
-    const wantsEdit = isEditRequest(text) && current.html && mode === "building";
-
-    // Build request payload
-    const payload = {
-      message: text,
-      mode,
-      pro,
-      current_html: wantsEdit ? current.html : "",
-      current_name: current.name || ""
-    };
-
-    try{
-      const res = await fetch("/.netlify/functions/simon", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if(!res.ok){
-        throw new Error(data?.error || "Server error");
-      }
-
-      // Always append assistant text
-      const reply = data?.text || "Okay.";
-      messages.push({ role:"assistant", text: reply });
-      renderChat();
-
-      // If backend returns UPDATED_HTML, render it (this is the price edit fix)
-      if(data?.updated_html){
-        renderPreview(data.updated_html, data.updated_name || current.name || "Updated preview");
-        showToast(data.toast || "Updated");
-      } else if(data?.preview_html){
-        renderPreview(data.preview_html, data.preview_name || "Preview");
-      }
-
-      setStatus("Ready");
-    } catch(err){
-      messages.push({ role:"assistant", text: "⚠️ " + (err?.message || "Something broke.") });
-      renderChat();
-      setStatus("Ready");
+    // keep the vibe consistent
+    if(newMode === "venting"){
+      pushMsg("Simo", "I’m here. Talk to me.");
+    } else if(newMode === "solving"){
+      pushMsg("Simo", "Alright. What are we trying to fix or accomplish?");
+    } else {
+      pushMsg("Simo", "I’m here. Pick a mode — or just talk.");
     }
   }
 
-  // Mode chips
-  document.querySelectorAll(".chip").forEach(ch => {
-    ch.addEventListener("click", () => {
-      document.querySelectorAll(".chip").forEach(x => x.classList.remove("on"));
-      ch.classList.add("on");
-      mode = ch.dataset.mode;
-      showToast("Mode: " + mode);
-    });
-  });
+  function setPreview({kind, title, html}){
+    currentPreview.kind = kind || currentPreview.kind;
+    currentPreview.title = title || (kind ? kind : "Untitled preview");
+    currentPreview.html = html || currentPreview.html;
 
-  // Pro toggle
-  proToggle.addEventListener("click", () => {
-    pro = !pro;
-    proToggle.classList.toggle("on", pro);
-    showToast(pro ? "PRO enabled" : "PRO off");
-  });
-  proToggle.classList.toggle("on", pro);
+    currentLabel.textContent = currentPreview.title || "Untitled preview";
 
-  // Buttons
-  resetBtn.addEventListener("click", () => {
-    messages = [];
-    current = { name:"Untitled preview", html:"" };
-    renderChat();
-    renderPreview("", "Untitled preview");
-    messages.push({ role:"assistant", text:"Fresh start. I’m here." });
-    renderChat();
-    showToast("Reset");
-  });
+    if(currentPreview.html){
+      emptyPreview.style.display = "none";
+      previewFrame.style.display = "block";
+      previewFrame.srcdoc = currentPreview.html;
+    } else {
+      emptyPreview.style.display = "block";
+      previewFrame.style.display = "none";
+      previewFrame.srcdoc = "";
+    }
+  }
 
-  libBtn.addEventListener("click", () => {
-    showToast("Library is local (device)");
-    // Keeping it simple here; we can re-add your full library behaviors after this edit fix is stable.
-  });
+  function getLibrary(){
+    try{
+      return JSON.parse(localStorage.getItem("simo_library") || "[]");
+    }catch(e){
+      return [];
+    }
+  }
+  function setLibrary(items){
+    localStorage.setItem("simo_library", JSON.stringify(items));
+  }
 
-  saveBuildBtn.addEventListener("click", () => {
-    if(!current.html){ showToast("Nothing to save"); return; }
-    localStorage.setItem("simo_saved_html", current.html);
-    localStorage.setItem("simo_saved_name", current.name);
-    showToast("Saved Build");
-  });
-
-  copyHtmlBtn.addEventListener("click", async () => {
-    if(!current.html){ showToast("Nothing to copy"); return; }
-    await navigator.clipboard.writeText(current.html);
-    showToast("Copied HTML");
-  });
-
-  downloadBtn.addEventListener("click", () => {
-    if(!current.html){ showToast("Nothing to download"); return; }
-    const blob = new Blob([current.html], {type:"text/html"});
+  function downloadText(filename, text){
+    const blob = new Blob([text], {type:"text/html;charset=utf-8"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (current.name || "preview").replace(/\s+/g,"_").toLowerCase() + ".html";
+    a.download = filename;
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(a.href);
-    showToast("Downloaded");
-  });
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+  }
 
-  // Enter to send
-  input.addEventListener("keydown", (e) => {
+  async function copyToClipboard(text){
+    await navigator.clipboard.writeText(text);
+  }
+
+  // ---------------------------
+  // Core: Send to backend
+  // ---------------------------
+  async function sendMessage(){
+    const msg = input.value.trim();
+    if(!msg) return;
+
+    input.value = "";
+    pushMsg("You", msg);
+
+    setStatus("thinking", "Thinking…");
+    sendBtn.disabled = true;
+
+    try{
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ message: msg, mode })
+      });
+
+      const data = await res.json();
+
+      // assistant text
+      const assistantText =
+        data.assistant || data.reply || data.text || (data.ok ? "Okay." : "Error.");
+
+      pushMsg("Simo", assistantText);
+
+      // --- preview extraction (supports multiple formats; YOUR backend uses data.preview.html) ---
+      const previewHTML =
+        (data && data.preview && data.preview.html) ||
+        (data && typeof data.preview === "string" ? data.preview : null) ||
+        (data && data.preview_html) ||
+        (data && data.updated_html) ||
+        null;
+
+      const previewKind =
+        (data && data.preview && data.preview.kind) ||
+        (data && data.kind) ||
+        null;
+
+      const previewTitle =
+        (data && data.preview && data.preview.title) ||
+        (previewKind ? previewKind : null);
+
+      // Auto-render when Pro mode is ON
+      if(proMode && previewHTML){
+        setPreview({ kind: previewKind, title: previewTitle, html: previewHTML });
+      }
+
+      setStatus("ready", "Ready");
+    }catch(err){
+      pushMsg("Simo", "⚠️ Server error");
+      setStatus("error", "Error");
+    }finally{
+      sendBtn.disabled = false;
+      input.focus();
+    }
+  }
+
+  // ---------------------------
+  // Library UI
+  // ---------------------------
+  function openModal(){
+    modalBack.style.display = "flex";
+    renderLibrary();
+  }
+  function closeModal(){
+    modalBack.style.display = "none";
+  }
+
+  function renderLibrary(){
+    const items = getLibrary();
+    libraryList.innerHTML = "";
+
+    if(items.length === 0){
+      const empty = document.createElement("div");
+      empty.className = "item";
+      empty.innerHTML = `<div class="left"><div class="name">No saved builds yet</div><div class="date">Use “Save Build” after a preview renders.</div></div>`;
+      libraryList.appendChild(empty);
+      return;
+    }
+
+    items
+      .slice()
+      .sort((a,b)=> (b.savedAt||0)-(a.savedAt||0))
+      .forEach((it, idx)=>{
+        const row = document.createElement("div");
+        row.className = "item";
+
+        const left = document.createElement("div");
+        left.className = "left";
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = it.title || it.kind || "Saved build";
+        const date = document.createElement("div");
+        date.className = "date";
+        date.textContent = new Date(it.savedAt || Date.now()).toLocaleString();
+        left.appendChild(name);
+        left.appendChild(date);
+
+        const actions = document.createElement("div");
+        actions.className = "actions";
+
+        const loadBtn = document.createElement("button");
+        loadBtn.className = "smallBtn";
+        loadBtn.textContent = "Load";
+        loadBtn.onclick = ()=>{
+          setPreview({ kind: it.kind, title: it.title, html: it.html });
+          closeModal();
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "smallBtn danger";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = ()=>{
+          const all = getLibrary();
+          const filtered = all.filter(x => x.id !== it.id);
+          setLibrary(filtered);
+          renderLibrary();
+        };
+
+        actions.appendChild(loadBtn);
+        actions.appendChild(delBtn);
+
+        row.appendChild(left);
+        row.appendChild(actions);
+        libraryList.appendChild(row);
+      });
+  }
+
+  // ---------------------------
+  // Wire up events
+  // ---------------------------
+  sendBtn.addEventListener("click", sendMessage);
+
+  input.addEventListener("keydown", (e)=>{
     if(e.key === "Enter" && !e.shiftKey){
       e.preventDefault();
-      send();
+      sendMessage();
     }
   });
-  sendBtn.addEventListener("click", send);
 
+  resetBtn.addEventListener("click", ()=>{
+    chat.length = 0;
+    setPreview({ kind:null, title:"Untitled preview", html:null });
+    setStatus("ready","Ready");
+    // keep welcome consistent with active mode
+    if(mode === "building"){
+      pushMsg("Simo","I’m here. Pick a mode — or just talk.");
+    } else if(mode === "venting"){
+      pushMsg("Simo","I’m here. Talk to me.");
+    } else {
+      pushMsg("Simo","Alright. What are we trying to fix or accomplish?");
+    }
+  });
+
+  modeButtons.forEach(btn=>{
+    btn.addEventListener("click", ()=> setMode(btn.dataset.mode));
+  });
+
+  proSwitch.addEventListener("click", ()=>{
+    proMode = !proMode;
+    proSwitch.classList.toggle("on", proMode);
+  });
+
+  saveBuildBtn.addEventListener("click", ()=>{
+    if(!currentPreview.html){
+      pushMsg("Simo", "No preview to save yet — generate one first.");
+      return;
+    }
+    const items = getLibrary();
+    const id = "b_" + Math.random().toString(16).slice(2) + "_" + Date.now();
+    items.push({
+      id,
+      kind: currentPreview.kind || "preview",
+      title: currentPreview.title || "Saved build",
+      html: currentPreview.html,
+      savedAt: Date.now()
+    });
+    setLibrary(items);
+    pushMsg("Simo", "Saved to Library.");
+  });
+
+  openLibraryBtn.addEventListener("click", openModal);
+  openLibraryBtnTop.addEventListener("click", openModal);
+  closeModalBtn.addEventListener("click", closeModal);
+  modalBack.addEventListener("click", (e)=>{
+    if(e.target === modalBack) closeModal();
+  });
+
+  copyHtmlBtn.addEventListener("click", async ()=>{
+    if(!currentPreview.html){
+      pushMsg("Simo", "No HTML to copy yet — generate a preview first.");
+      return;
+    }
+    try{
+      await copyToClipboard(currentPreview.html);
+      pushMsg("Simo", "Copied HTML to clipboard.");
+    }catch(e){
+      pushMsg("Simo", "Couldn’t copy automatically — your browser blocked it.");
+    }
+  });
+
+  downloadBtn.addEventListener("click", ()=>{
+    if(!currentPreview.html){
+      pushMsg("Simo", "No HTML to download yet — generate a preview first.");
+      return;
+    }
+    const safeName = (currentPreview.title || "preview").toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
+    downloadText((safeName || "preview") + ".html", currentPreview.html);
+    pushMsg("Simo", "Downloaded HTML file.");
+  });
+
+  // ---------------------------
   // Boot
-  messages.push({ role:"assistant", text:"I’m here. Pick a mode — or just talk." });
-  renderChat();
-  renderPreview("", "Untitled preview");
-})();
+  // ---------------------------
+  setStatus("ready","Ready");
+  pushMsg("Simo","I’m here. Pick a mode — or just talk.");
+  input.focus();
 </script>
 </body>
 </html>
