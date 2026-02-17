@@ -8,12 +8,9 @@
     :root{
       --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --card:rgba(255,255,255,.04);
-      --pill:rgba(255,255,255,.06);
-      --pillOn:rgba(42,102,255,.22);
+      --shadow: 0 18px 55px rgba(0,0,0,.45);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39d98a;
-      --shadow: 0 20px 60px rgba(0,0,0,.45);
+      --good:#39d98a; --bad:#ff4d4d;
     }
     *{box-sizing:border-box}
     body{
@@ -24,119 +21,145 @@
     .wrap{max-width:1180px;margin:0 auto;padding:18px}
     .topbar{
       display:flex;align-items:center;justify-content:space-between;
-      padding:14px 16px;border:1px solid var(--line);border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
-      position:sticky;top:12px;z-index:10;
-      backdrop-filter: blur(10px);
+      gap:12px;margin-bottom:14px;
     }
-    .brand{display:flex;gap:12px;align-items:center}
-    .logo{
+    .brand{
+      display:flex;align-items:center;gap:10px;
+    }
+    .avatar{
       width:38px;height:38px;border-radius:12px;
-      background:linear-gradient(135deg, rgba(42,102,255,.9), rgba(0,255,200,.25));
-      border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(255,255,255,.18), rgba(255,255,255,.06));
+      border:1px solid var(--line);
     }
-    .brand h1{font-size:22px;margin:0;line-height:1}
-    .brand small{display:block;color:var(--muted);margin-top:3px}
-
-    .rightControls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
+    .brand .sub{margin:0;color:rgba(234,240,255,.65);font-size:13px}
+    .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+    .pill{
+      display:inline-flex;align-items:center;gap:10px;
+      padding:10px 12px;border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      box-shadow:var(--shadow);
+      user-select:none;
+    }
     .toggle{
-      display:flex;gap:10px;align-items:center;
-      padding:8px 12px;border-radius:999px;border:1px solid var(--line);
-      background:rgba(0,0,0,.15);
+      width:44px;height:24px;border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.10);
+      position:relative;cursor:pointer;
     }
-    .toggle span{color:var(--muted);font-size:13px}
-    .switch{
-      width:44px;height:24px;border-radius:999px;position:relative;cursor:pointer;
-      background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.12);
+    .toggle::after{
+      content:"";position:absolute;top:3px;left:3px;
+      width:18px;height:18px;border-radius:999px;
+      background:rgba(234,240,255,.75);
+      transition:transform .18s ease, background .18s ease;
     }
-    .switch::after{
-      content:"";position:absolute;top:50%;transform:translateY(-50%);
-      left:3px;width:18px;height:18px;border-radius:999px;background:rgba(255,255,255,.85);
-      transition:.18s ease;
+    .toggle.on{
+      background:rgba(57,217,138,.18);
+      border-color:rgba(57,217,138,.35);
     }
-    .switch.on{background:rgba(57,217,138,.25);border-color:rgba(57,217,138,.35)}
-    .switch.on::after{left:22px;background:rgba(57,217,138,.95)}
-    .btn{
-      padding:10px 14px;border-radius:12px;border:1px solid var(--line);
-      background:rgba(0,0,0,.18);color:var(--text);cursor:pointer;
-      font-weight:650;letter-spacing:.2px;
-    }
-    .btn.primary{background:linear-gradient(180deg, var(--btn), var(--btn2));border-color:rgba(42,102,255,.45)}
+    .toggle.on::after{ transform:translateX(20px); background:rgba(57,217,138,.95); }
 
-    .grid{display:grid;grid-template-columns: 1fr 1fr; gap:14px; margin-top:14px}
+    .btn{
+      padding:10px 12px;border-radius:14px;border:1px solid var(--line);
+      background:rgba(0,0,0,.18);color:var(--text);
+      font-weight:900;cursor:pointer;
+    }
+    .btn.primary{
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      border-color:rgba(42,102,255,.45);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap:14px;
+    }
     .panel{
-      border:1px solid var(--line);border-radius:18px;
+      border:1px solid var(--line);
+      border-radius:18px;
       background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
       box-shadow:var(--shadow);
       overflow:hidden;
       min-height:620px;
     }
     .panelHead{
-      padding:14px 14px;border-bottom:1px solid var(--line);
-      display:flex;justify-content:space-between;align-items:center;
-      background:rgba(0,0,0,.12);
+      padding:14px 14px 10px;
+      display:flex;align-items:center;justify-content:space-between;
+      border-bottom:1px solid var(--line);
     }
-    .panelHead h2{margin:0;font-size:18px;letter-spacing:.3px}
-    .tabs{display:flex;gap:8px}
+    .panelHead h2{margin:0;font-size:18px;letter-spacing:.2px}
+    .modeTabs{display:flex;gap:10px;justify-content:center;margin-top:10px}
     .tab{
-      padding:8px 12px;border-radius:999px;border:1px solid var(--line);
-      background:var(--pill);cursor:pointer;color:var(--text);
-      font-weight:650;font-size:13px;
-      opacity:.85;
+      padding:10px 14px;border-radius:999px;border:1px solid var(--line);
+      background:rgba(0,0,0,.18);color:rgba(234,240,255,.9);
+      font-weight:900;cursor:pointer;
     }
-    .tab.on{background:var(--pillOn);border-color:rgba(42,102,255,.45);opacity:1}
-    .panelBody{display:flex;flex-direction:column;height:calc(100% - 56px)}
-    .chatlog{padding:14px;overflow:auto;flex:1}
-    .msg{max-width:86%;padding:12px;border-radius:16px;margin:10px 0;border:1px solid var(--line)}
-    .msg.you{margin-left:auto;background:rgba(42,102,255,.14);border-color:rgba(42,102,255,.35)}
-    .msg.simo{background:rgba(255,255,255,.04)}
-    .msg .who{font-size:12px;color:var(--muted);margin-bottom:6px;font-weight:700}
-    .msg .txt{white-space:pre-wrap;line-height:1.35}
+    .tab.on{ background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.45); }
+
+    .chatBody{
+      height:520px; overflow:auto; padding:14px;
+    }
+    .msg{
+      max-width:92%;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:rgba(0,0,0,.14);
+      padding:12px 12px;
+      margin:10px 0;
+      white-space:pre-wrap;
+      line-height:1.35;
+    }
+    .msg.you{ margin-left:auto; background:rgba(42,102,255,.13); border-color:rgba(42,102,255,.35); }
+    .who{ font-weight:900; font-size:13px; margin-bottom:6px; color:rgba(234,240,255,.75); }
+    .warn{ color:rgba(255,77,77,.95); font-weight:900; }
 
     .composer{
-      border-top:1px solid var(--line);
-      padding:12px;display:flex;gap:10px;align-items:flex-end;
-      background:rgba(0,0,0,.10);
+      padding:12px; border-top:1px solid var(--line);
+      display:flex; gap:10px; align-items:flex-end;
     }
     textarea{
-      flex:1;min-height:44px;max-height:140px;resize:none;
-      border-radius:14px;border:1px solid var(--line);
-      background:rgba(0,0,0,.18);color:var(--text);
-      padding:10px 12px;font-size:14px;outline:none;
+      flex:1; min-height:44px; max-height:120px;
+      resize:vertical;
+      border-radius:14px; border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      color:var(--text); padding:10px 12px;
+      outline:none;
     }
-    .sendRow{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
-    .status{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:12px;padding-right:4px}
-    .dot{width:8px;height:8px;border-radius:99px;background:var(--good);box-shadow:0 0 0 4px rgba(57,217,138,.10)}
-    .dot.off{background:rgba(255,255,255,.22);box-shadow:none}
-    .hint{color:var(--muted);font-size:12px;padding:0 14px 12px}
 
-    .previewTools{display:flex;gap:10px;flex-wrap:wrap}
-    .previewWrap{padding:14px;height:100%;display:flex;flex-direction:column;gap:10px}
-    .previewTop{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
-    .pillSmall{
-      padding:6px 10px;border-radius:999px;border:1px solid var(--line);
-      background:rgba(0,0,0,.15);color:var(--text);font-weight:700;font-size:12px;
+    .previewTools{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
     }
-    .previewBox{
-      flex:1;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:rgba(0,0,0,.12)
+    .metaLine{ color:rgba(234,240,255,.65); font-size:13px; padding:0 14px 12px; display:flex; justify-content:space-between; gap:10px; }
+    .tag{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:7px 10px;border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.18);
+      font-weight:900;font-size:12px;
     }
-    iframe{width:100%;height:100%;border:0;background:#0b1020}
+    .tag.good{ border-color:rgba(57,217,138,.35); background:rgba(57,217,138,.12); }
+    .tag.blue{ border-color:rgba(42,102,255,.45); background:rgba(42,102,255,.12); }
+    .previewWrap{ padding:14px; height:520px; overflow:auto; }
+    iframe{
+      width:100%;
+      height:860px;
+      border:1px solid var(--line);
+      border-radius:16px;
+      background:#fff;
+    }
+    .empty{
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius:16px;
+      padding:18px;
+      color:rgba(234,240,255,.75);
+      background:rgba(0,0,0,.10);
+    }
+    .footHint{ padding:10px 14px; color:rgba(234,240,255,.55); font-size:12px; }
 
-    .toast{
-      position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
-      background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.18);
-      padding:10px 12px;border-radius:12px;color:var(--text);
-      display:none;gap:10px;align-items:center;
-      backdrop-filter: blur(10px);
-      max-width: 92vw;
-    }
-    .toast.show{display:flex}
-    .toast .ticon{color:var(--good);font-weight:900}
-
-    @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
-      .panel{min-height:560px}
+    @media (max-width:980px){
+      .grid{ grid-template-columns:1fr; }
+      iframe{ height:720px; }
     }
   </style>
 </head>
@@ -144,16 +167,16 @@
   <div class="wrap">
     <div class="topbar">
       <div class="brand">
-        <div class="logo"></div>
+        <div class="avatar"></div>
         <div>
           <h1>Simo</h1>
-          <small>best friend + builder</small>
+          <p class="sub">best friend + builder</p>
         </div>
       </div>
-      <div class="rightControls">
-        <div class="toggle" title="Pro mode turns on auto-preview + advanced tools (when available)">
-          <span><b>Pro Mode</b></span>
-          <div id="proSwitch" class="switch"></div>
+      <div class="controls">
+        <div class="pill">
+          <span style="font-weight:900">Pro Mode</span>
+          <div id="proToggle" class="toggle"></div>
         </div>
         <button id="resetBtn" class="btn">Reset</button>
         <button id="libraryBtn" class="btn">Library</button>
@@ -165,29 +188,22 @@
       <div class="panel">
         <div class="panelHead">
           <h2>CHAT</h2>
-          <div class="tabs">
+          <div class="modeTabs">
             <button class="tab" data-mode="venting">Venting</button>
             <button class="tab" data-mode="solving">Solving</button>
             <button class="tab on" data-mode="building">Building</button>
           </div>
         </div>
 
-        <div class="panelBody">
-          <div id="chatlog" class="chatlog"></div>
+        <div id="chatBody" class="chatBody"></div>
 
-          <div class="composer">
-            <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
-            <div class="sendRow">
-              <button id="sendBtn" class="btn primary">Send</button>
-              <div class="status">
-                <div id="dot" class="dot"></div>
-                <span id="statusText">Ready</span>
-              </div>
-            </div>
-          </div>
-          <div class="hint">
-            Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview.
-          </div>
+        <div class="composer">
+          <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
+          <button id="sendBtn" class="btn primary">Send</button>
+        </div>
+
+        <div class="footHint">
+          Tip: In <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).
         </div>
       </div>
 
@@ -197,245 +213,243 @@
           <h2>PREVIEW</h2>
           <div class="previewTools">
             <button id="saveBuildBtn" class="btn">Save Build</button>
-            <button id="openLibraryBtn" class="btn">Library</button>
             <button id="copyHtmlBtn" class="btn">Copy HTML</button>
             <button id="downloadBtn" class="btn">Download</button>
           </div>
         </div>
 
-        <div class="panelBody">
-          <div class="previewWrap">
-            <div class="previewTop">
-              <div class="cur">Current: <b id="curName">Untitled preview</b></div>
-              <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-                <span id="modePill" class="pillSmall">Building</span>
-                <span id="proPill" class="pillSmall">PRO enabled</span>
-              </div>
-            </div>
-
-            <div class="previewBox">
-              <iframe id="previewFrame" title="Preview"></iframe>
-            </div>
-
-            <div style="color:var(--muted);font-size:12px">Library is saved on this device</div>
+        <div class="metaLine">
+          <div>Current: <b id="currentName">Untitled preview</b></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+            <span class="tag blue" id="modeTag">Building</span>
+            <span class="tag good" id="proTag" style="display:none">PRO enabled</span>
           </div>
         </div>
+
+        <div class="previewWrap">
+          <div id="previewEmpty" class="empty">
+            <h3 style="margin:0 0 6px">No preview yet.</h3>
+            <div>Switch to <b>Building</b> and ask: “build a landing page preview”.</div>
+          </div>
+          <iframe id="previewFrame" style="display:none"></iframe>
+        </div>
+
+        <div class="footHint">Library is saved on this device.</div>
       </div>
     </div>
   </div>
 
-  <div id="toast" class="toast"><span class="ticon">●</span><span id="toastTxt"></span></div>
-
 <script>
 (() => {
-  const API_URL = "/.netlify/functions/simon";
+  const API = "/api/simon"; // uses your netlify.toml redirect
+  const $ = (id) => document.getElementById(id);
 
-  const els = {
-    chatlog: document.getElementById("chatlog"),
-    input: document.getElementById("input"),
-    sendBtn: document.getElementById("sendBtn"),
-    dot: document.getElementById("dot"),
-    statusText: document.getElementById("statusText"),
-    tabs: Array.from(document.querySelectorAll(".tab")),
-    proSwitch: document.getElementById("proSwitch"),
-    resetBtn: document.getElementById("resetBtn"),
-    libraryBtn: document.getElementById("libraryBtn"),
-    openLibraryBtn: document.getElementById("openLibraryBtn"),
-    saveBuildBtn: document.getElementById("saveBuildBtn"),
-    copyHtmlBtn: document.getElementById("copyHtmlBtn"),
-    downloadBtn: document.getElementById("downloadBtn"),
-    curName: document.getElementById("curName"),
-    previewFrame: document.getElementById("previewFrame"),
-    toast: document.getElementById("toast"),
-    toastTxt: document.getElementById("toastTxt"),
-    modePill: document.getElementById("modePill"),
-    proPill: document.getElementById("proPill"),
-  };
+  const chatBody = $("chatBody");
+  const input = $("input");
+  const sendBtn = $("sendBtn");
 
-  const state = {
-    mode: "building",
-    pro: true,
-    current: { name: "Untitled preview", html: "", kind: "none" },
-    library: []
-  };
+  const proToggle = $("proToggle");
+  const resetBtn = $("resetBtn");
+  const libraryBtn = $("libraryBtn");
 
-  // Persisted state
-  try {
-    const saved = JSON.parse(localStorage.getItem("simo_library_v1") || "[]");
-    if (Array.isArray(saved)) state.library = saved;
-  } catch {}
-  try {
-    const pro = localStorage.getItem("simo_pro_v1");
-    if (pro !== null) state.pro = (pro === "1");
-  } catch {}
+  const currentName = $("currentName");
+  const modeTag = $("modeTag");
+  const proTag = $("proTag");
 
-  const toast = (msg) => {
-    els.toastTxt.textContent = msg;
-    els.toast.classList.add("show");
-    setTimeout(() => els.toast.classList.remove("show"), 1600);
-  };
+  const previewEmpty = $("previewEmpty");
+  const previewFrame = $("previewFrame");
 
-  const setBusy = (busy, label) => {
-    els.dot.classList.toggle("off", !!busy);
-    els.statusText.textContent = label || (busy ? "Thinking" : "Ready");
-    els.sendBtn.disabled = !!busy;
-    els.input.disabled = !!busy;
-  };
+  const saveBuildBtn = $("saveBuildBtn");
+  const copyHtmlBtn = $("copyHtmlBtn");
+  const downloadBtn = $("downloadBtn");
 
-  const renderMsg = (who, text) => {
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (who === "You" ? "you" : "simo");
-    wrap.innerHTML = `<div class="who">${who}</div><div class="txt"></div>`;
-    wrap.querySelector(".txt").textContent = text;
-    els.chatlog.appendChild(wrap);
-    els.chatlog.scrollTop = els.chatlog.scrollHeight;
-  };
+  // State
+  let mode = "building";
+  let pro = JSON.parse(localStorage.getItem("simo_pro") || "true"); // default true for your testing
+  let lastPreview = null; // {name, kind, html, state?}
+  let buildLibrary = JSON.parse(localStorage.getItem("simo_library") || "[]");
 
-  const defaultEmptyPreviewHTML = () => `
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>
-  body{margin:0;background:#0b1020;color:#eaf0ff;font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh}
-  .card{border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:22px;background:rgba(255,255,255,.04);max-width:520px}
-  h1{margin:0 0 8px 0;font-size:22px}
-  p{margin:0;color:rgba(234,240,255,.75)}
-</style></head>
-<body><div class="card">
-  <h1>No preview yet.</h1>
-  <p>Switch to <b>Building</b> and ask: “build a landing page preview”.</p>
-</div></body></html>`;
+  function setProUI() {
+    proToggle.classList.toggle("on", pro);
+    proTag.style.display = pro ? "inline-flex" : "none";
+    localStorage.setItem("simo_pro", JSON.stringify(pro));
+  }
 
-  const setPreview = ({name, html, kind}) => {
-    state.current = { name: name || "Untitled preview", html: html || "", kind: kind || "html" };
-    els.curName.textContent = state.current.name;
-    els.previewFrame.srcdoc = state.current.html || defaultEmptyPreviewHTML();
-  };
+  function setModeUI() {
+    document.querySelectorAll(".tab").forEach(btn => {
+      btn.classList.toggle("on", btn.dataset.mode === mode);
+    });
+    modeTag.textContent = mode[0].toUpperCase() + mode.slice(1);
+  }
 
-  const applyMode = (m) => {
-    state.mode = m;
-    els.tabs.forEach(t => t.classList.toggle("on", t.dataset.mode === m));
-    els.modePill.textContent = m[0].toUpperCase() + m.slice(1);
-  };
+  function addMsg(who, text, cls="") {
+    const el = document.createElement("div");
+    el.className = "msg " + cls;
+    el.innerHTML = `<div class="who">${who}</div><div>${escapeHtml(text)}</div>`;
+    chatBody.appendChild(el);
+    chatBody.scrollTop = chatBody.scrollHeight;
+  }
 
-  const applyPro = (on) => {
-    state.pro = !!on;
-    els.proSwitch.classList.toggle("on", state.pro);
-    els.proPill.textContent = state.pro ? "PRO enabled" : "PRO off";
-    localStorage.setItem("simo_pro_v1", state.pro ? "1" : "0");
-  };
+  function escapeHtml(s="") {
+    return String(s)
+      .replaceAll("&","&amp;")
+      .replaceAll("<","&lt;")
+      .replaceAll(">","&gt;")
+      .replaceAll('"',"&quot;")
+      .replaceAll("'","&#039;");
+  }
 
-  const saveToLibrary = () => {
-    if (!state.current.html) return toast("No HTML to save yet.");
-    const item = {
-      id: crypto.randomUUID(),
-      name: state.current.name || "Saved build",
-      html: state.current.html,
-      kind: state.current.kind || "html",
-      savedAt: new Date().toISOString()
-    };
-    state.library.unshift(item);
-    localStorage.setItem("simo_library_v1", JSON.stringify(state.library.slice(0, 100)));
-    toast("Saved to Library.");
-  };
+  function setPreview(preview) {
+    lastPreview = preview || null;
 
-  const openLibrary = () => {
-    if (!state.library.length) return toast("Library is empty.");
-    const list = state.library.slice(0, 10).map((x, i) => `${i+1}. ${x.name}`).join("\n");
-    const pick = prompt("Open which saved build?\n\n" + list + "\n\nEnter 1-" + Math.min(10, state.library.length));
-    const n = Number(pick);
-    if (!Number.isFinite(n) || n < 1 || n > Math.min(10, state.library.length)) return;
-    const item = state.library[n-1];
-    setPreview({name: item.name, html: item.html, kind: item.kind});
-    toast("Loaded: " + item.name);
-  };
-
-  const copyHTML = async () => {
-    if (!state.current.html) return toast("No HTML to copy yet.");
-    try {
-      await navigator.clipboard.writeText(state.current.html);
-      toast("Copied HTML.");
-    } catch {
-      toast("Copy blocked. Use Download.");
+    if (!lastPreview) {
+      currentName.textContent = "Untitled preview";
+      previewFrame.style.display = "none";
+      previewEmpty.style.display = "block";
+      return;
     }
-  };
 
-  const downloadHTML = () => {
-    if (!state.current.html) return toast("No HTML to download yet.");
-    const blob = new Blob([state.current.html], {type: "text/html"});
+    currentName.textContent = lastPreview.name || "preview";
+    previewEmpty.style.display = "none";
+    previewFrame.style.display = "block";
+
+    // Render HTML into iframe (no network needed)
+    previewFrame.srcdoc = lastPreview.html || "<html><body>Empty</body></html>";
+    previewFrame.scrollTop = 0;
+  }
+
+  async function postMessage(userText) {
+    addMsg("You", userText, "you");
+
+    // Include any prior preview state (optional; useful as you expand later)
+    const payload = {
+      message: userText,
+      mode,
+      pro,
+      ...(lastPreview && lastPreview.state ? lastPreview.state : {})
+    };
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = "…";
+
+    try {
+      const res = await fetch(API, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        const details = data && (data.error || data.details) ? `\n${data.error || ""}\n${data.details || ""}` : "";
+        addMsg("Simo", "⚠️ Server error" + details, "");
+        setPreview(null);
+        return;
+      }
+
+      addMsg("Simo", data.reply || "Okay.", "");
+      setPreview(data.preview || null);
+
+    } catch (e) {
+      addMsg("Simo", "⚠️ Server error\n" + String(e), "");
+      setPreview(null);
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send";
+    }
+  }
+
+  // Events
+  document.querySelectorAll(".tab").forEach(btn => {
+    btn.addEventListener("click", () => {
+      mode = btn.dataset.mode;
+      setModeUI();
+    });
+  });
+
+  proToggle.addEventListener("click", () => {
+    pro = !pro;
+    setProUI();
+  });
+
+  sendBtn.addEventListener("click", () => {
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    postMessage(text);
+  });
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendBtn.click();
+    }
+  });
+
+  resetBtn.addEventListener("click", () => {
+    chatBody.innerHTML = "";
+    setPreview(null);
+    addMsg("Simo", "I’m here. Pick a mode — or just talk.", "");
+  });
+
+  libraryBtn.addEventListener("click", () => {
+    if (!buildLibrary.length) {
+      addMsg("Simo", "Library is empty. Build something in Pro and hit “Save Build”.", "");
+      return;
+    }
+    const last = buildLibrary[buildLibrary.length - 1];
+    setPreview(last.preview);
+    addMsg("Simo", `Loaded: ${last.preview?.name || "preview"} (saved)`, "");
+  });
+
+  saveBuildBtn.addEventListener("click", () => {
+    if (!lastPreview) {
+      addMsg("Simo", "No preview to save yet.", "");
+      return;
+    }
+    buildLibrary.push({
+      savedAt: new Date().toISOString(),
+      preview: lastPreview
+    });
+    localStorage.setItem("simo_library", JSON.stringify(buildLibrary));
+    addMsg("Simo", `Saved: ${lastPreview.name || "preview"} ✅`, "");
+  });
+
+  copyHtmlBtn.addEventListener("click", async () => {
+    if (!lastPreview || !lastPreview.html) {
+      addMsg("Simo", "No HTML to copy yet.", "");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(lastPreview.html);
+      addMsg("Simo", "Copied HTML ✅", "");
+    } catch {
+      addMsg("Simo", "Copy failed (browser blocked). Use Download instead.", "");
+    }
+  });
+
+  downloadBtn.addEventListener("click", () => {
+    if (!lastPreview || !lastPreview.html) {
+      addMsg("Simo", "No HTML to download yet.", "");
+      return;
+    }
+    const blob = new Blob([lastPreview.html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    const safe = (state.current.name || "build").replace(/[^a-z0-9-_]+/gi, "_").toLowerCase();
-    a.download = safe + ".html";
+    a.href = url;
+    a.download = (lastPreview.name || "preview") + ".html";
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 500);
-    toast("Downloaded.");
-  };
-
-  const callSimo = async (message) => {
-    const payload = { message, mode: state.mode, pro: state.pro };
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload)
-    });
-    if (!res.ok) throw new Error("Server error");
-    return await res.json();
-  };
-
-  const handleSend = async () => {
-    const text = els.input.value.trim();
-    if (!text) return;
-
-    els.input.value = "";
-    renderMsg("You", text);
-    setBusy(true, "Thinking");
-
-    try {
-      const data = await callSimo(text);
-      renderMsg("Simo", data?.reply || "Okay.");
-
-      if (data?.preview?.html) {
-        setPreview({
-          name: data.preview.name || "Preview",
-          html: data.preview.html,
-          kind: data.preview.kind || "html"
-        });
-      }
-    } catch {
-      renderMsg("Simo", "⚠️ Server error");
-    } finally {
-      setBusy(false, "Ready");
-    }
-  };
-
-  // Events
-  els.sendBtn.addEventListener("click", handleSend);
-  els.input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSend(); }
+    URL.revokeObjectURL(url);
+    addMsg("Simo", "Downloaded ✅", "");
   });
 
-  els.tabs.forEach(t => t.addEventListener("click", () => applyMode(t.dataset.mode)));
-  els.proSwitch.addEventListener("click", () => applyPro(!state.pro));
-
-  els.resetBtn.addEventListener("click", () => {
-    els.chatlog.innerHTML = "";
-    renderMsg("Simo", "I’m here. Pick a mode — or just talk.");
-    setPreview({name:"Untitled preview", html:"", kind:"none"});
-    toast("Reset.");
-  });
-
-  els.libraryBtn.addEventListener("click", openLibrary);
-  els.openLibraryBtn.addEventListener("click", openLibrary);
-  els.saveBuildBtn.addEventListener("click", saveToLibrary);
-  els.copyHtmlBtn.addEventListener("click", copyHTML);
-  els.downloadBtn.addEventListener("click", downloadHTML);
-
-  // Init
-  applyMode("building");
-  applyPro(state.pro);
-  renderMsg("Simo", "I’m here. Pick a mode — or just talk.");
-  setPreview({name:"Untitled preview", html:"", kind:"none"});
+  // Boot
+  setProUI();
+  setModeUI();
+  addMsg("Simo", "I’m here. Pick a mode — or just talk.", "");
 })();
 </script>
 </body>
