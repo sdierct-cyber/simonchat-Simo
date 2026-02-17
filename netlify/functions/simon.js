@@ -15,6 +15,8 @@ function json(statusCode, obj) {
       "access-control-allow-origin": "*",
       "access-control-allow-headers": "content-type",
       "access-control-allow-methods": "POST,OPTIONS",
+      // Helpful for debugging updates:
+      "cache-control": "no-store",
     },
     body: JSON.stringify(obj),
   };
@@ -106,7 +108,29 @@ function htmlShell({ title = "Preview", body = "" } = {}) {
 </html>`;
 }
 
-function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
+function formatPrice(numOrText, fallback = "$29/mo") {
+  const s = String(numOrText ?? "").trim();
+  if (!s) return fallback;
+
+  // If they gave "29" => "$29/mo"
+  if (/^\d{1,4}$/.test(s)) return `$${s}/mo`;
+
+  // If they gave "$29" => "$29/mo"
+  const m = s.match(/\$?\s*(\d{1,4})/);
+  if (m) return `$${m[1]}/mo`;
+
+  // If they gave something odd, just fallback
+  return fallback;
+}
+
+function makeLandingPreview({
+  brand = "FlowPro",
+  starterPrice = "9",
+  proPrice = "29",
+} = {}) {
+  const starter = formatPrice(starterPrice, "$9/mo");
+  const pro = formatPrice(proPrice, "$29/mo");
+
   const body = `
     <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
     <p>Save time. Reduce manual work. Scale smarter.</p>
@@ -124,7 +148,7 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
     <div class="grid">
       <div class="plan">
         <h3>Starter</h3>
-        <div class="price">$9/mo</div>
+        <div class="price">${escapeHtml(starter)}</div>
         <div class="muted">Basic support<br/>Core features<br/>1 user</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
@@ -132,7 +156,7 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
       <div class="plan">
         <div class="badge">Most Popular</div>
         <h3>Pro</h3>
-        <div class="price">${escapeHtml(proPrice)}</div>
+        <div class="price">${escapeHtml(pro)}</div>
         <div class="muted">Priority support<br/>All features<br/>5 users</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
@@ -151,118 +175,4 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
 /** ---------------------------
  *  Intent + value extraction
  *  --------------------------*/
-function detectIntent(message = "", mode = "building") {
-  const m = message.toLowerCase();
-  if (/pro\s*price|change\s+pro\s+price|update\s+pro\s+price|edit\s+pro\s+price/i.test(message)) return "pricing_edit";
-  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
-  return mode === "building" ? "builder_general" : "chat_general";
-}
-
-function extractMoneyNumber(message = "") {
-  const m = message.match(/\$?\s*(\d{1,4})(?:\s*\/?\s*(mo|month))?/i);
-  return m ? String(m[1]) : null;
-}
-
-/** ---------------------------
- *  ChatGPT-like reply
- *  --------------------------*/
-async function generateReply({ message, mode }) {
-  // IMPORTANT: this is prompt style. Preview generation is NOT dependent on the model.
-  const system = `
-You are Simo: "best friend + builder" with ChatGPT-like capability.
-
-Tone rules:
-- Venting: best-friend energy. No therapy clichés. Be real, supportive, direct.
-- Solving: practical steps, ask one clarifying question max if needed.
-- Building: concise + action-oriented. If user requests a build/edit, confirm what changed in one line.
-
-Output:
-- Return plain text only. No markdown fences.
-`.trim();
-
-  const model = process.env.SIMO_MODEL || "gpt-4.1-mini";
-
-  const resp = await client.responses.create({
-    model,
-    input: [
-      { role: "system", content: system },
-      { role: "user", content: `Mode: ${mode}\nUser: ${message}` },
-    ],
-  });
-
-  return (resp.output_text || "").trim();
-}
-
-/** ---------------------------
- *  Handler
- *  --------------------------*/
-exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
-
-  try {
-    const body = JSON.parse(event.body || "{}");
-    const message = String(body.message || "");
-    const mode = String(body.mode || "building");
-    const pro = !!body.pro;
-
-    if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
-
-    // If key missing, DON'T hard-crash. Return a usable response.
-    const hasKey = !!process.env.OPENAI_API_KEY;
-
-    const intent = detectIntent(message, mode);
-
-    // Preview is deterministic; never depends on OpenAI.
-    let preview = null;
-    if (mode === "building" && pro) {
-      if (intent === "landing_page") {
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
-        };
-      } else if (intent === "pricing_edit") {
-        const num = extractMoneyNumber(message) || "19";
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: `$${num}/mo` }),
-        };
-      }
-    }
-
-    // Reply: try OpenAI; if it fails or missing key, fallback.
-    let reply = "";
-    if (!hasKey) {
-      reply =
-        mode === "building"
-          ? "I’m in Building mode, but the server key isn’t set. I can still generate previews, though — tell me what you want changed."
-          : "I’m here — talk to me. (Server key isn’t set yet, but I can still help.)";
-    } else {
-      try {
-        reply = await generateReply({ message, mode });
-      } catch (err) {
-        console.error("OpenAI reply error:", err?.message || err);
-        reply =
-          mode === "building"
-            ? "Got you. I can still build the preview — tell me exactly what you want changed next."
-            : "I’m here. Tell me what’s going on.";
-      }
-    }
-
-    // Always respond 200 if we can.
-    return json(200, {
-      ok: true,
-      version: "simo-backend-2026-02-17-stable",
-      reply: reply || "Okay.",
-      preview,
-    });
-  } catch (e) {
-    console.error("Handler error:", e?.message || e);
-    return json(500, {
-      ok: false,
-      error: "Server error",
-      details: String(e?.message || e),
-    });
-  }
-};
+function detectIntent(message = "", mode =
