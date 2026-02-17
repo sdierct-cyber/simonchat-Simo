@@ -1,740 +1,139 @@
-<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
-  <style>
-    :root{
-      --bg:#0b1020;
-      --bg2:#0a0f1d;
-      --panel:rgba(255,255,255,.06);
-      --panel2:rgba(255,255,255,.08);
-      --line:rgba(255,255,255,.10);
-      --text:#eaf0ff;
-      --muted:#a9b6d3;
+// netlify/functions/simon.js
+// Simo backend: stable preview contract (reply + optional preview_html).
+// Deterministic edits for common commands to prevent "what platform?" loops.
 
-      --blue:#2a66ff;
-      --blue2:#1f4dd6;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-      --green:#39d98a;
-      --green2:#20c977;
+function json(statusCode, obj) {
+  return {
+    statusCode,
+    headers: {
+      "content-type": "application/json",
+      "access-control-allow-origin": "*",
+      "access-control-allow-methods": "POST,OPTIONS",
+      "access-control-allow-headers": "content-type",
+      "cache-control": "no-store",
+    },
+    body: JSON.stringify(obj),
+  };
+}
 
-      --bad:#ff4d4d;
+function strip(s){ return (s||"").toString().trim(); }
 
-      --shadow: 0 10px 40px rgba(0,0,0,.45);
-      --r16:16px;
-      --r20:20px;
-      --r24:24px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
-      color:var(--text);
-    }
+function extractMoney(text){
+  const m = text.match(/\$?\s*(\d{1,4})(?:\.\d{1,2})?/);
+  if(!m) return null;
+  return Number(m[1]);
+}
 
-    .wrap{max-width:1180px;margin:0 auto;padding:18px 18px 28px}
-    .topbar{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:14px 16px;
-      border:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border-radius:var(--r24);
-      box-shadow:var(--shadow);
-      position:sticky; top:12px; z-index:10;
-      backdrop-filter: blur(10px);
-    }
-    .brand{display:flex; align-items:center; gap:12px}
-    .brandDot{
-      width:34px;height:34px;border-radius:10px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
-      position:relative;
-      overflow:hidden;
-    }
-    .brandDot::after{
-      content:"";
-      position:absolute; inset:-20px;
-      background:radial-gradient(circle at 40% 35%, rgba(57,217,138,.55), transparent 55%);
-      opacity:0;
-      transition:opacity .18s ease;
-    }
-    .brandDot.pro::after{opacity:1}
-    .brandText{display:flex; flex-direction:column; line-height:1}
-    .brandText b{font-size:22px; letter-spacing:.2px}
-    .brandText span{font-size:12px; color:var(--muted); margin-top:4px}
+function safeName(name){
+  const n = strip(name) || "Untitled preview";
+  return n.slice(0, 80);
+}
 
-    .topActions{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .pill{
-      display:inline-flex; align-items:center; gap:10px;
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.22);
-      user-select:none;
-    }
-    .pill strong{font-weight:650}
-    .btn{
-      appearance:none; border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:999px;
-      cursor:pointer;
-      transition:transform .06s ease, background .15s ease, border-color .15s ease;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.20);
-    }
-    .btn:hover{background:rgba(255,255,255,.07)}
-    .btn:active{transform:translateY(1px)}
-    .btn.primary{
-      background:linear-gradient(180deg, var(--blue), var(--blue2));
-      border-color:rgba(0,0,0,.18);
-    }
-    .btn.primary:hover{filter:brightness(1.05)}
-    .btn.ghost{background:transparent}
-
-    .toggle{
-      width:44px; height:26px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.18);
-      background:rgba(0,0,0,.22);
-      position:relative;
-      cursor:pointer;
-      flex:0 0 auto;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.25);
-    }
-    .toggleKnob{
-      width:20px;height:20px;border-radius:999px;
-      position:absolute; top:2.5px; left:3px;
-      background:rgba(255,255,255,.82);
-      transition:left .16s ease, background .16s ease, box-shadow .16s ease;
-      box-shadow:0 6px 16px rgba(0,0,0,.35);
-    }
-    .toggle.on{
-      background:rgba(57,217,138,.15);
-      border-color:rgba(57,217,138,.45);
-      box-shadow: 0 0 0 3px rgba(57,217,138,.08), inset 0 0 0 1px rgba(0,0,0,.25);
-    }
-    .toggle.on .toggleKnob{
-      left:21px;
-      background:rgba(57,217,138,.95);
-      box-shadow:0 8px 18px rgba(0,0,0,.45), 0 0 18px rgba(57,217,138,.25);
-    }
-
-    .grid{
-      margin-top:14px;
-      display:grid;
-      grid-template-columns: 1fr 1fr;
-      gap:14px;
-      align-items:stretch;
-    }
-    @media (max-width: 980px){
-      .grid{grid-template-columns:1fr}
-      .topbar{position:static}
-    }
-
-    .card{
-      border:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border-radius:var(--r24);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      min-height: 560px;
-      backdrop-filter: blur(10px);
-    }
-
-    /* Chat panel */
-    .chatHeader{
-      padding:14px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex; align-items:center; justify-content:space-between;
-      gap:12px;
-    }
-    .modes{display:flex; gap:10px; flex-wrap:wrap}
-    .modeBtn{
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:650;
-      transition:background .15s ease, border-color .15s ease, transform .06s ease;
-    }
-    .modeBtn:hover{background:rgba(255,255,255,.07)}
-    .modeBtn:active{transform:translateY(1px)}
-    .modeBtn.active{
-      background:rgba(42,102,255,.22);
-      border-color:rgba(42,102,255,.42);
-      box-shadow:0 0 0 3px rgba(42,102,255,.10);
-    }
-
-    .chatBody{
-      height: 430px;
-      overflow:auto;
-      padding:14px 14px 8px;
-    }
-    .bubble{
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.18);
-      border-radius:18px;
-      padding:12px 12px;
-      margin:10px 0;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
-    }
-    .bubble .who{
-      font-size:12px;
-      color:var(--muted);
-      margin-bottom:6px;
-      font-weight:700;
-      letter-spacing:.2px;
-      text-transform:none;
-    }
-    .bubble.you{
-      background:rgba(42,102,255,.16);
-      border-color:rgba(42,102,255,.28);
-    }
-    .bubble.err{
-      background:rgba(255,77,77,.10);
-      border-color:rgba(255,77,77,.35);
-    }
-
-    .chatFooter{
-      padding:12px 14px 14px;
-      border-top:1px solid rgba(255,255,255,.08);
-    }
-    .inputRow{display:flex; gap:10px; align-items:flex-end}
-    textarea{
-      width:100%;
-      resize:none;
-      min-height:56px;
-      max-height:150px;
-      padding:12px 12px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.22);
-      color:var(--text);
-      outline:none;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.20);
-    }
-    textarea:focus{
-      border-color:rgba(42,102,255,.45);
-      box-shadow: 0 0 0 3px rgba(42,102,255,.12), inset 0 0 0 1px rgba(0,0,0,.20);
-    }
-    .hint{
-      margin-top:10px;
-      font-size:12px;
-      color:rgba(234,240,255,.72);
-      display:flex; justify-content:space-between; align-items:center; gap:10px;
-    }
-    .status{
-      display:flex; align-items:center; gap:8px; color:rgba(234,240,255,.70);
-    }
-    .dot{
-      width:9px;height:9px;border-radius:99px;
-      background:rgba(57,217,138,.9);
-      box-shadow:0 0 14px rgba(57,217,138,.25);
-    }
-    .dot.bad{background:rgba(255,77,77,.9); box-shadow:0 0 14px rgba(255,77,77,.25)}
-
-    /* Preview panel */
-    .previewHeader{
-      padding:14px 16px;
-      border-bottom:1px solid rgba(255,255,255,.08);
-      display:flex; align-items:center; justify-content:space-between;
-      gap:12px;
-    }
-    .previewTitle{
-      display:flex; align-items:center; gap:10px;
-      font-weight:800;
-      letter-spacing:.3px;
-    }
-    .previewTools{
-      display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;
-    }
-    .toolBtn{
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-      color:var(--text);
-      cursor:pointer;
-      font-weight:700;
-    }
-    .toolBtn:hover{background:rgba(255,255,255,.07)}
-    .toolBtn:disabled{opacity:.45; cursor:not-allowed}
-
-    .previewMeta{
-      padding:10px 16px 0;
-      display:flex; align-items:center; justify-content:space-between;
-      gap:10px; flex-wrap:wrap;
-      color:rgba(234,240,255,.78);
-      font-size:13px;
-    }
-    .chips{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .chip{
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      font-weight:800;
-      font-size:12px;
-      color:rgba(234,240,255,.82);
-    }
-    .chip.pro{
-      border-color:rgba(57,217,138,.35);
-      background:rgba(57,217,138,.12);
-      color:rgba(57,217,138,.95);
-      box-shadow:0 0 0 3px rgba(57,217,138,.08);
-    }
-    .chip.build{
-      border-color:rgba(42,102,255,.35);
-      background:rgba(42,102,255,.12);
-      color:rgba(200,220,255,.95);
-    }
-
-    .previewBody{
-      padding:12px 16px 16px;
-      height: 480px;
-    }
-
-    /* IMPORTANT: no white iframe on boot. Only show iframe when we have html. */
-    .previewShell{
-      width:100%;
-      height:100%;
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.10);
-      background: radial-gradient(900px 420px at 30% 10%, rgba(42,102,255,.20), rgba(0,0,0,.12) 60%) , rgba(0,0,0,.18);
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
-      position:relative;
-      overflow:hidden;
-    }
-    .placeholderCard{
-      position:absolute;
-      left:50%; top:46%;
-      transform:translate(-50%,-50%);
-      width:min(520px, 92%);
-      border-radius:18px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.20);
-      padding:18px 18px;
-      color:rgba(234,240,255,.86);
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.18);
-    }
-    .placeholderCard h3{margin:0 0 10px; font-size:28px}
-    .placeholderCard p{margin:8px 0; color:rgba(234,240,255,.72); line-height:1.35}
-    .kbd{
-      display:inline-block;
-      padding:2px 8px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.18);
-      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size:12px;
-      color:rgba(234,240,255,.85);
-    }
-    iframe{
-      position:absolute; inset:0;
-      width:100%; height:100%;
-      border:0;
-      background:transparent; /* keep shell vibe */
-    }
-
-    /* Bottom-right PRO pill */
-    .proCorner{
-      position:fixed;
-      right:18px; bottom:18px;
-      display:flex; align-items:center; gap:10px;
-      padding:10px 14px;
-      border-radius:999px;
-      border:1px solid rgba(57,217,138,.45);
-      background:rgba(57,217,138,.12);
-      color:rgba(57,217,138,.95);
-      box-shadow: 0 0 0 3px rgba(57,217,138,.08), 0 10px 30px rgba(0,0,0,.30);
-      font-weight:900;
-      letter-spacing:.2px;
-      opacity:0;
-      pointer-events:none;
-      transform:translateY(8px);
-      transition: opacity .18s ease, transform .18s ease;
-    }
-    .proCorner.on{
-      opacity:1;
-      transform:translateY(0);
-    }
-
-    /* Tiny toast */
-    .toast{
-      position:fixed;
-      left:50%;
-      bottom:18px;
-      transform:translateX(-50%) translateY(12px);
-      background:rgba(0,0,0,.55);
-      border:1px solid rgba(255,255,255,.14);
-      color:rgba(234,240,255,.92);
-      padding:10px 14px;
-      border-radius:999px;
-      box-shadow: var(--shadow);
-      opacity:0;
-      transition:opacity .18s ease, transform .18s ease;
-      z-index:50;
-      backdrop-filter: blur(10px);
-      max-width:min(720px, 92%);
-      text-align:center;
-      pointer-events:none;
-      font-weight:650;
-    }
-    .toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
-    .toast.bad{border-color:rgba(255,77,77,.35); background:rgba(255,77,77,.10)}
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div id="brandDot" class="brandDot" title="Pro status"></div>
-        <div class="brandText">
-          <b>Simo</b>
-          <span>best friend + builder</span>
-        </div>
-      </div>
-
-      <div class="topActions">
-        <div class="pill" title="Toggle Pro features">
-          <strong>Pro Mode</strong>
-          <div id="proToggle" class="toggle" role="switch" aria-checked="false" tabindex="0">
-            <div class="toggleKnob"></div>
-          </div>
-        </div>
-        <button id="resetBtn" class="btn ghost">Reset</button>
-        <button id="libraryBtnTop" class="btn ghost">Library</button>
-      </div>
-    </div>
-
-    <div class="grid">
-      <!-- CHAT -->
-      <div class="card">
-        <div class="chatHeader">
-          <div class="modes">
-            <button class="modeBtn" data-mode="venting">Venting</button>
-            <button class="modeBtn" data-mode="solving">Solving</button>
-            <button class="modeBtn active" data-mode="building">Building</button>
-          </div>
-        </div>
-
-        <div id="chatBody" class="chatBody"></div>
-
-        <div class="chatFooter">
-          <div class="inputRow">
-            <textarea id="msg" placeholder="Type here... (Enter to send, Shift+Enter for new line)"></textarea>
-            <button id="sendBtn" class="btn primary" style="min-width:110px;">Send</button>
-          </div>
-          <div class="hint">
-            <div class="status" id="statusLine"><span class="dot"></span><span>Ready</span></div>
-            <div>Tip: In <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- PREVIEW -->
-      <div class="card">
-        <div class="previewHeader">
-          <div class="previewTitle">PREVIEW</div>
-          <div class="previewTools">
-            <button id="saveBtn" class="toolBtn">Save Build</button>
-            <button id="libraryBtn" class="toolBtn">Library</button>
-            <button id="copyBtn" class="toolBtn">Copy HTML</button>
-            <button id="downloadBtn" class="toolBtn">Download</button>
-          </div>
-        </div>
-
-        <div class="previewMeta">
-          <div><span style="opacity:.75">Current:</span> <b id="currentName">Untitled preview</b></div>
-          <div class="chips">
-            <span class="chip build">Building</span>
-            <span id="proChip" class="chip">PRO disabled</span>
-          </div>
-        </div>
-
-        <div class="previewBody">
-          <div class="previewShell" id="previewShell">
-            <div class="placeholderCard" id="placeholderCard">
-              <h3>No preview yet.</h3>
-              <p>In <b>Building</b> mode, ask: <span class="kbd">build a landing page preview</span></p>
-              <p>Then try: <span class="kbd">change Pro price to $19</span></p>
-            </div>
-            <!-- iframe is injected ONLY when we have HTML -->
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div id="proCorner" class="proCorner">PRO enabled</div>
-  <div id="toast" class="toast"></div>
-
-  <script>
-    // -----------------------------
-    // State + Storage
-    // -----------------------------
-    const LS = {
-      PRO: "simo_pro_enabled_v1",
-      MODE: "simo_mode_v1",
-      LIB: "simo_library_v1",
-      CURRENT: "simo_current_build_v1"
-    };
-
-    const state = {
-      mode: "building",
-      pro: false,
-      busy: false,
-      current: {
-        id: "untitled",
-        name: "Untitled preview",
-        html: ""
-      }
-    };
-
-    function loadJSON(key, fallback){
-      try{
-        const raw = localStorage.getItem(key);
-        if(!raw) return fallback;
-        return JSON.parse(raw);
-      }catch{
-        return fallback;
-      }
-    }
-    function saveJSON(key, value){
-      localStorage.setItem(key, JSON.stringify(value));
-    }
-
-    function toast(msg, bad=false){
-      const el = document.getElementById("toast");
-      el.textContent = msg;
-      el.classList.toggle("bad", !!bad);
-      el.classList.add("on");
-      clearTimeout(toast._t);
-      toast._t = setTimeout(()=> el.classList.remove("on"), 1600);
-    }
-
-    function setBusy(on, error=false){
-      state.busy = on;
-      const line = document.getElementById("statusLine");
-      line.innerHTML = `<span class="dot ${error ? "bad" : ""}"></span><span>${error ? "Server error" : (on ? "Working..." : "Ready")}</span>`;
-    }
-
-    // -----------------------------
-    // UI: Mode + Pro toggle
-    // -----------------------------
-    function setMode(mode){
-      state.mode = mode;
-      localStorage.setItem(LS.MODE, mode);
-
-      document.querySelectorAll(".modeBtn").forEach(b=>{
-        b.classList.toggle("active", b.dataset.mode === mode);
-      });
-
-      // Friendly opener if chat empty
-      if(!document.getElementById("chatBody").children.length){
-        addSimo(`I’m here. Pick a mode — or just talk.`);
-      }
-    }
-
-    function setPro(on){
-      state.pro = !!on;
-      localStorage.setItem(LS.PRO, state.pro ? "1" : "0");
-
-      const toggle = document.getElementById("proToggle");
-      toggle.classList.toggle("on", state.pro);
-      toggle.setAttribute("aria-checked", state.pro ? "true" : "false");
-
-      document.getElementById("brandDot").classList.toggle("pro", state.pro);
-
-      const proChip = document.getElementById("proChip");
-      proChip.textContent = state.pro ? "PRO enabled" : "PRO disabled";
-      proChip.classList.toggle("pro", state.pro);
-
-      const proCorner = document.getElementById("proCorner");
-      proCorner.classList.toggle("on", state.pro);
-    }
-
-    // -----------------------------
-    // Chat rendering
-    // -----------------------------
-    function addBubble(who, text, cls=""){
-      const wrap = document.createElement("div");
-      wrap.className = `bubble ${cls}`.trim();
-      wrap.innerHTML = `<div class="who">${who}</div><div class="txt"></div>`;
-      wrap.querySelector(".txt").textContent = text;
-      const body = document.getElementById("chatBody");
-      body.appendChild(wrap);
-      body.scrollTop = body.scrollHeight;
-    }
-    function addYou(text){ addBubble("You", text, "you"); }
-    function addSimo(text){ addBubble("Simo", text, ""); }
-    function addErr(text){ addBubble("Simo", text, "err"); }
-
-    // -----------------------------
-    // Preview rendering (NO white boot block)
-    // -----------------------------
-    function setCurrent(name, html){
-      state.current.name = name || "Untitled preview";
-      state.current.html = html || "";
-      document.getElementById("currentName").textContent = state.current.name;
-      localStorage.setItem(LS.CURRENT, JSON.stringify(state.current));
-      renderPreview();
-      syncToolButtons();
-    }
-
-    function renderPreview(){
-      const shell = document.getElementById("previewShell");
-      const placeholder = document.getElementById("placeholderCard");
-
-      // Remove existing iframe if any
-      const old = shell.querySelector("iframe");
-      if(old) old.remove();
-
-      if(!state.current.html){
-        placeholder.style.display = "block";
-        return;
-      }
-
-      placeholder.style.display = "none";
-
-      const iframe = document.createElement("iframe");
-      // sandbox keeps it safe and avoids breaking your app
-      iframe.setAttribute("sandbox", "allow-forms allow-modals allow-popups allow-same-origin allow-scripts");
-      iframe.srcdoc = state.current.html;
-      shell.appendChild(iframe);
-    }
-
-    function syncToolButtons(){
-      const hasHtml = !!(state.current.html && state.current.html.trim());
-      document.getElementById("copyBtn").disabled = !hasHtml;
-      document.getElementById("downloadBtn").disabled = !hasHtml;
-      document.getElementById("saveBtn").disabled = !hasHtml;
-    }
-
-    // -----------------------------
-    // Library: save/load builds locally
-    // -----------------------------
-    function getLibrary(){
-      return loadJSON(LS.LIB, []);
-    }
-    function putLibrary(items){
-      saveJSON(LS.LIB, items);
-    }
-    function saveBuild(){
-      if(!state.current.html) return toast("Nothing to save yet.", true);
-      const lib = getLibrary();
-      const id = `${Date.now()}`;
-      const item = {
-        id,
-        name: state.current.name || "Untitled preview",
-        html: state.current.html,
-        ts: Date.now()
-      };
-      lib.unshift(item);
-      putLibrary(lib);
-      toast("Saved to Library.");
-    }
-
-    function openLibrary(){
-      const lib = getLibrary();
-      if(!lib.length){
-        toast("Library is empty.");
-        return;
-      }
-
-      // Simple prompt-based picker (no extra UI complexity)
-      const lines = lib.slice(0, 15).map((x,i)=> `${i+1}) ${x.name}`).join("\n");
-      const pick = prompt(`Library (pick a number):\n\n${lines}\n\n(Showing up to 15)`);
-      if(!pick) return;
-      const n = Number(pick);
-      if(!Number.isFinite(n) || n < 1 || n > Math.min(15, lib.length)){
-        toast("Invalid pick.", true);
-        return;
-      }
-      const item = lib[n-1];
-      setCurrent(item.name, item.html);
-      addSimo(`Loaded: ${item.name}`);
-    }
-
-    // -----------------------------
-    // Copy / Download
-    // -----------------------------
-    async function copyHTML(){
-      if(!state.current.html) return;
-      try{
-        await navigator.clipboard.writeText(state.current.html);
-        toast("HTML copied.");
-      }catch{
-        // fallback
-        const ta = document.createElement("textarea");
-        ta.value = state.current.html;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        toast("HTML copied.");
-      }
-    }
-
-    function downloadHTML(){
-      if(!state.current.html) return;
-      const blob = new Blob([state.current.html], {type:"text/html;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      const safe = (state.current.name || "build").replace(/[^\w\-]+/g,"_");
-      a.download = `${safe}.html`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      toast("Downloaded.");
-    }
-
-    // -----------------------------
-    // Local edit engine (NO “what platform?”)
-    // -----------------------------
-    function ensureLandingPreviewExists(){
-      // a clean default preview if user asks for one
-      return `<!doctype html>
-<html lang="en">
+// ---------- Preview templates ----------
+function landingPageTemplate({ proPrice = 29, starterPrice = 9 } = {}) {
+  // Self-contained HTML for iframe srcdoc (no white background)
+  return `<!doctype html>
+<html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Landing Page</title>
 <style>
-  :root{--bg:#0b1020;--panel:rgba(255,255,255,.06);--line:rgba(255,255,255,.10);--text:#eaf0ff;--muted:#a9b6d3;--blue:#2a66ff;--blue2:#1f4dd6;}
+  :root{
+    --bg:#070b16;
+    --card:#0b132a;
+    --card2:#0a1022;
+    --text:#eaf0ff;
+    --muted:#a9b6d3;
+    --line:rgba(255,255,255,.10);
+    --blue:#2a66ff; --blue2:#1f4dd6;
+  }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);color:var(--text);padding:28px}
-  .wrap{max-width:960px;margin:0 auto}
-  .hero{border:1px solid var(--line);background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));border-radius:22px;padding:22px 22px;box-shadow:0 14px 40px rgba(0,0,0,.45)}
-  h1{margin:0 0 10px;font-size:44px;letter-spacing:-.6px}
-  p{margin:0 0 18px;color:rgba(234,240,255,.76);font-size:18px;line-height:1.4}
-  .cta{display:flex;gap:12px;flex-wrap:wrap;margin:14px 0 0}
-  .btn{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);color:var(--text);padding:12px 16px;border-radius:999px;font-weight:800;cursor:pointer}
-  .btn.primary{background:linear-gradient(180deg,var(--blue),var(--blue2));border-color:rgba(0,0,0,.18)}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
-  .box{border:1px solid var(--line);background:rgba(0,0,0,.18);border-radius:18px;padding:14px}
-  .pricing{margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .plan{border:1px solid var(--line);background:rgba(0,0,0,.18);border-radius:18px;padding:18px;text-align:center}
-  .price{font-size:52px;font-weight:900;margin:8px 0}
-  .tag{display:inline-block;border:1px solid rgba(42,102,255,.35);background:rgba(42,102,255,.12);color:rgba(200,220,255,.95);padding:6px 10px;border-radius:999px;font-weight:900;font-size:12px}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    color:var(--text);
+    background:
+      radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.35), transparent 55%),
+      radial-gradient(800px 520px at 85% 10%, rgba(48,255,176,.12), transparent 55%),
+      var(--bg);
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  .hero{
+    border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+    border-radius:22px;
+    padding:22px;
+  }
+  h1{margin:0 0 8px;font-size:44px;letter-spacing:.2px;line-height:1.05}
+  p{margin:0;color:rgba(233,240,255,.75);font-size:16px;line-height:1.45}
+  .cta{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
+  .btn{
+    padding:12px 16px;border-radius:14px;
+    border:1px solid rgba(255,255,255,.12);
+    background:rgba(255,255,255,.05);
+    color:var(--text);font-weight:800;
+  }
+  .btn.primary{
+    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
+    border-color:rgba(42,102,255,.55);
+  }
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+  .chip{
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(0,0,0,.18);
+    border-radius:16px;padding:14px;
+    color:rgba(233,240,255,.85);
+    min-height:64px;
+  }
+  .pricing{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px}
+  .plan{
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(0,0,0,.18);
+    border-radius:20px;
+    padding:18px;
+    text-align:center;
+  }
+  .plan .name{font-weight:900;letter-spacing:.3px;color:rgba(233,240,255,.85)}
+  .plan .price{font-size:54px;font-weight:1000;margin:6px 0 6px}
+  .plan .muted{color:rgba(233,240,255,.65)}
+  .badge{
+    display:inline-block;
+    padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(42,102,255,.35);
+    background:rgba(42,102,255,.12);
+    font-size:12px;font-weight:900;
+    margin-bottom:8px;
+  }
+  .planBtn{
+    margin-top:12px;
+    display:inline-block;
+    padding:10px 16px;border-radius:12px;
+    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
+    border:1px solid rgba(42,102,255,.55);
+    color:#fff;font-weight:900;
+  }
+  .section{margin-top:18px}
+  .section h2{margin:0 0 10px;font-size:18px;letter-spacing:.3px}
+  .faq{display:grid;gap:10px}
+  .q{
+    border:1px solid rgba(255,255,255,.10);
+    background:rgba(0,0,0,.18);
+    border-radius:16px;padding:14px;
+  }
+  .q b{display:block;margin-bottom:4px}
+  @media (max-width: 860px){
+    .grid{grid-template-columns:1fr}
+    .pricing{grid-template-columns:1fr}
+    h1{font-size:36px}
+  }
 </style>
 </head>
 <body>
   <div class="wrap">
     <div class="hero">
-      <div class="tag">Real-time analytics dashboard</div>
       <h1>FlowPro helps you automate your workflow.</h1>
       <p>Save time. Reduce manual work. Scale smarter.</p>
       <div class="cta">
@@ -742,215 +141,261 @@
         <button class="btn">See Demo</button>
       </div>
       <div class="grid">
-        <div class="box"><b>Automated task pipelines</b><div style="color:rgba(234,240,255,.72);margin-top:6px">Build repeatable flows with triggers.</div></div>
-        <div class="box"><b>Smart scheduling</b><div style="color:rgba(234,240,255,.72);margin-top:6px">Stay on track with intelligent timing.</div></div>
-      </div>
-    </div>
-
-    <div class="pricing">
-      <div class="plan">
-        <div style="opacity:.85;font-weight:900">Starter</div>
-        <div class="price" data-plan="starter">$9/mo</div>
-        <div style="color:rgba(234,240,255,.75)">Basic support</div>
-        <div style="color:rgba(234,240,255,.75)">Core features</div>
-        <div style="color:rgba(234,240,255,.75)">1 user</div>
-        <div style="margin-top:14px"><button class="btn primary">Choose Plan</button></div>
+        <div class="chip">Automated task pipelines</div>
+        <div class="chip">Smart scheduling</div>
+        <div class="chip">Real-time analytics dashboard</div>
       </div>
 
-      <div class="plan">
-        <div class="tag" style="border-color:rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:rgba(234,240,255,.9)">Most Popular</div>
-        <div style="margin-top:10px;opacity:.9;font-weight:900">Pro</div>
-        <div class="price" data-plan="pro">$29/mo</div>
-        <div style="color:rgba(234,240,255,.75)">Priority support</div>
-        <div style="color:rgba(234,240,255,.75)">All features</div>
-        <div style="color:rgba(234,240,255,.75)">5 users</div>
-        <div style="margin-top:14px"><button class="btn primary">Choose Plan</button></div>
+      <div class="pricing">
+        <div class="plan" data-plan="starter">
+          <div class="name">Starter</div>
+          <div class="price"><span data-price="starter">${starterPrice}</span>/mo</div>
+          <div class="muted">Basic support<br/>Core features<br/>1 user</div>
+          <div class="planBtn">Choose Plan</div>
+        </div>
+
+        <div class="plan" data-plan="pro">
+          <div class="badge">Most Popular</div>
+          <div class="name">Pro</div>
+          <div class="price">$<span data-price="pro">${proPrice}</span>/mo</div>
+          <div class="muted">Priority support<br/>All features<br/>5 users</div>
+          <div class="planBtn">Choose Plan</div>
+        </div>
+      </div>
+
+      <div class="section" data-section="testimonials">
+        <h2>Testimonials</h2>
+        <div class="faq">
+          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
+          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        </div>
+      </div>
+
+      <div class="section" data-section="faq">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+        </div>
       </div>
     </div>
   </div>
 </body>
 </html>`;
+}
+
+// ---------- Deterministic edit helpers ----------
+function replaceProPrice(html, newPrice){
+  // Prefer the data-price span so we don't blow up layout
+  if(html.includes('data-price="pro"')){
+    return html.replace(/data-price="pro">(\d{1,4})</, `data-price="pro">${newPrice}<`);
+  }
+  // fallback: try $29/mo style
+  return html.replace(/\$\s*\d{1,4}\s*\/mo/, `$${newPrice}/mo`);
+}
+
+function ensureSection(html, sectionKey){
+  // If section already exists, do nothing
+  if(html.includes(`data-section="${sectionKey}"`)) return html;
+
+  // Insert before closing of hero
+  const insertAt = html.lastIndexOf("</div>\n  </div>\n</body>");
+  if(insertAt < 0) return html;
+
+  let block = "";
+  if(sectionKey === "faq"){
+    block = `
+      <div class="section" data-section="faq">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+        </div>
+      </div>`;
+  } else if(sectionKey === "testimonials"){
+    block = `
+      <div class="section" data-section="testimonials">
+        <h2>Testimonials</h2>
+        <div class="faq">
+          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
+          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        </div>
+      </div>`;
+  } else {
+    return html;
+  }
+
+  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
+}
+
+function isBuildRequest(text){
+  const t = text.toLowerCase();
+  return (
+    t.includes("build a landing page") ||
+    t.includes("landing page preview") ||
+    t.includes("build landing page preview")
+  );
+}
+
+function isPriceEdit(text){
+  const t = text.toLowerCase();
+  return t.includes("change pro price") || t.includes("set pro price") || t.includes("pro price");
+}
+
+function isAddFaq(text){
+  const t = text.toLowerCase();
+  return t.includes("add faq") || t.includes("include faq");
+}
+
+function isAddTestimonials(text){
+  const t = text.toLowerCase();
+  return t.includes("add testimonials") || t.includes("include testimonials");
+}
+
+// Optional: AI helper for chat-only (not for preview)
+async function callOpenAIChat(prompt){
+  if(!OPENAI_API_KEY) return null;
+
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "authorization":`Bearer ${OPENAI_API_KEY}`
+    },
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.6,
+      messages: [
+        { role:"system", content:
+          "You are Simo: a best-friend + builder. Be concise, natural, and helpful. Avoid therapy-speak unless asked."
+        },
+        { role:"user", content: prompt }
+      ]
+    })
+  });
+
+  if(!resp.ok){
+    const txt = await resp.text().catch(()=> "");
+    throw new Error("OpenAI error: " + txt.slice(0, 220));
+  }
+
+  const data = await resp.json();
+  const msg = data?.choices?.[0]?.message?.content;
+  return typeof msg === "string" ? msg.trim() : null;
+}
+
+exports.handler = async (event) => {
+  if(event.httpMethod === "OPTIONS"){
+    return json(200, { ok:true });
+  }
+  if(event.httpMethod !== "POST"){
+    return json(405, { ok:false, error:"Method not allowed" });
+  }
+
+  try{
+    const body = JSON.parse(event.body || "{}");
+
+    const text = strip(body.text);
+    const mode = strip(body.mode) || "building";
+    const pro = !!body.pro;
+
+    const currentHtml = strip(body.current_preview_html);
+    const currentName = safeName(body.current_preview_name);
+
+    if(!text){
+      return json(400, { ok:false, error:"Missing message" });
     }
 
-    function parsePriceEdit(text){
-      // matches: "change Pro price to $19" / "set pro price 19" / "pro price $19"
-      const m = text.match(/(?:change|set|update)?\s*(?:the\s*)?pro\s*price\s*(?:to|=)?\s*\$?\s*(\d{1,4})/i);
-      if(!m) return null;
-      return Number(m[1]);
-    }
-
-    function applyProPrice(html, newPrice){
-      if(!html) return html;
-      // Update the Pro price element: <div class="price" data-plan="pro">$29/mo</div>
-      const re = /(<div[^>]*data-plan=["']pro["'][^>]*>\s*)\$?\s*\d{1,4}\s*\/\s*mo(\s*<\/div>)/i;
-      if(re.test(html)){
-        return html.replace(re, `$1$${newPrice}/mo$2`);
+    // -----------------------------
+    // BUILDING MODE: Build/Preview + deterministic edits
+    // -----------------------------
+    if(mode === "building"){
+      // 1) Build request: always return preview_html
+      if(isBuildRequest(text) || !currentHtml){
+        const preview_html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
+        return json(200, {
+          ok:true,
+          reply: pro
+            ? "Preview is loaded. Tell me what to change (price, sections, CTA, colors)."
+            : "Preview is loaded. (Tip: turn on Pro Mode for more previews + exports.)",
+          preview_name: "landing_page",
+          preview_html
+        });
       }
-      // Fallback: replace first occurrence of "$29/mo" in a Pro area (best effort)
-      return html.replace(/\$29\s*\/\s*mo/i, `$${newPrice}/mo`);
-    }
 
-    function isBuildPreviewRequest(text){
-      return /build\s+(a\s+)?landing\s+page\s+preview/i.test(text);
-    }
+      // 2) Deterministic edits (NO platform questions)
+      let updated = currentHtml;
+      let didEdit = false;
 
-    // -----------------------------
-    // Backend call (only when needed)
-    // -----------------------------
-    async function callSimoBackend(userText){
-      const payload = {
-        mode: state.mode,
-        pro: state.pro,
-        current: { name: state.current.name, html: state.current.html },
-        message: userText
-      };
-
-      const res = await fetch("/.netlify/functions/simon", {
-        method:"POST",
-        headers:{ "content-type":"application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      let data = null;
-      try{ data = await res.json(); }catch{ /* ignore */ }
-
-      if(!res.ok){
-        const msg = (data && (data.error || data.message)) ? (data.error || data.message) : "Server error";
-        throw new Error(msg);
-      }
-      return data || {};
-    }
-
-    // -----------------------------
-    // Main send handler
-    // -----------------------------
-    async function handleSend(){
-      const ta = document.getElementById("msg");
-      const text = (ta.value || "").trim();
-      if(!text || state.busy) return;
-
-      ta.value = "";
-      addYou(text);
-
-      // 1) Deterministic build request: make a preview immediately (no backend needed)
-      if(state.mode === "building" && isBuildPreviewRequest(text)){
-        if(!state.current.html){
-          setCurrent("landing_page", ensureLandingPreviewExists());
+      if(isPriceEdit(text)){
+        const money = extractMoney(text);
+        if(money){
+          updated = replaceProPrice(updated, money);
+          didEdit = true;
+          return json(200, {
+            ok:true,
+            reply: `Got it. Changed the Pro price to $${money}. What’s next?`,
+            preview_name: currentName || "landing_page",
+            preview_html: updated
+          });
         }
-        addSimo("Got it. Preview is loaded. Tell me what to change (price, sections, CTA, colors).");
-        return;
       }
 
-      // 2) Deterministic edit: Pro price change (no backend needed)
-      const newPrice = parsePriceEdit(text);
-      if(state.mode === "building" && newPrice && state.current.html){
-        setCurrent(state.current.name, applyProPrice(state.current.html, newPrice));
-        addSimo(`Got it. Changed the Pro price to $${newPrice}. What’s next?`);
-        return;
+      if(isAddFaq(text)){
+        updated = ensureSection(updated, "faq");
+        didEdit = true;
+        return json(200, {
+          ok:true,
+          reply: "Done. FAQ section added.",
+          preview_name: currentName || "landing_page",
+          preview_html: updated
+        });
       }
 
-      // 3) If user asks for price change but no preview exists, generate preview first then apply
-      if(state.mode === "building" && newPrice && !state.current.html){
-        setCurrent("landing_page", applyProPrice(ensureLandingPreviewExists(), newPrice));
-        addSimo(`Got it. I created a landing page preview and set Pro to $${newPrice}. What’s next?`);
-        return;
+      if(isAddTestimonials(text)){
+        updated = ensureSection(updated, "testimonials");
+        didEdit = true;
+        return json(200, {
+          ok:true,
+          reply: "Done. Testimonials added.",
+          preview_name: currentName || "landing_page",
+          preview_html: updated
+        });
       }
 
-      // 4) Otherwise: call backend for “real chat” (venting/solving/building requests beyond the deterministic edits)
-      setBusy(true,false);
-      try{
-        const data = await callSimoBackend(text);
+      // 3) If we didn't match a deterministic edit, answer in chat ONLY
+      //    (IMPORTANT: no preview_html returned => preview will not get polluted)
+      const reply = pro
+        ? ("Tell me exactly what to change in the preview (e.g., “add FAQ”, “change Pro price to $19”, “change headline to …”).")
+        : ("Tell me what you want to change, and I’ll guide you. (Enable Pro for preview exports.)");
 
-        // Expect: { reply: "...", updated_html?: "...", updated_name?: "..." }
-        if(data.reply) addSimo(data.reply);
-        else addSimo("Okay.");
-
-        if(typeof data.updated_html === "string"){
-          setCurrent(data.updated_name || state.current.name, data.updated_html);
-        }
-        setBusy(false,false);
-      }catch(err){
-        setBusy(false,true);
-        addErr(err.message || "Server error");
-      }
+      return json(200, { ok:true, reply });
     }
 
     // -----------------------------
-    // Reset
+    // VENTING / SOLVING: chat only
     // -----------------------------
-    function hardReset(){
-      // Keep library, but reset current + chat
-      document.getElementById("chatBody").innerHTML = "";
-      state.current = { id:"untitled", name:"Untitled preview", html:"" };
-      localStorage.setItem(LS.CURRENT, JSON.stringify(state.current));
-      setCurrent("Untitled preview", "");
-      addSimo("Fresh start. I’m here.");
-      toast("Reset.");
+    if(mode === "venting"){
+      const reply = await callOpenAIChat(
+        `User is venting. Respond like a private best friend. User said: ${text}`
+      ).catch(()=> null);
+
+      return json(200, { ok:true, reply: reply || "I’m here. Talk to me — what’s going on?" });
     }
 
-    // -----------------------------
-    // Wire up UI
-    // -----------------------------
-    function init(){
-      // Pro
-      const proSaved = localStorage.getItem(LS.PRO);
-      setPro(proSaved === "1");
+    if(mode === "solving"){
+      const reply = await callOpenAIChat(
+        `User wants help solving a problem. Be practical, structured, and concise. User said: ${text}`
+      ).catch(()=> null);
 
-      const modeSaved = localStorage.getItem(LS.MODE) || "building";
-      setMode(modeSaved);
-
-      // Current build
-      const cur = loadJSON(LS.CURRENT, null);
-      if(cur && typeof cur === "object"){
-        state.current = { ...state.current, ...cur };
-      }
-      document.getElementById("currentName").textContent = state.current.name || "Untitled preview";
-      renderPreview();
-      syncToolButtons();
-
-      // Chat starter
-      addSimo("I’m here. Pick a mode — or just talk.");
-
-      // Mode buttons
-      document.querySelectorAll(".modeBtn").forEach(btn=>{
-        btn.addEventListener("click", ()=> setMode(btn.dataset.mode));
-      });
-
-      // Pro toggle click + keyboard
-      const t = document.getElementById("proToggle");
-      t.addEventListener("click", ()=> setPro(!state.pro));
-      t.addEventListener("keydown", (e)=>{
-        if(e.key === "Enter" || e.key === " "){
-          e.preventDefault();
-          setPro(!state.pro);
-        }
-      });
-
-      // Send
-      document.getElementById("sendBtn").addEventListener("click", handleSend);
-      const ta = document.getElementById("msg");
-      ta.addEventListener("keydown", (e)=>{
-        if(e.key === "Enter" && !e.shiftKey){
-          e.preventDefault();
-          handleSend();
-        }
-      });
-
-      // Tools
-      document.getElementById("copyBtn").addEventListener("click", copyHTML);
-      document.getElementById("downloadBtn").addEventListener("click", downloadHTML);
-      document.getElementById("saveBtn").addEventListener("click", saveBuild);
-
-      document.getElementById("libraryBtn").addEventListener("click", openLibrary);
-      document.getElementById("libraryBtnTop").addEventListener("click", openLibrary);
-
-      document.getElementById("resetBtn").addEventListener("click", hardReset);
-
-      // If user opens with Pro on, show chips correctly
-      toast("Ready.");
+      return json(200, { ok:true, reply: reply || "Alright — what’s the goal and what’s blocking you?" });
     }
 
-    init();
-  </script>
-</body>
-</html>
+    // fallback
+    return json(200, { ok:true, reply: "I’m here. Pick a mode — or just talk." });
+  }catch(err){
+    return json(500, { ok:false, error:"Server error", details: String(err?.message || err) });
+  }
+};
