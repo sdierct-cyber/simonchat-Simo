@@ -266,13 +266,14 @@
       </div>
 
       <div class="actions">
-        <div class="toggle" title="Pro enables auto-preview + advanced builder tools">
-          <label for="proToggle">Pro Mode</label>
-          <div class="switch">
-            <input id="proToggle" type="checkbox" />
-            <span class="slider"></span>
-          </div>
-        </div>
+        
+        <div id="proWrap" class="toggle off" title="Pro enables auto-preview + advanced builder tools" role="button" tabindex="0">
+  <span class="toggleLabel">Pro Mode</span>
+  <div class="switch" aria-hidden="true">
+    <input id="proToggle" type="checkbox" />
+    <span class="slider"></span>
+  </div>
+</div>
 
         <button id="resetBtn" class="btn">Reset</button>
         <button id="openLibBtn" class="btn">Library</button>
@@ -775,3 +776,4 @@
   </script>
 </body>
 </html>
+
