@@ -1,5 +1,4 @@
 // netlify/functions/simon.js
-// Simo backend: best-friend + builder with preview HTML output.
 // POST { message, mode, pro } -> { ok, reply, preview?: { name, html, kind } }
 
 import OpenAI from "openai";
@@ -17,6 +16,15 @@ const json = (statusCode, obj) => ({
   body: JSON.stringify(obj),
 });
 
+function escapeHtml(s = "") {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
 <html lang="en">
 <head>
@@ -27,7 +35,6 @@ const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
   :root{
     --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
     --line:rgba(255,255,255,.10);
-    --card:rgba(255,255,255,.05);
     --shadow: 0 18px 55px rgba(0,0,0,.45);
     --btn:#2a66ff; --btn2:#1f4dd6;
   }
@@ -46,29 +53,41 @@ const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
     box-shadow:var(--shadow);
     padding:18px 18px 22px;
   }
-  h1{margin:0 0 10px;font-size:34px;letter-spacing:.2px}
-  p{margin:0 0 16px;color:rgba(234,240,255,.78);line-height:1.4}
-  .row{display:flex;gap:12px;flex-wrap:wrap}
+  h1{margin:0 0 10px;font-size:44px;letter-spacing:.2px}
+  p{margin:0 0 16px;color:rgba(234,240,255,.78);line-height:1.4;font-size:18px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
   .btn{
     display:inline-flex;align-items:center;justify-content:center;
     padding:10px 14px;border-radius:12px;
     border:1px solid var(--line);
     background:rgba(0,0,0,.18);
     color:var(--text);
-    font-weight:700;text-decoration:none;
+    font-weight:800;text-decoration:none;
   }
   .btn.primary{background:linear-gradient(180deg,var(--btn),var(--btn2));border-color:rgba(42,102,255,.45)}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}
-  .plan{
-    border:1px solid var(--line);border-radius:16px;padding:14px;
-    background:rgba(0,0,0,.14);
-    min-height:190px;
+  .features{display:grid;gap:12px;margin:18px 0 18px}
+  .feat{
+    border:1px solid var(--line);border-radius:14px;padding:16px;
+    background:rgba(0,0,0,.14);font-size:18px;
   }
-  .plan h3{margin:0 0 6px}
-  .price{font-size:34px;font-weight:900;margin:6px 0 10px}
-  .muted{color:rgba(234,240,255,.65)}
-  ul{margin:10px 0 0 18px;color:rgba(234,240,255,.78)}
-  @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+  .plan{
+    border:1px solid var(--line);border-radius:16px;padding:16px 16px 18px;
+    background:rgba(0,0,0,.14);
+    min-height:240px;
+    text-align:center;
+  }
+  .plan h3{margin:0 0 6px;font-size:22px}
+  .price{font-size:42px;font-weight:900;margin:10px 0 12px}
+  .muted{color:rgba(234,240,255,.70);font-size:16px;line-height:1.6}
+  .badge{
+    display:inline-block;
+    padding:6px 10px;border-radius:999px;
+    border:1px solid rgba(42,102,255,.45);
+    background:rgba(42,102,255,.18);
+    font-weight:900;font-size:12px;margin-bottom:10px;
+  }
+  @media (max-width:860px){ .grid{grid-template-columns:1fr} h1{font-size:34px} }
 </style>
 </head>
 <body>
@@ -78,32 +97,8 @@ const htmlShell = ({ title = "Preview", body = "" } = {}) => `<!doctype html>
 </body>
 </html>`;
 
-function escapeHtml(s = "") {
-  return String(s)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-// Very simple intent detector (kept stable)
-function detectIntent(message = "", mode = "building") {
-  const m = message.toLowerCase();
-
-  // If user asks to edit a price / update pricing -> pricing edit intent
-  if (/(change|update|edit).*(pro).*\$?\d+/i.test(message) || /price.*pro/i.test(m)) return "pricing_edit";
-
-  // Ask to build landing / landing page preview
-  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
-
-  // default: general
-  return mode === "building" ? "builder_general" : "chat_general";
-}
-
 function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
   const body = `
-    <p class="muted">Landing Page</p>
     <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
     <p>Save time. Reduce manual work. Scale smarter.</p>
     <div class="row">
@@ -111,49 +106,71 @@ function makeLandingPreview({ brand = "FlowPro", proPrice = "$29/mo" } = {}) {
       <a class="btn" href="#">See Demo</a>
     </div>
 
-    <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:18px">
+    <div class="features">
+      <div class="feat">Automated task pipelines</div>
+      <div class="feat">Smart scheduling</div>
+      <div class="feat">Real-time analytics dashboard</div>
+    </div>
+
+    <div class="grid">
       <div class="plan">
         <h3>Starter</h3>
         <div class="price">$9/mo</div>
         <div class="muted">Basic support<br/>Core features<br/>1 user</div>
-        <div style="margin-top:14px"><a class="btn primary" href="#">Choose Plan</a></div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
+
       <div class="plan">
+        <div class="badge">Most Popular</div>
         <h3>Pro</h3>
         <div class="price">${escapeHtml(proPrice)}</div>
         <div class="muted">Priority support<br/>All features<br/>5 users</div>
-        <div style="margin-top:14px"><a class="btn primary" href="#">Choose Plan</a></div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
+
       <div class="plan">
         <h3>Enterprise</h3>
         <div class="price">$99/mo</div>
         <div class="muted">Dedicated support<br/>Custom integrations<br/>Unlimited users</div>
-        <div style="margin-top:14px"><a class="btn primary" href="#">Contact Sales</a></div>
+        <div style="margin-top:16px"><a class="btn primary" href="#">Contact Sales</a></div>
       </div>
     </div>
   `;
   return htmlShell({ title: `${brand} – Landing`, body });
 }
 
+function detectIntent(message = "", mode = "building") {
+  const m = message.toLowerCase();
+  if (/(change|update|edit).*(pro).*\$?\s*\d+/i.test(message) || /pro.*price/i.test(m)) return "pricing_edit";
+  if (/(landing page|build a landing|landing preview)/i.test(message)) return "landing_page";
+  return mode === "building" ? "builder_general" : "chat_general";
+}
+
 async function generateReply({ message, mode, pro }) {
   const system = `
 You are Simo: best friend + builder.
-- If mode=venting: respond like a supportive best friend. No therapy clichés.
-- If mode=solving: practical, step-by-step.
-- If mode=building: help build things. If user asks for a preview, output a preview HTML.
-- Keep responses short and natural.
-`;
+
+Style rules:
+- Keep it natural and helpful, like ChatGPT.
+- If mode=venting: supportive best friend (no therapy clichés).
+- If mode=solving: practical steps.
+- If mode=building: help build. If user asks for preview or edits, confirm what changed.
+
+Behavior:
+- If the user asks to change pricing (ex: "change Pro to $19"), acknowledge and confirm the new value.
+- Don’t say “Okay.” as a full answer unless user is confirming something tiny.
+
+Return plain text only.
+`.trim();
 
   const resp = await client.responses.create({
     model: "gpt-5-mini",
     input: [
-      { role: "system", content: system.trim() },
+      { role: "system", content: system },
       { role: "user", content: `Mode: ${mode}\nPro: ${pro}\n\nUser: ${message}` }
     ]
   });
 
-  // responses API: output_text is in resp.output_text in many SDKs;
-  // fallback to manual extraction
   const text =
     resp.output_text ||
     (resp.output?.map(o => o.content?.map(c => c.text).join("")).join("\n")) ||
@@ -174,32 +191,18 @@ export default async (req) => {
     if (!message.trim()) return json(400, { ok: false, error: "Missing message" });
 
     const intent = detectIntent(message, mode);
-
-    // We keep a tiny “memory” only via client instructions; real persistence is in the browser library.
-    // Preview behavior:
-    // - In building mode with pro: auto preview for landing pages and pricing edits.
-    // - For pricing edits: if user says "change Pro price to $19" we return a new preview with Pro updated.
     let preview = null;
 
     if (mode === "building" && pro) {
       if (intent === "landing_page") {
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }),
-        };
+        preview = { name: "landing_page", kind: "html", html: makeLandingPreview({ brand: "FlowPro", proPrice: "$29/mo" }) };
       }
 
       if (intent === "pricing_edit") {
-        // Extract the target pro price like $19 or 19/mo etc
         const match = message.match(/\$?\s*(\d{1,4})\s*(?:\/\s*(mo|month))?/i);
-        const num = match ? match[1] : null;
-        const proPrice = num ? `$${num}/mo` : "$19/mo";
-        preview = {
-          name: "landing_page",
-          kind: "html",
-          html: makeLandingPreview({ brand: "FlowPro", proPrice }),
-        };
+        const num = match ? match[1] : "19";
+        const proPrice = `$${num}/mo`;
+        preview = { name: "landing_page", kind: "html", html: makeLandingPreview({ brand: "FlowPro", proPrice }) };
       }
     }
 
