@@ -8,17 +8,13 @@
     :root{
       --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --card:rgba(255,255,255,.04);
-      --card2:rgba(0,0,0,.18);
-      --shadow: 0 18px 55px rgba(0,0,0,.45);
+      --card:rgba(0,0,0,.18);
+      --card2:rgba(255,255,255,.05);
+      --shadow:0 18px 55px rgba(0,0,0,.45);
       --btn:#2a66ff; --btn2:#1f4dd6;
-
-      /* neon pills */
-      --neon: #31ffa6;
-      --neon2:#10b981;
-      --neonGlow: 0 0 0 2px rgba(49,255,166,.14), 0 0 24px rgba(49,255,166,.22);
+      --good:#31ffa6; --bad:#ff4d4d;
+      --pill:rgba(0,0,0,.25);
     }
-
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
@@ -28,74 +24,91 @@
       color:var(--text);
     }
 
-    .wrap{max-width:1260px;margin:0 auto;padding:18px}
-    .top{
+    .wrap{max-width:1180px;margin:0 auto;padding:18px}
+    .topbar{
       display:flex;align-items:center;justify-content:space-between;
-      gap:12px;
       padding:14px 16px;
       border:1px solid var(--line);
       border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       box-shadow:var(--shadow);
+      gap:12px;
     }
     .brand{display:flex;align-items:center;gap:12px}
     .logo{
-      width:42px;height:42px;border-radius:14px;
-      background:linear-gradient(180deg, rgba(42,102,255,.35), rgba(0,0,0,.18));
+      width:38px;height:38px;border-radius:12px;
+      background:linear-gradient(180deg, rgba(42,102,255,.55), rgba(0,0,0,.25));
       border:1px solid rgba(255,255,255,.10);
-      box-shadow:0 10px 30px rgba(0,0,0,.35) inset;
+      box-shadow:0 12px 28px rgba(0,0,0,.35);
     }
     .brand h1{margin:0;font-size:22px;letter-spacing:.2px}
-    .brand .tag{color:rgba(234,240,255,.72);font-size:13px;margin-top:2px}
+    .brand .sub{color:rgba(234,240,255,.72);font-size:13px;margin-top:2px}
 
-    .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
-    .btn{
-      appearance:none;border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      padding:10px 12px;border-radius:14px;
-      font-weight:900;cursor:pointer;
-      display:inline-flex;align-items:center;gap:8px;
-      box-shadow:0 10px 30px rgba(0,0,0,.18);
-    }
-    .btn:hover{filter:brightness(1.07)}
-    .btn.primary{
-      background:linear-gradient(180deg,var(--btn),var(--btn2));
-      border-color:rgba(42,102,255,.45);
-    }
+    .rightTools{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 
+    /* Pro toggle (OFF looks OFF, ON glows) */
     .toggle{
       display:flex;align-items:center;gap:10px;
       padding:10px 12px;border-radius:14px;
-      border:1px solid rgba(49,255,166,.22);
-      background:rgba(49,255,166,.06);
-      box-shadow:var(--neonGlow);
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      box-shadow:0 10px 30px rgba(0,0,0,.18);
+      user-select:none;
+      cursor:pointer;
+      outline:none;
     }
-    .toggle label{font-weight:900}
-    .switch{position:relative;width:46px;height:26px}
-    .switch input{opacity:0;width:0;height:0}
+    .toggle .toggleLabel{font-weight:900}
+    .toggle.on{
+      border:1px solid rgba(49,255,166,.35);
+      background:rgba(49,255,166,.08);
+      box-shadow:0 0 0 2px rgba(49,255,166,.14), 0 0 24px rgba(49,255,166,.22);
+    }
+    .toggle.off{opacity:.92}
+
+    .switch{position:relative;width:54px;height:28px;flex:0 0 auto}
+    .switch input{opacity:0;width:0;height:0;position:absolute}
     .slider{
       position:absolute;inset:0;border-radius:999px;
-      background:rgba(0,0,0,.28);
-      border:1px solid rgba(255,255,255,.12);
-      transition:.2s;
+      background:rgba(255,255,255,.12);
+      border:1px solid rgba(255,255,255,.14);
+      transition:.18s ease;
     }
     .slider:before{
-      content:"";position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;
-      background:rgba(255,255,255,.84);
-      box-shadow:0 10px 20px rgba(0,0,0,.35);
-      transition:.2s;
+      content:""; position:absolute; top:3px; left:3px;
+      width:22px;height:22px;border-radius:999px;
+      background:linear-gradient(180deg, rgba(255,255,255,.65), rgba(255,255,255,.20));
+      box-shadow:0 10px 22px rgba(0,0,0,.35);
+      transition:.18s ease;
     }
     .switch input:checked + .slider{
-      background:rgba(49,255,166,.18);
+      background:rgba(49,255,166,.22);
       border-color:rgba(49,255,166,.35);
-      box-shadow:var(--neonGlow);
     }
-    .switch input:checked + .slider:before{transform:translateX(20px);background:white}
+    .switch input:checked + .slider:before{transform:translateX(26px)}
+
+    .btn{
+      display:inline-flex;align-items:center;justify-content:center;
+      padding:10px 14px;border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(0,0,0,.20);
+      color:var(--text);
+      font-weight:900;
+      text-decoration:none;
+      cursor:pointer;
+      transition:.15s ease;
+    }
+    .btn:hover{transform:translateY(-1px)}
+    .btn.primary{background:linear-gradient(180deg,var(--btn),var(--btn2));border-color:rgba(42,102,255,.45)}
+    .btn.ghost{background:transparent}
 
     .grid{
-      display:grid;grid-template-columns:1.1fr .9fr;gap:16px;
       margin-top:16px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
     }
 
     .panel{
@@ -104,315 +117,530 @@
       background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
       box-shadow:var(--shadow);
       overflow:hidden;
-      min-height:640px;
+      min-height:560px;
+      display:flex;
+      flex-direction:column;
     }
     .panelHead{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:14px 14px;
+      padding:14px 16px;
       border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;align-items:center;justify-content:space-between;
+      gap:10px;
     }
-    .panelHead .title{font-size:22px;font-weight:1000;letter-spacing:.2px}
-    .modes{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center}
+    .panelHead h2{margin:0;font-size:18px;letter-spacing:.4px}
+    .pills{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
     .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      padding:8px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.18);
+      font-weight:900;font-size:12px;
+      color:rgba(234,240,255,.82);
+    }
+    .pill.good{
+      border-color:rgba(49,255,166,.35);
+      background:rgba(49,255,166,.10);
+      color:rgba(234,240,255,.92);
+      box-shadow:0 0 0 2px rgba(49,255,166,.10);
+    }
+    .pill.dim{opacity:.55}
+    .pill.blue{
+      border-color:rgba(42,102,255,.45);
+      background:rgba(42,102,255,.14);
+    }
+
+    /* Mode tabs */
+    .modes{
+      display:flex;gap:10px;align-items:center;
+      justify-content:center;
+    }
+    .modeBtn{
       padding:10px 14px;border-radius:999px;
       border:1px solid rgba(255,255,255,.12);
       background:rgba(0,0,0,.18);
-      font-weight:900;color:rgba(234,240,255,.92);
-      cursor:pointer;user-select:none;
-      box-shadow:0 10px 24px rgba(0,0,0,.18);
+      color:rgba(234,240,255,.85);
+      font-weight:900;
+      cursor:pointer;
+      transition:.15s ease;
+      min-width:92px;
+      text-align:center;
     }
-    .pill.active{
-      border-color:rgba(42,102,255,.45);
-      background:linear-gradient(180deg, rgba(42,102,255,.45), rgba(31,77,214,.25));
-      box-shadow:0 0 0 2px rgba(42,102,255,.14), 0 0 26px rgba(42,102,255,.25);
-    }
-    .pill.neon{
-      border-color:rgba(49,255,166,.35);
-      background:rgba(49,255,166,.10);
-      box-shadow:var(--neonGlow);
+    .modeBtn.active{
+      border-color:rgba(42,102,255,.55);
+      background:rgba(42,102,255,.16);
+      box-shadow:0 0 0 2px rgba(42,102,255,.12);
       color:rgba(234,240,255,.96);
-      cursor:default;
-    }
-    .pill.dim{
-      opacity:.72;
-      filter:saturate(.9);
-      box-shadow:none;
     }
 
+    /* Chat */
     .chatBody{
-      padding:14px;
-      height:520px;
+      padding:14px 14px 0;
       overflow:auto;
+      flex:1;
     }
     .msg{
       border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.14);
+      background:rgba(0,0,0,.16);
       border-radius:16px;
-      padding:12px 12px;
-      margin-bottom:10px;
+      padding:14px;
+      margin-bottom:12px;
+      max-width: 92%;
+      white-space:pre-wrap;
+      line-height:1.45;
     }
-    .msg .who{font-size:13px;font-weight:900;color:rgba(234,240,255,.72);margin-bottom:6px}
-    .msg.you{background:linear-gradient(180deg, rgba(42,102,255,.16), rgba(0,0,0,.12))}
-    .msg.err{border-color:rgba(255,77,77,.35);background:rgba(255,77,77,.08)}
-    .msg .text{white-space:pre-wrap;line-height:1.45}
-
-    .composer{
-      padding:14px;border-top:1px solid rgba(255,255,255,.08);
-      display:flex;gap:10px;align-items:flex-end;
+    .msg.you{
+      margin-left:auto;
+      background:rgba(42,102,255,.14);
+      border-color:rgba(42,102,255,.26);
+    }
+    .msg .who{
+      display:block;
+      font-weight:900;
+      font-size:13px;
+      color:rgba(234,240,255,.70);
+      margin-bottom:6px;
+    }
+    .warn{
+      display:inline-flex;align-items:center;gap:8px;
+      color:rgba(255,255,255,.85);
+    }
+    .warn b{color:var(--bad)}
+    .chatFoot{
+      padding:14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      display:flex;
+      gap:12px;
+      align-items:flex-end;
     }
     textarea{
-      width:100%;min-height:48px;max-height:120px;resize:none;
+      flex:1;
+      resize:none;
+      height:54px;
+      max-height:160px;
+      padding:12px 12px;
       border-radius:16px;
       border:1px solid rgba(255,255,255,.12);
       background:rgba(0,0,0,.18);
       color:var(--text);
-      padding:12px 12px;
       outline:none;
-      font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+      font-size:15px;
     }
-    .send{
-      width:110px;justify-content:center;
-      background:linear-gradient(180deg,var(--btn),var(--btn2));
-      border-color:rgba(42,102,255,.45);
-    }
-    .hint{
-      padding:0 14px 14px;
-      color:rgba(234,240,255,.60);
+    .sendCol{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+    .ready{
+      display:flex;align-items:center;gap:8px;
+      color:rgba(234,240,255,.72);
+      font-weight:800;
       font-size:12px;
+      opacity:.9;
+    }
+    .dot{
+      width:9px;height:9px;border-radius:999px;background:var(--good);
+      box-shadow:0 0 0 2px rgba(49,255,166,.14);
     }
 
-    .previewBody{padding:14px}
-    .previewTop{
-      display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
-      margin-bottom:10px;
+    /* Preview */
+    .previewBody{
+      padding:12px 14px 14px;
+      overflow:hidden;
+      flex:1;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
-    .previewName{color:rgba(234,240,255,.70);font-weight:900}
-    .previewName b{color:rgba(234,240,255,.96)}
-    .previewBtns{display:flex;gap:10px;flex-wrap:wrap}
-    .iframeWrap{
+    .previewMeta{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      color:rgba(234,240,255,.70);
+      font-size:13px;
+      padding:2px 2px;
+    }
+    .frameWrap{
+      flex:1;
       border:1px solid rgba(255,255,255,.10);
       border-radius:16px;
-      background:rgba(0,0,0,.14);
+      background:rgba(0,0,0,.12);
       overflow:hidden;
-      height:560px;
+      position:relative;
+      min-height:420px;
     }
-    iframe{width:100%;height:100%;border:0;background:#0b1020}
-
-    .toast{
-      position:fixed;left:18px;bottom:18px;
-      padding:12px 14px;border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.55);
-      color:rgba(234,240,255,.92);
-      box-shadow:var(--shadow);
-      opacity:0;transform:translateY(10px);
-      transition:.2s;
-      pointer-events:none;
-      max-width:520px;
+    iframe{
+      width:100%;
+      height:100%;
+      border:0;
+      background:#fff;
     }
-    .toast.on{opacity:1;transform:translateY(0)}
-    .toast.bad{border-color:rgba(255,77,77,.35);background:rgba(255,77,77,.14)}
-    .toast.good{border-color:rgba(49,255,166,.35);background:rgba(49,255,166,.10)}
-
-    /* Library modal */
-    .modalBack{
-      position:fixed;inset:0;background:rgba(0,0,0,.55);
-      display:none;align-items:center;justify-content:center;
+    .emptyPreview{
+      position:absolute;inset:0;
+      display:flex;align-items:center;justify-content:center;
+      text-align:center;
       padding:18px;
+      color:rgba(234,240,255,.82);
     }
-    .modalBack.on{display:flex}
+    .emptyPreview h3{margin:0 0 8px;font-size:28px}
+    .emptyPreview p{margin:0;color:rgba(234,240,255,.68);line-height:1.4}
+    .tip{
+      margin-top:10px;
+      color:rgba(234,240,255,.55);
+      font-size:12px;
+      padding:0 14px 14px;
+    }
+
+    /* Bottom right PRO pill */
+    .bottomPill{
+      position:fixed;
+      right:16px; bottom:16px;
+      z-index:50;
+      display:flex;gap:10px;align-items:center;
+    }
+
+    /* Modal */
+    .modalBack{
+      position:fixed;inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center;justify-content:center;
+      padding:18px;
+      z-index:100;
+    }
     .modal{
-      width:min(980px, 96vw);
-      max-height:88vh;
-      overflow:auto;
-      border-radius:18px;
+      width:min(780px, 100%);
       border:1px solid rgba(255,255,255,.12);
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.25));
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       box-shadow:var(--shadow);
-      padding:14px;
+      overflow:hidden;
     }
-    .modalHead{display:flex;align-items:center;justify-content:space-between;gap:10px}
-    .modalHead h2{margin:0;font-size:18px}
-    .list{margin-top:12px;display:grid;gap:10px}
+    .modalHead{
+      padding:14px 16px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;align-items:center;justify-content:space-between;
+      gap:10px;
+    }
+    .modalHead h3{margin:0;font-size:16px}
+    .modalBody{padding:12px 16px;max-height:60vh;overflow:auto}
     .item{
       border:1px solid rgba(255,255,255,.10);
       background:rgba(0,0,0,.16);
       border-radius:16px;
       padding:12px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      display:flex;align-items:center;justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
     }
-    .item .meta{color:rgba(234,240,255,.70);font-size:12px}
-    .item .name{font-weight:1000}
-    .itemBtns{display:flex;gap:10px;flex-wrap:wrap}
-    .small{padding:8px 10px;border-radius:12px;font-weight:900}
-    @media (max-width:980px){
-      .grid{grid-template-columns:1fr}
-      .panel{min-height:auto}
-      .chatBody{height:440px}
-      .iframeWrap{height:520px}
-      .send{width:96px}
-    }
+    .item .meta2{color:rgba(234,240,255,.72);font-size:13px}
+    .item .name{font-weight:900}
+    .itemBtns{display:flex;gap:8px;flex-wrap:wrap}
+    .small{padding:8px 10px;border-radius:12px;font-size:13px}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="top">
+    <div class="topbar">
       <div class="brand">
         <div class="logo"></div>
         <div>
           <h1>Simo</h1>
-          <div class="tag">best friend + builder</div>
+          <div class="sub">best friend + builder</div>
         </div>
       </div>
 
-      <div class="actions">
-        
-        <div id="proWrap" class="toggle off" title="Pro enables auto-preview + advanced builder tools" role="button" tabindex="0">
-  <span class="toggleLabel">Pro Mode</span>
-  <div class="switch" aria-hidden="true">
-    <input id="proToggle" type="checkbox" />
-    <span class="slider"></span>
-  </div>
-</div>
-
-        <button id="resetBtn" class="btn">Reset</button>
-        <button id="openLibBtn" class="btn">Library</button>
+      <div class="rightTools">
+        <div id="proWrap" class="toggle off" role="button" tabindex="0" title="Pro enables auto-preview + advanced builder tools">
+          <span class="toggleLabel">Pro Mode</span>
+          <div class="switch" aria-hidden="true">
+            <input id="proToggle" type="checkbox" />
+            <span class="slider"></span>
+          </div>
+        </div>
+        <button id="resetBtn" class="btn ghost" type="button">Reset</button>
+        <button id="openLibraryBtn" class="btn ghost" type="button">Library</button>
       </div>
     </div>
 
     <div class="grid">
       <!-- CHAT -->
-      <section class="panel" aria-label="Chat">
+      <section class="panel" aria-label="chat panel">
         <div class="panelHead">
-          <div class="title">CHAT</div>
+          <h2>CHAT</h2>
           <div class="modes">
-            <div class="pill" data-mode="venting">Venting</div>
-            <div class="pill" data-mode="solving">Solving</div>
-            <div class="pill active" data-mode="building">Building</div>
+            <button class="modeBtn" data-mode="venting" type="button">Venting</button>
+            <button class="modeBtn" data-mode="solving" type="button">Solving</button>
+            <button class="modeBtn active" data-mode="building" type="button">Building</button>
           </div>
         </div>
 
-        <div id="chatBody" class="chatBody"></div>
+        <div id="chatBody" class="chatBody">
+          <div class="msg">
+            <span class="who">Simo</span>
+            I’m here. Pick a mode — or just talk.
+          </div>
+        </div>
 
-        <div class="composer">
+        <div class="chatFoot">
           <textarea id="input" placeholder="Type here… (Enter to send, Shift+Enter for new line)"></textarea>
-          <button id="sendBtn" class="btn send">Send</button>
+          <div class="sendCol">
+            <button id="sendBtn" class="btn primary" type="button">Send</button>
+            <div class="ready"><span class="dot"></span><span id="statusTxt">Ready</span></div>
+          </div>
         </div>
-        <div class="hint">
-          Tip: In <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).
-        </div>
+
+        <div class="tip">Tip: in <b>Building</b> mode, ask for a layout/app/site and I’ll render a preview (Pro).</div>
       </section>
 
       <!-- PREVIEW -->
-      <section class="panel" aria-label="Preview">
+      <section class="panel" aria-label="preview panel">
         <div class="panelHead">
-          <div class="title">PREVIEW</div>
-          <div class="previewBtns">
-            <button id="saveBtn" class="btn">Save Build</button>
-            <button id="copyBtn" class="btn">Copy HTML</button>
-            <button id="downloadBtn" class="btn">Download</button>
+          <h2>PREVIEW</h2>
+          <div class="pills">
+            <button id="saveBuildBtn" class="btn small" type="button">Save Build</button>
+            <button id="copyHtmlBtn" class="btn small" type="button">Copy HTML</button>
+            <button id="downloadBtn" class="btn small" type="button">Download</button>
           </div>
         </div>
 
         <div class="previewBody">
-          <div class="previewTop">
-            <div class="previewName">Current: <b id="currentName">Untitled preview</b></div>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <div id="modePill" class="pill neon dim">Building</div>
-              <div id="proPill" class="pill neon dim">PRO enabled</div>
+          <div class="previewMeta">
+            <div>Current: <b id="currentName">Untitled preview</b></div>
+            <div class="pills">
+              <span id="modePill" class="pill blue">Building</span>
+              <span id="proPillInline" class="pill dim">PRO disabled</span>
             </div>
           </div>
 
-          <div class="iframeWrap">
-            <iframe id="previewFrame" title="Preview"></iframe>
+          <div class="frameWrap">
+            <iframe id="frame" sandbox="allow-forms allow-modals allow-popups allow-scripts allow-same-origin"></iframe>
+            <div id="emptyPreview" class="emptyPreview">
+              <div>
+                <h3>No preview yet.</h3>
+                <p>Switch to <b>Building</b> and ask: “build a landing page preview”.</p>
+              </div>
+            </div>
           </div>
-          <div style="margin-top:10px;color:rgba(234,240,255,.55);font-size:12px">
-            Library is saved on this device.
-          </div>
+
+          <div class="tip">Library is saved on this device.</div>
         </div>
       </section>
     </div>
   </div>
 
-  <!-- Library modal -->
+  <div class="bottomPill">
+    <span id="proPill" class="pill dim">PRO disabled</span>
+  </div>
+
+  <!-- LIBRARY MODAL -->
   <div id="modalBack" class="modalBack" role="dialog" aria-modal="true" aria-label="Library">
     <div class="modal">
       <div class="modalHead">
-        <h2>Library</h2>
-        <div style="display:flex;gap:10px;flex-wrap:wrap">
-          <button id="exportBtn" class="btn small">Export JSON</button>
-          <button id="importBtn" class="btn small">Import JSON</button>
-          <button id="closeLibBtn" class="btn small">Close</button>
-        </div>
+        <h3>Library</h3>
+        <button id="closeModalBtn" class="btn small" type="button">Close</button>
       </div>
-      <div id="list" class="list"></div>
-      <input id="importFile" type="file" accept="application/json" style="display:none" />
+      <div class="modalBody" id="libraryList"></div>
     </div>
   </div>
 
-  <div id="toast" class="toast"></div>
-
   <script>
-    // ====== Config ======
-    const API_URL = "/api/simon"; // netlify.toml redirects /api/* -> /.netlify/functions/:splat
+    // ---------- State ----------
+    const STORAGE_KEY = "simo_state_v1";
     const LIB_KEY = "simo_library_v1";
-    const STATE_KEY = "simo_state_v1";
 
-    // ====== State ======
     let mode = "building";
     let pro = false;
-    let busy = false;
 
     let currentPreview = {
       name: "Untitled preview",
-      kind: "none",
+      kind: null,
       html: ""
     };
 
-    let messages = []; // [{role:'user'|'assistant'|'error', text:string}]
-
-    // ====== Elements ======
+    // ---------- Elements ----------
     const chatBody = document.getElementById("chatBody");
     const input = document.getElementById("input");
     const sendBtn = document.getElementById("sendBtn");
-    const resetBtn = document.getElementById("resetBtn");
-    const proToggle = document.getElementById("proToggle");
+    const statusTxt = document.getElementById("statusTxt");
 
-    const currentNameEl = document.getElementById("currentName");
-    const previewFrame = document.getElementById("previewFrame");
-    const saveBtn = document.getElementById("saveBtn");
-    const copyBtn = document.getElementById("copyBtn");
-    const downloadBtn = document.getElementById("downloadBtn");
-
+    const modeBtns = Array.from(document.querySelectorAll(".modeBtn"));
     const modePill = document.getElementById("modePill");
+
+    const proWrap = document.getElementById("proWrap");
+    const proToggle = document.getElementById("proToggle");
     const proPill = document.getElementById("proPill");
+    const proPillInline = document.getElementById("proPillInline");
+
+    const frame = document.getElementById("frame");
+    const emptyPreview = document.getElementById("emptyPreview");
+    const currentName = document.getElementById("currentName");
+
+    const saveBuildBtn = document.getElementById("saveBuildBtn");
+    const openLibraryBtn = document.getElementById("openLibraryBtn");
+    const copyHtmlBtn = document.getElementById("copyHtmlBtn");
+    const downloadBtn = document.getElementById("downloadBtn");
+    const resetBtn = document.getElementById("resetBtn");
 
     const modalBack = document.getElementById("modalBack");
-    const openLibBtn = document.getElementById("openLibBtn");
-    const closeLibBtn = document.getElementById("closeLibBtn");
-    const listEl = document.getElementById("list");
-    const exportBtn = document.getElementById("exportBtn");
-    const importBtn = document.getElementById("importBtn");
-    const importFile = document.getElementById("importFile");
+    const closeModalBtn = document.getElementById("closeModalBtn");
+    const libraryList = document.getElementById("libraryList");
 
-    const toastEl = document.getElementById("toast");
-
-    // ====== Helpers ======
-    function toast(msg, type=""){
-      toastEl.className = "toast on" + (type ? (" " + type) : "");
-      toastEl.textContent = msg;
-      setTimeout(()=>toastEl.classList.remove("on"), 2400);
+    // ---------- Helpers ----------
+    function nowStamp(){
+      const d = new Date();
+      const pad = (n)=>String(n).padStart(2,"0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
     }
 
-    function loadJSON(key, fallback){
+    function persistState(){
       try{
-        const raw = localStorage.getItem(key);
-        if(!raw) return fallback;
-        return JSON.parse(raw);
-      }catch(e){ return fallback; }
+        const data = {
+          mode,
+          pro,
+          currentPreview
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }catch(e){}
     }
-    function saveJSON(key, value){
-      localStorage.setItem(key, JSON.stringify(value));
+
+    function loadState(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return;
+        const data = JSON.parse(raw);
+        if(data && typeof data === "object"){
+          if(data.mode) mode = data.mode;
+          if(typeof data.pro === "boolean") pro = data.pro;
+          if(data.currentPreview) currentPreview = data.currentPreview;
+        }
+      }catch(e){}
+    }
+
+    function setMode(next){
+      mode = next;
+      modeBtns.forEach(b=>b.classList.toggle("active", b.dataset.mode === mode));
+      modePill.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
+      persistState();
+    }
+
+    function setPro(next){
+      pro = !!next;
+      proToggle.checked = pro;
+
+      proWrap.classList.toggle("on", pro);
+      proWrap.classList.toggle("off", !pro);
+
+      const txt = pro ? "PRO enabled" : "PRO disabled";
+      proPill.textContent = txt;
+      proPillInline.textContent = txt;
+
+      proPill.classList.toggle("dim", !pro);
+      proPillInline.classList.toggle("dim", !pro);
+
+      persistState();
+    }
+
+    function addMsg(who, text, isYou=false){
+      const div = document.createElement("div");
+      div.className = "msg" + (isYou ? " you" : "");
+      const whoSpan = document.createElement("span");
+      whoSpan.className = "who";
+      whoSpan.textContent = who;
+      div.appendChild(whoSpan);
+      div.appendChild(document.createTextNode(text));
+      chatBody.appendChild(div);
+      chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    function setBusy(isBusy){
+      statusTxt.textContent = isBusy ? "Thinking…" : "Ready";
+      sendBtn.disabled = isBusy;
+      input.disabled = isBusy;
+      sendBtn.style.opacity = isBusy ? .7 : 1;
+    }
+
+    function toast(text, kind="good"){
+      addMsg("Simo", text, false);
+    }
+
+    function setPreview(preview){
+      if(!preview || !preview.html){
+        // keep existing preview, don't blank it
+        return;
+      }
+      currentPreview = {
+        name: preview.name || "Untitled preview",
+        kind: preview.kind || "html",
+        html: preview.html
+      };
+      currentName.textContent = currentPreview.name;
+      frame.srcdoc = currentPreview.html;
+      emptyPreview.style.display = "none";
+      persistState();
+    }
+
+    function getLibrary(){
+      try{
+        return JSON.parse(localStorage.getItem(LIB_KEY) || "[]");
+      }catch(e){
+        return [];
+      }
+    }
+    function setLibrary(items){
+      localStorage.setItem(LIB_KEY, JSON.stringify(items));
+    }
+
+    function openModal(){
+      renderLibrary();
+      modalBack.style.display = "flex";
+    }
+    function closeModal(){
+      modalBack.style.display = "none";
+    }
+
+    function renderLibrary(){
+      const items = getLibrary();
+      if(items.length === 0){
+        libraryList.innerHTML = `<div class="msg"><span class="who">Simo</span>No saved builds yet. Use <b>Save Build</b> after you generate a preview.</div>`;
+        return;
+      }
+      libraryList.innerHTML = "";
+      items.slice().reverse().forEach((item, idxFromEnd)=>{
+        const realIdx = items.length - 1 - idxFromEnd;
+        const row = document.createElement("div");
+        row.className = "item";
+
+        const left = document.createElement("div");
+        left.innerHTML = `<div class="name">${escapeHtml(item.name || "Untitled")}</div>
+                          <div class="meta2">${escapeHtml(item.savedAt || "")}</div>`;
+
+        const btns = document.createElement("div");
+        btns.className = "itemBtns";
+
+        const loadBtn = document.createElement("button");
+        loadBtn.className = "btn small primary";
+        loadBtn.textContent = "Load";
+        loadBtn.onclick = ()=>{
+          currentPreview = item.preview;
+          currentName.textContent = currentPreview.name || "Untitled preview";
+          frame.srcdoc = currentPreview.html || "";
+          emptyPreview.style.display = currentPreview.html ? "none" : "flex";
+          persistState();
+          closeModal();
+          addMsg("Simo", `Loaded: ${currentPreview.name || "Untitled preview"}`);
+        };
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn small";
+        delBtn.textContent = "Delete";
+        delBtn.onclick = ()=>{
+          const next = getLibrary();
+          next.splice(realIdx, 1);
+          setLibrary(next);
+          renderLibrary();
+        };
+
+        btns.appendChild(loadBtn);
+        btns.appendChild(delBtn);
+
+        row.appendChild(left);
+        row.appendChild(btns);
+        libraryList.appendChild(row);
+      });
     }
 
     function escapeHtml(s=""){
@@ -424,177 +652,8 @@
         .replaceAll("'","&#039;");
     }
 
-    function renderChat(){
-      chatBody.innerHTML = "";
-      for(const m of messages){
-        const div = document.createElement("div");
-        div.className = "msg " + (m.role === "user" ? "you" : (m.role === "error" ? "err" : ""));
-        const who = document.createElement("div");
-        who.className = "who";
-        who.textContent = m.role === "user" ? "You" : (m.role === "error" ? "Simo" : "Simo");
-        const text = document.createElement("div");
-        text.className = "text";
-        text.textContent = m.text;
-        div.appendChild(who);
-        div.appendChild(text);
-        chatBody.appendChild(div);
-      }
-      chatBody.scrollTop = chatBody.scrollHeight;
-    }
-
-    function setMode(next){
-      mode = next;
-      document.querySelectorAll(".pill[data-mode]").forEach(p=>{
-        p.classList.toggle("active", p.dataset.mode === mode);
-      });
-      modePill.textContent = mode.charAt(0).toUpperCase() + mode.slice(1);
-      modePill.classList.remove("dim");
-      persistState();
-    }
-
-    function setPro(next){
-      pro = !!next;
-      proToggle.checked = pro;
-
-      if(pro){
-        proPill.classList.remove("dim");
-        proPill.textContent = "PRO enabled";
-      } else {
-        proPill.classList.add("dim");
-        proPill.textContent = "PRO disabled";
-      }
-      persistState();
-    }
-
-    function setPreview(preview){
-      if(!preview || !preview.kind){
-        currentPreview = { name:"Untitled preview", kind:"none", html:"" };
-      } else {
-        currentPreview = {
-          name: preview.name || "Untitled preview",
-          kind: preview.kind,
-          html: preview.html || ""
-        };
-      }
-
-      currentNameEl.textContent = currentPreview.name;
-
-      if(currentPreview.kind === "html" && currentPreview.html){
-        previewFrame.srcdoc = currentPreview.html;
-      } else {
-        previewFrame.srcdoc = `
-          <!doctype html><html><head><meta charset="utf-8"/>
-          <style>
-            body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:flex;align-items:center;justify-content:center;height:100vh}
-            .box{border:1px solid rgba(255,255,255,.10);border-radius:16px;padding:18px;background:rgba(255,255,255,.04)}
-            .muted{color:rgba(234,240,255,.65)}
-          </style></head><body>
-            <div class="box">
-              <div style="font-weight:900;font-size:22px">No preview yet.</div>
-              <div class="muted" style="margin-top:8px">Switch to <b>Building</b> and ask: “build a landing page preview”.</div>
-            </div>
-          </body></html>
-        `;
-      }
-      persistState();
-    }
-
-    function persistState(){
-      saveJSON(STATE_KEY, { mode, pro, messages, currentPreview });
-    }
-
-    function restoreState(){
-      const st = loadJSON(STATE_KEY, null);
-      if(!st){
-        // default boot message
-        messages = [{ role:"assistant", text:"I’m here. Pick a mode — or just talk." }];
-        renderChat();
-        setPreview(null);
-        setMode("building");
-        setPro(false);
-        return;
-      }
-      mode = st.mode || "building";
-      pro = !!st.pro;
-      messages = Array.isArray(st.messages) ? st.messages : [{ role:"assistant", text:"I’m here. Pick a mode — or just talk." }];
-      renderChat();
-      setMode(mode);
-      setPro(pro);
-      setPreview(st.currentPreview || null);
-    }
-
-    function libraryGet(){
-      return loadJSON(LIB_KEY, []);
-    }
-    function librarySet(list){
-      saveJSON(LIB_KEY, list);
-    }
-
-    function openLibrary(){
-      modalBack.classList.add("on");
-      renderLibrary();
-    }
-    function closeLibrary(){
-      modalBack.classList.remove("on");
-    }
-
-    function renderLibrary(){
-      const lib = libraryGet();
-      listEl.innerHTML = "";
-      if(!lib.length){
-        listEl.innerHTML = `
-          <div class="item">
-            <div>
-              <div class="name">No saved builds yet</div>
-              <div class="meta">Use “Save Build” when you have a preview you like.</div>
-            </div>
-          </div>`;
-        return;
-      }
-
-      for(const item of lib){
-        const row = document.createElement("div");
-        row.className = "item";
-
-        const left = document.createElement("div");
-        left.innerHTML = `
-          <div class="name">${escapeHtml(item.name || "Untitled")}</div>
-          <div class="meta">${escapeHtml(item.kind || "html")} • ${escapeHtml(item.savedAt || "")}</div>
-        `;
-
-        const btns = document.createElement("div");
-        btns.className = "itemBtns";
-
-        const loadBtn = document.createElement("button");
-        loadBtn.className = "btn small";
-        loadBtn.textContent = "Load";
-        loadBtn.onclick = () => {
-          setPreview(item);
-          toast("Loaded from Library", "good");
-          closeLibrary();
-        };
-
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn small";
-        delBtn.textContent = "Delete";
-        delBtn.onclick = () => {
-          const next = libraryGet().filter(x => x.id !== item.id);
-          librarySet(next);
-          renderLibrary();
-          toast("Deleted", "good");
-        };
-
-        btns.appendChild(loadBtn);
-        btns.appendChild(delBtn);
-
-        row.appendChild(left);
-        row.appendChild(btns);
-        listEl.appendChild(row);
-      }
-    }
-
     function downloadText(filename, text){
-      const blob = new Blob([text], { type: "text/html;charset=utf-8" });
+      const blob = new Blob([text], {type:"text/html;charset=utf-8"});
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -608,172 +667,150 @@
     async function copyToClipboard(text){
       try{
         await navigator.clipboard.writeText(text);
-        toast("Copied to clipboard", "good");
+        addMsg("Simo", "Copied HTML to clipboard.");
       }catch(e){
-        // fallback
-        const ta = document.createElement("textarea");
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand("copy");
-        ta.remove();
-        toast("Copied to clipboard", "good");
+        addMsg("Simo", "Copy failed. Your browser blocked clipboard. Try Ctrl+C from the HTML you downloaded.");
       }
     }
 
-    // ====== API ======
-    async function sendMessage(text){
-      if(busy) return;
-      const msg = String(text || "").trim();
-      if(!msg) return;
-
-      messages.push({ role:"user", text: msg });
-      renderChat();
-      input.value = "";
-
-      busy = true;
-      sendBtn.textContent = "…";
-      sendBtn.disabled = true;
-
-      try{
-        const res = await fetch(API_URL, {
-          method:"POST",
-          headers:{ "content-type":"application/json" },
-          body: JSON.stringify({
-            message: msg,
-            mode,
-            pro,
-            // send last few messages for context (optional)
-            history: messages.slice(-10).map(m => ({ role: m.role === "user" ? "user" : "assistant", content: m.text }))
-          })
-        });
-
-        const data = await res.json().catch(()=>null);
-
-        if(!res.ok || !data || data.ok !== true){
-          const errMsg = (data && (data.error || data.message)) ? (data.error || data.message) : "Server error";
-          messages.push({ role:"error", text: "⚠ " + errMsg });
-          renderChat();
-          toast(errMsg, "bad");
-          return;
-        }
-
-        // reply
-        messages.push({ role:"assistant", text: data.reply || "Okay." });
-        renderChat();
-
-        // preview
-        if(data.preview && data.preview.kind){
-          setPreview(data.preview);
-        }
-
-      } catch(e){
-        messages.push({ role:"error", text:"⚠ Network error" });
-        renderChat();
-        toast("Network error", "bad");
-      } finally {
-        busy = false;
-        sendBtn.textContent = "Send";
-        sendBtn.disabled = false;
+    // ---------- API ----------
+    async function callSimo(message){
+      const payload = { message, mode, pro };
+      const res = await fetch("/api/simon", {
+        method:"POST",
+        headers:{ "content-type":"application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(()=>({ok:false,error:"Bad JSON"}));
+      if(!res.ok || !data.ok){
+        throw new Error(data.error || "Server error");
       }
+      return data;
     }
 
-    // ====== Events ======
-    document.querySelectorAll(".pill[data-mode]").forEach(p=>{
-      p.addEventListener("click", ()=> setMode(p.dataset.mode));
+    // ---------- Events ----------
+    modeBtns.forEach(btn=>{
+      btn.addEventListener("click", ()=> setMode(btn.dataset.mode));
     });
 
-    sendBtn.addEventListener("click", ()=> sendMessage(input.value));
+    // click anywhere on pro control toggles it
+    function togglePro(){
+      proToggle.checked = !proToggle.checked;
+      setPro(proToggle.checked);
+      addMsg("Simo", pro ? "Pro enabled." : "Pro disabled.");
+    }
+    proWrap.addEventListener("click", (e)=>{ e.preventDefault(); togglePro(); });
+    proWrap.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault(); togglePro();
+      }
+    });
+    proToggle.addEventListener("change", ()=> setPro(proToggle.checked));
+
+    // Send: Enter = send, Shift+Enter = newline
     input.addEventListener("keydown", (e)=>{
       if(e.key === "Enter" && !e.shiftKey){
         e.preventDefault();
-        sendMessage(input.value);
+        onSend();
       }
     });
+    sendBtn.addEventListener("click", onSend);
 
-    resetBtn.addEventListener("click", ()=>{
-      messages = [{ role:"assistant", text:"Fresh start. I’m here." }];
-      renderChat();
-      setPreview(null);
-      persistState();
-      toast("Reset", "good");
+    async function onSend(){
+      const message = input.value.trim();
+      if(!message) return;
+
+      addMsg("You", message, true);
+      input.value = "";
+      input.style.height = "54px";
+
+      setBusy(true);
+      try{
+        const data = await callSimo(message);
+        addMsg("Simo", data.reply || "Okay.");
+        if(data.preview && data.preview.html){
+          setPreview(data.preview);
+        }
+      }catch(err){
+        addMsg("Simo", `⚠ Server error. (${String(err.message || err)})`);
+      }finally{
+        setBusy(false);
+      }
+    }
+
+    input.addEventListener("input", ()=>{
+      input.style.height = "54px";
+      input.style.height = Math.min(160, input.scrollHeight) + "px";
     });
 
-    proToggle.addEventListener("change", ()=>{
-      setPro(proToggle.checked);
-      toast(pro ? "Pro enabled" : "Pro disabled", "good");
-    });
-
-    saveBtn.addEventListener("click", ()=>{
-      if(currentPreview.kind !== "html" || !currentPreview.html){
-        toast("Nothing to save yet", "bad");
+    saveBuildBtn.addEventListener("click", ()=>{
+      if(!currentPreview || !currentPreview.html){
+        addMsg("Simo", "No preview to save yet. Generate a preview first.");
         return;
       }
-      const name = prompt("Save as:", currentPreview.name || "My build");
-      if(!name) return;
-
-      const lib = libraryGet();
-      const now = new Date();
-      lib.unshift({
-        id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+      const items = getLibrary();
+      const name = currentPreview.name || "Untitled preview";
+      items.push({
         name,
-        kind: "html",
-        html: currentPreview.html,
-        savedAt: now.toLocaleString()
+        savedAt: nowStamp(),
+        preview: currentPreview
       });
-      librarySet(lib);
-      toast("Saved to Library", "good");
+      setLibrary(items);
+      addMsg("Simo", `Saved build: ${name}`);
     });
 
-    openLibBtn.addEventListener("click", openLibrary);
-    closeLibBtn.addEventListener("click", closeLibrary);
-    modalBack.addEventListener("click", (e)=>{ if(e.target === modalBack) closeLibrary(); });
+    openLibraryBtn.addEventListener("click", openModal);
+    closeModalBtn.addEventListener("click", closeModal);
+    modalBack.addEventListener("click", (e)=>{
+      if(e.target === modalBack) closeModal();
+    });
 
-    copyBtn.addEventListener("click", ()=>{
-      if(currentPreview.kind !== "html" || !currentPreview.html){
-        toast("No HTML to copy yet", "bad");
+    copyHtmlBtn.addEventListener("click", ()=>{
+      if(!currentPreview || !currentPreview.html){
+        addMsg("Simo", "No HTML to copy yet. Generate a preview first.");
         return;
       }
       copyToClipboard(currentPreview.html);
     });
 
     downloadBtn.addEventListener("click", ()=>{
-      if(currentPreview.kind !== "html" || !currentPreview.html){
-        toast("No HTML to download yet", "bad");
+      if(!currentPreview || !currentPreview.html){
+        addMsg("Simo", "No HTML to download yet. Generate a preview first.");
         return;
       }
-      const safe = (currentPreview.name || "preview").replace(/[^a-z0-9\-_]+/gi, "_").toLowerCase();
-      downloadText(`${safe || "preview"}.html`, currentPreview.html);
-      toast("Downloaded", "good");
+      const safe = (currentPreview.name || "preview").toLowerCase().replace(/[^a-z0-9_-]+/g,"-");
+      downloadText(`${safe}.html`, currentPreview.html);
+      addMsg("Simo", "Downloaded HTML.");
     });
 
-    exportBtn.addEventListener("click", ()=>{
-      const lib = libraryGet();
-      downloadText("simo-library.json", JSON.stringify(lib, null, 2));
-      toast("Exported", "good");
+    resetBtn.addEventListener("click", ()=>{
+      // soft reset: clears chat + preview only (keeps Library)
+      chatBody.innerHTML = "";
+      addMsg("Simo", "Fresh start. I’m here.");
+      currentPreview = { name:"Untitled preview", kind:null, html:"" };
+      currentName.textContent = currentPreview.name;
+      frame.srcdoc = "";
+      emptyPreview.style.display = "flex";
+      setMode("building");
+      // keep pro state as-is, but refresh UI
+      setPro(pro);
+      persistState();
     });
 
-    importBtn.addEventListener("click", ()=> importFile.click());
-    importFile.addEventListener("change", async ()=>{
-      const f = importFile.files && importFile.files[0];
-      if(!f) return;
-      try{
-        const txt = await f.text();
-        const data = JSON.parse(txt);
-        if(!Array.isArray(data)) throw new Error("Invalid format");
-        librarySet(data);
-        renderLibrary();
-        toast("Imported", "good");
-      }catch(e){
-        toast("Import failed", "bad");
-      }finally{
-        importFile.value = "";
-      }
-    });
+    // ---------- Init ----------
+    loadState();
+    setMode(mode);
+    setPro(pro);
 
-    // ====== Boot ======
-    restoreState();
+    // restore preview if exists
+    if(currentPreview && currentPreview.html){
+      currentName.textContent = currentPreview.name || "Untitled preview";
+      frame.srcdoc = currentPreview.html;
+      emptyPreview.style.display = "none";
+    } else {
+      currentName.textContent = "Untitled preview";
+      emptyPreview.style.display = "flex";
+    }
   </script>
 </body>
 </html>
-
