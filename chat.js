@@ -1,12 +1,11 @@
 /* chat.js — Simo UI controller (safe + no null errors)
    - Buttons + Enter key work
-   - Pro toggles
    - Calls Netlify function backend (/.netlify/functions/simon)
    - Loads preview via iframe srcdoc
    - Download HTML
-   - Save build + Library (localStorage) when Pro ON
-   - MODE SWITCH: always sends current preview state so edits work across modes
-   - NEW: Free daily message limit (Pro unlimited)
+   - Save build + Library (localStorage)
+   - ALWAYS sends current preview state so edits work across modes
+   - NEW: Plan tiers (free/starter/pro) stored in localStorage
 */
 
 (() => {
@@ -50,7 +49,7 @@
 
   const state = {
     mode: "building",
-    pro: false,
+    plan: "free",              // "free" | "starter" | "pro"
     lastPreviewHtml: "",
     lastPreviewName: "none",
     lastBackend: "?",
@@ -60,14 +59,17 @@
   const API_URL = "/.netlify/functions/simon";
 
   // =========================
-  // PLAN LIMITS (SAFE)
+  // PLAN + LIMITS
   // =========================
+  const PLAN_KEY = "simo_plan";
+
   const LIMITS = {
-    FREE_DAILY_MESSAGES: 30,     // change this later if you want
+    free: 30,       // messages/day
+    starter: 200,   // messages/day
+    pro: Infinity
   };
 
   function todayKey() {
-    // local date key (YYYY-MM-DD)
     const d = new Date();
     const y = d.getFullYear();
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -83,45 +85,80 @@
     try {
       const raw = localStorage.getItem(usageStorageKey());
       const parsed = raw ? JSON.parse(raw) : null;
-      return {
-        msgs: Number(parsed?.msgs || 0),
-      };
+      return { msgs: Number(parsed?.msgs || 0) };
     } catch {
       return { msgs: 0 };
     }
   }
 
   function setUsage(u) {
-    localStorage.setItem(usageStorageKey(), JSON.stringify({
-      msgs: Number(u?.msgs || 0)
-    }));
+    localStorage.setItem(usageStorageKey(), JSON.stringify({ msgs: Number(u?.msgs || 0) }));
+  }
+
+  function loadPlan() {
+    const p = (localStorage.getItem(PLAN_KEY) || "").toLowerCase();
+    if (p === "starter" || p === "pro" || p === "free") return p;
+    return "free";
+  }
+
+  function savePlan(p) {
+    localStorage.setItem(PLAN_KEY, p);
+  }
+
+  function planIsPro() {
+    return state.plan === "pro";
+  }
+
+  function canUseExports() {
+    // Save / Download / Library are Pro-only right now
+    return state.plan === "pro";
   }
 
   function canSendMessage() {
-    if (state.pro) return { ok: true, left: Infinity, limit: Infinity };
-
     const u = getUsage();
-    const limit = LIMITS.FREE_DAILY_MESSAGES;
+    const limit = LIMITS[state.plan] ?? LIMITS.free;
+
+    if (!Number.isFinite(limit)) return { ok: true, left: Infinity, limit: Infinity };
+
     const left = Math.max(0, limit - u.msgs);
     return { ok: left > 0, left, limit };
   }
 
   function consumeMessage() {
-    if (state.pro) return;
+    const limit = LIMITS[state.plan] ?? LIMITS.free;
+    if (!Number.isFinite(limit)) return; // pro unlimited
     const u = getUsage();
     u.msgs = (u.msgs || 0) + 1;
     setUsage(u);
   }
 
+  function renderPlanPill() {
+    // Keep your existing Pro pill element, just show plan state clearly
+    const label = state.plan === "pro" ? "Plan: PRO" : (state.plan === "starter" ? "Plan: STARTER" : "Plan: FREE");
+    els.proToggle.textContent = label;
+
+    // Make it glow only when Pro
+    els.proToggle.classList.toggle("active", state.plan === "pro");
+    els.proToggle.classList.toggle("on", state.plan === "pro");
+    els.proToggle.setAttribute("aria-pressed", String(state.plan === "pro"));
+
+    els.previewProBadge.textContent = state.plan === "pro" ? "pro: on" : "pro: off";
+  }
+
   function updateProLine() {
-    if (state.pro) {
-      els.proLine.textContent = "Pro ON: Save build + Download enabled. (Unlimited messages)";
-      return;
-    }
     const u = getUsage();
-    const limit = LIMITS.FREE_DAILY_MESSAGES;
-    const left = Math.max(0, limit - u.msgs);
-    els.proLine.textContent = `Pro OFF: Save + Download disabled. (Free: ${left}/${limit} messages left today)`;
+    const limit = LIMITS[state.plan] ?? LIMITS.free;
+
+    const exportsText = canUseExports()
+      ? "Save build + Download enabled."
+      : "Save + Download disabled.";
+
+    if (!Number.isFinite(limit)) {
+      els.proLine.textContent = `${exportsText} (Unlimited messages)`;
+    } else {
+      const left = Math.max(0, limit - u.msgs);
+      els.proLine.textContent = `${exportsText} (${state.plan.toUpperCase()}: ${left}/${limit} messages left today)`;
+    }
   }
 
   // =========================
@@ -141,33 +178,12 @@
 
   function setMode(mode) {
     state.mode = mode;
-
     els.modeBuilding.classList.toggle("active", mode === "building");
     els.modeSolving.classList.toggle("active", mode === "solving");
     els.modeVenting.classList.toggle("active", mode === "venting");
 
     els.modeLine.textContent = `Mode: ${mode}`;
     els.previewModeBadge.textContent = `mode: ${mode}`;
-  }
-
-  function setPro(on) {
-    state.pro = !!on;
-
-    els.proToggle.classList.toggle("active", state.pro);
-    els.proToggle.classList.toggle("on", state.pro);
-    els.proToggle.setAttribute("aria-pressed", String(state.pro));
-    els.proToggle.textContent = state.pro ? "Pro: ON" : "Pro: OFF";
-
-    els.previewProBadge.textContent = state.pro ? "pro: on" : "pro: off";
-
-    // Save + Library allowed only when Pro on
-    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
-    els.libraryBtn.disabled = !state.pro;
-
-    // Download enabled only when Pro on + preview exists
-    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
-
-    updateProLine();
   }
 
   function setBackendLabel(label) {
@@ -185,8 +201,10 @@
 
     els.previewFrame.srcdoc = html || "";
 
-    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
-    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
+    // Export buttons based on plan
+    els.downloadBtn.disabled = !canUseExports() || !state.lastPreviewHtml;
+    els.saveBtn.disabled = !canUseExports() || !state.lastPreviewHtml;
+    els.libraryBtn.disabled = !canUseExports();
   }
 
   function clearPreview() {
@@ -195,7 +213,7 @@
   }
 
   function downloadCurrentPreview() {
-    if (!state.pro || !state.lastPreviewHtml) return;
+    if (!canUseExports() || !state.lastPreviewHtml) return;
 
     const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
@@ -227,7 +245,7 @@
   }
 
   function saveBuild() {
-    if (!state.pro || !state.lastPreviewHtml) return;
+    if (!canUseExports() || !state.lastPreviewHtml) return;
 
     const name = prompt("Name this build (e.g., lp_v1):", state.lastPreviewName || "build");
     if (!name) return;
@@ -245,7 +263,7 @@
   }
 
   function openLibrary() {
-    if (!state.pro) return;
+    if (!canUseExports()) return;
 
     const builds = getSavedBuilds();
     if (!builds.length) {
@@ -309,10 +327,11 @@
     const q = (els.msg.value || "").trim();
     if (!q) return;
 
-    // LIMIT CHECK (Free only)
+    // LIMIT CHECK (per plan)
     const allowed = canSendMessage();
     if (!allowed.ok) {
-      bubble("simo", `Simo: You’ve hit today’s Free limit (${allowed.limit} messages). Turn Pro ON for unlimited messages.`);
+      bubble("simo", `Simo: You hit today’s ${state.plan.toUpperCase()} limit (${allowed.limit} messages).`);
+      bubble("simo", "Simo: Upgrade to PRO for unlimited messages + Save/Download/Library.");
       updateProLine();
       return;
     }
@@ -320,7 +339,6 @@
     bubble("me", `You: ${q}`);
     els.msg.value = "";
 
-    // consume immediately so refresh spamming can’t bypass it
     consumeMessage();
     updateProLine();
 
@@ -329,10 +347,11 @@
     els.previewStatusBadge.textContent = "thinking…";
 
     try {
+      // IMPORTANT: keep backend contract stable
       const payload = {
         text: q,
         mode: state.mode,
-        pro: state.pro,
+        pro: planIsPro(), // backend only needs boolean pro
         current_preview_name: state.lastPreviewName,
         current_preview_html: state.lastPreviewHtml
       };
@@ -375,19 +394,46 @@
 
   function devDump() {
     const u = getUsage();
+    const limit = LIMITS[state.plan] ?? LIMITS.free;
+    const left = Number.isFinite(limit) ? Math.max(0, limit - u.msgs) : Infinity;
+
     const info = [
       `mode=${state.mode}`,
-      `pro=${state.pro}`,
+      `plan=${state.plan}`,
+      `msg_left_today=${left}`,
       `preview=${state.lastPreviewName}`,
       `hasPreviewHtml=${!!state.lastPreviewHtml}`,
       `backend=${state.lastBackend}`,
-      `api=${API_URL}`,
-      `free_used_today=${u.msgs}`
+      `api=${API_URL}`
     ].join(" | ");
     bubble("simo", `Simo (dev): ${info}`);
+
+    // Also allow setting plan from Dev button (safe)
+    const next = prompt("Set plan: free / starter / pro", state.plan);
+    if (!next) return;
+    const p = String(next).toLowerCase().trim();
+    if (p !== "free" && p !== "starter" && p !== "pro") {
+      bubble("simo", "Simo: Invalid plan. Use: free / starter / pro");
+      return;
+    }
+    state.plan = p;
+    savePlan(p);
+    renderPlanPill();
+    updateProLine();
+    setPreview(state.lastPreviewHtml, state.lastPreviewName); // refresh export button states
+    bubble("simo", `Simo: Plan set to ${p.toUpperCase()}.`);
   }
 
-  // Wire up events
+  // Pro pill quick toggle (Free <-> Pro) for testing
+  function toggleProQuick() {
+    state.plan = (state.plan === "pro") ? "free" : "pro";
+    savePlan(state.plan);
+    renderPlanPill();
+    updateProLine();
+    setPreview(state.lastPreviewHtml, state.lastPreviewName);
+  }
+
+  // Wire events
   els.sendBtn.addEventListener("click", send);
   els.msg.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -400,7 +446,7 @@
   els.modeSolving.addEventListener("click", () => setMode("solving"));
   els.modeVenting.addEventListener("click", () => setMode("venting"));
 
-  els.proToggle.addEventListener("click", () => setPro(!state.pro));
+  els.proToggle.addEventListener("click", toggleProQuick);
 
   els.resetBtn.addEventListener("click", resetAll);
   els.devBtn.addEventListener("click", devDump);
@@ -412,8 +458,9 @@
   els.libraryBtn.addEventListener("click", openLibrary);
 
   // Boot
+  state.plan = loadPlan();
   setMode("building");
-  setPro(false);
+  renderPlanPill();
   setBackendLabel("?");
   resetAll();
 })();
