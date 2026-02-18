@@ -1,9 +1,9 @@
-[functions]
-  directory = "netlify/functions"
-  node_bundler = "esbuild"
-  external_node_modules = ["openai"]
+[build]
+  publish = "."
+  functions = "netlify/functions"
 
+# If you need SPA routing, keep it LAST and DO NOT force it.
 [[redirects]]
-  from = "/api/*"
-  to = "/.netlify/functions/:splat"
+  from = "/*"
+  to = "/index.html"
   status = 200
