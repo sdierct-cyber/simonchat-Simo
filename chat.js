@@ -1,13 +1,12 @@
 (() => {
   // =========================
-  // Simo chat.js — Checkpoint V1++
-  // - Stable UI wiring
-  // - Tier gating (Free/Pro) FIXED (no desync)
-  // - Undo / Redo (preview history)
-  // - Auto-version Save
-  // - Library modal auto-creates if missing in index.html
-  // - FIX: legacy dates show "Older save"
-  // - NEW: Library Backup Export/Import (Pro)
+  // Simo chat.js — Checkpoint V1++ (stable)
+  // - Pro gating synced (no desync)
+  // - Library modal self-heals (adds missing controls)
+  // - Undo / Redo
+  // - Save / Download / Library gated
+  // - FIX: "Invalid Date" -> "Older save"
+  // - NEW: Export/Import Library Backup (Pro)
   // =========================
 
   const REQ = [
@@ -28,18 +27,6 @@
     console.error("Simo UI missing required elements:", missing);
     return;
   }
-
-  // Optional modal ids (may not exist; we can create them)
-  els.modalBack  = document.getElementById("modalBack");
-  els.closeModal = document.getElementById("closeModal");
-  els.libList    = document.getElementById("libList");
-  els.libHint    = document.getElementById("libHint");
-  els.clearLib   = document.getElementById("clearLib");
-
-  // NEW (optional; created if missing)
-  els.exportLib  = document.getElementById("exportLib");
-  els.importLib  = document.getElementById("importLib");
-  els.importFile = document.getElementById("importFile");
 
   const PRICING = { free: 0, pro: 19 };
   const LS = {
@@ -64,7 +51,7 @@
   // INIT
   // -------------------------
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
-  els.tierProLabel.textContent = `$${PRICING.pro}`;
+  els.tierProLabel.textContent  = `$${PRICING.pro}`;
 
   state.tier = resolveTier();
   applyTierUI();
@@ -80,7 +67,7 @@
   if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
 
   // -------------------------
-  // Helpers
+  // Storage helpers
   // -------------------------
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; }
@@ -88,6 +75,9 @@
   }
   function saveJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
+  // -------------------------
+  // UI helpers
+  // -------------------------
   function setStatus(t) { els.statusHint.textContent = t || "Ready"; }
 
   function setBusy(on) {
@@ -133,7 +123,7 @@
   }
 
   // -------------------------
-  // Tier (Free/Pro) — FIXED
+  // Tier (Free/Pro)
   // -------------------------
   function resolveTier() {
     const stored = localStorage.getItem(LS.tier);
@@ -187,7 +177,7 @@
   }
 
   // -------------------------
-  // Undo / Redo (Preview History)
+  // Undo / Redo
   // -------------------------
   function capStacks() {
     state.undoStack = state.undoStack.slice(0, 12);
@@ -277,7 +267,7 @@
   }
 
   // -------------------------
-  // Library + Auto-version Save
+  // Library / Saves
   // -------------------------
   function getLibrary() { return loadJson(LS.library, []); }
   function setLibrary(items) { saveJson(LS.library, items); }
@@ -333,11 +323,11 @@
   }
 
   // -------------------------
-  // Preview render
+  // Preview
   // -------------------------
   function setPreviewMeta(label, meta) {
     els.previewLabel.textContent = label || "Idle";
-    els.previewMeta.textContent = meta || "No preview";
+    els.previewMeta.textContent  = meta || "No preview";
   }
 
   function renderPreview(preview) {
@@ -370,14 +360,14 @@
   }
 
   // -------------------------
-  // NEW: Backup Export/Import
+  // Backup Export/Import (Pro)
   // -------------------------
   function exportLibraryBackup() {
     const payload = {
       schema: "simo_library_backup_v1",
       exportedAt: new Date().toISOString(),
       site: location.origin,
-      data: getLibrary()
+      data: getLibrary(),
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -393,9 +383,13 @@
 
   function openImportPicker() {
     ensureLibraryModal();
-    if (!els.importFile) return;
-    els.importFile.value = "";
-    els.importFile.click();
+    const input = document.getElementById("importFile");
+    if (!input) {
+      systemMsg("Import control missing. Refresh the page and try again.");
+      return;
+    }
+    input.value = "";
+    input.click();
   }
 
   function handleImportFile(file) {
@@ -403,18 +397,14 @@
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const txt = String(reader.result || "");
-        const parsed = JSON.parse(txt);
-
+        const parsed = JSON.parse(String(reader.result || ""));
         let incoming = null;
 
-        // Accept either full backup object or raw array
         if (Array.isArray(parsed)) incoming = parsed;
         else if (parsed && Array.isArray(parsed.data)) incoming = parsed.data;
 
         if (!incoming) throw new Error("Invalid backup format.");
 
-        // Normalize + keep ids unique
         const normalized = incoming
           .map((it) => {
             const id = it?.id || cryptoId();
@@ -426,7 +416,6 @@
           })
           .filter(x => x.preview && typeof x.preview.html === "string" && x.preview.html.trim());
 
-        // Merge with existing by id; if collision, generate new id
         const current = getLibrary();
         const used = new Set(current.map(x => x.id));
         for (const it of normalized) {
@@ -434,9 +423,7 @@
           used.add(it.id);
         }
 
-        const merged = [...normalized, ...current];
-        setLibrary(merged);
-
+        setLibrary([...normalized, ...current]);
         systemMsg(`Imported ${normalized.length} item(s) into Library.`);
         renderLibrary();
       } catch (e) {
@@ -447,164 +434,231 @@
   }
 
   // -------------------------
-  // Library Modal (auto-create)
+  // Library modal (SELF-HEAL)
+  // This is the key fix: even if an older modal exists,
+  // we inject Export/Import controls into it.
   // -------------------------
   function ensureLibraryModal() {
-    if (els.modalBack && els.libList && els.closeModal && els.libHint && els.clearLib && els.exportLib && els.importLib && els.importFile) return;
+    // Try to find existing modal elements first
+    let back  = document.getElementById("modalBack");
+    let close = document.getElementById("closeModal");
+    let list  = document.getElementById("libList");
+    let hint  = document.getElementById("libHint");
+    let clear = document.getElementById("clearLib");
 
-    const back = els.modalBack || document.createElement("div");
-    back.id = "modalBack";
-    back.style.position = "fixed";
-    back.style.inset = "0";
-    back.style.background = "rgba(0,0,0,.55)";
-    back.style.display = "none";
-    back.style.alignItems = "center";
-    back.style.justifyContent = "center";
-    back.style.padding = "18px";
-    back.style.zIndex = "9999";
+    // If core modal pieces are missing, create full modal from scratch
+    if (!back || !close || !list || !hint || !clear) {
+      back = document.createElement("div");
+      back.id = "modalBack";
+      back.style.position = "fixed";
+      back.style.inset = "0";
+      back.style.background = "rgba(0,0,0,.55)";
+      back.style.display = "none";
+      back.style.alignItems = "center";
+      back.style.justifyContent = "center";
+      back.style.padding = "18px";
+      back.style.zIndex = "9999";
 
-    const modal = document.createElement("div");
-    modal.style.width = "min(820px, 100%)";
-    modal.style.background = "rgba(10,16,32,.92)";
-    modal.style.border = "1px solid rgba(255,255,255,.14)";
-    modal.style.borderRadius = "18px";
-    modal.style.boxShadow = "0 12px 28px rgba(0,0,0,.45)";
-    modal.style.overflow = "hidden";
+      const modal = document.createElement("div");
+      modal.style.width = "min(820px, 100%)";
+      modal.style.background = "rgba(10,16,32,.92)";
+      modal.style.border = "1px solid rgba(255,255,255,.14)";
+      modal.style.borderRadius = "18px";
+      modal.style.boxShadow = "0 12px 28px rgba(0,0,0,.45)";
+      modal.style.overflow = "hidden";
 
-    const head = document.createElement("div");
-    head.style.display = "flex";
-    head.style.alignItems = "center";
-    head.style.justifyContent = "space-between";
-    head.style.padding = "12px";
-    head.style.borderBottom = "1px solid rgba(255,255,255,.12)";
-    head.style.background = "rgba(0,0,0,.18)";
+      const head = document.createElement("div");
+      head.style.display = "flex";
+      head.style.alignItems = "center";
+      head.style.justifyContent = "space-between";
+      head.style.padding = "12px";
+      head.style.borderBottom = "1px solid rgba(255,255,255,.12)";
+      head.style.background = "rgba(0,0,0,.18)";
 
-    const title = document.createElement("div");
-    title.textContent = "Library";
-    title.style.fontWeight = "900";
-    title.style.color = "#eaf0ff";
+      const title = document.createElement("div");
+      title.textContent = "Library";
+      title.style.fontWeight = "900";
+      title.style.color = "#eaf0ff";
 
-    const close = document.createElement("button");
-    close.id = "closeModal";
-    close.textContent = "Close";
-    close.style.cursor = "pointer";
-    close.style.border = "1px solid rgba(255,255,255,.16)";
-    close.style.background = "rgba(255,255,255,.06)";
-    close.style.color = "#eaf0ff";
-    close.style.borderRadius = "12px";
-    close.style.padding = "8px 10px";
-    close.style.fontWeight = "900";
+      close = document.createElement("button");
+      close.id = "closeModal";
+      close.textContent = "Close";
+      close.style.cursor = "pointer";
+      close.style.border = "1px solid rgba(255,255,255,.16)";
+      close.style.background = "rgba(255,255,255,.06)";
+      close.style.color = "#eaf0ff";
+      close.style.borderRadius = "12px";
+      close.style.padding = "8px 10px";
+      close.style.fontWeight = "900";
 
-    head.appendChild(title);
-    head.appendChild(close);
+      head.appendChild(title);
+      head.appendChild(close);
 
-    const body = document.createElement("div");
-    body.style.padding = "12px";
+      const body = document.createElement("div");
+      body.style.padding = "12px";
 
-    const hint = document.createElement("div");
-    hint.id = "libHint";
-    hint.textContent = "Saved items appear here (Pro).";
-    hint.style.color = "rgba(233,240,255,.72)";
-    hint.style.fontSize = "12px";
-    hint.style.fontWeight = "800";
-    hint.style.marginBottom = "10px";
+      hint = document.createElement("div");
+      hint.id = "libHint";
+      hint.textContent = "Saved items appear here (Pro).";
+      hint.style.color = "rgba(233,240,255,.72)";
+      hint.style.fontSize = "12px";
+      hint.style.fontWeight = "800";
+      hint.style.marginBottom = "10px";
 
-    const list = document.createElement("div");
-    list.id = "libList";
-    list.style.display = "flex";
-    list.style.flexDirection = "column";
-    list.style.gap = "8px";
-    list.style.maxHeight = "360px";
-    list.style.overflow = "auto";
+      list = document.createElement("div");
+      list.id = "libList";
+      list.style.display = "flex";
+      list.style.flexDirection = "column";
+      list.style.gap = "8px";
+      list.style.maxHeight = "360px";
+      list.style.overflow = "auto";
 
-    const footer = document.createElement("div");
-    footer.style.display = "flex";
-    footer.style.justifyContent = "space-between";
-    footer.style.alignItems = "center";
-    footer.style.marginTop = "10px";
-    footer.style.gap = "10px";
-    footer.style.flexWrap = "wrap";
+      const footer = document.createElement("div");
+      footer.id = "libFooter";
+      footer.style.display = "flex";
+      footer.style.justifyContent = "space-between";
+      footer.style.alignItems = "center";
+      footer.style.marginTop = "10px";
+      footer.style.gap = "10px";
+      footer.style.flexWrap = "wrap";
 
-    const leftActions = document.createElement("div");
-    leftActions.style.display = "flex";
-    leftActions.style.gap = "8px";
-    leftActions.style.flexWrap = "wrap";
+      const leftActions = document.createElement("div");
+      leftActions.id = "libActions";
+      leftActions.style.display = "flex";
+      leftActions.style.gap = "8px";
+      leftActions.style.flexWrap = "wrap";
 
-    const exportBtn = document.createElement("button");
-    exportBtn.id = "exportLib";
-    exportBtn.textContent = "Export Backup";
-    exportBtn.style.cursor = "pointer";
-    exportBtn.style.border = "1px solid rgba(42,102,255,.35)";
-    exportBtn.style.background = "rgba(42,102,255,.18)";
-    exportBtn.style.color = "#eaf0ff";
-    exportBtn.style.borderRadius = "12px";
-    exportBtn.style.padding = "8px 10px";
-    exportBtn.style.fontWeight = "900";
+      clear = document.createElement("button");
+      clear.id = "clearLib";
+      clear.textContent = "Clear All";
+      clear.style.cursor = "pointer";
+      clear.style.border = "1px solid rgba(255,77,77,.25)";
+      clear.style.background = "rgba(255,77,77,.12)";
+      clear.style.color = "#eaf0ff";
+      clear.style.borderRadius = "12px";
+      clear.style.padding = "8px 10px";
+      clear.style.fontWeight = "900";
 
-    const importBtn = document.createElement("button");
-    importBtn.id = "importLib";
-    importBtn.textContent = "Import Backup";
-    importBtn.style.cursor = "pointer";
-    importBtn.style.border = "1px solid rgba(57,217,138,.25)";
-    importBtn.style.background = "rgba(57,217,138,.14)";
-    importBtn.style.color = "#eaf0ff";
-    importBtn.style.borderRadius = "12px";
-    importBtn.style.padding = "8px 10px";
-    importBtn.style.fontWeight = "900";
+      footer.appendChild(leftActions);
+      footer.appendChild(clear);
 
-    const importFile = document.createElement("input");
-    importFile.id = "importFile";
-    importFile.type = "file";
-    importFile.accept = "application/json,.json";
-    importFile.style.display = "none";
+      body.appendChild(hint);
+      body.appendChild(list);
+      body.appendChild(footer);
 
-    leftActions.appendChild(exportBtn);
-    leftActions.appendChild(importBtn);
-    leftActions.appendChild(importFile);
+      modal.appendChild(head);
+      modal.appendChild(body);
 
-    const clear = document.createElement("button");
-    clear.id = "clearLib";
-    clear.textContent = "Clear All";
-    clear.style.cursor = "pointer";
-    clear.style.border = "1px solid rgba(255,77,77,.25)";
-    clear.style.background = "rgba(255,77,77,.12)";
-    clear.style.color = "#eaf0ff";
-    clear.style.borderRadius = "12px";
-    clear.style.padding = "8px 10px";
-    clear.style.fontWeight = "900";
+      back.appendChild(modal);
+      document.body.appendChild(back);
+    }
 
-    footer.appendChild(leftActions);
-    footer.appendChild(clear);
+    // Ensure action container exists (inject into existing modal if needed)
+    let footer = document.getElementById("libFooter");
+    if (!footer) {
+      // if old modal exists, create a footer area near Clear All button
+      footer = document.createElement("div");
+      footer.id = "libFooter";
+      footer.style.display = "flex";
+      footer.style.justifyContent = "space-between";
+      footer.style.alignItems = "center";
+      footer.style.marginTop = "10px";
+      footer.style.gap = "10px";
+      footer.style.flexWrap = "wrap";
 
-    body.appendChild(hint);
-    body.appendChild(list);
-    body.appendChild(footer);
+      const clearBtn = document.getElementById("clearLib");
+      const parent = clearBtn?.parentElement || list?.parentElement;
+      if (parent) {
+        // If clear button exists, wrap it with our footer
+        if (clearBtn && clearBtn.parentElement && clearBtn.parentElement !== footer) {
+          // move clear button into footer
+          const oldParent = clearBtn.parentElement;
+          footer.appendChild(document.createElement("div")); // left placeholder for actions
+          footer.appendChild(clearBtn);
+          oldParent.appendChild(footer);
+        } else {
+          parent.appendChild(footer);
+        }
+      }
+    }
 
-    modal.appendChild(head);
-    modal.appendChild(body);
+    let actions = document.getElementById("libActions");
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.id = "libActions";
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.flexWrap = "wrap";
 
-    // If we created a new back, mount it once
-    if (!els.modalBack) document.body.appendChild(back);
-    back.innerHTML = "";
-    back.appendChild(modal);
+      // Try to place actions left of Clear All if possible
+      const clearBtn = document.getElementById("clearLib");
+      if (clearBtn && clearBtn.parentElement === footer) {
+        // footer children: [placeholder, clearBtn] possibly
+        footer.replaceChildren(actions, clearBtn);
+      } else {
+        footer.prepend(actions);
+      }
+    }
 
+    // Ensure Export/Import buttons exist
+    let exportBtn = document.getElementById("exportLib");
+    if (!exportBtn) {
+      exportBtn = document.createElement("button");
+      exportBtn.id = "exportLib";
+      exportBtn.textContent = "Export Backup";
+      exportBtn.style.cursor = "pointer";
+      exportBtn.style.border = "1px solid rgba(42,102,255,.35)";
+      exportBtn.style.background = "rgba(42,102,255,.18)";
+      exportBtn.style.color = "#eaf0ff";
+      exportBtn.style.borderRadius = "12px";
+      exportBtn.style.padding = "8px 10px";
+      exportBtn.style.fontWeight = "900";
+      actions.appendChild(exportBtn);
+    }
+
+    let importBtn = document.getElementById("importLib");
+    if (!importBtn) {
+      importBtn = document.createElement("button");
+      importBtn.id = "importLib";
+      importBtn.textContent = "Import Backup";
+      importBtn.style.cursor = "pointer";
+      importBtn.style.border = "1px solid rgba(57,217,138,.25)";
+      importBtn.style.background = "rgba(57,217,138,.14)";
+      importBtn.style.color = "#eaf0ff";
+      importBtn.style.borderRadius = "12px";
+      importBtn.style.padding = "8px 10px";
+      importBtn.style.fontWeight = "900";
+      actions.appendChild(importBtn);
+    }
+
+    let importFile = document.getElementById("importFile");
+    if (!importFile) {
+      importFile = document.createElement("input");
+      importFile.id = "importFile";
+      importFile.type = "file";
+      importFile.accept = "application/json,.json";
+      importFile.style.display = "none";
+      actions.appendChild(importFile);
+    }
+
+    // Wire handlers (idempotent)
+    close.onclick = closeLibrary;
+    back.onclick = (e) => { if (e.target === back) closeLibrary(); };
+
+    clear.onclick = () => gated(clearLibrary);
+    exportBtn.onclick = () => gated(exportLibraryBackup);
+    importBtn.onclick = () => gated(openImportPicker);
+    importFile.onchange = () => gated(() => handleImportFile(importFile.files?.[0]));
+
+    // Cache references
     els.modalBack = back;
     els.closeModal = close;
     els.libList = list;
     els.libHint = hint;
     els.clearLib = clear;
-
     els.exportLib = exportBtn;
     els.importLib = importBtn;
     els.importFile = importFile;
-
-    close.onclick = closeLibrary;
-    back.onclick = (e) => { if (e.target === back) closeLibrary(); };
-    clear.onclick = () => gated(clearLibrary);
-
-    exportBtn.onclick = () => gated(exportLibraryBackup);
-    importBtn.onclick = () => gated(openImportPicker);
-    importFile.onchange = () => gated(() => handleImportFile(importFile.files?.[0]));
   }
 
   function openLibrary() {
@@ -614,8 +668,8 @@
   }
 
   function closeLibrary() {
-    if (!els.modalBack) return;
-    els.modalBack.style.display = "none";
+    const back = document.getElementById("modalBack");
+    if (back) back.style.display = "none";
   }
 
   function renderLibrary() {
@@ -790,7 +844,7 @@
   }
 
   // -------------------------
-  // Actions
+  // Buttons
   // -------------------------
   function initActions() {
     els.btnReset.onclick = () => {
