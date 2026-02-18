@@ -125,11 +125,14 @@
       background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.02));
     }
     .panelTitle{
-      display:flex;align-items:center;gap:10px;
-      font-weight:1000;
-      font-size:20px;
-      letter-spacing:.2px;
-    }
+  display:flex;
+  align-items:center;
+  gap:10px;
+  font-weight:1000;
+  font-size:20px;
+  letter-spacing:.2px;
+  flex-wrap: nowrap;   /* <-- ADD THIS */
+}
 
     .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .badge{
@@ -143,6 +146,19 @@
   color:rgba(234,240,255,.78);
   font-weight:900;
   font-size:12px;
+      
+      /* Force ui badge to stay on ONE line (prevents the tall "circle" look) */
+#uiBadge{
+  white-space: nowrap;
+  word-break: keep-all;
+  overflow-wrap: normal;
+  hyphens: none;
+
+  width: auto;
+  min-width: max-content;
+
+  padding: 6px 12px;  /* a touch wider so it never wraps */
+  line-height: 1;
 }
 
 /* Fix badge looking like a tall circle in the Chat header */
@@ -374,6 +390,7 @@
   <script src="/chat.js"></script>
 </body>
 </html>
+
 
 
 
