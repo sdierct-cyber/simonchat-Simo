@@ -1,10 +1,13 @@
 // netlify/functions/simon.js
-// Locked backend: deterministic previews + edits, plus optional LLM for chat.
+// Locked backend v5: deterministic previews + edits, plus optional LLM for chat.
+// Key upgrade: mode-switching intelligence
+// - Deterministic edits/builds work in ANY mode if user intent is build/edit
+// - Venting/Solving stays chat-only unless user requests build/edit/preview
 // Contract supported:
 // - reply (string)
 // - preview_name + preview_html (legacy)
 // - preview: { name, html } (new)
-// Also returns backend_label for UI badge.
+// - backend_label for UI badge.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
@@ -428,32 +431,29 @@ function wantsLanding(text){
   const t = lower(text);
   return t.includes("landing page") || t.includes("build landing") || t.includes("build me a landing");
 }
-
 function wantsBookCover(text){
   const t = lower(text);
   return t.includes("book cover") || t.includes("cover preview") || t.includes("cover for this story");
 }
-
 function wantsPreview(text){
   const t = lower(text);
   return t.includes("show me a preview") || t.includes("show preview") || t.includes("preview of");
 }
-
 function wantsPriceEdit(text){
   const t = lower(text);
   return t.includes("change pro price") || t.includes("set pro price") || t.includes("pro price") || t.includes("change price");
 }
-
 function wantsAddFaq(text){
   return hasAny(text, ["add faq", "include faq"]);
 }
-
 function wantsAddTestimonials(text){
   return hasAny(text, ["add testimonials", "include testimonials"]);
 }
-
+function wantsEditAnything(text){
+  // expand later, but right now: price/faq/testimonials are “edit intents”
+  return wantsPriceEdit(text) || wantsAddFaq(text) || wantsAddTestimonials(text);
+}
 function parseBookFields(text){
-  // very light parsing
   const t = String(text || "");
   const mTitle = t.match(/title\s*:\s*([^\n]+)/i);
   const mSub = t.match(/subtitle\s*:\s*([^\n]+)/i);
@@ -466,59 +466,38 @@ function parseBookFields(text){
 }
 
 exports.handler = async (event) => {
-  if(event.httpMethod === "OPTIONS") return json(200, { ok:true });
-  if(event.httpMethod !== "POST") return json(405, { ok:false, error:"Method not allowed" });
+  const BACKEND_LABEL = "simo-backend-locked-v5";
+
+  if(event.httpMethod === "OPTIONS") return json(200, { ok:true, backend_label: BACKEND_LABEL });
+  if(event.httpMethod !== "POST") return json(405, { ok:false, backend_label: BACKEND_LABEL, error:"Method not allowed" });
 
   try{
     const body = JSON.parse(event.body || "{}");
-    const text = strip(body.text);
+
+    // UI sends text; keep legacy fallback for safety
+    const text = strip(body.text || body.q || body.message);
     const mode = strip(body.mode) || "building";
     const pro = !!body.pro;
 
-    const currentHtml = strip(body.current_preview_html);
-    const currentName = strip(body.current_preview_name) || "none";
+    const currentHtml = strip(body.current_preview_html || body.preview_html || "");
+    const currentName = strip(body.current_preview_name || body.preview_name || "none");
 
-    if(!text) return json(400, { ok:false, error:"Missing message", backend_label:"simo-backend-locked-v4" });
+    if(!text) return json(400, { ok:false, backend_label: BACKEND_LABEL, error:"Missing message" });
 
-    // --- UNIVERSAL: if user explicitly asks for preview, allow it in any mode ---
-    const allowPreview = wantsPreview(text) || wantsLanding(text) || wantsBookCover(text);
+    // 1) MODE-SWITCHING UPGRADE:
+    // If user intent is build/edit/preview, we honor it in ANY mode.
+    const isBuildOrPreviewIntent = wantsLanding(text) || wantsBookCover(text) || wantsPreview(text);
+    const isEditIntent = wantsEditAnything(text);
 
-    // If they're in venting/solving and NOT asking for preview, do pure chat.
-    if((mode === "venting" || mode === "solving") && !allowPreview){
-      if(mode === "venting"){
-        const reply = await callOpenAIChat(
-          "You are Simo, a private best friend. Be natural, warm, not therapy-speak. Ask 1 good follow-up. No generic clichés.",
-          `User said: ${text}`
-        ).catch(()=> null);
-
-        return json(200, {
-          ok:true,
-          backend_label:"simo-backend-locked-v4",
-          reply: reply || "I’m here. What’s hitting you the hardest right now?"
-        });
-      }
-
-      const reply = await callOpenAIChat(
-        "You are Simo, a practical problem-solver. Be concise. Ask 1-2 clarifying questions max. Provide actionable steps.",
-        `User said: ${text}`
-      ).catch(()=> null);
-
-      return json(200, {
-        ok:true,
-        backend_label:"simo-backend-locked-v4",
-        reply: reply || "Alright — what’s the goal, and what’s blocking you?"
-      });
-    }
-
-    // --- BUILDING / PREVIEW ROUTING ---
-    // 1) Deterministic edit takes priority if there is an existing landing page preview
+    // 2) Deterministic edits ALWAYS win if we have the right preview loaded (any mode).
     if(currentHtml && currentName === "landing_page" && wantsPriceEdit(text)){
       const money = extractMoney(text);
       if(money){
         const updated = replaceProPrice(currentHtml, money);
         return json(200, {
           ok:true,
-          backend_label:"simo-backend-locked-v4",
+          backend_label: BACKEND_LABEL,
+          version: BACKEND_LABEL,
           reply: `Done. Pro price is now $${money}/mo.`,
           preview_name: "landing_page",
           preview_html: updated,
@@ -531,7 +510,8 @@ exports.handler = async (event) => {
       const updated = ensureSection(currentHtml, "faq");
       return json(200, {
         ok:true,
-        backend_label:"simo-backend-locked-v4",
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
         reply: "Done. FAQ section added.",
         preview_name: "landing_page",
         preview_html: updated,
@@ -543,7 +523,8 @@ exports.handler = async (event) => {
       const updated = ensureSection(currentHtml, "testimonials");
       return json(200, {
         ok:true,
-        backend_label:"simo-backend-locked-v4",
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
         reply: "Done. Testimonials added.",
         preview_name: "landing_page",
         preview_html: updated,
@@ -551,12 +532,23 @@ exports.handler = async (event) => {
       });
     }
 
-    // 2) Landing page build
+    // 3) Book cover "yes/thats good" loop breaker (any mode).
+    if(currentName === "book_cover" && isAffirmation(text)){
+      return json(200, {
+        ok:true,
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
+        reply: "Nice. Want to tweak title/subtitle/author, or should I start outlining the book (chapters + themes) next?"
+      });
+    }
+
+    // 4) Build routes (any mode if intent)
     if(wantsLanding(text)){
       const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
       return json(200, {
         ok:true,
-        backend_label:"simo-backend-locked-v4",
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
         reply: pro
           ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
           : "Preview loaded. (Turn Pro ON to enable saving + downloads.)",
@@ -566,18 +558,7 @@ exports.handler = async (event) => {
       });
     }
 
-    // 3) Book cover build
     if(wantsBookCover(text)){
-      // If user just affirmed, don't loop. Acknowledge and offer next.
-      if(currentName === "book_cover" && isAffirmation(text)){
-        return json(200, {
-          ok:true,
-          backend_label:"simo-backend-locked-v4",
-          reply: "Nice. Want to tweak the title/subtitle/author, or do you want me to help outline the book next?"
-        });
-      }
-
-      // If they provided explicit fields, use them; else use defaults
       const fields = parseBookFields(text);
       const html = bookCoverTemplate({
         title: fields.title || "THE AMERICAN DREAM",
@@ -587,7 +568,8 @@ exports.handler = async (event) => {
 
       return json(200, {
         ok:true,
-        backend_label:"simo-backend-locked-v4",
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
         reply: "Book cover preview loaded. If you want changes, say: title: ..., subtitle: ..., author: ...",
         preview_name: "book_cover",
         preview_html: html,
@@ -595,14 +577,15 @@ exports.handler = async (event) => {
       });
     }
 
-    // 4) Generic preview for "show me a preview" requests
     if(wantsPreview(text)){
-      // If they asked preview of landing page, route it
-      if(lower(text).includes("landing")) {
+      const t = lower(text);
+
+      if(t.includes("landing")) {
         const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
         return json(200, {
           ok:true,
-          backend_label:"simo-backend-locked-v4",
+          backend_label: BACKEND_LABEL,
+          version: BACKEND_LABEL,
           reply: "Preview loaded. Tell me what to change.",
           preview_name: "landing_page",
           preview_html: html,
@@ -610,12 +593,12 @@ exports.handler = async (event) => {
         });
       }
 
-      // If they asked preview of book cover, route it
-      if(lower(text).includes("book") || lower(text).includes("cover")) {
+      if(t.includes("book") || t.includes("cover")) {
         const html = bookCoverTemplate({});
         return json(200, {
           ok:true,
-          backend_label:"simo-backend-locked-v4",
+          backend_label: BACKEND_LABEL,
+          version: BACKEND_LABEL,
           reply: "Book cover preview loaded. Want to change title/subtitle/author?",
           preview_name: "book_cover",
           preview_html: html,
@@ -623,11 +606,11 @@ exports.handler = async (event) => {
         });
       }
 
-      // Otherwise generic app mock
       const html = genericAppMockTemplate({ title: "App Preview" });
       return json(200, {
         ok:true,
-        backend_label:"simo-backend-locked-v4",
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
         reply: "Preview loaded. Tell me what kind of app this is and what 3 screens you want.",
         preview_name: "app_mock",
         preview_html: html,
@@ -635,17 +618,48 @@ exports.handler = async (event) => {
       });
     }
 
-    // 5) If nothing matched, provide a ChatGPT-like builder reply (optional LLM), but NO preview
-    const sys = "You are Simo: best friend + builder. Be concise, natural, and helpful. Avoid therapy-speak unless user asks.";
+    // 5) If user is in venting/solving and NOT doing build/edit/preview intents -> pure chat.
+    // This preserves “best friend” behavior.
+    if((mode === "venting" || mode === "solving") && !isBuildOrPreviewIntent && !isEditIntent){
+      if(mode === "venting"){
+        const reply = await callOpenAIChat(
+          "You are Simo, a private best friend. Be natural, warm, direct. No therapy-cliches. Ask ONE good follow-up question.",
+          `User said: ${text}`
+        ).catch(()=> null);
+
+        return json(200, {
+          ok:true,
+          backend_label: BACKEND_LABEL,
+          version: BACKEND_LABEL,
+          reply: reply || "I’m here. What’s hitting you the hardest right now?"
+        });
+      }
+
+      const reply = await callOpenAIChat(
+        "You are Simo, a practical problem-solver. Be concise. Ask 1-2 clarifying questions max. Provide actionable steps.",
+        `User said: ${text}`
+      ).catch(()=> null);
+
+      return json(200, {
+        ok:true,
+        backend_label: BACKEND_LABEL,
+        version: BACKEND_LABEL,
+        reply: reply || "Alright — what’s the goal, and what’s blocking you?"
+      });
+    }
+
+    // 6) Otherwise: ChatGPT-like builder reply (optional LLM), but NO preview output.
+    const sys = "You are Simo: best friend + builder. Be concise, natural, helpful. Avoid therapy-speak unless user asks. If user asks to build, tell them what you can generate next.";
     const reply = await callOpenAIChat(sys, text).catch(()=> null);
 
     return json(200, {
       ok:true,
-      backend_label:"simo-backend-locked-v4",
+      backend_label: BACKEND_LABEL,
+      version: BACKEND_LABEL,
       reply: reply || "Tell me what you want next — and if you want visuals, say “show me a preview”."
     });
 
   }catch(err){
-    return json(500, { ok:false, backend_label:"simo-backend-locked-v4", error:"Server error", details:String(err?.message || err) });
+    return json(500, { ok:false, backend_label:"simo-backend-locked-v5", error:"Server error", details:String(err?.message || err) });
   }
 };
