@@ -1,15 +1,15 @@
 (() => {
   // =========================
-  // Simo chat.js — Checkpoint V1+
+  // Simo chat.js — Checkpoint V1++
   // - Stable UI wiring
   // - Tier gating (Free/Pro) FIXED (no desync)
-  // - Undo / Redo (local, reliable)
-  // - Auto-version Save (Landing Page v1, v2… / Book Cover v1…)
+  // - Undo / Redo (preview history)
+  // - Auto-version Save
   // - Library modal auto-creates if missing in index.html
-  // - FIX: Legacy saves show "Older save" instead of "Invalid Date"
+  // - FIX: legacy dates show "Older save"
+  // - NEW: Library Backup Export/Import (Pro)
   // =========================
 
-  // ---- Required core element IDs (must exist in index.html) ----
   const REQ = [
     "msgs","input","send","statusHint",
     "tierPills","tierFreeLabel","tierProLabel",
@@ -29,12 +29,17 @@
     return;
   }
 
-  // Optional modal IDs (may not exist; we can create them)
+  // Optional modal ids (may not exist; we can create them)
   els.modalBack  = document.getElementById("modalBack");
   els.closeModal = document.getElementById("closeModal");
   els.libList    = document.getElementById("libList");
   els.libHint    = document.getElementById("libHint");
   els.clearLib   = document.getElementById("clearLib");
+
+  // NEW (optional; created if missing)
+  els.exportLib  = document.getElementById("exportLib");
+  els.importLib  = document.getElementById("importLib");
+  els.importFile = document.getElementById("importFile");
 
   const PRICING = { free: 0, pro: 19 };
   const LS = {
@@ -61,11 +66,10 @@
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
   els.tierProLabel.textContent = `$${PRICING.pro}`;
 
-  // Resolve tier from (1) localStorage, (2) active pill in DOM, (3) default free
   state.tier = resolveTier();
   applyTierUI();
 
-  initTierHandlers();   // event delegation (prevents desync)
+  initTierHandlers();
   initComposer();
   initActions();
 
@@ -76,19 +80,14 @@
   if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
 
   // -------------------------
-  // Storage helpers
+  // Helpers
   // -------------------------
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; }
     catch { return fallback; }
   }
-  function saveJson(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
+  function saveJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
 
-  // -------------------------
-  // Status / UI helpers
-  // -------------------------
   function setStatus(t) { els.statusHint.textContent = t || "Ready"; }
 
   function setBusy(on) {
@@ -127,20 +126,23 @@
   function normalize(s) { return String(s || "").trim(); }
   function lower(s) { return normalize(s).toLowerCase(); }
 
+  function cryptoId() {
+    const a = new Uint32Array(4);
+    crypto.getRandomValues(a);
+    return [...a].map(n => n.toString(16)).join("");
+  }
+
   // -------------------------
   // Tier (Free/Pro) — FIXED
   // -------------------------
   function resolveTier() {
-    // 1) localStorage
     const stored = localStorage.getItem(LS.tier);
     if (stored === "pro" || stored === "free") return stored;
 
-    // 2) active pill in DOM (if present)
     const active = els.tierPills.querySelector(".pill.active");
     const domTier = active?.dataset?.tier;
     if (domTier === "pro" || domTier === "free") return domTier;
 
-    // 3) default
     return "free";
   }
 
@@ -167,8 +169,7 @@
     els.tierPills.addEventListener("click", (e) => {
       const pill = e.target.closest(".pill");
       if (!pill) return;
-      const t = pill.dataset.tier;
-      setTier(t, true);
+      setTier(pill.dataset.tier, true);
     });
 
     window.addEventListener("focus", () => {
@@ -369,12 +370,89 @@
   }
 
   // -------------------------
+  // NEW: Backup Export/Import
+  // -------------------------
+  function exportLibraryBackup() {
+    const payload = {
+      schema: "simo_library_backup_v1",
+      exportedAt: new Date().toISOString(),
+      site: location.origin,
+      data: getLibrary()
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "simo-library-backup.json";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    systemMsg("Exported library backup.");
+  }
+
+  function openImportPicker() {
+    ensureLibraryModal();
+    if (!els.importFile) return;
+    els.importFile.value = "";
+    els.importFile.click();
+  }
+
+  function handleImportFile(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const txt = String(reader.result || "");
+        const parsed = JSON.parse(txt);
+
+        let incoming = null;
+
+        // Accept either full backup object or raw array
+        if (Array.isArray(parsed)) incoming = parsed;
+        else if (parsed && Array.isArray(parsed.data)) incoming = parsed.data;
+
+        if (!incoming) throw new Error("Invalid backup format.");
+
+        // Normalize + keep ids unique
+        const normalized = incoming
+          .map((it) => {
+            const id = it?.id || cryptoId();
+            const name = it?.name || "Untitled";
+            const when = (typeof it?.when === "number") ? it.when : Date.now();
+            const preview = it?.preview || null;
+            const conversation = Array.isArray(it?.conversation) ? it.conversation : [];
+            return { id, name, when, preview, conversation };
+          })
+          .filter(x => x.preview && typeof x.preview.html === "string" && x.preview.html.trim());
+
+        // Merge with existing by id; if collision, generate new id
+        const current = getLibrary();
+        const used = new Set(current.map(x => x.id));
+        for (const it of normalized) {
+          if (used.has(it.id)) it.id = cryptoId();
+          used.add(it.id);
+        }
+
+        const merged = [...normalized, ...current];
+        setLibrary(merged);
+
+        systemMsg(`Imported ${normalized.length} item(s) into Library.`);
+        renderLibrary();
+      } catch (e) {
+        systemMsg(`Import failed: ${e?.message || "Invalid file"}`);
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  // -------------------------
   // Library Modal (auto-create)
   // -------------------------
   function ensureLibraryModal() {
-    if (els.modalBack && els.libList && els.closeModal && els.libHint && els.clearLib) return;
+    if (els.modalBack && els.libList && els.closeModal && els.libHint && els.clearLib && els.exportLib && els.importLib && els.importFile) return;
 
-    const back = document.createElement("div");
+    const back = els.modalBack || document.createElement("div");
     back.id = "modalBack";
     back.style.position = "fixed";
     back.style.inset = "0";
@@ -386,7 +464,7 @@
     back.style.zIndex = "9999";
 
     const modal = document.createElement("div");
-    modal.style.width = "min(760px, 100%)";
+    modal.style.width = "min(820px, 100%)";
     modal.style.background = "rgba(10,16,32,.92)";
     modal.style.border = "1px solid rgba(255,255,255,.14)";
     modal.style.borderRadius = "18px";
@@ -441,8 +519,48 @@
 
     const footer = document.createElement("div");
     footer.style.display = "flex";
-    footer.style.justifyContent = "flex-end";
+    footer.style.justifyContent = "space-between";
+    footer.style.alignItems = "center";
     footer.style.marginTop = "10px";
+    footer.style.gap = "10px";
+    footer.style.flexWrap = "wrap";
+
+    const leftActions = document.createElement("div");
+    leftActions.style.display = "flex";
+    leftActions.style.gap = "8px";
+    leftActions.style.flexWrap = "wrap";
+
+    const exportBtn = document.createElement("button");
+    exportBtn.id = "exportLib";
+    exportBtn.textContent = "Export Backup";
+    exportBtn.style.cursor = "pointer";
+    exportBtn.style.border = "1px solid rgba(42,102,255,.35)";
+    exportBtn.style.background = "rgba(42,102,255,.18)";
+    exportBtn.style.color = "#eaf0ff";
+    exportBtn.style.borderRadius = "12px";
+    exportBtn.style.padding = "8px 10px";
+    exportBtn.style.fontWeight = "900";
+
+    const importBtn = document.createElement("button");
+    importBtn.id = "importLib";
+    importBtn.textContent = "Import Backup";
+    importBtn.style.cursor = "pointer";
+    importBtn.style.border = "1px solid rgba(57,217,138,.25)";
+    importBtn.style.background = "rgba(57,217,138,.14)";
+    importBtn.style.color = "#eaf0ff";
+    importBtn.style.borderRadius = "12px";
+    importBtn.style.padding = "8px 10px";
+    importBtn.style.fontWeight = "900";
+
+    const importFile = document.createElement("input");
+    importFile.id = "importFile";
+    importFile.type = "file";
+    importFile.accept = "application/json,.json";
+    importFile.style.display = "none";
+
+    leftActions.appendChild(exportBtn);
+    leftActions.appendChild(importBtn);
+    leftActions.appendChild(importFile);
 
     const clear = document.createElement("button");
     clear.id = "clearLib";
@@ -455,6 +573,7 @@
     clear.style.padding = "8px 10px";
     clear.style.fontWeight = "900";
 
+    footer.appendChild(leftActions);
     footer.appendChild(clear);
 
     body.appendChild(hint);
@@ -463,8 +582,11 @@
 
     modal.appendChild(head);
     modal.appendChild(body);
+
+    // If we created a new back, mount it once
+    if (!els.modalBack) document.body.appendChild(back);
+    back.innerHTML = "";
     back.appendChild(modal);
-    document.body.appendChild(back);
 
     els.modalBack = back;
     els.closeModal = close;
@@ -472,9 +594,17 @@
     els.libHint = hint;
     els.clearLib = clear;
 
+    els.exportLib = exportBtn;
+    els.importLib = importBtn;
+    els.importFile = importFile;
+
     close.onclick = closeLibrary;
     back.onclick = (e) => { if (e.target === back) closeLibrary(); };
     clear.onclick = () => gated(clearLibrary);
+
+    exportBtn.onclick = () => gated(exportLibraryBackup);
+    importBtn.onclick = () => gated(openImportPicker);
+    importFile.onchange = () => gated(() => handleImportFile(importFile.files?.[0]));
   }
 
   function openLibrary() {
@@ -516,7 +646,6 @@
       name.style.fontWeight = "900";
 
       const when = document.createElement("div");
-      // ✅ FIX: no more "Invalid Date" for legacy items
       if (it.when) {
         const d = new Date(it.when);
         when.textContent = isNaN(d.getTime()) ? "Older save" : d.toLocaleString();
@@ -661,7 +790,7 @@
   }
 
   // -------------------------
-  // Actions (buttons)
+  // Actions
   // -------------------------
   function initActions() {
     els.btnReset.onclick = () => {
@@ -698,11 +827,5 @@
       if (turn.role === "assistant") addMsg("assistant", turn.content);
     }
     els.msgs.scrollTop = els.msgs.scrollHeight;
-  }
-
-  function cryptoId() {
-    const a = new Uint32Array(4);
-    crypto.getRandomValues(a);
-    return [...a].map(n => n.toString(16)).join("");
   }
 })();
