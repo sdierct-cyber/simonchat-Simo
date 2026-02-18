@@ -1,25 +1,28 @@
 (() => {
   // ==========================================================
-  // Simo chat.js — Market-ready Checkpoint V1+++ (LOCKED UI)
+  // Simo chat.js — Market-ready V1 (ChatGPT-feel polish)
   //
-  // Goals:
-  // - Do NOT break working UI or message flow
-  // - Keep Pro gating stable
-  // - Keep Preview iframe stable
-  // - Library: SHOW existing saves + never lose them
-  // - Add Export/Import backup
+  // What changed (WITHOUT breaking your working engine):
+  // - Remove confusing system spam (Pro enabled / Downloaded / Library cleared)
+  // - Add small toasts instead (quiet + premium)
+  // - Starter prompt chips (1-click)
+  // - First-run message: "What are you building?"
+  // - Hide internal meta like "Deterministic • theme: pro" from preview header
   //
-  // IMPORTANT FIX:
-  // - Standardize library to simo_library_v2
-  // - One-time migrate from old keys:
-  //   simo_library, simo_library_v1, simo_build_library -> simo_library_v2
+  // Kept stable:
+  // - Pro gating
+  // - Preview iframe
+  // - Library migration + export/import
+  // - Undo / redo
+  // - Backend call contract
   // ==========================================================
 
   const REQ = [
     "msgs","input","send","statusHint",
     "tierPills","tierFreeLabel","tierProLabel",
     "btnReset","btnSave","btnDownload","btnLibrary",
-    "previewFrame","previewLabel","previewMeta"
+    "previewFrame","previewLabel","previewMeta",
+    "toastWrap"
   ];
 
   const els = {};
@@ -39,9 +42,7 @@
   // ---- Storage keys (STANDARDIZED) ----
   const LS = {
     tier: "simo_tier",
-    // ✅ Standard library key:
     library: "simo_library_v2",
-    // old/legacy keys that might exist in your browser:
     legacyLibraries: ["simo_library", "simo_library_v1", "simo_build_library"],
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
@@ -64,7 +65,6 @@
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
   els.tierProLabel.textContent  = `$${PRICING.pro}`;
 
-  // ✅ One-time library migration before UI renders it
   migrateLibraryToV2();
 
   state.tier = resolveTier();
@@ -73,12 +73,20 @@
   initTierHandlers();
   initComposer();
   initActions();
+  initStarters();
 
   renderHistory();
   restorePreview();
   setStatus("Ready");
 
-  if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
+  // ChatGPT-like first message (only if brand new)
+  if (!state.conversation.length) {
+    const hello =
+      "What are you building?\n\n" +
+      "Try one of the example chips above, or describe your landing page in one sentence.";
+    addAssistant(hello);
+    persistAssistant(hello);
+  }
 
   // -------------------------
   // Storage helpers
@@ -101,6 +109,19 @@
     setStatus(state.busy ? "Thinking…" : "Ready");
   }
 
+  function toast(text, kind = "ok", ms = 2200) {
+    const div = document.createElement("div");
+    div.className = "toast " + (kind || "ok");
+    div.textContent = text;
+    els.toastWrap.appendChild(div);
+    setTimeout(() => {
+      div.style.opacity = "0";
+      div.style.transform = "translateY(-4px)";
+      div.style.transition = "all 180ms ease";
+      setTimeout(() => div.remove(), 220);
+    }, ms);
+  }
+
   function addMsg(role, text) {
     const row = document.createElement("div");
     row.className = "msg " + (role === "user" ? "me" : "simo");
@@ -119,12 +140,11 @@
     els.msgs.scrollTop = els.msgs.scrollHeight;
   }
 
-  function systemMsg(text) {
-    const div = document.createElement("div");
-    div.className = "sys";
-    div.textContent = text;
-    els.msgs.appendChild(div);
-    els.msgs.scrollTop = els.msgs.scrollHeight;
+  function addAssistant(text) { addMsg("assistant", text); }
+
+  function persistAssistant(text) {
+    state.conversation.push({ role: "assistant", content: text });
+    saveJson(LS.conversation, state.conversation);
   }
 
   function normalize(s) { return String(s || "").trim(); }
@@ -137,6 +157,23 @@
   }
 
   // -------------------------
+  // Starter chips (NEW)
+  // -------------------------
+  function initStarters() {
+    const row = document.getElementById("starterRow");
+    if (!row) return;
+
+    row.addEventListener("click", (e) => {
+      const chip = e.target.closest(".starter");
+      if (!chip) return;
+      const text = chip.getAttribute("data-text") || "";
+      if (!text.trim()) return;
+      els.input.value = text;
+      els.input.focus();
+    });
+  }
+
+  // -------------------------
   // ✅ Library migration
   // -------------------------
   function migrateLibraryToV2() {
@@ -145,17 +182,12 @@
 
     let merged = Array.isArray(current) ? current.slice() : [];
 
-    // Pull from each legacy key, normalize, merge
     for (const k of LS.legacyLibraries) {
       const legacy = loadJson(k, null);
       if (!legacy) continue;
-
-      // Some older builds stored [] or an object shape; accept array only
       if (!Array.isArray(legacy) || legacy.length === 0) continue;
 
-      const normalized = legacy
-        .map((it) => normalizeLibraryItem(it))
-        .filter(Boolean);
+      const normalized = legacy.map((it) => normalizeLibraryItem(it)).filter(Boolean);
 
       for (const it of normalized) {
         if (usedIds.has(it.id)) it.id = cryptoId();
@@ -164,7 +196,6 @@
       }
     }
 
-    // De-dup by id (keep first occurrence)
     const seen = new Set();
     merged = merged.filter(it => {
       if (!it?.id) it.id = cryptoId();
@@ -173,11 +204,8 @@
       return true;
     });
 
-    // Sort newest first
     merged.sort((a, b) => (b.when || 0) - (a.when || 0));
 
-    // If anything was merged, write to v2
-    // Always write if v2 missing but legacy exists
     const v2Exists = localStorage.getItem(LS.library) != null;
     const anyLegacyExists = LS.legacyLibraries.some(k => localStorage.getItem(k) != null);
 
@@ -186,9 +214,6 @@
     } else if (merged.length !== (Array.isArray(current) ? current.length : 0)) {
       saveJson(LS.library, merged);
     }
-
-    // Optional: do NOT delete legacy keys automatically (safer).
-    // If you want cleanup later, we’ll add a “Cleanup old keys” button.
   }
 
   function normalizeLibraryItem(it) {
@@ -196,7 +221,6 @@
       const id = it?.id || cryptoId();
       const name = (it?.name || "Untitled").toString();
 
-      // Different versions used different timestamp keys
       const when =
         (typeof it?.when === "number" && isFinite(it.when)) ? it.when :
         (typeof it?.savedAt === "number" && isFinite(it.savedAt)) ? it.savedAt :
@@ -204,7 +228,6 @@
 
       const preview = it?.preview || it?.lastPreview || null;
 
-      // Preview can be stored as { html, kind } or raw html
       let previewObj = null;
       if (preview && typeof preview === "object" && typeof preview.html === "string") {
         previewObj = {
@@ -218,7 +241,6 @@
         previewObj = { kind: "html", html: preview, title: "Preview", meta: "Saved", ts: when };
       }
 
-      // Some older builds stored html under it.html
       if (!previewObj && typeof it?.html === "string" && it.html.trim()) {
         previewObj = { kind: it.kind || "html", html: it.html, title: "Preview", meta: "Saved", ts: when };
       }
@@ -226,7 +248,6 @@
       if (!previewObj || !previewObj.html || !previewObj.html.trim()) return null;
 
       const conversation = Array.isArray(it?.conversation) ? it.conversation : [];
-
       return { id, name, when, preview: previewObj, conversation };
     } catch {
       return null;
@@ -263,7 +284,7 @@
     state.tier = (nextTier === "pro") ? "pro" : "free";
     localStorage.setItem(LS.tier, state.tier);
     applyTierUI();
-    if (announce) systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
+    if (announce) toast(state.tier === "pro" ? "Pro enabled" : "Free mode", "ok");
   }
 
   function initTierHandlers() {
@@ -281,7 +302,7 @@
 
   function gated(fn) {
     if (!isPro()) {
-      systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
+      toast("Pro feature — toggle Pro to use Save / Export / My Pages", "warn", 2600);
       return;
     }
     fn();
@@ -301,10 +322,8 @@
     if (!snapshot?.html) return;
     state.undoStack.unshift(snapshot);
     saveJson(LS.undoStack, state.undoStack);
-
     state.redoStack = [];
     saveJson(LS.redoStack, state.redoStack);
-
     capStacks();
   }
 
@@ -338,9 +357,8 @@
   }
 
   function replyLocal(text) {
-    addMsg("assistant", text);
-    state.conversation.push({ role: "assistant", content: text });
-    saveJson(LS.conversation, state.conversation);
+    addAssistant(text);
+    persistAssistant(text);
   }
 
   function handleUndo() {
@@ -354,7 +372,7 @@
     saveJson(LS.lastPreview, state.lastPreview);
 
     els.previewFrame.srcdoc = prev.html;
-    setPreviewMeta(prev.title || "Preview", "Undone to previous version");
+    setPreviewMeta(prev.title || "Preview", "Reverted");
 
     replyLocal("Undone. Preview reverted to the previous version.");
   }
@@ -371,7 +389,7 @@
     saveJson(LS.lastPreview, state.lastPreview);
 
     els.previewFrame.srcdoc = next.html;
-    setPreviewMeta(next.title || "Preview", "Redone to next version");
+    setPreviewMeta(next.title || "Preview", "Restored");
 
     replyLocal("Redone. Preview moved forward to the next version.");
     capStacks();
@@ -408,7 +426,7 @@
   }
 
   function saveToLibraryAuto(optionalName = null) {
-    if (!state.lastPreview?.html) return systemMsg("Nothing to save yet. Generate a preview first.");
+    if (!state.lastPreview?.html) return toast("Nothing to save yet — generate a preview first.", "warn", 2600);
 
     const name = (optionalName && optionalName.trim())
       ? optionalName.trim()
@@ -423,7 +441,7 @@
       conversation: state.conversation.slice(-24),
     });
     setLibrary(items);
-    systemMsg(`Saved: ${name}`);
+    toast(`Saved: ${name}`, "ok");
   }
 
   function parseSaveAs(text) {
@@ -436,9 +454,23 @@
   // -------------------------
   // Preview
   // -------------------------
+  function sanitizeMeta(meta) {
+    const s = String(meta || "").trim();
+    if (!s) return "";
+    // Hide internal techy phrases if backend ever sends them
+    return s
+      .replace(/deterministic/ig, "")
+      .replace(/theme\s*:\s*\w+/ig, "")
+      .replace(/\s*•\s*/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function setPreviewMeta(label, meta) {
-    els.previewLabel.textContent = label || "Idle";
-    els.previewMeta.textContent  = meta || "No preview";
+    const cleanLabel = String(label || "Preview").trim() || "Preview";
+    const cleanMeta = sanitizeMeta(meta) || (state.lastPreview?.meta ? sanitizeMeta(state.lastPreview.meta) : "");
+    els.previewLabel.textContent = cleanLabel || "Preview";
+    els.previewMeta.textContent  = cleanMeta || "Updated";
   }
 
   function renderPreview(preview) {
@@ -489,14 +521,14 @@
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
-    systemMsg("Exported library backup.");
+    toast("Backup exported", "ok");
   }
 
   function openImportPicker() {
     ensureLibraryModal();
     const input = document.getElementById("importFile");
     if (!input) {
-      systemMsg("Import control missing. Refresh and try again.");
+      toast("Import control missing — refresh and try again.", "warn", 2800);
       return;
     }
     input.value = "";
@@ -516,9 +548,7 @@
 
         if (!incoming) throw new Error("Invalid backup format.");
 
-        const normalized = incoming
-          .map((it) => normalizeLibraryItem(it))
-          .filter(Boolean);
+        const normalized = incoming.map((it) => normalizeLibraryItem(it)).filter(Boolean);
 
         const current = getLibrary();
         const used = new Set(current.map(x => x.id));
@@ -528,10 +558,10 @@
         }
 
         setLibrary([...normalized, ...current]);
-        systemMsg(`Imported ${normalized.length} item(s) into Library.`);
+        toast(`Imported ${normalized.length} item(s)`, "ok", 2600);
         renderLibrary();
       } catch (e) {
-        systemMsg(`Import failed: ${e?.message || "Invalid file"}`);
+        toast(`Import failed: ${e?.message || "Invalid file"}`, "bad", 3000);
       }
     };
     reader.readAsText(file);
@@ -547,7 +577,6 @@
     let hint  = document.getElementById("libHint");
     let clear = document.getElementById("clearLib");
 
-    // If core pieces missing: create full modal
     if (!back || !close || !list || !hint || !clear) {
       back = document.createElement("div");
       back.id = "modalBack";
@@ -577,7 +606,7 @@
       head.style.background = "rgba(0,0,0,.18)";
 
       const title = document.createElement("div");
-      title.textContent = "Library";
+      title.textContent = "My Pages";
       title.style.fontWeight = "900";
       title.style.color = "#eaf0ff";
 
@@ -654,7 +683,6 @@
       document.body.appendChild(back);
     }
 
-    // Ensure actions container exists
     let footer = document.getElementById("libFooter");
     if (!footer) {
       footer = document.createElement("div");
@@ -679,7 +707,6 @@
       footer.prepend(actions);
     }
 
-    // Ensure Export / Import / hidden file input exist
     let exportBtn = document.getElementById("exportLib");
     if (!exportBtn) {
       exportBtn = document.createElement("button");
@@ -720,7 +747,6 @@
       actions.appendChild(importFile);
     }
 
-    // Wire (idempotent)
     close.onclick = closeLibrary;
     back.onclick = (e) => { if (e.target === back) closeLibrary(); };
     clear.onclick = () => gated(clearLibrary);
@@ -729,7 +755,7 @@
     importBtn.onclick = () => gated(openImportPicker);
     importFile.onchange = () => gated(() => handleImportFile(importFile.files?.[0]));
 
-    // Cache
+    // Cache for renderLibrary use
     els.modalBack = back;
     els.closeModal = close;
     els.libList = list;
@@ -754,8 +780,8 @@
 
     els.libList.innerHTML = "";
     els.libHint.textContent = items.length
-      ? `${items.length} saved item(s).`
-      : "No saves yet. Click Save after you generate a preview.";
+      ? `${items.length} saved page(s).`
+      : "No saves yet. Generate a preview, then Save.";
 
     for (const it of items) {
       const row = document.createElement("div");
@@ -805,14 +831,14 @@
       loadBtn.onclick = () => {
         if (it.preview?.html) {
           if (state.lastPreview?.html) pushUndo(state.lastPreview);
-          renderPreview({ ...it.preview, meta: "Loaded from Library" });
+          renderPreview({ ...it.preview, meta: "Loaded" });
+          toast("Loaded page", "ok");
         }
-        if (Array.isArray(it.conversation)) {
+        if (Array.isArray(it.conversation) && it.conversation.length) {
           state.conversation = it.conversation;
           saveJson(LS.conversation, state.conversation);
           els.msgs.innerHTML = "";
           renderHistory();
-          systemMsg(`Loaded: ${it.name || "Saved item"}`);
         }
         closeLibrary();
       };
@@ -829,6 +855,7 @@
       delBtn.onclick = () => {
         setLibrary(getLibrary().filter(x => x.id !== it.id));
         renderLibrary();
+        toast("Deleted", "ok");
       };
 
       right.appendChild(loadBtn);
@@ -841,10 +868,10 @@
   }
 
   function clearLibrary() {
-    if (!confirm("Clear all saved items?")) return;
+    if (!confirm("Clear all saved pages?")) return;
     setLibrary([]);
     renderLibrary();
-    systemMsg("Library cleared.");
+    toast("Cleared", "ok");
   }
 
   // -------------------------
@@ -875,7 +902,7 @@
 
     const saveAsName = parseSaveAs(text);
     if (saveAsName) {
-      if (!isPro()) return replyLocal("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
+      if (!isPro()) return replyLocal("🔒 Pro feature. Toggle Pro to use Save / Export / My Pages.");
       saveToLibraryAuto(saveAsName);
       return replyLocal(`Saved as: ${saveAsName}`);
     }
@@ -898,22 +925,24 @@
       const j = await r.json().catch(() => null);
 
       if (!j || j.ok === false) {
-        addMsg("assistant", j?.error ? `Error: ${j.error}` : "Error: Request failed.");
+        addAssistant(j?.error ? `Error: ${j.error}` : "Error: Request failed.");
+        persistAssistant(j?.error ? `Error: ${j.error}` : "Error: Request failed.");
         return;
       }
 
       const reply = normalize(j.text || j.reply);
       if (reply) {
-        addMsg("assistant", reply);
-        state.conversation.push({ role: "assistant", content: reply });
-        saveJson(LS.conversation, state.conversation);
+        addAssistant(reply);
+        persistAssistant(reply);
       }
 
       if (j.preview && typeof j.preview.html === "string" && j.preview.html.trim()) {
         renderPreview(j.preview);
       }
     } catch (err) {
-      addMsg("assistant", `Error: ${err?.message || "Request failed"}`);
+      const msg = `Error: ${err?.message || "Request failed"}`;
+      addAssistant(msg);
+      persistAssistant(msg);
     } finally {
       setBusy(false);
     }
@@ -927,8 +956,13 @@
       state.conversation = [];
       saveJson(LS.conversation, state.conversation);
       els.msgs.innerHTML = "";
-      systemMsg("Simo: Reset. I’m here.");
+      const hello =
+        "What are you building?\n\n" +
+        "Describe your landing page in one sentence (or click an example).";
+      addAssistant(hello);
+      persistAssistant(hello);
       setStatus("Ready");
+      toast("New chat", "ok");
     };
 
     els.btnSave.onclick = () => gated(() => saveToLibraryAuto());
@@ -937,15 +971,15 @@
   }
 
   function downloadPreview() {
-    if (!state.lastPreview?.html) return systemMsg("Nothing to download yet. Generate a preview first.");
-    const filename = (state.lastPreview.kind === "cover") ? "book-cover.html" : "preview.html";
+    if (!state.lastPreview?.html) return toast("Nothing to export yet — generate a preview first.", "warn", 2600);
+    const filename = (state.lastPreview.kind === "cover") ? "book-cover.html" : "landing-page.html";
     const blob = new Blob([state.lastPreview.html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
-    systemMsg(`Downloaded: ${filename}`);
+    toast("Exported HTML", "ok");
   }
 
   // -------------------------
