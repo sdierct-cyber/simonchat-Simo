@@ -1,35 +1,211 @@
 // netlify/functions/simon.js
-// Locked backend v5: deterministic previews + edits, plus optional LLM for chat.
-// Key upgrade: mode-switching intelligence
-// - Deterministic edits/builds work in ANY mode if user intent is build/edit
-// - Venting/Solving stays chat-only unless user requests build/edit/preview
-// Contract supported:
-// - reply (string)
-// - preview_name + preview_html (legacy)
-// - preview: { name, html } (new)
-// - backend_label for UI badge.
+// SIMO backend — "locked v4" style behavior:
+// - mode routing (venting/solving/building) without breaking flow
+// - deterministic landing page + deterministic book cover
+// - preview edits (basic) work
+// - OPTIONAL OpenAI Responses call if OPENAI_API_KEY exists (fallback safe if not)
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+// Node 18+ (Netlify) supports fetch
+const JSON_HEADERS = {
+  "content-type": "application/json; charset=utf-8",
+  "access-control-allow-origin": "*",
+  "access-control-allow-methods": "POST,OPTIONS",
+  "access-control-allow-headers": "content-type",
+};
 
-function json(statusCode, obj) {
-  return {
-    statusCode,
-    headers: {
-      "content-type": "application/json",
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "POST,OPTIONS",
-      "access-control-allow-headers": "content-type",
-      "cache-control": "no-store",
-    },
-    body: JSON.stringify(obj),
-  };
+function j(statusCode, obj) {
+  return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(obj) };
 }
 
-function strip(s){ return (s||"").toString().trim(); }
-function lower(s){ return strip(s).toLowerCase(); }
+function safeJsonParse(s) {
+  try { return JSON.parse(s); } catch { return null; }
+}
 
-function escapeHtml(s = "") {
-  return String(s)
+function clampArr(a, n) {
+  if (!Array.isArray(a)) return [];
+  return a.slice(Math.max(0, a.length - n));
+}
+
+/* -------------------------
+   Deterministic generators
+-------------------------- */
+
+function makeLandingPage({ title, subtitle, cta, theme }) {
+  const T = escapeHtml(title || "Simo Landing");
+  const S = escapeHtml(subtitle || "A clean, fast landing page you can ship today.");
+  const C = escapeHtml(cta || "Get Started");
+  const accent = theme === "pro" ? "#39ff7a" : "#2a66ff";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>${T}</title>
+<style>
+  :root{--bg:#0b1020;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--accent:${accent};}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:radial-gradient(1200px 700px at 18% 0%, #162a66 0%, var(--bg) 55%);
+    color:var(--text);}
+  .wrap{max-width:980px;margin:0 auto;padding:28px}
+  .hero{padding:34px;border:1px solid var(--line);border-radius:22px;
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.16));}
+  .tag{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
+    border:1px solid var(--line);background:rgba(0,0,0,.20);font-weight:800;color:var(--muted);font-size:12px}
+  .dot{width:10px;height:10px;border-radius:99px;background:var(--accent);box-shadow:0 0 18px rgba(57,255,122,.45)}
+  h1{margin:16px 0 10px;font-size:44px;line-height:1.05;letter-spacing:-.6px}
+  p{margin:0 0 18px;color:var(--muted);font-weight:650;font-size:16px;line-height:1.5}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .btn{border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.22);color:var(--text);
+    font-weight:900;border-radius:14px;padding:12px 14px;cursor:pointer}
+  .btn.primary{border-color:rgba(57,255,122,.35);background:rgba(57,255,122,.15)}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px}
+  @media (max-width:860px){.grid{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:18px;padding:14px;background:rgba(0,0,0,.18)}
+  .card b{display:block;margin-bottom:6px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <div class="tag"><span class="dot"></span> Deterministic landing page</div>
+      <h1>${T}</h1>
+      <p>${S}</p>
+      <div class="row">
+        <button class="btn primary">${C}</button>
+        <button class="btn">Learn More</button>
+      </div>
+
+      <div class="grid">
+        <div class="card"><b>Fast</b><span>Clean structure + simple styling.</span></div>
+        <div class="card"><b>Clear</b><span>Headline → value → call-to-action.</span></div>
+        <div class="card"><b>Polished</b><span>Modern dark UI with accent.</span></div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function makeBookCover({ title, author }) {
+  const T = escapeHtml(title || "I Am Angel");
+  const A = escapeHtml(author || "Simon Gojcaj");
+
+  // SVG cover inside HTML so iframe renders it instantly
+  return `<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>${T} — Cover</title>
+<style>
+  html,body{height:100%;margin:0;background:transparent}
+  .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:16px}
+  .frame{width:min(520px,100%);aspect-ratio:2/3;border-radius:18px;overflow:hidden;
+    border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 40px rgba(0,0,0,.45)}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="frame">
+      <svg viewBox="0 0 600 900" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="g" cx="20%" cy="0%" r="80%">
+            <stop offset="0%" stop-color="#1e4ad6"/>
+            <stop offset="55%" stop-color="#0b1020"/>
+            <stop offset="100%" stop-color="#070b14"/>
+          </radialGradient>
+          <filter id="glow">
+            <feGaussianBlur stdDeviation="6" result="b"/>
+            <feMerge>
+              <feMergeNode in="b"/>
+              <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+          </filter>
+        </defs>
+        <rect width="600" height="900" fill="url(#g)"/>
+        <circle cx="140" cy="170" r="90" fill="#39ff7a" opacity="0.18" filter="url(#glow)"/>
+        <circle cx="470" cy="290" r="130" fill="#2a66ff" opacity="0.12" filter="url(#glow)"/>
+        <path d="M300 250 C260 330, 210 410, 170 500 C250 470, 320 430, 390 370 C350 330, 330 290, 300 250 Z"
+              fill="#eaf0ff" opacity="0.10"/>
+        <path d="M290 280 C250 350, 220 430, 205 510 C265 480, 320 440, 365 385 C335 350, 315 315, 290 280 Z"
+              fill="#39ff7a" opacity="0.14"/>
+
+        <text x="300" y="150" text-anchor="middle" fill="#eaf0ff" font-size="48" font-family="system-ui" font-weight="900">${T}</text>
+        <text x="300" y="200" text-anchor="middle" fill="#a9b6d3" font-size="18" font-family="system-ui" font-weight="800">A novel</text>
+
+        <rect x="90" y="610" width="420" height="1" fill="rgba(255,255,255,.18)"/>
+        <text x="300" y="690" text-anchor="middle" fill="#eaf0ff" font-size="22" font-family="system-ui" font-weight="900">${A}</text>
+
+        <text x="300" y="835" text-anchor="middle" fill="#a9b6d3" font-size="12" font-family="system-ui" font-weight="800">deterministic cover preview</text>
+      </svg>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function applySimpleHtmlEdit(html, instruction) {
+  // Lightweight edit rules: title, headline, button text, add FAQ section, etc.
+  // (deterministic so it won’t “brainfart”)
+  const t = (instruction || "").toLowerCase();
+
+  let out = html;
+
+  // Update title tag
+  const titleMatch = instruction.match(/title\s*:\s*(.+)/i);
+  if (titleMatch) {
+    const newTitle = escapeHtml(titleMatch[1].trim());
+    out = out.replace(/<title>.*?<\/title>/i, `<title>${newTitle}</title>`);
+  }
+
+  // Update first <h1>
+  const h1Match = instruction.match(/headline\s*:\s*(.+)/i);
+  if (h1Match) {
+    const newH1 = escapeHtml(h1Match[1].trim());
+    out = out.replace(/<h1>.*?<\/h1>/i, `<h1>${newH1}</h1>`);
+  }
+
+  // Add FAQ if requested
+  if (t.includes("add faq") && !t.includes("remove faq")) {
+    if (!out.includes("id=\"faq\"")) {
+      out = out.replace(
+        /<\/body>/i,
+        `
+<section id="faq" style="max-width:980px;margin:18px auto 34px;padding:0 28px">
+  <div style="border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:14px;background:rgba(0,0,0,.18)">
+    <div style="font-weight:900;margin-bottom:8px;color:#eaf0ff">FAQ</div>
+    <div style="color:#a9b6d3;font-weight:650;line-height:1.5">
+      <b style="color:#eaf0ff">Q:</b> How fast can I launch?<br/>
+      <b style="color:#eaf0ff">A:</b> This template is ready now—swap copy and ship.<br/><br/>
+      <b style="color:#eaf0ff">Q:</b> Can I customize it?<br/>
+      <b style="color:#eaf0ff">A:</b> Yes—ask Simo to edit headline, CTA, sections, etc.
+    </div>
+  </div>
+</section>
+</body>`
+      );
+    }
+  }
+
+  // Remove FAQ if requested
+  if (t.includes("remove faq")) {
+    out = out.replace(/<section id="faq"[\s\S]*?<\/section>\s*/i, "");
+  }
+
+  // CTA text change
+  const ctaMatch = instruction.match(/cta\s*:\s*(.+)/i);
+  if (ctaMatch) {
+    const newCta = escapeHtml(ctaMatch[1].trim());
+    out = out.replace(/<button class="btn primary">.*?<\/button>/i, `<button class="btn primary">${newCta}</button>`);
+  }
+
+  return out;
+}
+
+function escapeHtml(s) {
+  return String(s || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -37,629 +213,210 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-function isAffirmation(text){
-  const t = lower(text);
-  return (
-    t === "yes" || t === "yep" || t === "ok" || t === "okay" ||
-    t.includes("that's good") || t.includes("thats good") ||
-    t.includes("looks good") || t.includes("perfect") || t.includes("fine")
-  );
+/* -------------------------
+   Mode routing (simple + stable)
+-------------------------- */
+
+function detectMode(userText) {
+  const t = (userText || "").toLowerCase();
+
+  if (t.includes("i'm stressed") || t.includes("im stressed") || t.includes("vent") || t.includes("argument") || t.includes("wife") || t.includes("upset") || t.includes("anx")) {
+    return "venting";
+  }
+  if (t.includes("fix") || t.includes("debug") || t.includes("error") || t.includes("why") || t.includes("how do i") || t.includes("issue")) {
+    return "solving";
+  }
+  if (t.includes("build") || t.includes("landing page") || t.includes("book cover") || t.includes("preview") || t.includes("app") || t.includes("website") || t.includes("design")) {
+    return "building";
+  }
+  return "building"; // default
 }
 
-function extractMoney(text){
-  const m = String(text || "").match(/\$?\s*(\d{1,4})(?:\.\d{1,2})?/);
-  if(!m) return null;
-  return Number(m[1]);
+function wantsCover(userText) {
+  const t = (userText || "").toLowerCase();
+  return t.includes("book cover") || t.includes("cover");
 }
 
-function hasAny(text, arr){
-  const t = lower(text);
-  return arr.some(k => t.includes(k));
+function wantsLanding(userText) {
+  const t = (userText || "").toLowerCase();
+  return t.includes("landing page") || t.includes("website") || t.includes("homepage");
 }
 
-/* ---------------------------
-   Preview templates
---------------------------- */
-
-function landingPageTemplate({ proPrice = 29, starterPrice = 9 } = {}) {
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Landing Page</title>
-<style>
-  :root{
-    --bg:#070b16;
-    --card:#0b132a;
-    --text:#eaf0ff;
-    --muted:#a9b6d3;
-    --line:rgba(255,255,255,.10);
-    --blue:#2a66ff; --blue2:#1f4dd6;
-  }
-  *{box-sizing:border-box}
-  body{
-    margin:0;
-    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-    color:var(--text);
-    background:
-      radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.35), transparent 55%),
-      radial-gradient(800px 520px at 85% 10%, rgba(48,255,176,.12), transparent 55%),
-      var(--bg);
-  }
-  .wrap{max-width:980px;margin:0 auto;padding:22px}
-  .hero{
-    border:1px solid var(--line);
-    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    border-radius:22px;
-    padding:22px;
-  }
-  h1{margin:0 0 8px;font-size:44px;letter-spacing:.2px;line-height:1.05}
-  p{margin:0;color:rgba(233,240,255,.75);font-size:16px;line-height:1.45}
-  .cta{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
-  .btn{
-    padding:12px 16px;border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(255,255,255,.05);
-    color:var(--text);font-weight:800;
-  }
-  .btn.primary{
-    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-    border-color:rgba(42,102,255,.55);
-  }
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
-  .chip{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:16px;padding:14px;
-    color:rgba(233,240,255,.85);
-    min-height:64px;
-  }
-  .pricing{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:16px}
-  .plan{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:20px;
-    padding:18px;
-    text-align:center;
-  }
-  .plan .name{font-weight:900;letter-spacing:.3px;color:rgba(233,240,255,.85)}
-  .plan .price{font-size:54px;font-weight:1000;margin:6px 0 6px}
-  .muted{color:rgba(233,240,255,.65)}
-  .badge{
-    display:inline-block;
-    padding:6px 10px;border-radius:999px;
-    border:1px solid rgba(42,102,255,.35);
-    background:rgba(42,102,255,.12);
-    font-size:12px;font-weight:900;
-    margin-bottom:8px;
-  }
-  .planBtn{
-    margin-top:12px;
-    display:inline-block;
-    padding:10px 16px;border-radius:12px;
-    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-    border:1px solid rgba(42,102,255,.55);
-    color:#fff;font-weight:900;
-  }
-  .section{margin-top:18px}
-  .section h2{margin:0 0 10px;font-size:18px;letter-spacing:.3px}
-  .faq{display:grid;gap:10px}
-  .q{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:16px;padding:14px;
-  }
-  .q b{display:block;margin-bottom:4px}
-  @media (max-width: 860px){
-    .grid{grid-template-columns:1fr}
-    .pricing{grid-template-columns:1fr}
-    h1{font-size:36px}
-  }
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="hero">
-      <h1>FlowPro helps you automate your workflow.</h1>
-      <p>Save time. Reduce manual work. Scale smarter.</p>
-      <div class="cta">
-        <button class="btn primary">Get Started</button>
-        <button class="btn">See Demo</button>
-      </div>
-      <div class="grid">
-        <div class="chip">Automated task pipelines</div>
-        <div class="chip">Smart scheduling</div>
-        <div class="chip">Real-time analytics dashboard</div>
-      </div>
-
-      <div class="pricing">
-        <div class="plan" data-plan="starter">
-          <div class="name">Starter</div>
-          <div class="price"><span data-price="starter">${starterPrice}</span>/mo</div>
-          <div class="muted">Basic support<br/>Core features<br/>1 user</div>
-          <div class="planBtn">Choose Plan</div>
-        </div>
-
-        <div class="plan" data-plan="pro">
-          <div class="badge">Most Popular</div>
-          <div class="name">Pro</div>
-          <div class="price">$<span data-price="pro">${proPrice}</span>/mo</div>
-          <div class="muted">Priority support<br/>All features<br/>5 users</div>
-          <div class="planBtn">Choose Plan</div>
-        </div>
-      </div>
-
-      <div class="section" data-section="testimonials">
-        <h2>Testimonials</h2>
-        <div class="faq">
-          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
-        </div>
-      </div>
-
-      <div class="section" data-section="faq">
-        <h2>FAQ</h2>
-        <div class="faq">
-          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</body>
-</html>`;
+function wantsPreview(userText) {
+  const t = (userText || "").toLowerCase();
+  return t.includes("show me a preview") || t.includes("show preview") || t.includes("preview");
 }
 
-function bookCoverTemplate({ title, subtitle, author } = {}) {
-  const T = escapeHtml(title || "THE AMERICAN DREAM");
-  const S = escapeHtml(subtitle || "An immigrant story of arriving young, working hard, and earning it.");
-  const A = escapeHtml(author || "SIMON GOJCAJ");
-
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Book Cover</title>
-<style>
-  :root{--bg:#071021;--text:#eaf0ff;--muted:rgba(234,240,255,.78);--line:rgba(255,255,255,.10);}
-  *{box-sizing:border-box}
-  body{
-    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    background:
-      radial-gradient(1100px 700px at 15% 0%, rgba(42,102,255,.35), transparent 55%),
-      radial-gradient(900px 700px at 85% 10%, rgba(25,255,154,.12), transparent 55%),
-      linear-gradient(180deg, #071021, #050b16);
-    color:var(--text);
-    height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;
-  }
-  .cover{
-    width:min(760px, 95vw);
-    aspect-ratio: 3 / 4;
-    border-radius:22px;
-    border:1px solid var(--line);
-    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.22));
-    box-shadow: 0 22px 70px rgba(0,0,0,.55);
-    padding:34px;
-    position:relative;
-    overflow:hidden;
-  }
-  .glow{
-    position:absolute;inset:-40%;
-    background: radial-gradient(circle at 20% 20%, rgba(42,102,255,.35), transparent 55%),
-                radial-gradient(circle at 80% 20%, rgba(25,255,154,.14), transparent 55%);
-    filter: blur(10px);
-    opacity:.9;
-  }
-  .content{position:relative;z-index:2}
-  .title{
-    font-weight:1000;
-    letter-spacing:1px;
-    font-size: clamp(36px, 6vw, 62px);
-    line-height:1.04;
-    text-transform:uppercase;
-    margin:0 0 10px;
-  }
-  .subtitle{
-    max-width: 90%;
-    font-size: clamp(14px, 2.2vw, 18px);
-    color: var(--muted);
-    margin:0 0 18px;
-  }
-  .stripe{
-    position:absolute;left:0;right:0;bottom:-22%;
-    height:42%;
-    background:
-      linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,0)),
-      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 10px, rgba(0,0,0,0) 10px, rgba(0,0,0,0) 22px);
-    transform: skewY(-10deg);
-    opacity:.35;
-  }
-  .author{
-    position:absolute;left:34px;right:34px;bottom:26px;
-    font-weight:900;letter-spacing:2px;
-    color:rgba(234,240,255,.72);
-    display:flex;justify-content:space-between;align-items:center;
-  }
-  .tag{
-    border:1px solid rgba(25,255,154,.28);
-    background:rgba(25,255,154,.10);
-    padding:8px 12px;border-radius:999px;
-    font-size:12px;font-weight:900;
-    box-shadow: 0 0 24px rgba(25,255,154,.10);
-  }
-</style>
-</head>
-<body>
-  <div class="cover">
-    <div class="glow"></div>
-    <div class="stripe"></div>
-    <div class="content">
-      <h1 class="title">${T}</h1>
-      <p class="subtitle">${S}</p>
-    </div>
-    <div class="author">
-      <div>${A}</div>
-      <div class="tag">book_cover</div>
-    </div>
-  </div>
-</body>
-</html>`;
+function wantsEdit(userText) {
+  const t = (userText || "").toLowerCase();
+  return t.startsWith("edit") || t.includes("edit the preview") || t.includes("update the preview") || t.includes("change the preview") || t.includes("add faq") || t.includes("remove faq") || t.includes("headline:") || t.includes("cta:");
 }
 
-function genericAppMockTemplate({ title } = {}) {
-  const T = escapeHtml(title || "App Preview");
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${T}</title>
-<style>
-  :root{--bg:#070b16;--text:#eaf0ff;--muted:rgba(234,240,255,.75);--line:rgba(255,255,255,.10);--blue:#2a66ff;}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);
-    background:radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.28), transparent 55%),
-               radial-gradient(800px 520px at 85% 10%, rgba(25,255,154,.10), transparent 55%),var(--bg);}
-  .wrap{max-width:980px;margin:0 auto;padding:22px}
-  .card{border:1px solid var(--line);border-radius:22px;background:rgba(0,0,0,.18);padding:18px}
-  h1{margin:0 0 6px;font-size:34px}
-  p{margin:0 0 12px;color:var(--muted)}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  .box{border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.04);padding:14px}
-  .btn{display:inline-block;margin-top:10px;background:var(--blue);color:#fff;font-weight:900;padding:10px 14px;border-radius:12px;text-decoration:none}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <h1>${T}</h1>
-      <p>This is a generic mockup preview. Tell Simo what screens you want (home, listing, profile, checkout, etc.).</p>
-      <div class="grid">
-        <div class="box"><b>Home</b><br/><span style="color:var(--muted)">Search + featured items</span></div>
-        <div class="box"><b>Details</b><br/><span style="color:var(--muted)">Photos + CTA button</span></div>
-        <div class="box"><b>Messages</b><br/><span style="color:var(--muted)">Chat between users</span></div>
-        <div class="box"><b>Checkout</b><br/><span style="color:var(--muted)">Pay + confirm</span></div>
-      </div>
-      <a class="btn" href="#">Primary Action</a>
-    </div>
-  </div>
-</body>
-</html>`;
-}
+/* -------------------------
+   Optional OpenAI Responses (safe)
+-------------------------- */
 
-/* ---------------------------
-   Deterministic edits
---------------------------- */
+async function tryOpenAI({ userText, conversation }) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
 
-function replaceProPrice(html, newPrice){
-  if(html.includes('data-price="pro"')){
-    return html.replace(/data-price="pro">(\d{1,4})</, `data-price="pro">${newPrice}<`);
-  }
-  return html.replace(/\$\s*\d{1,4}\s*\/mo/, `$${newPrice}/mo`);
-}
+  // Keep it conservative so it won't break if model changes:
+  const input = buildResponsesInput(userText, conversation);
 
-function ensureSection(html, sectionKey){
-  if(html.includes(`data-section="${sectionKey}"`)) return html;
+  const body = {
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+    input,
+    // Keep responses strictly text
+    text: { format: { type: "text" } },
+    temperature: 0.6,
+  };
 
-  const insertAt = html.lastIndexOf("</div>\n  </div>\n</body>");
-  if(insertAt < 0) return html;
-
-  let block = "";
-  if(sectionKey === "faq"){
-    block = `
-      <div class="section" data-section="faq">
-        <h2>FAQ</h2>
-        <div class="faq">
-          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-        </div>
-      </div>`;
-  } else if(sectionKey === "testimonials"){
-    block = `
-      <div class="section" data-section="testimonials">
-        <h2>Testimonials</h2>
-        <div class="faq">
-          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
-        </div>
-      </div>`;
-  } else {
-    return html;
-  }
-  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
-}
-
-/* ---------------------------
-   Optional LLM chat
---------------------------- */
-async function callOpenAIChat(system, user){
-  if(!OPENAI_API_KEY) return null;
-
-  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
-    method:"POST",
-    headers:{
-      "content-type":"application/json",
-      "authorization":`Bearer ${OPENAI_API_KEY}`
+  const r = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "authorization": `Bearer ${key}`,
     },
-    body: JSON.stringify({
-      model: "gpt-4o-mini",
-      temperature: 0.7,
-      messages: [
-        { role:"system", content: system },
-        { role:"user", content: user }
-      ]
-    })
+    body: JSON.stringify(body),
   });
 
-  if(!resp.ok){
-    const txt = await resp.text().catch(()=> "");
-    throw new Error("OpenAI error: " + txt.slice(0, 220));
+  if (!r.ok) {
+    const errTxt = await r.text().catch(() => "");
+    return { error: `OpenAI error (${r.status})`, details: errTxt.slice(0, 1200) };
   }
-  const data = await resp.json();
-  const msg = data?.choices?.[0]?.message?.content;
-  return typeof msg === "string" ? msg.trim() : null;
+
+  const data = await r.json();
+  const text = extractResponsesText(data);
+  return { text: text || "" };
 }
 
-/* ---------------------------
-   Intent routing
---------------------------- */
+function buildResponsesInput(userText, conversation) {
+  // Build a single message with lightweight context (stable)
+  const ctx = Array.isArray(conversation) ? conversation.slice(-10) : [];
+  const history = ctx.map(m => `${m.role === "user" ? "User" : "Simo"}: ${m.content}`).join("\n");
 
-function wantsLanding(text){
-  const t = lower(text);
-  return t.includes("landing page") || t.includes("build landing") || t.includes("build me a landing");
+  const prompt =
+`You are Simo: a direct, helpful best-friend assistant.
+- If the user vents: be supportive and real, not therapy-speak.
+- If the user builds: give actionable steps and concise deliverables.
+- If the user solves: give tight troubleshooting steps.
+Keep it short, confident, and avoid asking lots of questions.
+
+Conversation so far:
+${history}
+
+User: ${userText}
+Simo:`;
+
+  return [
+    {
+      role: "user",
+      content: [{ type: "input_text", text: prompt }],
+    }
+  ];
 }
-function wantsBookCover(text){
-  const t = lower(text);
-  return t.includes("book cover") || t.includes("cover preview") || t.includes("cover for this story");
+
+function extractResponsesText(data) {
+  // responses API shape: data.output[] items with content[] having type 'output_text'
+  const out = data && Array.isArray(data.output) ? data.output : [];
+  let acc = "";
+  for (const item of out) {
+    const content = Array.isArray(item.content) ? item.content : [];
+    for (const c of content) {
+      if (c && c.type === "output_text" && typeof c.text === "string") {
+        acc += c.text;
+      }
+    }
+  }
+  return acc.trim();
 }
-function wantsPreview(text){
-  const t = lower(text);
-  return t.includes("show me a preview") || t.includes("show preview") || t.includes("preview of");
-}
-function wantsPriceEdit(text){
-  const t = lower(text);
-  return t.includes("change pro price") || t.includes("set pro price") || t.includes("pro price") || t.includes("change price");
-}
-function wantsAddFaq(text){
-  return hasAny(text, ["add faq", "include faq"]);
-}
-function wantsAddTestimonials(text){
-  return hasAny(text, ["add testimonials", "include testimonials"]);
-}
-function wantsEditAnything(text){
-  // expand later, but right now: price/faq/testimonials are “edit intents”
-  return wantsPriceEdit(text) || wantsAddFaq(text) || wantsAddTestimonials(text);
-}
-function parseBookFields(text){
-  const t = String(text || "");
-  const mTitle = t.match(/title\s*:\s*([^\n]+)/i);
-  const mSub = t.match(/subtitle\s*:\s*([^\n]+)/i);
-  const mAuth = t.match(/author\s*:\s*([^\n]+)/i);
-  return {
-    title: mTitle ? strip(mTitle[1]) : null,
-    subtitle: mSub ? strip(mSub[1]) : null,
-    author: mAuth ? strip(mAuth[1]) : null,
-  };
-}
+
+/* -------------------------
+   Handler
+-------------------------- */
 
 exports.handler = async (event) => {
-  const BACKEND_LABEL = "simo-backend-locked-v5";
+  if (event.httpMethod === "OPTIONS") return j(200, { ok: true });
 
-  if(event.httpMethod === "OPTIONS") return json(200, { ok:true, backend_label: BACKEND_LABEL });
-  if(event.httpMethod !== "POST") return json(405, { ok:false, backend_label: BACKEND_LABEL, error:"Method not allowed" });
-
-  try{
-    const body = JSON.parse(event.body || "{}");
-
-    // UI sends text; keep legacy fallback for safety
-    const text = strip(body.text || body.q || body.message);
-    const mode = strip(body.mode) || "building";
-    const pro = !!body.pro;
-
-    const currentHtml = strip(body.current_preview_html || body.preview_html || "");
-    const currentName = strip(body.current_preview_name || body.preview_name || "none");
-
-    if(!text) return json(400, { ok:false, backend_label: BACKEND_LABEL, error:"Missing message" });
-
-    // 1) MODE-SWITCHING UPGRADE:
-    // If user intent is build/edit/preview, we honor it in ANY mode.
-    const isBuildOrPreviewIntent = wantsLanding(text) || wantsBookCover(text) || wantsPreview(text);
-    const isEditIntent = wantsEditAnything(text);
-
-    // 2) Deterministic edits ALWAYS win if we have the right preview loaded (any mode).
-    if(currentHtml && currentName === "landing_page" && wantsPriceEdit(text)){
-      const money = extractMoney(text);
-      if(money){
-        const updated = replaceProPrice(currentHtml, money);
-        return json(200, {
-          ok:true,
-          backend_label: BACKEND_LABEL,
-          version: BACKEND_LABEL,
-          reply: `Done. Pro price is now $${money}/mo.`,
-          preview_name: "landing_page",
-          preview_html: updated,
-          preview: { name:"landing_page", html: updated }
-        });
-      }
-    }
-
-    if(currentHtml && currentName === "landing_page" && wantsAddFaq(text)){
-      const updated = ensureSection(currentHtml, "faq");
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: "Done. FAQ section added.",
-        preview_name: "landing_page",
-        preview_html: updated,
-        preview: { name:"landing_page", html: updated }
-      });
-    }
-
-    if(currentHtml && currentName === "landing_page" && wantsAddTestimonials(text)){
-      const updated = ensureSection(currentHtml, "testimonials");
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: "Done. Testimonials added.",
-        preview_name: "landing_page",
-        preview_html: updated,
-        preview: { name:"landing_page", html: updated }
-      });
-    }
-
-    // 3) Book cover "yes/thats good" loop breaker (any mode).
-    if(currentName === "book_cover" && isAffirmation(text)){
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: "Nice. Want to tweak title/subtitle/author, or should I start outlining the book (chapters + themes) next?"
-      });
-    }
-
-    // 4) Build routes (any mode if intent)
-    if(wantsLanding(text)){
-      const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: pro
-          ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
-          : "Preview loaded. (Turn Pro ON to enable saving + downloads.)",
-        preview_name: "landing_page",
-        preview_html: html,
-        preview: { name:"landing_page", html }
-      });
-    }
-
-    if(wantsBookCover(text)){
-      const fields = parseBookFields(text);
-      const html = bookCoverTemplate({
-        title: fields.title || "THE AMERICAN DREAM",
-        subtitle: fields.subtitle || "An immigrant story of arriving young, working hard, and earning it.",
-        author: fields.author || "SIMON GOJCAJ",
-      });
-
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: "Book cover preview loaded. If you want changes, say: title: ..., subtitle: ..., author: ...",
-        preview_name: "book_cover",
-        preview_html: html,
-        preview: { name:"book_cover", html }
-      });
-    }
-
-    if(wantsPreview(text)){
-      const t = lower(text);
-
-      if(t.includes("landing")) {
-        const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
-        return json(200, {
-          ok:true,
-          backend_label: BACKEND_LABEL,
-          version: BACKEND_LABEL,
-          reply: "Preview loaded. Tell me what to change.",
-          preview_name: "landing_page",
-          preview_html: html,
-          preview: { name:"landing_page", html }
-        });
-      }
-
-      if(t.includes("book") || t.includes("cover")) {
-        const html = bookCoverTemplate({});
-        return json(200, {
-          ok:true,
-          backend_label: BACKEND_LABEL,
-          version: BACKEND_LABEL,
-          reply: "Book cover preview loaded. Want to change title/subtitle/author?",
-          preview_name: "book_cover",
-          preview_html: html,
-          preview: { name:"book_cover", html }
-        });
-      }
-
-      const html = genericAppMockTemplate({ title: "App Preview" });
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: "Preview loaded. Tell me what kind of app this is and what 3 screens you want.",
-        preview_name: "app_mock",
-        preview_html: html,
-        preview: { name:"app_mock", html }
-      });
-    }
-
-    // 5) If user is in venting/solving and NOT doing build/edit/preview intents -> pure chat.
-    // This preserves “best friend” behavior.
-    if((mode === "venting" || mode === "solving") && !isBuildOrPreviewIntent && !isEditIntent){
-      if(mode === "venting"){
-        const reply = await callOpenAIChat(
-          "You are Simo, a private best friend. Be natural, warm, direct. No therapy-cliches. Ask ONE good follow-up question.",
-          `User said: ${text}`
-        ).catch(()=> null);
-
-        return json(200, {
-          ok:true,
-          backend_label: BACKEND_LABEL,
-          version: BACKEND_LABEL,
-          reply: reply || "I’m here. What’s hitting you the hardest right now?"
-        });
-      }
-
-      const reply = await callOpenAIChat(
-        "You are Simo, a practical problem-solver. Be concise. Ask 1-2 clarifying questions max. Provide actionable steps.",
-        `User said: ${text}`
-      ).catch(()=> null);
-
-      return json(200, {
-        ok:true,
-        backend_label: BACKEND_LABEL,
-        version: BACKEND_LABEL,
-        reply: reply || "Alright — what’s the goal, and what’s blocking you?"
-      });
-    }
-
-    // 6) Otherwise: ChatGPT-like builder reply (optional LLM), but NO preview output.
-    const sys = "You are Simo: best friend + builder. Be concise, natural, helpful. Avoid therapy-speak unless user asks. If user asks to build, tell them what you can generate next.";
-    const reply = await callOpenAIChat(sys, text).catch(()=> null);
-
-    return json(200, {
-      ok:true,
-      backend_label: BACKEND_LABEL,
-      version: BACKEND_LABEL,
-      reply: reply || "Tell me what you want next — and if you want visuals, say “show me a preview”."
-    });
-
-  }catch(err){
-    return json(500, { ok:false, backend_label:"simo-backend-locked-v5", error:"Server error", details:String(err?.message || err) });
+  if (event.httpMethod !== "POST") {
+    return j(405, { ok: false, error: "Method not allowed" });
   }
+
+  const body = safeJsonParse(event.body || "{}") || {};
+  const userText = (body.text || "").toString().trim();
+  const tier = (body.tier === "pro") ? "pro" : "free";
+  const conversation = clampArr(body.conversation, 16);
+  const lastPreview = body.lastPreview && typeof body.lastPreview.html === "string" ? body.lastPreview : null;
+
+  if (!userText) return j(400, { ok: false, error: "Missing message" });
+
+  const mode = detectMode(userText);
+
+  // --- Deterministic preview logic ---
+  let preview = null;
+  let reply = "";
+
+  // Preview edits
+  if (wantsEdit(userText) && lastPreview?.html) {
+    const newHtml = applySimpleHtmlEdit(lastPreview.html, userText);
+    preview = { kind: lastPreview.kind || "html", html: newHtml, title: "Preview updated", meta: "Edited deterministically" };
+    reply = `Done. I updated the preview. If you want a specific change, use:\n- headline: ...\n- cta: ...\n- add faq\n- remove faq\n- title: ...`;
+    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
+  }
+
+  // Deterministic cover
+  if (wantsCover(userText) && wantsPreview(userText)) {
+    const html = makeBookCover({ title: "I Am Angel", author: "Simon Gojcaj" });
+    preview = { kind: "cover", html, title: "Book cover", meta: "Deterministic cover preview" };
+    reply = `Here’s a clean book cover preview. If you want edits, say:\n- headline: YOUR TITLE\n- title: YOUR TITLE\n(Or tell me mood/colors and I’ll re-style it.)`;
+    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
+  }
+
+  // Deterministic landing page
+  if (wantsLanding(userText) && wantsPreview(userText)) {
+    const html = makeLandingPage({
+      title: (tier === "pro") ? "Simo Pro" : "Simo",
+      subtitle: "A clean landing page preview — ask me to edit headline/CTA/sections.",
+      cta: (tier === "pro") ? "Upgrade to Pro" : "Start Free",
+      theme: tier,
+    });
+    preview = { kind: "html", html, title: "Landing page", meta: `Deterministic • theme: ${tier}` };
+    reply = `Preview is on the right. Want a change? Try:\n- headline: ...\n- cta: ...\n- add faq`;
+    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
+  }
+
+  // If user asks for preview but didn’t specify what:
+  if (wantsPreview(userText) && !wantsLanding(userText) && !wantsCover(userText) && !wantsEdit(userText)) {
+    reply = `Preview’s ready when you tell me what to preview.\nExamples:\n- “show me a preview of a landing page for a bakery”\n- “show me a preview of a space renting app”\n- “show me a preview book cover”`;
+    return j(200, { ok: true, text: reply, preview: { kind: "none" }, meta: { mode, tier } });
+  }
+
+  // --- Text replies (optional OpenAI, fallback deterministic) ---
+  // Try OpenAI if available:
+  const ai = await tryOpenAI({ userText, conversation });
+  if (ai && ai.error) {
+    // fall back (do NOT break)
+    reply = fallbackReply(mode, userText);
+    return j(200, { ok: true, text: reply, meta: { mode, tier, openai: "error", details: ai.details?.slice(0, 400) || "" } });
+  }
+  if (ai && typeof ai.text === "string" && ai.text.trim()) {
+    return j(200, { ok: true, text: ai.text.trim(), meta: { mode, tier, openai: "used" } });
+  }
+
+  // Deterministic fallback
+  reply = fallbackReply(mode, userText);
+  return j(200, { ok: true, text: reply, meta: { mode, tier, openai: "off" } });
 };
+
+function fallbackReply(mode, userText) {
+  const t = (userText || "").trim();
+
+  if (mode === "venting") {
+    return `I’m with you. Say it straight — what part is hitting you the hardest right now?\nIf you want me to help fix it too, tell me what outcome you want (quiet peace, respect, time, etc.).`;
+  }
+  if (mode === "solving") {
+    return `Alright. Paste the exact error text and tell me what you clicked right before it.\nThen I’ll give you one clean fix path (no detours).`;
+  }
+  // building
+  return `Got you. Tell me what you’re building in one line.\nIf you want the preview on the right, literally say: “show me a preview of ___”.`;
+}
