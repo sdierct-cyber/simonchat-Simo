@@ -63,6 +63,22 @@
       font-weight:900;font-size:12px;cursor:pointer;user-select:none;
     }
     .chip.locked{opacity:.55}
+
+    /* Starter chips (new) */
+    .starters{
+      display:flex; gap:8px; flex-wrap:wrap;
+      margin-top:2px;
+    }
+    .starter{
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.14);
+      padding:8px 10px;border-radius:999px;
+      font-weight:900;font-size:12px;cursor:pointer;user-select:none;
+      color:var(--text);
+    }
+    .starter:hover{border-color:rgba(42,102,255,.35); background:rgba(42,102,255,.10)}
+    .starter small{opacity:.75;font-weight:900}
+
     .msgs{flex:1;overflow:auto;padding-right:6px}
     .msg{margin:10px 0;display:flex;gap:10px}
     .avatar{
@@ -133,6 +149,31 @@
     .miniBtn{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:var(--text);font-weight:950;border-radius:12px;padding:8px 10px;cursor:pointer;white-space:nowrap}
     .miniBtn.primary{border-color:rgba(42,102,255,.35);background:rgba(42,102,255,.18)}
     .miniBtn.danger{border-color:rgba(255,77,77,.25);background:rgba(255,77,77,.12)}
+
+    /* Toasts (new) */
+    .toastWrap{
+      position:fixed;
+      top:14px; right:14px;
+      z-index:99999;
+      display:flex; flex-direction:column; gap:10px;
+      pointer-events:none;
+    }
+    .toast{
+      pointer-events:none;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(10,16,32,.78);
+      color: var(--text);
+      padding:10px 12px;
+      border-radius:14px;
+      box-shadow: 0 12px 28px rgba(0,0,0,.35);
+      font-weight:850;
+      font-size:12px;
+      max-width: 360px;
+      backdrop-filter: blur(6px);
+    }
+    .toast.ok{border-color: rgba(57,255,122,.18)}
+    .toast.warn{border-color: rgba(255,184,77,.20)}
+    .toast.bad{border-color: rgba(255,77,77,.20)}
   </style>
 </head>
 <body>
@@ -140,7 +181,7 @@
     <div class="top">
       <div>
         <div class="brand"><span class="dot"></span> Simo</div>
-        <div class="sub">Checkpoint V1 — stable chat + preview + Pro gating</div>
+        <div class="sub">Build landing pages with AI — simple, fast, exportable.</div>
       </div>
 
       <div class="pills" id="tierPills">
@@ -158,16 +199,23 @@
         </div>
         <div class="card-b chat">
           <div class="actions">
-            <div class="chip" id="btnReset">Reset</div>
+            <div class="chip" id="btnReset">New</div>
             <div class="chip locked" id="btnSave">Save 🔒</div>
-            <div class="chip locked" id="btnDownload">Download 🔒</div>
-            <div class="chip locked" id="btnLibrary">Library 🔒</div>
+            <div class="chip locked" id="btnDownload">Export 🔒</div>
+            <div class="chip locked" id="btnLibrary">My Pages 🔒</div>
+          </div>
+
+          <!-- NEW: Starter prompts -->
+          <div class="starters" id="starterRow">
+            <div class="starter" data-text="Build a landing page for a fitness coach. Include hero, services, testimonials, and a contact section."><small>Example:</small> Fitness coach</div>
+            <div class="starter" data-text="Build a landing page for a dental clinic. Include hero, services, insurance info, testimonials, and booking CTA."><small>Example:</small> Dentist</div>
+            <div class="starter" data-text="Build a SaaS waitlist landing page for an AI productivity app. Include hero, features, social proof, and email signup CTA."><small>Example:</small> SaaS waitlist</div>
           </div>
 
           <div class="msgs" id="msgs"></div>
 
           <div class="composer">
-            <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
+            <textarea id="input" placeholder="Describe what you’re building… (Enter to send • Shift+Enter new line)"></textarea>
             <button class="btn" id="send">Send</button>
           </div>
         </div>
@@ -177,7 +225,7 @@
       <div class="card">
         <div class="card-h">
           <div class="title">Preview</div>
-          <div class="hint">HTML / cover / updates render here</div>
+          <div class="hint">Your page renders here</div>
         </div>
         <div class="card-b">
           <div class="previewWrap">
@@ -196,7 +244,7 @@
   <div class="modalBack" id="modalBack">
     <div class="modal">
       <div class="modalH">
-        <div class="t">Library</div>
+        <div class="t">My Pages</div>
         <button class="miniBtn" id="closeModal">Close</button>
       </div>
       <div class="modalB">
@@ -208,6 +256,9 @@
       </div>
     </div>
   </div>
+
+  <!-- NEW: Toast container -->
+  <div class="toastWrap" id="toastWrap"></div>
 
   <script src="./chat.js"></script>
 </body>
