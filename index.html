@@ -6,280 +6,267 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#070b16;
-      --bg2:#0b1020;
-      --panel:#0a1124;
-      --panel2:#0b132a;
+      --bg:#0b1020;
       --text:#eaf0ff;
       --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
+      --shadow: 0 18px 55px rgba(0,0,0,.45);
 
       --blue:#2a66ff; --blue2:#1f4dd6;
 
-      --neon:#24ff9a;
-      --neon2:#00c97a;
-      --shadow: 0 18px 60px rgba(0,0,0,.55);
+      /* Neon green accents */
+      --neon:#26ff8a;
+      --neonSoft: rgba(38,255,138,.18);
+      --neonLine: rgba(38,255,138,.35);
     }
-
     *{box-sizing:border-box}
-    html,body{height:100%}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:
-        radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.35), transparent 55%),
-        radial-gradient(900px 600px at 80% 10%, rgba(36,255,154,.14), transparent 55%),
-        radial-gradient(900px 520px at 50% 110%, rgba(42,102,255,.18), transparent 55%),
+        radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%),
+        radial-gradient(900px 650px at 85% 20%, rgba(38,255,138,.09), transparent 60%),
         var(--bg);
+      color:var(--text);
     }
 
-    .wrap{max-width:1320px;margin:0 auto;padding:18px 18px 22px}
-
+    .wrap{max-width:1220px;margin:0 auto;padding:18px}
     .topbar{
       display:flex;align-items:center;justify-content:space-between;
       gap:12px;margin-bottom:14px;
     }
     .brand{
-      display:flex;align-items:center;gap:10px;font-weight:900;font-size:28px;
+      display:flex;align-items:center;gap:10px;font-weight:1000;
+      letter-spacing:.2px;font-size:26px;
     }
     .dot{
       width:12px;height:12px;border-radius:999px;background:var(--neon);
-      box-shadow:0 0 0 4px rgba(36,255,154,.12), 0 0 22px rgba(36,255,154,.35);
+      box-shadow:0 0 18px rgba(38,255,138,.55);
     }
 
-    .modeRow{
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    }
-
+    .pills{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .pill{
-      padding:10px 16px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
       background:rgba(0,0,0,.18);
+      padding:10px 14px;
       color:rgba(234,240,255,.88);
       font-weight:900;
       cursor:pointer;
       user-select:none;
-      transition:transform .06s ease, border-color .15s ease, box-shadow .15s ease;
+      transition:transform .08s ease, box-shadow .2s ease, border-color .2s ease;
     }
     .pill:hover{transform:translateY(-1px)}
     .pill.active{
-      border-color:rgba(36,255,154,.65);
-      box-shadow:0 0 0 3px rgba(36,255,154,.10);
-    }
-
-    .pill.pro{
-      border-color:rgba(36,255,154,.65);
-      background:rgba(0,0,0,.14);
+      border-color:var(--neonLine);
+      box-shadow: 0 0 0 2px rgba(38,255,138,.10), 0 0 28px rgba(38,255,138,.22);
+      background: linear-gradient(180deg, rgba(38,255,138,.16), rgba(0,0,0,.18));
     }
 
     .grid{
       display:grid;
-      grid-template-columns: 1.05fr .95fr;
+      grid-template-columns: 1fr 1fr;
       gap:14px;
     }
-
-    .card{
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:22px;
-      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
+    .panel{
+      border:1px solid var(--line);
+      border-radius:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow: var(--shadow);
       overflow:hidden;
-      min-height:620px;
-      display:flex;
-      flex-direction:column;
+      min-height:720px;
     }
-
-    .cardHeader{
+    .panelHead{
       padding:14px 14px 10px;
-      display:flex;align-items:center;justify-content:space-between;gap:10px;
-      background:linear-gradient(180deg, rgba(0,0,0,.18), rgba(0,0,0,0));
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
     }
-
-    .cardHeader h2{
-      margin:0;font-size:20px;letter-spacing:.2px;
-      display:flex;align-items:center;gap:10px;
+    .panelTitle{
+      font-weight:1000;font-size:20px;display:flex;align-items:center;gap:10px;
     }
-
-    .badges{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .badges{
+      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    }
     .badge{
+      font-size:12px;font-weight:900;
       padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(36,255,154,.45);
-      background:rgba(36,255,154,.08);
-      color:rgba(234,240,255,.90);
-      font-weight:900;font-size:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.18);
+      color:rgba(234,240,255,.78);
+      display:none;
     }
-    .badge.dim{
-      border-color:rgba(255,255,255,.12);
-      background:rgba(0,0,0,.16);
-      color:rgba(234,240,255,.75);
-      font-weight:800;
+    body.devOn .badge{display:inline-block}
+    .badge.neon{
+      border-color:var(--neonLine);
+      background:rgba(38,255,138,.10);
+      color:rgba(234,240,255,.88);
     }
 
     .panelTools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-
     .btn{
-      padding:10px 14px;border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
       background:rgba(0,0,0,.18);
-      color:var(--text);
-      font-weight:900;
+      padding:10px 14px;
+      color:rgba(234,240,255,.92);
+      font-weight:1000;
       cursor:pointer;
-      transition:transform .06s ease, border-color .15s ease, box-shadow .15s ease;
-      user-select:none;
+      transition:transform .08s ease, box-shadow .2s ease, border-color .2s ease;
     }
     .btn:hover{transform:translateY(-1px)}
     .btn.neon{
-      border-color:rgba(36,255,154,.65);
-      box-shadow:0 0 0 3px rgba(36,255,154,.10);
+      border-color:var(--neonLine);
+      box-shadow:0 0 0 2px rgba(38,255,138,.10);
     }
     .btn.primary{
       background:linear-gradient(180deg,var(--blue),var(--blue2));
       border-color:rgba(42,102,255,.55);
+      box-shadow:0 10px 24px rgba(42,102,255,.18);
+    }
+    .btn.danger{
+      border-color:rgba(255,77,77,.35);
+      background:rgba(255,77,77,.08);
     }
     .btn:disabled{
-      opacity:.45; cursor:not-allowed; transform:none; box-shadow:none;
+      opacity:.45;cursor:not-allowed;transform:none;
     }
 
-    .chatBody{
-      padding:10px 14px 14px;
-      display:flex;flex-direction:column;
-      gap:10px;
+    .chatBody{padding:0 14px 14px;display:flex;flex-direction:column;height:640px}
+    .chatList{
+      flex:1;
       overflow:auto;
-      height:100%;
+      padding:10px 0;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
-
-    .msg{
+    .bubble{
       border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.16);
-      border-radius:18px;
-      padding:12px 14px;
-      line-height:1.35;
-      white-space:pre-wrap;
+      border-radius:16px;
+      background:rgba(0,0,0,.18);
+      padding:12px 12px;
     }
-    .msg.user{
-      background:linear-gradient(180deg, rgba(42,102,255,.16), rgba(0,0,0,.12));
-      border-color:rgba(42,102,255,.28);
+    .bubble.user{
+      background:linear-gradient(180deg, rgba(42,102,255,.18), rgba(0,0,0,.18));
+      border-color:rgba(42,102,255,.25);
     }
-    .msg.assistant{
-      border-color:rgba(36,255,154,.22);
-      background:linear-gradient(180deg, rgba(36,255,154,.08), rgba(0,0,0,.12));
+    .bubble.bot{
+      background:linear-gradient(180deg, rgba(38,255,138,.12), rgba(0,0,0,.18));
+      border-color:rgba(38,255,138,.20);
     }
+    .who{font-size:12px;font-weight:1000;color:rgba(234,240,255,.75);margin-bottom:6px}
+    .txt{white-space:pre-wrap;line-height:1.35}
 
-    .chatFooter{
-      padding:12px 14px 14px;
-      border-top:1px solid rgba(255,255,255,.08);
-      display:flex;flex-direction:column;gap:10px;
-      background:linear-gradient(180deg, rgba(0,0,0,0), rgba(0,0,0,.18));
+    .composer{
+      display:flex;gap:10px;align-items:center;margin-top:10px;
     }
-    .hintRow{
-      display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;
-      color:rgba(234,240,255,.68);
-      font-size:13px;
-    }
-    .inputRow{display:flex;gap:10px;align-items:center}
     .input{
       flex:1;
-      padding:14px 14px;border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.20);
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.18);
+      padding:12px 12px;
       color:var(--text);
       outline:none;
-      font-size:16px;
+      font-size:14px;
     }
-    .input:focus{
-      border-color:rgba(36,255,154,.55);
-      box-shadow:0 0 0 3px rgba(36,255,154,.10);
-    }
-
-    .previewTop{
-      display:flex;gap:10px;align-items:center;flex-wrap:wrap;
-    }
-    .previewTag{
-      padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(36,255,154,.45);
-      background:rgba(36,255,154,.08);
-      font-weight:900;font-size:12px;
-    }
-    .previewTag.dim{
-      border-color:rgba(255,255,255,.12);
-      background:rgba(0,0,0,.14);
-      color:rgba(234,240,255,.75);
+    .hint{
+      margin-top:10px;
+      color:rgba(234,240,255,.62);
+      font-size:12px;
     }
 
-    .previewFrameWrap{
-      padding:12px 14px 14px;
-      height:100%;
-      display:flex;flex-direction:column;gap:10px;
+    .previewBody{padding:0 14px 14px;height:640px;display:flex;flex-direction:column;gap:10px}
+    .previewMeta{
+      font-size:12px;
+      color:rgba(234,240,255,.72);
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.18);
+      border-radius:999px;
+      padding:8px 10px;
+      width:fit-content;
+    }
+    .frameWrap{
+      flex:1;
+      border:1px solid rgba(38,255,138,.25);
+      box-shadow: 0 0 0 2px rgba(38,255,138,.08);
+      border-radius:16px;
       overflow:hidden;
-    }
-
-    .frameOuter{
-      border:1px solid rgba(36,255,154,.45);
-      border-radius:18px;
-      overflow:hidden;
-      height:100%;
-      background:rgba(0,0,0,.20);
-      position:relative;
-      box-shadow:0 0 0 3px rgba(36,255,154,.08);
+      background:rgba(0,0,0,.18);
     }
     iframe{
-      width:100%;
-      height:100%;
+      width:100%;height:100%;
       border:0;
       background:transparent;
     }
 
-    .emptyPreview{
-      padding:18px;
-      color:rgba(234,240,255,.72);
-      font-size:14px;
-    }
-
-    .devBox{
+    /* Library modal */
+    .modal{
+      position:fixed;inset:0;
       display:none;
-      margin-top:10px;
-      border:1px dashed rgba(255,255,255,.18);
-      border-radius:16px;
-      padding:10px 12px;
-      color:rgba(234,240,255,.75);
-      font-size:12px;
-      white-space:pre-wrap;
-      max-height:160px;
-      overflow:auto;
+      align-items:center;justify-content:center;
+      background:rgba(0,0,0,.55);
+      padding:18px;
     }
+    .modal.open{display:flex}
+    .modalCard{
+      width:min(920px, 96vw);
+      max-height:min(720px, 92vh);
+      overflow:auto;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
+      box-shadow:var(--shadow);
+      padding:14px;
+    }
+    .modalHead{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;
+    }
+    .modalTitle{font-weight:1000;font-size:18px}
+    .libRow{
+      display:flex;align-items:center;justify-content:space-between;
+      gap:12px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.18);
+      border-radius:16px;
+      padding:12px;
+      margin-bottom:10px;
+    }
+    .libTitle{font-weight:1000}
+    .libMeta{color:rgba(234,240,255,.62);font-size:12px;margin-top:4px}
+    .libRight{display:flex;gap:10px;align-items:center}
+    .libEmpty{color:rgba(234,240,255,.70);padding:18px}
 
-    @media (max-width: 1050px){
+    @media (max-width:980px){
       .grid{grid-template-columns:1fr}
-      .card{min-height:520px}
+      .panel{min-height:640px}
+      .chatBody,.previewBody{height:auto}
+      .frameWrap{height:520px}
     }
   </style>
 </head>
-
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="brand"><span class="dot"></span> Simo</div>
-      <div class="modeRow">
-        <div class="pill active" id="modeBuilding">Building</div>
-        <div class="pill" id="modeSolving">Solving</div>
-        <div class="pill" id="modeVenting">Venting</div>
-        <div class="pill pro" id="proToggle">Pro: OFF</div>
+      <div class="brand"><span class="dot"></span><span>Simo</span></div>
+      <div class="pills">
+        <div class="pill active" id="buildingBtn">Building</div>
+        <div class="pill" id="solvingBtn">Solving</div>
+        <div class="pill" id="ventingBtn">Venting</div>
+        <div class="pill" id="proBtn">Pro: OFF</div>
       </div>
     </div>
 
     <div class="grid">
-      <!-- CHAT -->
-      <div class="card">
-        <div class="cardHeader">
-          <h2>
-            Chat
-            <span class="badges">
-              <span class="badge" id="uiBadge">ui: neon-v1</span>
-              <span class="badge dim" id="backendBadge">backend: ?</span>
-            </span>
-          </h2>
-
+      <!-- Chat panel -->
+      <div class="panel">
+        <div class="panelHead">
+          <div class="panelTitle">
+            <span>Chat</span>
+            <div class="badges">
+              <span class="badge neon" id="uiBadge">ui: neon-v1</span>
+              <span class="badge" id="backendBadge">backend: …</span>
+            </div>
+          </div>
           <div class="panelTools">
             <button class="btn neon" id="resetBtn">Reset</button>
             <button class="btn" id="devBtn">Dev</button>
@@ -288,398 +275,68 @@
           </div>
         </div>
 
-        <div class="chatBody" id="chatBody"></div>
+        <div class="chatBody">
+          <div class="chatList" id="chatList"></div>
 
-        <div class="chatFooter">
-          <div class="hintRow">
-            <div id="modeHint">Mode: building</div>
-            <div id="proHint">Preview + save tools available in Pro.</div>
-          </div>
-
-          <div class="inputRow">
-            <input class="input" id="msg" placeholder="Say what's on your mind…" />
+          <div class="composer">
+            <input class="input" id="msg" placeholder="Describe what you want to build. Say “show me a preview” for visuals." />
             <button class="btn primary" id="sendBtn">Send</button>
           </div>
 
-          <div class="devBox" id="devBox"></div>
+          <div class="hint" id="hintLine">
+            Tip: Pro ON unlocks Save build + Download HTML. Modes change how Simo responds (like ChatGPT + best friend).
+          </div>
         </div>
       </div>
 
-      <!-- PREVIEW -->
-      <div class="card">
-        <div class="cardHeader">
-          <h2>Preview</h2>
+      <!-- Preview panel -->
+      <div class="panel">
+        <div class="panelHead">
+          <div class="panelTitle">Preview</div>
           <div class="panelTools">
-            <button class="btn primary" id="downloadBtn">Download HTML</button>
-            <button class="btn" id="clearBtn">Clear</button>
+            <button class="btn primary" id="downloadBtn" disabled>Download HTML</button>
+            <button class="btn danger" id="clearPreviewBtn">Clear</button>
           </div>
         </div>
 
-        <div class="previewFrameWrap">
-          <div class="previewTop">
-            <span class="previewTag" id="previewName">none</span>
-            <span class="previewTag dim" id="previewMode">mode: building</span>
-            <span class="previewTag dim" id="previewPro">pro: off</span>
-            <span class="previewTag dim" style="margin-left:auto" id="previewStatus">ready</span>
-          </div>
-
-          <div class="frameOuter" id="frameOuter">
-            <div class="emptyPreview" id="emptyPreview">
-              No preview yet. Turn Pro ON + Building mode, then ask: “build landing page”.
-            </div>
-            <iframe id="frame" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
+        <div class="previewBody">
+          <div class="previewMeta" id="previewMeta">none • mode: building • pro: off</div>
+          <div class="frameWrap">
+            <iframe id="previewFrame" title="Preview"></iframe>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-<script>
-(() => {
-  const $ = (id) => document.getElementById(id);
+  <!-- Library modal -->
+  <div class="modal" id="libraryModal">
+    <div class="modalCard">
+      <div class="modalHead">
+        <div class="modalTitle">Library</div>
+        <button class="btn" id="libraryClose">Close</button>
+      </div>
+      <div id="libraryList"></div>
+    </div>
+  </div>
 
-  // --- UI elements ---
-  const chatBody = $("chatBody");
-  const msgEl = $("msg");
-  const sendBtn = $("sendBtn");
-  const resetBtn = $("resetBtn");
-  const saveBtn = $("saveBtn");
-  const libraryBtn = $("libraryBtn");
-  const devBtn = $("devBtn");
-  const devBox = $("devBox");
+  <script src="./chat.js"></script>
+  <script>
+    // Pro button label updates (tiny UI-only helper)
+    const proBtn = document.getElementById("proBtn");
+    const buildingBtn = document.getElementById("buildingBtn");
+    const solvingBtn = document.getElementById("solvingBtn");
+    const ventingBtn = document.getElementById("ventingBtn");
 
-  const modeBuilding = $("modeBuilding");
-  const modeSolving = $("modeSolving");
-  const modeVenting = $("modeVenting");
-  const proToggle = $("proToggle");
-
-  const backendBadge = $("backendBadge");
-  const modeHint = $("modeHint");
-  const proHint = $("proHint");
-
-  const previewName = $("previewName");
-  const previewMode = $("previewMode");
-  const previewPro = $("previewPro");
-  const previewStatus = $("previewStatus");
-  const emptyPreview = $("emptyPreview");
-  const frame = $("frame");
-
-  const downloadBtn = $("downloadBtn");
-  const clearBtn = $("clearBtn");
-
-  // --- State ---
-  const state = {
-    mode: "building",
-    pro: false,
-    messages: [],
-    currentPreview: null, // { name, kind:'html', html }
-    dev: false
-  };
-
-  const LS_KEY = "simo_library_v1";
-  const SESSION_KEY = "simo_session_v1";
-
-  function loadSession(){
-    try{
-      const s = JSON.parse(localStorage.getItem(SESSION_KEY) || "{}");
-      if(s && typeof s === "object"){
-        if(s.mode) state.mode = s.mode;
-        if(typeof s.pro === "boolean") state.pro = s.pro;
-        if(Array.isArray(s.messages)) state.messages = s.messages;
-        if(s.currentPreview && typeof s.currentPreview === "object") state.currentPreview = s.currentPreview;
-      }
-    }catch(e){}
-  }
-
-  function saveSession(){
-    localStorage.setItem(SESSION_KEY, JSON.stringify({
-      mode: state.mode,
-      pro: state.pro,
-      messages: state.messages.slice(-80),
-      currentPreview: state.currentPreview
-    }));
-  }
-
-  function addMsg(role, text){
-    state.messages.push({ role, text, t: Date.now() });
-    renderChat();
-    saveSession();
-  }
-
-  function renderChat(){
-    chatBody.innerHTML = "";
-    for(const m of state.messages){
-      const div = document.createElement("div");
-      div.className = "msg " + (m.role === "user" ? "user" : "assistant");
-      div.textContent = (m.role === "user" ? "You: " : "Simo: ") + m.text;
-      chatBody.appendChild(div);
+    function syncProText(){
+      const on = proBtn.classList.contains("active");
+      proBtn.textContent = on ? "Pro: ON" : "Pro: OFF";
     }
-    chatBody.scrollTop = chatBody.scrollHeight;
-  }
+    const obs = new MutationObserver(syncProText);
+    obs.observe(proBtn, { attributes:true, attributeFilter:["class"] });
 
-  function setMode(mode){
-    state.mode = mode;
-
-    modeBuilding.classList.toggle("active", mode === "building");
-    modeSolving.classList.toggle("active", mode === "solving");
-    modeVenting.classList.toggle("active", mode === "venting");
-
-    modeHint.textContent = "Mode: " + mode;
-
-    // Placeholder stays simple and safe (no extra logic needed)
-    if(mode === "venting") msgEl.placeholder = "Say what's on your mind…";
-    else if(mode === "solving") msgEl.placeholder = "What are we trying to fix?";
-    else msgEl.placeholder = "Describe what you want to build. Say “show me a preview” for visuals.";
-
-    previewMode.textContent = "mode: " + mode;
-    saveSession();
-  }
-
-  function setPro(on){
-    state.pro = !!on;
-    proToggle.textContent = "Pro: " + (state.pro ? "ON" : "OFF");
-    proToggle.classList.toggle("active", state.pro);
-
-    previewPro.textContent = "pro: " + (state.pro ? "on" : "off");
-    proHint.textContent = state.pro
-      ? "Pro ON: Save build + Download enabled."
-      : "Preview + save tools available in Pro.";
-
-    // Gate save/download UI only (preview can still show)
-    saveBtn.disabled = !state.pro;
-    downloadBtn.disabled = !state.pro;
-
-    saveSession();
-  }
-
-  function setPreview(preview){
-    state.currentPreview = preview || null;
-
-    const name = preview?.name || "none";
-    previewName.textContent = name;
-
-    if(preview && preview.kind === "html" && preview.html){
-      emptyPreview.style.display = "none";
-      frame.srcdoc = preview.html;
-    }else{
-      frame.srcdoc = "";
-      emptyPreview.style.display = "block";
-    }
-    saveSession();
-  }
-
-  function devLog(obj){
-    if(!state.dev) return;
-    try{
-      devBox.textContent = JSON.stringify(obj, null, 2);
-    }catch(e){
-      devBox.textContent = String(obj);
-    }
-  }
-
-  function getHistoryForBackend(){
-    // Send last 12 turns in a compact format
-    const tail = state.messages.slice(-24);
-    return tail.map(m => ({
-      role: m.role === "user" ? "user" : "assistant",
-      content: m.text
-    }));
-  }
-
-  function extractPreviewTitleFromUserText(text){
-    // optional hinting for backend; safe
-    return "";
-  }
-
-  async function callBackend(userText){
-    previewStatus.textContent = "thinking…";
-
-    const payload = {
-      message: userText,
-      mode: state.mode,
-      pro: state.pro,
-      history: getHistoryForBackend(),
-      current_preview: state.currentPreview ? {
-        name: state.currentPreview.name,
-        kind: state.currentPreview.kind,
-        html: state.currentPreview.html
-      } : null
-    };
-
-    const res = await fetch("/.netlify/functions/simon", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    const data = await res.json().catch(() => ({}));
-    devLog({ http: res.status, data });
-
-    // backend badge
-    if(data && data.version){
-      backendBadge.textContent = "backend: " + data.version;
-      backendBadge.classList.remove("dim");
-      backendBadge.classList.add("badge");
-    }
-
-    // Update preview if provided
-    if(data.preview && data.preview.kind === "html"){
-      setPreview(data.preview);
-    } else if(data.preview === null){
-      // backend can explicitly clear preview
-      setPreview(null);
-    } else {
-      // If backend didn't send a preview, keep existing preview (important!)
-    }
-
-    previewStatus.textContent = "ready";
-
-    // Reply
-    if(data && typeof data.reply === "string" && data.reply.trim()){
-      addMsg("assistant", data.reply.trim());
-    } else if(!res.ok){
-      addMsg("assistant", "I hit a server error. Try again in a second.");
-    }
-
-    return data;
-  }
-
-  async function onSend(){
-    const text = (msgEl.value || "").trim();
-    if(!text) return;
-    msgEl.value = "";
-    addMsg("user", text);
-
-    try{
-      await callBackend(text);
-    }catch(e){
-      previewStatus.textContent = "ready";
-      addMsg("assistant", "Network error. Try again.");
-    }
-  }
-
-  // --- Buttons ---
-  sendBtn.addEventListener("click", onSend);
-  msgEl.addEventListener("keydown", (e) => {
-    if(e.key === "Enter"){
-      e.preventDefault();
-      onSend();
-    }
-  });
-
-  resetBtn.addEventListener("click", () => {
-    state.messages = [];
-    setPreview(null);
-    addMsg("assistant", "Reset. I’m here.");
-    saveSession();
-  });
-
-  clearBtn.addEventListener("click", () => {
-    setPreview(null);
-    addMsg("assistant", "Preview cleared.");
-  });
-
-  devBtn.addEventListener("click", () => {
-    state.dev = !state.dev;
-    devBox.style.display = state.dev ? "block" : "none";
-    if(!state.dev) devBox.textContent = "";
-  });
-
-  downloadBtn.addEventListener("click", () => {
-    if(!state.pro){
-      addMsg("assistant", "Turn Pro ON to enable downloads.");
-      return;
-    }
-    const html = state.currentPreview?.html;
-    if(!html){
-      addMsg("assistant", "No preview HTML to download yet.");
-      return;
-    }
-    const blob = new Blob([html], { type:"text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = (state.currentPreview?.name || "preview") + ".html";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
-
-  saveBtn.addEventListener("click", () => {
-    if(!state.pro){
-      addMsg("assistant", "Turn Pro ON to enable saving.");
-      return;
-    }
-    if(!state.currentPreview?.html){
-      addMsg("assistant", "Nothing to save yet. Build a preview first.");
-      return;
-    }
-    const name = state.currentPreview.name || "saved_build";
-    const lib = loadLibrary();
-    const id = "b_" + Date.now();
-    lib.unshift({
-      id,
-      name,
-      savedAt: new Date().toISOString(),
-      preview: state.currentPreview
-    });
-    localStorage.setItem(LS_KEY, JSON.stringify(lib.slice(0, 50)));
-    addMsg("assistant", `Saved. (Library → to load it back)`);
-  });
-
-  function loadLibrary(){
-    try{
-      const arr = JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-      return Array.isArray(arr) ? arr : [];
-    }catch(e){ return []; }
-  }
-
-  libraryBtn.addEventListener("click", () => {
-    const lib = loadLibrary();
-    if(!lib.length){
-      addMsg("assistant", "Library is empty. Save a build first.");
-      return;
-    }
-
-    // Simple library picker (no extra UI complexity)
-    const lines = lib.slice(0, 8).map((x, i) => `${i+1}) ${x.name} — ${new Date(x.savedAt).toLocaleString()}`).join("\n");
-    const pick = prompt("Pick a build number to load:\n\n" + lines + "\n\n(Enter 1-" + Math.min(8, lib.length) + ")");
-    const n = Number(pick);
-    if(!n || n < 1 || n > Math.min(8, lib.length)) return;
-
-    const chosen = lib[n-1];
-    if(chosen?.preview){
-      setPreview(chosen.preview);
-      addMsg("assistant", `Loaded: ${chosen.name}`);
-    }
-  });
-
-  // --- Mode / Pro toggles ---
-  modeBuilding.addEventListener("click", () => setMode("building"));
-  modeSolving.addEventListener("click", () => setMode("solving"));
-  modeVenting.addEventListener("click", () => setMode("venting"));
-
-  proToggle.addEventListener("click", () => setPro(!state.pro));
-
-  // --- init ---
-  loadSession();
-  setMode(state.mode || "building");
-  setPro(!!state.pro);
-
-  if(state.messages.length){
-    renderChat();
-  }else{
-    addMsg("assistant", "Reset. I’m here.");
-  }
-
-  if(state.currentPreview){
-    setPreview(state.currentPreview);
-  }else{
-    setPreview(null);
-  }
-
-})();
-</script>
+    // Keep pill label accurate on load
+    window.addEventListener("load", syncProText);
+  </script>
 </body>
 </html>
