@@ -1,17 +1,14 @@
-     (() => {
+(() => {
   // ==========================================================
-  // Simo chat.js — Checkpoint V1 (STABLE, NO HANG, NO BROKEN UI)
-  //
-  // Keeps:
-  // - UI ids exactly as index.html
-  // - Pro gating
-  // - Preview iframe
-  // - Save/Download/Library
+  // Simo chat.js — Checkpoint V1 (STABLE)
   //
   // Fixes:
-  // - "Thinking..." hang forever -> timeout + abort + always clear busy
-  // - Library migration -> always use simo_library_v2 and merge old keys
-  // - Export/Import backup in Library modal (Pro)
+  // - Enter/Send never break (IDs match + listeners mounted once)
+  // - No “stuck Thinking…” (fetch timeout + finally un-busy)
+  // - Library never “Invalid Date” (normalize timestamps)
+  // - Standardize library: simo_library_v2 + migrate legacy keys
+  // - Export/Import backup in Library (Pro gated)
+  // - Undo/Redo for previews
   // ==========================================================
 
   const REQ = [
@@ -19,8 +16,7 @@
     "tierPills","tierFreeLabel","tierProLabel",
     "btnReset","btnSave","btnDownload","btnLibrary",
     "previewFrame","previewLabel","previewMeta",
-    // modal elements exist in index.html
-    "modalBack","closeModal","libList","libHint","clearLib","exportLib","importLib","importFile"
+    "modalBack","closeModal","libHint","libList","clearLib","exportLib","importLib","importFile"
   ];
 
   const els = {};
@@ -54,6 +50,7 @@
     lastPreview: loadJson(LS.lastPreview, null),
     undoStack: loadJson(LS.undoStack, []),
     redoStack: loadJson(LS.redoStack, []),
+    listenersMounted: false,
   };
 
   // -------------------------
@@ -67,16 +64,58 @@
   state.tier = resolveTier();
   applyTierUI();
 
-  initTierHandlers();
-  initComposer();
-  initActions();
-  initModal();
-
+  mountOnce();
   renderHistory();
   restorePreview();
   setStatus("Ready");
 
   if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
+
+  // -------------------------
+  // Mount listeners once
+  // -------------------------
+  function mountOnce() {
+    if (state.listenersMounted) return;
+    state.listenersMounted = true;
+
+    els.tierPills.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      setTier(pill.dataset.tier, true);
+    });
+
+    // keep tier consistent if multiple tabs
+    window.addEventListener("storage", (e) => {
+      if (e.key === LS.tier) {
+        const t = resolveTier();
+        if (t !== state.tier) setTier(t, false);
+      }
+    });
+
+    // composer
+    els.send.addEventListener("click", onSend);
+    els.input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+    });
+
+    // buttons
+    els.btnReset.addEventListener("click", onReset);
+    els.btnSave.addEventListener("click", () => gated(() => saveToLibraryAuto()));
+    els.btnDownload.addEventListener("click", () => gated(downloadPreview));
+    els.btnLibrary.addEventListener("click", () => gated(openLibrary));
+
+    // modal
+    els.closeModal.addEventListener("click", closeLibrary);
+    els.modalBack.addEventListener("click", (e) => { if (e.target === els.modalBack) closeLibrary(); });
+
+    els.clearLib.addEventListener("click", () => gated(clearLibrary));
+    els.exportLib.addEventListener("click", () => gated(exportLibraryBackup));
+    els.importLib.addEventListener("click", () => gated(() => { els.importFile.value = ""; els.importFile.click(); }));
+    els.importFile.addEventListener("change", () => gated(() => handleImportFile(els.importFile.files?.[0])));
+  }
 
   // -------------------------
   // Storage helpers
@@ -125,11 +164,6 @@
     els.msgs.scrollTop = els.msgs.scrollHeight;
   }
 
-  function persist(role, text) {
-    state.conversation.push({ role, content: text });
-    saveJson(LS.conversation, state.conversation);
-  }
-
   function normalize(s) { return String(s || "").trim(); }
   function lower(s) { return normalize(s).toLowerCase(); }
 
@@ -140,81 +174,89 @@
   }
 
   // -------------------------
-  // Library migration (to v2)
+  // ✅ Library migration
   // -------------------------
   function migrateLibraryToV2() {
     const current = loadJson(LS.library, []);
-    const usedIds = new Set(Array.isArray(current) ? current.map(x => x?.id).filter(Boolean) : []);
-    let merged = Array.isArray(current) ? current.slice() : [];
+    const merged = Array.isArray(current) ? current.slice() : [];
+    const usedIds = new Set(merged.map(x => x?.id).filter(Boolean));
 
     for (const k of LS.legacyLibraries) {
       const legacy = loadJson(k, null);
       if (!legacy || !Array.isArray(legacy) || legacy.length === 0) continue;
 
-      const normalized = legacy
-        .map((it) => normalizeLibraryItem(it))
-        .filter(Boolean);
-
-      for (const it of normalized) {
+      for (const raw of legacy) {
+        const it = normalizeLibraryItem(raw);
+        if (!it) continue;
         if (usedIds.has(it.id)) it.id = cryptoId();
         usedIds.add(it.id);
         merged.push(it);
       }
     }
 
+    // normalize any existing items too (fix Invalid Date / missing preview)
+    const normalizedAll = merged.map(normalizeLibraryItem).filter(Boolean);
+
+    // de-dupe by id
     const seen = new Set();
-    merged = merged.filter(it => {
-      if (!it?.id) it.id = cryptoId();
-      if (seen.has(it.id)) return false;
+    const deduped = [];
+    for (const it of normalizedAll) {
+      if (!it.id) it.id = cryptoId();
+      if (seen.has(it.id)) continue;
       seen.add(it.id);
-      return true;
-    });
-
-    merged.sort((a, b) => (b.when || 0) - (a.when || 0));
-
-    const v2Exists = localStorage.getItem(LS.library) != null;
-    const anyLegacyExists = LS.legacyLibraries.some(k => localStorage.getItem(k) != null);
-
-    if (!v2Exists && anyLegacyExists) {
-      saveJson(LS.library, merged);
-    } else if (Array.isArray(current) && merged.length !== current.length) {
-      saveJson(LS.library, merged);
+      deduped.push(it);
     }
+
+    deduped.sort((a, b) => (b.when || 0) - (a.when || 0));
+
+    const hadV2 = localStorage.getItem(LS.library) != null;
+    const hadLegacy = LS.legacyLibraries.some(k => localStorage.getItem(k) != null);
+
+    if (!hadV2 && hadLegacy) saveJson(LS.library, deduped);
+    else saveJson(LS.library, deduped);
   }
 
   function normalizeLibraryItem(it) {
     try {
-      const id = it?.id || cryptoId();
-      const name = (it?.name || "Untitled").toString();
+      if (!it || typeof it !== "object") return null;
 
-      const when =
-        (typeof it?.when === "number" && isFinite(it.when)) ? it.when :
-        (typeof it?.savedAt === "number" && isFinite(it.savedAt)) ? it.savedAt :
-        Date.now();
+      const id = it.id || cryptoId();
+      const name = (it.name || "Untitled").toString();
 
-      const preview = it?.preview || it?.lastPreview || null;
+      // timestamps: prefer number; if string date, parse; else now
+      let when = Date.now();
+      if (typeof it.when === "number" && isFinite(it.when)) when = it.when;
+      else if (typeof it.savedAt === "number" && isFinite(it.savedAt)) when = it.savedAt;
+      else if (typeof it.when === "string") {
+        const t = Date.parse(it.when);
+        if (!Number.isNaN(t)) when = t;
+      } else if (typeof it.savedAt === "string") {
+        const t = Date.parse(it.savedAt);
+        if (!Number.isNaN(t)) when = t;
+      }
 
-      let previewObj = null;
-      if (preview && typeof preview === "object" && typeof preview.html === "string") {
-        previewObj = {
-          kind: preview.kind || "html",
-          html: preview.html,
-          title: preview.title || "Preview",
-          meta: preview.meta || "Saved",
-          ts: preview.ts || when
+      // preview object can be: it.preview {html} or raw html in it.html
+      let p = it.preview || it.lastPreview || null;
+
+      if (p && typeof p === "object" && typeof p.html === "string" && p.html.trim()) {
+        p = {
+          kind: p.kind || "html",
+          html: p.html,
+          title: p.title || "Preview",
+          meta: p.meta || "Saved",
+          ts: (typeof p.ts === "number" && isFinite(p.ts)) ? p.ts : when
         };
-      } else if (typeof preview === "string" && preview.trim()) {
-        previewObj = { kind: "html", html: preview, title: "Preview", meta: "Saved", ts: when };
+      } else if (typeof p === "string" && p.trim()) {
+        p = { kind: "html", html: p, title: "Preview", meta: "Saved", ts: when };
+      } else if (typeof it.html === "string" && it.html.trim()) {
+        p = { kind: it.kind || "html", html: it.html, title: "Preview", meta: "Saved", ts: when };
+      } else {
+        return null;
       }
 
-      if (!previewObj && typeof it?.html === "string" && it.html.trim()) {
-        previewObj = { kind: it.kind || "html", html: it.html, title: "Preview", meta: "Saved", ts: when };
-      }
+      const conversation = Array.isArray(it.conversation) ? it.conversation : [];
 
-      if (!previewObj || !previewObj.html || !previewObj.html.trim()) return null;
-
-      const conversation = Array.isArray(it?.conversation) ? it.conversation : [];
-      return { id, name, when, preview: previewObj, conversation };
+      return { id, name, when, preview: p, conversation };
     } catch {
       return null;
     }
@@ -253,19 +295,6 @@
     if (announce) systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
   }
 
-  function initTierHandlers() {
-    els.tierPills.addEventListener("click", (e) => {
-      const pill = e.target.closest(".pill");
-      if (!pill) return;
-      setTier(pill.dataset.tier, true);
-    });
-
-    window.addEventListener("focus", () => {
-      const t = resolveTier();
-      if (t !== state.tier) setTier(t, false);
-    });
-  }
-
   function gated(fn) {
     if (!isPro()) {
       systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
@@ -288,6 +317,7 @@
     if (!snapshot?.html) return;
     state.undoStack.unshift(snapshot);
     saveJson(LS.undoStack, state.undoStack);
+
     state.redoStack = [];
     saveJson(LS.redoStack, state.redoStack);
     capStacks();
@@ -324,13 +354,15 @@
 
   function replyLocal(text) {
     addMsg("assistant", text);
-    persist("assistant", text);
+    state.conversation.push({ role: "assistant", content: text });
+    saveJson(LS.conversation, state.conversation);
   }
 
   function handleUndo() {
     if (!state.lastPreview?.html) return replyLocal("Nothing to undo yet — generate a preview first.");
     const prev = popUndo();
     if (!prev?.html) return replyLocal("No previous version found to undo.");
+
     pushRedo(state.lastPreview);
 
     state.lastPreview = prev;
@@ -338,6 +370,7 @@
 
     els.previewFrame.srcdoc = prev.html;
     setPreviewMeta(prev.title || "Preview", "Undone to previous version");
+
     replyLocal("Undone. Preview reverted to the previous version.");
   }
 
@@ -345,6 +378,7 @@
     if (!state.lastPreview?.html) return replyLocal("Nothing to redo yet — generate a preview first.");
     const next = popRedo();
     if (!next?.html) return replyLocal("No redo version found.");
+
     state.undoStack.unshift(state.lastPreview);
     saveJson(LS.undoStack, state.undoStack);
 
@@ -353,15 +387,25 @@
 
     els.previewFrame.srcdoc = next.html;
     setPreviewMeta(next.title || "Preview", "Redone to next version");
+
     replyLocal("Redone. Preview moved forward to the next version.");
     capStacks();
   }
 
   // -------------------------
-  // Library / Saves
+  // Library
   // -------------------------
-  function getLibrary() { return loadJson(LS.library, []); }
-  function setLibrary(items) { saveJson(LS.library, items); }
+  function getLibrary() {
+    const raw = loadJson(LS.library, []);
+    if (!Array.isArray(raw)) return [];
+    // normalize on read (so you never see Invalid Date)
+    const n = raw.map(normalizeLibraryItem).filter(Boolean);
+    n.sort((a, b) => (b.when || 0) - (a.when || 0));
+    // write back normalized (self-heal)
+    saveJson(LS.library, n);
+    return n;
+  }
+  function setLibrary(items) { saveJson(LS.library, Array.isArray(items) ? items : []); }
 
   function deriveBaseName(preview) {
     const kind = preview?.kind || "html";
@@ -369,9 +413,7 @@
     return "Landing Page";
   }
 
-  function escapeRegExp(s) {
-    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  }
+  function escapeRegExp(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
 
   function nextVersionName(base) {
     const items = getLibrary();
@@ -406,11 +448,96 @@
     systemMsg(`Saved: ${name}`);
   }
 
-  function parseSaveAs(text) {
-    const raw = normalize(text);
-    const m = raw.match(/^save\s+as\s*:\s*(.+)$/i);
-    if (!m) return null;
-    return (m[1] || "").trim() || null;
+  function openLibrary() {
+    els.modalBack.style.display = "flex";
+    renderLibrary();
+  }
+
+  function closeLibrary() {
+    els.modalBack.style.display = "none";
+  }
+
+  function renderLibrary() {
+    const items = getLibrary();
+    els.libList.innerHTML = "";
+    els.libHint.textContent = items.length
+      ? `${items.length} saved item(s).`
+      : "No saves yet. Click Save after you generate a preview.";
+
+    for (const it of items) {
+      const row = document.createElement("div");
+      row.style.border = "1px solid rgba(255,255,255,.12)";
+      row.style.background = "rgba(0,0,0,.18)";
+      row.style.borderRadius = "14px";
+      row.style.padding = "10px";
+      row.style.display = "flex";
+      row.style.alignItems = "center";
+      row.style.justifyContent = "space-between";
+      row.style.gap = "10px";
+      row.style.color = "#eaf0ff";
+
+      const left = document.createElement("div");
+
+      const name = document.createElement("div");
+      name.textContent = it.name || "Untitled";
+      name.style.fontWeight = "900";
+
+      const when = document.createElement("div");
+      const d = new Date(it.when || Date.now());
+      when.textContent = isNaN(d.getTime()) ? "Older save" : d.toLocaleString();
+      when.style.fontSize = "12px";
+      when.style.color = "rgba(233,240,255,.72)";
+      when.style.fontWeight = "800";
+
+      left.appendChild(name);
+      left.appendChild(when);
+
+      const right = document.createElement("div");
+      right.style.display = "flex";
+      right.style.gap = "8px";
+
+      const loadBtn = document.createElement("button");
+      loadBtn.textContent = "Load";
+      loadBtn.className = "miniBtn primary";
+      loadBtn.type = "button";
+      loadBtn.onclick = () => {
+        if (it.preview?.html) {
+          if (state.lastPreview?.html) pushUndo(state.lastPreview);
+          renderPreview({ ...it.preview, meta: "Loaded from Library" });
+        }
+        if (Array.isArray(it.conversation) && it.conversation.length) {
+          state.conversation = it.conversation;
+          saveJson(LS.conversation, state.conversation);
+          els.msgs.innerHTML = "";
+          renderHistory();
+          systemMsg(`Loaded: ${it.name || "Saved item"}`);
+        }
+        closeLibrary();
+      };
+
+      const delBtn = document.createElement("button");
+      delBtn.textContent = "Delete";
+      delBtn.className = "miniBtn danger";
+      delBtn.type = "button";
+      delBtn.onclick = () => {
+        setLibrary(getLibrary().filter(x => x.id !== it.id));
+        renderLibrary();
+      };
+
+      right.appendChild(loadBtn);
+      right.appendChild(delBtn);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      els.libList.appendChild(row);
+    }
+  }
+
+  function clearLibrary() {
+    if (!confirm("Clear all saved items?")) return;
+    setLibrary([]);
+    renderLibrary();
+    systemMsg("Library cleared.");
   }
 
   // -------------------------
@@ -472,14 +599,8 @@
     systemMsg("Exported library backup.");
   }
 
-  function openImportPicker() {
-    els.importFile.value = "";
-    els.importFile.click();
-  }
-
   function handleImportFile(file) {
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = () => {
       try {
@@ -491,9 +612,7 @@
 
         if (!incoming) throw new Error("Invalid backup format.");
 
-        const normalized = incoming
-          .map((it) => normalizeLibraryItem(it))
-          .filter(Boolean);
+        const normalized = incoming.map(normalizeLibraryItem).filter(Boolean);
 
         const current = getLibrary();
         const used = new Set(current.map(x => x.id));
@@ -513,219 +632,14 @@
   }
 
   // -------------------------
-  // Library modal
+  // Reset / Download
   // -------------------------
-  function initModal() {
-    els.closeModal.onclick = closeLibrary;
-    els.modalBack.onclick = (e) => { if (e.target === els.modalBack) closeLibrary(); };
-
-    els.clearLib.onclick = () => gated(clearLibrary);
-    els.exportLib.onclick = () => gated(exportLibraryBackup);
-    els.importLib.onclick = () => gated(openImportPicker);
-    els.importFile.onchange = () => gated(() => handleImportFile(els.importFile.files?.[0]));
-  }
-
-  function openLibrary() {
-    els.modalBack.style.display = "flex";
-    renderLibrary();
-  }
-
-  function closeLibrary() {
-    els.modalBack.style.display = "none";
-  }
-
-  function renderLibrary() {
-    const items = getLibrary();
-
-    els.libList.innerHTML = "";
-    els.libHint.textContent = items.length
-      ? `${items.length} saved item(s).`
-      : "No saves yet. Click Save after you generate a preview.";
-
-    for (const it of items) {
-      const row = document.createElement("div");
-      row.className = "libItem";
-
-      const left = document.createElement("div");
-
-      const name = document.createElement("div");
-      name.className = "name";
-      name.textContent = it.name || "Untitled";
-
-      const when = document.createElement("div");
-      when.className = "when";
-      if (it.when) {
-        const d = new Date(it.when);
-        when.textContent = isNaN(d.getTime()) ? "Older save" : d.toLocaleString();
-      } else {
-        when.textContent = "Older save";
-      }
-
-      left.appendChild(name);
-      left.appendChild(when);
-
-      const right = document.createElement("div");
-      right.style.display = "flex";
-      right.style.gap = "8px";
-
-      const loadBtn = document.createElement("button");
-      loadBtn.className = "miniBtn primary";
-      loadBtn.textContent = "Load";
-      loadBtn.onclick = () => {
-        if (it.preview?.html) {
-          if (state.lastPreview?.html) pushUndo(state.lastPreview);
-          renderPreview({ ...it.preview, meta: "Loaded from Library" });
-        }
-        if (Array.isArray(it.conversation)) {
-          state.conversation = it.conversation;
-          saveJson(LS.conversation, state.conversation);
-          els.msgs.innerHTML = "";
-          renderHistory();
-          systemMsg(`Loaded: ${it.name || "Saved item"}`);
-        }
-        closeLibrary();
-      };
-
-      const delBtn = document.createElement("button");
-      delBtn.className = "miniBtn danger";
-      delBtn.textContent = "Delete";
-      delBtn.onclick = () => {
-        setLibrary(getLibrary().filter(x => x.id !== it.id));
-        renderLibrary();
-      };
-
-      right.appendChild(loadBtn);
-      right.appendChild(delBtn);
-
-      row.appendChild(left);
-      row.appendChild(right);
-      els.libList.appendChild(row);
-    }
-  }
-
-  function clearLibrary() {
-    if (!confirm("Clear all saved items?")) return;
-    setLibrary([]);
-    renderLibrary();
-    systemMsg("Library cleared.");
-  }
-
-  // -------------------------
-  // Composer (Enter + Send)
-  // -------------------------
-  function initComposer() {
-    els.send.onclick = onSend;
-
-    els.input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        onSend();
-      }
-    });
-  }
-
-  async function onSend() {
-    const text = normalize(els.input.value);
-    if (!text || state.busy) return;
-
-    els.input.value = "";
-    addMsg("user", text);
-    persist("user", text);
-
-    if (isUndoCmd(text)) return handleUndo();
-    if (isRedoCmd(text)) return handleRedo();
-
-    const saveAsName = parseSaveAs(text);
-    if (saveAsName) {
-      if (!isPro()) return replyLocal("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
-      saveToLibraryAuto(saveAsName);
-      return replyLocal(`Saved as: ${saveAsName}`);
-    }
-
-    // -------------------------
-    // NET SMART: prevent "Thinking..." hang forever
-    // -------------------------
-    setBusy(true);
-
-    const TIMEOUT_MS = 12000;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-
-    try {
-      const payload = {
-        text,
-        tier: state.tier,
-        conversation: state.conversation.slice(-16),
-        lastPreview: state.lastPreview ? { kind: state.lastPreview.kind, html: state.lastPreview.html } : null,
-      };
-
-      const r = await fetch("/.netlify/functions/simon", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-
-      const j = await r.json().catch(() => null);
-
-      if (!r.ok || !j) {
-        const msg = !r.ok
-          ? `Server error (${r.status}). Try again.`
-          : "Server returned invalid response. Try again.";
-        addMsg("assistant", msg);
-        persist("assistant", msg);
-        return;
-      }
-
-      if (j.ok === false) {
-        const msg = j?.error ? `Error: ${j.error}` : "Error: Request failed.";
-        addMsg("assistant", msg);
-        persist("assistant", msg);
-        return;
-      }
-
-      const reply = normalize(j.text || j.reply);
-      if (reply) {
-        addMsg("assistant", reply);
-        persist("assistant", reply);
-      }
-
-      if (j.preview && typeof j.preview.html === "string" && j.preview.html.trim()) {
-        renderPreview({
-          kind: j.preview.kind || "html",
-          html: j.preview.html,
-          title: j.preview.title || "Preview updated",
-          meta: j.preview.meta || "Updated",
-        });
-      }
-    } catch (err) {
-      const aborted = err && err.name === "AbortError";
-      const msg = aborted
-        ? "Server timed out. Try again."
-        : `Network error. Try again.`;
-      addMsg("assistant", msg);
-      persist("assistant", msg);
-    } finally {
-      clearTimeout(timer);
-      setBusy(false);
-    }
-  }
-
-  // -------------------------
-  // Buttons
-  // -------------------------
-  function initActions() {
-    els.btnReset.onclick = () => {
-      state.conversation = [];
-      saveJson(LS.conversation, state.conversation);
-      els.msgs.innerHTML = "";
-      systemMsg("Simo: Reset. I’m here.");
-      setStatus("Ready");
-    };
-
-    els.btnSave.onclick = () => gated(() => saveToLibraryAuto());
-    els.btnDownload.onclick = () => gated(downloadPreview);
-    els.btnLibrary.onclick = () => gated(openLibrary);
+  function onReset() {
+    state.conversation = [];
+    saveJson(LS.conversation, state.conversation);
+    els.msgs.innerHTML = "";
+    systemMsg("Simo: Reset. I’m here.");
+    setStatus("Ready");
   }
 
   function downloadPreview() {
@@ -749,5 +663,88 @@
       if (turn.role === "assistant") addMsg("assistant", turn.content);
     }
     els.msgs.scrollTop = els.msgs.scrollHeight;
+  }
+
+  // -------------------------
+  // Fetch with timeout (prevents “stuck”)
+  // -------------------------
+  async function fetchWithTimeout(url, options, ms = 25000) {
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(url, { ...options, signal: controller.signal });
+      return res;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  // -------------------------
+  // Send handler
+  // -------------------------
+  async function onSend() {
+    const text = normalize(els.input.value);
+    if (!text || state.busy) return;
+
+    els.input.value = "";
+    addMsg("user", text);
+
+    state.conversation.push({ role: "user", content: text });
+    saveJson(LS.conversation, state.conversation);
+
+    if (isUndoCmd(text)) return handleUndo();
+    if (isRedoCmd(text)) return handleRedo();
+
+    setBusy(true);
+    try {
+      const payload = {
+        text,
+        tier: state.tier,
+        conversation: state.conversation.slice(-16),
+        lastPreview: state.lastPreview ? { kind: state.lastPreview.kind, html: state.lastPreview.html } : null,
+      };
+
+      const r = await fetchWithTimeout("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }, 25000);
+
+      // If backend returns HTML or non-JSON, this won't crash the UI
+      const j = await r.json().catch(() => ({ ok:false, error:`Bad response (${r.status})` }));
+
+      if (!j || j.ok === false) {
+        addMsg("assistant", j?.error ? `Error: ${j.error}` : `Error: Request failed (${r.status}).`);
+        return;
+      }
+
+      const reply = normalize(j.text || j.reply);
+      if (reply) {
+        addMsg("assistant", reply);
+        state.conversation.push({ role: "assistant", content: reply });
+        saveJson(LS.conversation, state.conversation);
+      }
+
+      if (j.preview && typeof j.preview.html === "string" && j.preview.html.trim()) {
+        renderPreview(j.preview);
+      }
+    } catch (err) {
+      const msg = (err?.name === "AbortError")
+        ? "Error: Request timed out. Try again."
+        : `Error: ${err?.message || "Request failed"}`;
+      addMsg("assistant", msg);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // -------------------------
+  // Preview meta helper
+  // -------------------------
+  function setTier(nextTier, announce = true) {
+    state.tier = (nextTier === "pro") ? "pro" : "free";
+    localStorage.setItem(LS.tier, state.tier);
+    applyTierUI();
+    if (announce) systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
   }
 })();
