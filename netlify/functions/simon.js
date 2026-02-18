@@ -1,15 +1,12 @@
 // netlify/functions/simon.js
-// Simo backend (LOCKED):
-// - Deterministic previews: Landing Page + Book Cover + Generic App Mock
-// - Deterministic edits (pricing + sections + book cover text)
-// - Won’t “admin panel” you for price edits
-// - Won’t get stuck on book cover: supports “show landing page” / “show book cover”
-// - Supports BOTH request/response contracts:
-//   Request: {message|text, mode, pro, current_preview_name, current_preview_html}
-//   Response: {reply, preview{...}} + legacy {preview_name, preview_html}
+// Locked backend: deterministic previews + edits, plus optional LLM for chat.
+// Contract supported:
+// - reply (string)
+// - preview_name + preview_html (legacy)
+// - preview: { name, html } (new)
+// Also returns backend_label for UI badge.
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || "";
-const MODEL = process.env.SIMO_MODEL || "gpt-4o-mini";
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 function json(statusCode, obj) {
   return {
@@ -25,8 +22,8 @@ function json(statusCode, obj) {
   };
 }
 
-const strip = (s) => (s ?? "").toString().trim();
-const lower = (s) => strip(s).toLowerCase();
+function strip(s){ return (s||"").toString().trim(); }
+function lower(s){ return strip(s).toLowerCase(); }
 
 function escapeHtml(s = "") {
   return String(s)
@@ -37,54 +34,71 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
+function isAffirmation(text){
+  const t = lower(text);
+  return (
+    t === "yes" || t === "yep" || t === "ok" || t === "okay" ||
+    t.includes("that's good") || t.includes("thats good") ||
+    t.includes("looks good") || t.includes("perfect") || t.includes("fine")
+  );
+}
+
+function extractMoney(text){
+  const m = String(text || "").match(/\$?\s*(\d{1,4})(?:\.\d{1,2})?/);
+  if(!m) return null;
+  return Number(m[1]);
+}
+
+function hasAny(text, arr){
+  const t = lower(text);
+  return arr.some(k => t.includes(k));
+}
+
 /* ---------------------------
    Preview templates
 --------------------------- */
 
-function landingPageTemplate({ proPrice = 29, starterPrice = 9, brand = "FlowPro" } = {}) {
-  // NOTE: data-price spans are deliberate so edits are reliable.
+function landingPageTemplate({ proPrice = 29, starterPrice = 9 } = {}) {
   return `<!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${escapeHtml(brand)} — Landing</title>
+<title>Landing Page</title>
 <style>
   :root{
     --bg:#070b16;
+    --card:#0b132a;
     --text:#eaf0ff;
     --muted:#a9b6d3;
     --line:rgba(255,255,255,.10);
     --blue:#2a66ff; --blue2:#1f4dd6;
-    --shadow: 0 18px 55px rgba(0,0,0,.45);
   }
   *{box-sizing:border-box}
   body{
     margin:0;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
     color:var(--text);
     background:
       radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.35), transparent 55%),
       radial-gradient(800px 520px at 85% 10%, rgba(48,255,176,.12), transparent 55%),
       var(--bg);
-    padding:22px;
   }
-  .card{
-    max-width:980px;margin:0 auto;
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  .hero{
     border:1px solid var(--line);
-    border-radius:22px;
     background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    box-shadow:var(--shadow);
+    border-radius:22px;
     padding:22px;
   }
-  h1{margin:0 0 10px;font-size:46px;letter-spacing:.2px;line-height:1.05}
-  p{margin:0 0 16px;color:rgba(233,240,255,.75);font-size:16px;line-height:1.45}
+  h1{margin:0 0 8px;font-size:44px;letter-spacing:.2px;line-height:1.05}
+  p{margin:0;color:rgba(233,240,255,.75);font-size:16px;line-height:1.45}
   .cta{display:flex;gap:12px;margin-top:16px;flex-wrap:wrap}
   .btn{
     padding:12px 16px;border-radius:14px;
     border:1px solid rgba(255,255,255,.12);
     background:rgba(255,255,255,.05);
-    color:var(--text);font-weight:900;
+    color:var(--text);font-weight:800;
   }
   .btn.primary{
     background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
@@ -106,15 +120,15 @@ function landingPageTemplate({ proPrice = 29, starterPrice = 9, brand = "FlowPro
     padding:18px;
     text-align:center;
   }
-  .name{font-weight:1000;letter-spacing:.3px;color:rgba(233,240,255,.88)}
-  .price{font-size:54px;font-weight:1000;margin:6px 0 6px}
+  .plan .name{font-weight:900;letter-spacing:.3px;color:rgba(233,240,255,.85)}
+  .plan .price{font-size:54px;font-weight:1000;margin:6px 0 6px}
   .muted{color:rgba(233,240,255,.65)}
   .badge{
     display:inline-block;
     padding:6px 10px;border-radius:999px;
     border:1px solid rgba(42,102,255,.35);
     background:rgba(42,102,255,.12);
-    font-size:12px;font-weight:1000;
+    font-size:12px;font-weight:900;
     margin-bottom:8px;
   }
   .planBtn{
@@ -123,11 +137,11 @@ function landingPageTemplate({ proPrice = 29, starterPrice = 9, brand = "FlowPro
     padding:10px 16px;border-radius:12px;
     background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
     border:1px solid rgba(42,102,255,.55);
-    color:#fff;font-weight:1000;
+    color:#fff;font-weight:900;
   }
   .section{margin-top:18px}
   .section h2{margin:0 0 10px;font-size:18px;letter-spacing:.3px}
-  .list{display:grid;gap:10px}
+  .faq{display:grid;gap:10px}
   .q{
     border:1px solid rgba(255,255,255,.10);
     background:rgba(0,0,0,.18);
@@ -142,52 +156,52 @@ function landingPageTemplate({ proPrice = 29, starterPrice = 9, brand = "FlowPro
 </style>
 </head>
 <body>
-  <div class="card">
-    <h1>${escapeHtml(brand)} helps you automate your workflow.</h1>
-    <p>Save time. Reduce manual work. Scale smarter.</p>
-
-    <div class="cta">
-      <button class="btn primary">Get Started</button>
-      <button class="btn">See Demo</button>
-    </div>
-
-    <div class="grid">
-      <div class="chip">Automated task pipelines</div>
-      <div class="chip">Smart scheduling</div>
-      <div class="chip">Real-time analytics dashboard</div>
-    </div>
-
-    <div class="pricing" style="margin-top:16px">
-      <div class="plan" data-plan="starter">
-        <div class="name">Starter</div>
-        <div class="price">$<span data-price="starter">${starterPrice}</span>/mo</div>
-        <div class="muted">Basic support<br/>Core features<br/>1 user</div>
-        <div class="planBtn">Choose Plan</div>
+  <div class="wrap">
+    <div class="hero">
+      <h1>FlowPro helps you automate your workflow.</h1>
+      <p>Save time. Reduce manual work. Scale smarter.</p>
+      <div class="cta">
+        <button class="btn primary">Get Started</button>
+        <button class="btn">See Demo</button>
+      </div>
+      <div class="grid">
+        <div class="chip">Automated task pipelines</div>
+        <div class="chip">Smart scheduling</div>
+        <div class="chip">Real-time analytics dashboard</div>
       </div>
 
-      <div class="plan" data-plan="pro">
-        <div class="badge">Most Popular</div>
-        <div class="name">Pro</div>
-        <div class="price">$<span data-price="pro">${proPrice}</span>/mo</div>
-        <div class="muted">Priority support<br/>All features<br/>5 users</div>
-        <div class="planBtn">Choose Plan</div>
-      </div>
-    </div>
+      <div class="pricing">
+        <div class="plan" data-plan="starter">
+          <div class="name">Starter</div>
+          <div class="price"><span data-price="starter">${starterPrice}</span>/mo</div>
+          <div class="muted">Basic support<br/>Core features<br/>1 user</div>
+          <div class="planBtn">Choose Plan</div>
+        </div>
 
-    <div class="section" data-section="testimonials">
-      <h2>Testimonials</h2>
-      <div class="list">
-        <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-        <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        <div class="plan" data-plan="pro">
+          <div class="badge">Most Popular</div>
+          <div class="name">Pro</div>
+          <div class="price">$<span data-price="pro">${proPrice}</span>/mo</div>
+          <div class="muted">Priority support<br/>All features<br/>5 users</div>
+          <div class="planBtn">Choose Plan</div>
+        </div>
       </div>
-    </div>
 
-    <div class="section" data-section="faq">
-      <h2>FAQ</h2>
-      <div class="list">
-        <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-        <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-        <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+      <div class="section" data-section="testimonials">
+        <h2>Testimonials</h2>
+        <div class="faq">
+          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
+          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        </div>
+      </div>
+
+      <div class="section" data-section="faq">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+        </div>
       </div>
     </div>
   </div>
@@ -195,198 +209,137 @@ function landingPageTemplate({ proPrice = 29, starterPrice = 9, brand = "FlowPro
 </html>`;
 }
 
-function bookCoverTemplate({
-  title = "THE AMERICAN DREAM",
-  subtitle = "An immigrant story of arriving young, working hard, and earning it.",
-  author = "SIMON GOJCAJ",
-} = {}) {
+function bookCoverTemplate({ title, subtitle, author } = {}) {
+  const T = escapeHtml(title || "THE AMERICAN DREAM");
+  const S = escapeHtml(subtitle || "An immigrant story of arriving young, working hard, and earning it.");
+  const A = escapeHtml(author || "SIMON GOJCAJ");
+
   return `<!doctype html>
-<html lang="en">
+<html>
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Book Cover</title>
 <style>
-  :root{
-    --bg:#070b16;
-    --text:#eaf0ff;
-    --muted:#a9b6d3;
-    --line:rgba(255,255,255,.10);
-    --shadow: 0 18px 55px rgba(0,0,0,.45);
-  }
+  :root{--bg:#071021;--text:#eaf0ff;--muted:rgba(234,240,255,.78);--line:rgba(255,255,255,.10);}
   *{box-sizing:border-box}
   body{
-    margin:0;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
     background:
-      radial-gradient(1000px 650px at 25% 10%, rgba(42,102,255,.35), transparent 55%),
-      radial-gradient(900px 650px at 85% 25%, rgba(48,255,176,.10), transparent 55%),
-      var(--bg);
+      radial-gradient(1100px 700px at 15% 0%, rgba(42,102,255,.35), transparent 55%),
+      radial-gradient(900px 700px at 85% 10%, rgba(25,255,154,.12), transparent 55%),
+      linear-gradient(180deg, #071021, #050b16);
     color:var(--text);
-    padding:24px;
+    height:100vh;display:flex;align-items:center;justify-content:center;padding:22px;
   }
   .cover{
-    width:min(540px, 92vw);
-    height:min(760px, 132vw);
-    margin:0 auto;
-    border-radius:26px;
+    width:min(760px, 95vw);
+    aspect-ratio: 3 / 4;
+    border-radius:22px;
     border:1px solid var(--line);
-    box-shadow:var(--shadow);
-    background:
-      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02)),
-      radial-gradient(900px 520px at 20% 10%, rgba(42,102,255,.35), transparent 60%),
-      radial-gradient(700px 520px at 85% 55%, rgba(48,255,176,.10), transparent 60%);
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.22));
+    box-shadow: 0 22px 70px rgba(0,0,0,.55);
+    padding:34px;
     position:relative;
     overflow:hidden;
-    padding:34px;
   }
-  .title{
-    font-size:44px;
-    letter-spacing:.08em;
-    font-weight:900;
-    line-height:1.05;
-    text-transform:uppercase;
-  }
-  .subtitle{
-    margin-top:14px;
-    max-width:460px;
-    color:rgba(233,240,255,.78);
-    font-size:16px;
-    line-height:1.45;
-  }
-  .author{
-    position:absolute;
-    left:34px;
-    right:34px;
-    bottom:30px;
-    font-weight:900;
-    letter-spacing:.18em;
-    text-transform:uppercase;
+  .glow{
+    position:absolute;inset:-40%;
+    background: radial-gradient(circle at 20% 20%, rgba(42,102,255,.35), transparent 55%),
+                radial-gradient(circle at 80% 20%, rgba(25,255,154,.14), transparent 55%);
+    filter: blur(10px);
     opacity:.9;
   }
-  .stripe{
-    position:absolute;
-    left:-40%;
-    bottom:-25%;
-    width:180%;
-    height:50%;
-    background:linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,0));
-    transform:rotate(-10deg);
+  .content{position:relative;z-index:2}
+  .title{
+    font-weight:1000;
+    letter-spacing:1px;
+    font-size: clamp(36px, 6vw, 62px);
+    line-height:1.04;
+    text-transform:uppercase;
+    margin:0 0 10px;
   }
-  .meta{display:none}
+  .subtitle{
+    max-width: 90%;
+    font-size: clamp(14px, 2.2vw, 18px);
+    color: var(--muted);
+    margin:0 0 18px;
+  }
+  .stripe{
+    position:absolute;left:0;right:0;bottom:-22%;
+    height:42%;
+    background:
+      linear-gradient(90deg, rgba(255,255,255,.06), rgba(255,255,255,0)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0, rgba(255,255,255,.05) 10px, rgba(0,0,0,0) 10px, rgba(0,0,0,0) 22px);
+    transform: skewY(-10deg);
+    opacity:.35;
+  }
+  .author{
+    position:absolute;left:34px;right:34px;bottom:26px;
+    font-weight:900;letter-spacing:2px;
+    color:rgba(234,240,255,.72);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .tag{
+    border:1px solid rgba(25,255,154,.28);
+    background:rgba(25,255,154,.10);
+    padding:8px 12px;border-radius:999px;
+    font-size:12px;font-weight:900;
+    box-shadow: 0 0 24px rgba(25,255,154,.10);
+  }
 </style>
 </head>
 <body>
   <div class="cover">
+    <div class="glow"></div>
     <div class="stripe"></div>
-
-    <div class="title" data-book="title">${escapeHtml(title)}</div>
-    <div class="subtitle" data-book="subtitle">${escapeHtml(subtitle)}</div>
-    <div class="author" data-book="author">${escapeHtml(author)}</div>
-
-    <div class="meta" data-preview="book_cover"></div>
+    <div class="content">
+      <h1 class="title">${T}</h1>
+      <p class="subtitle">${S}</p>
+    </div>
+    <div class="author">
+      <div>${A}</div>
+      <div class="tag">book_cover</div>
+    </div>
   </div>
 </body>
 </html>`;
 }
 
-function genericAppMockTemplate({ appName = "Your App", tagline = "A clean preview mockup generated instantly." } = {}) {
+function genericAppMockTemplate({ title } = {}) {
+  const T = escapeHtml(title || "App Preview");
   return `<!doctype html>
-<html lang="en">
+<html>
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>App Mock</title>
+<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${T}</title>
 <style>
-  :root{
-    --bg:#070b16;
-    --text:#eaf0ff;
-    --muted:#a9b6d3;
-    --line:rgba(255,255,255,.10);
-    --shadow: 0 18px 55px rgba(0,0,0,.45);
-    --blue:#2a66ff; --blue2:#1f4dd6;
-  }
+  :root{--bg:#070b16;--text:#eaf0ff;--muted:rgba(234,240,255,.75);--line:rgba(255,255,255,.10);--blue:#2a66ff;}
   *{box-sizing:border-box}
-  body{
-    margin:0;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    color:var(--text);
-    background:
-      radial-gradient(900px 520px at 20% 0%, rgba(42,102,255,.32), transparent 55%),
-      radial-gradient(800px 520px at 85% 10%, rgba(48,255,176,.10), transparent 55%),
-      var(--bg);
-    padding:22px;
-  }
-  .shell{
-    max-width:980px;margin:0 auto;
-    border:1px solid var(--line);
-    border-radius:22px;
-    background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-    box-shadow:var(--shadow);
-    padding:18px;
-  }
-  .top{
-    display:flex;align-items:center;justify-content:space-between;
-    gap:14px;padding:8px 10px 14px;
-  }
-  .name{font-weight:900;font-size:22px}
-  .tag{color:rgba(233,240,255,.75);font-size:14px}
-  .btn{
-    padding:10px 14px;border-radius:14px;
-    border:1px solid rgba(255,255,255,.12);
-    background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-    color:#fff;font-weight:900;
-  }
-  .grid{display:grid;grid-template-columns:1.2fr .8fr;gap:14px}
-  .card{
-    border:1px solid rgba(255,255,255,.10);
-    background:rgba(0,0,0,.18);
-    border-radius:18px;
-    padding:14px;
-    min-height:320px;
-  }
-  .row{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
-  .pill{
-    border:1px solid rgba(255,255,255,.12);
-    background:rgba(255,255,255,.05);
-    padding:8px 10px;border-radius:999px;
-    font-weight:800;font-size:12px;color:rgba(233,240,255,.80)
-  }
-  .big{
-    height:220px;border-radius:16px;
-    border:1px dashed rgba(255,255,255,.16);
-    display:flex;align-items:center;justify-content:center;
-    color:rgba(233,240,255,.65);
-    margin-top:12px;
-  }
-  @media (max-width:860px){ .grid{grid-template-columns:1fr} }
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);
+    background:radial-gradient(900px 520px at 15% 5%, rgba(42,102,255,.28), transparent 55%),
+               radial-gradient(800px 520px at 85% 10%, rgba(25,255,154,.10), transparent 55%),var(--bg);}
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  .card{border:1px solid var(--line);border-radius:22px;background:rgba(0,0,0,.18);padding:18px}
+  h1{margin:0 0 6px;font-size:34px}
+  p{margin:0 0 12px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .box{border:1px solid var(--line);border-radius:16px;background:rgba(255,255,255,.04);padding:14px}
+  .btn{display:inline-block;margin-top:10px;background:var(--blue);color:#fff;font-weight:900;padding:10px 14px;border-radius:12px;text-decoration:none}
 </style>
 </head>
 <body>
-  <div class="shell">
-    <div class="top">
-      <div>
-        <div class="name">${escapeHtml(appName)}</div>
-        <div class="tag">${escapeHtml(tagline)}</div>
+  <div class="wrap">
+    <div class="card">
+      <h1>${T}</h1>
+      <p>This is a generic mockup preview. Tell Simo what screens you want (home, listing, profile, checkout, etc.).</p>
+      <div class="grid">
+        <div class="box"><b>Home</b><br/><span style="color:var(--muted)">Search + featured items</span></div>
+        <div class="box"><b>Details</b><br/><span style="color:var(--muted)">Photos + CTA button</span></div>
+        <div class="box"><b>Messages</b><br/><span style="color:var(--muted)">Chat between users</span></div>
+        <div class="box"><b>Checkout</b><br/><span style="color:var(--muted)">Pay + confirm</span></div>
       </div>
-      <button class="btn">Primary Action</button>
-    </div>
-
-    <div class="grid">
-      <div class="card">
-        <div style="font-weight:900">Main panel</div>
-        <div class="row">
-          <div class="pill">Search</div><div class="pill">Filters</div><div class="pill">Results</div>
-        </div>
-        <div class="big">Preview content area</div>
-      </div>
-      <div class="card">
-        <div style="font-weight:900">Side panel</div>
-        <div class="row" style="margin-top:12px">
-          <div class="pill">Settings</div><div class="pill">Billing</div><div class="pill">Share</div>
-        </div>
-        <div class="big">Details</div>
-      </div>
+      <a class="btn" href="#">Primary Action</a>
     </div>
   </div>
 </body>
@@ -394,390 +347,305 @@ function genericAppMockTemplate({ appName = "Your App", tagline = "A clean previ
 }
 
 /* ---------------------------
-   Deterministic intent + edits
+   Deterministic edits
 --------------------------- */
 
-function extractMoney(text) {
-  const m = strip(text).match(/\$?\s*(\d{1,4})(?:\.\d{1,2})?/);
-  return m ? Number(m[1]) : null;
+function replaceProPrice(html, newPrice){
+  if(html.includes('data-price="pro"')){
+    return html.replace(/data-price="pro">(\d{1,4})</, `data-price="pro">${newPrice}<`);
+  }
+  return html.replace(/\$\s*\d{1,4}\s*\/mo/, `$${newPrice}/mo`);
 }
 
-function isAffirmation(text) {
-  const t = lower(text);
-  return (
-    t === "yes" ||
-    t === "yep" ||
-    t === "yeah" ||
-    t === "ok" ||
-    t === "okay" ||
-    t === "thats good" ||
-    t === "that's good" ||
-    t === "good" ||
-    t === "perfect" ||
-    t === "looks good" ||
-    t === "that works"
-  );
-}
+function ensureSection(html, sectionKey){
+  if(html.includes(`data-section="${sectionKey}"`)) return html;
 
-function wantsLanding(text) {
-  const t = lower(text);
-  return t.includes("landing") || t.includes("pricing") || t.includes("faq") || t.includes("testimonial");
-}
-
-function wantsBookCover(text) {
-  const t = lower(text);
-  return t.includes("book cover") || t.includes("cover preview") || t.includes("bookcover");
-}
-
-function explicitPreview(text) {
-  const t = lower(text);
-  return t.includes("show me a preview") || t === "show preview" || t.includes("preview of");
-}
-
-function isPriceEdit(text) {
-  const t = lower(text);
-  return t.includes("change pro price") || t.includes("set pro price") || (t.includes("pro price") && extractMoney(t));
-}
-
-function isAddFaq(text) {
-  const t = lower(text);
-  return t.includes("add faq") || t.includes("include faq");
-}
-
-function isAddTestimonials(text) {
-  const t = lower(text);
-  return t.includes("add testimonials") || t.includes("include testimonials");
-}
-
-function isChangeTitle(text) {
-  const t = lower(text);
-  return t.includes("set title") || t.includes("change title") || t.startsWith("title:");
-}
-
-function isChangeSubtitle(text) {
-  const t = lower(text);
-  return t.includes("set subtitle") || t.includes("change subtitle") || t.startsWith("subtitle:");
-}
-
-function isChangeAuthor(text) {
-  const t = lower(text);
-  return t.includes("set author") || t.includes("change author") || t.startsWith("author:");
-}
-
-function pullAfterColon(text) {
-  const s = strip(text);
-  const idx = s.indexOf(":");
-  if (idx >= 0) return strip(s.slice(idx + 1));
-  return "";
-}
-
-function replaceSpan(html, attr, value) {
-  // Replaces the innerHTML for element marked like data-book="title" OR data-price="pro"
-  const safe = escapeHtml(value);
-  const re = new RegExp(`(data-${attr}="[^"]+"[^>]*>)([\\s\\S]*?)(<)`, "i");
-  if (re.test(html)) return html.replace(re, `$1${safe}$3`);
-  return html;
-}
-
-function replacePrice(html, which, newPrice) {
-  // Targets: <span data-price="pro">29</span>
-  const re = new RegExp(`(data-price="${which}">)\\d{1,4}(<)`, "i");
-  if (re.test(html)) return html.replace(re, `$1${newPrice}$2`);
-  // Fallback: $29/mo somewhere
-  return html.replace(/\$\s*\d{1,4}\s*\/mo/i, `$${newPrice}/mo`);
-}
-
-function ensureSection(html, sectionKey) {
-  if (html.includes(`data-section="${sectionKey}"`)) return html;
-
-  const insertPoint = html.lastIndexOf("</div>\n</body>");
-  if (insertPoint < 0) return html;
+  const insertAt = html.lastIndexOf("</div>\n  </div>\n</body>");
+  if(insertAt < 0) return html;
 
   let block = "";
-  if (sectionKey === "faq") {
+  if(sectionKey === "faq"){
     block = `
-    <div class="section" data-section="faq">
-      <h2>FAQ</h2>
-      <div class="list">
-        <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-        <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-        <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-      </div>
-    </div>`;
-  } else if (sectionKey === "testimonials") {
+      <div class="section" data-section="faq">
+        <h2>FAQ</h2>
+        <div class="faq">
+          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+        </div>
+      </div>`;
+  } else if(sectionKey === "testimonials"){
     block = `
-    <div class="section" data-section="testimonials">
-      <h2>Testimonials</h2>
-      <div class="list">
-        <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
-        <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
-      </div>
-    </div>`;
+      <div class="section" data-section="testimonials">
+        <h2>Testimonials</h2>
+        <div class="faq">
+          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
+          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        </div>
+      </div>`;
   } else {
     return html;
   }
-
-  return html.slice(0, insertPoint) + block + "\n" + html.slice(insertPoint);
+  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
 }
 
 /* ---------------------------
-   OpenAI (chat-only)
+   Optional LLM chat
 --------------------------- */
+async function callOpenAIChat(system, user){
+  if(!OPENAI_API_KEY) return null;
 
-async function callOpenAI({ mode, message }) {
-  if (!OPENAI_API_KEY) return null;
-
-  const sys =
-    mode === "venting"
-      ? "You are Simo. Respond like a private best friend. Be real, supportive, direct. Avoid therapy clichés."
-      : mode === "solving"
-      ? "You are Simo. Be practical, structured, concise. Ask at most ONE clarifying question if needed."
-      : "You are Simo. Builder + best friend. In building mode, give clear next steps. If user asked for a preview, describe it briefly.";
-
-  const payload = {
-    model: MODEL,
-    temperature: 0.6,
-    input: [
-      { role: "system", content: sys },
-      { role: "user", content: message },
-    ],
-  };
-
-  const resp = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      authorization: `Bearer ${OPENAI_API_KEY}`,
+  const resp = await fetch("https://api.openai.com/v1/chat/completions", {
+    method:"POST",
+    headers:{
+      "content-type":"application/json",
+      "authorization":`Bearer ${OPENAI_API_KEY}`
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      model: "gpt-4o-mini",
+      temperature: 0.7,
+      messages: [
+        { role:"system", content: system },
+        { role:"user", content: user }
+      ]
+    })
   });
 
-  if (!resp.ok) {
-    const t = await resp.text().catch(() => "");
-    throw new Error(`OpenAI error: ${t.slice(0, 260)}`);
+  if(!resp.ok){
+    const txt = await resp.text().catch(()=> "");
+    throw new Error("OpenAI error: " + txt.slice(0, 220));
   }
-
   const data = await resp.json();
-  return strip(data.output_text || "");
+  const msg = data?.choices?.[0]?.message?.content;
+  return typeof msg === "string" ? msg.trim() : null;
 }
 
 /* ---------------------------
-   Handler
+   Intent routing
 --------------------------- */
 
+function wantsLanding(text){
+  const t = lower(text);
+  return t.includes("landing page") || t.includes("build landing") || t.includes("build me a landing");
+}
+
+function wantsBookCover(text){
+  const t = lower(text);
+  return t.includes("book cover") || t.includes("cover preview") || t.includes("cover for this story");
+}
+
+function wantsPreview(text){
+  const t = lower(text);
+  return t.includes("show me a preview") || t.includes("show preview") || t.includes("preview of");
+}
+
+function wantsPriceEdit(text){
+  const t = lower(text);
+  return t.includes("change pro price") || t.includes("set pro price") || t.includes("pro price") || t.includes("change price");
+}
+
+function wantsAddFaq(text){
+  return hasAny(text, ["add faq", "include faq"]);
+}
+
+function wantsAddTestimonials(text){
+  return hasAny(text, ["add testimonials", "include testimonials"]);
+}
+
+function parseBookFields(text){
+  // very light parsing
+  const t = String(text || "");
+  const mTitle = t.match(/title\s*:\s*([^\n]+)/i);
+  const mSub = t.match(/subtitle\s*:\s*([^\n]+)/i);
+  const mAuth = t.match(/author\s*:\s*([^\n]+)/i);
+  return {
+    title: mTitle ? strip(mTitle[1]) : null,
+    subtitle: mSub ? strip(mSub[1]) : null,
+    author: mAuth ? strip(mAuth[1]) : null,
+  };
+}
+
 exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
-  if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Method not allowed" });
+  if(event.httpMethod === "OPTIONS") return json(200, { ok:true });
+  if(event.httpMethod !== "POST") return json(405, { ok:false, error:"Method not allowed" });
 
-  try {
+  try{
     const body = JSON.parse(event.body || "{}");
-
-    const message = strip(body.message || body.text || "");
-    const mode = strip(body.mode || "building"); // building | solving | venting
+    const text = strip(body.text);
+    const mode = strip(body.mode) || "building";
     const pro = !!body.pro;
 
-    const curName = strip(body.current_preview_name || body.preview_name || "");
-    const curHtml = strip(body.current_preview_html || body.preview_html || "");
+    const currentHtml = strip(body.current_preview_html);
+    const currentName = strip(body.current_preview_name) || "none";
 
-    if (!message) return json(400, { ok: false, error: "Missing message" });
+    if(!text) return json(400, { ok:false, error:"Missing message", backend_label:"simo-backend-locked-v4" });
 
-    const t = lower(message);
+    // --- UNIVERSAL: if user explicitly asks for preview, allow it in any mode ---
+    const allowPreview = wantsPreview(text) || wantsLanding(text) || wantsBookCover(text);
 
-    // Decide whether we should generate/update a preview.
-    // Rules:
-    // - In building mode: previews are allowed.
-    // - In venting/solving: ONLY if explicitly requested (preview/book cover/landing).
-    const wantsAnyPreview =
-      mode === "building" || explicitPreview(message) || wantsLanding(message) || wantsBookCover(message);
+    // If they're in venting/solving and NOT asking for preview, do pure chat.
+    if((mode === "venting" || mode === "solving") && !allowPreview){
+      if(mode === "venting"){
+        const reply = await callOpenAIChat(
+          "You are Simo, a private best friend. Be natural, warm, not therapy-speak. Ask 1 good follow-up. No generic clichés.",
+          `User said: ${text}`
+        ).catch(()=> null);
 
-    let nextPreviewName = curName;
-    let nextPreviewHtml = curHtml;
-
-    // --- Preview routing (prevents "stuck on book cover") ---
-    if (wantsAnyPreview) {
-      if (wantsLanding(message) || t.includes("show landing page") || t.includes("show landing")) {
-        nextPreviewName = "landing_page";
-        if (!nextPreviewHtml || curName !== "landing_page") {
-          nextPreviewHtml = landingPageTemplate({ proPrice: 29, starterPrice: 9, brand: "FlowPro" });
-        }
-      } else if (wantsBookCover(message) || t.includes("show book cover") || t.includes("show cover")) {
-        nextPreviewName = "book_cover";
-        if (!nextPreviewHtml || curName !== "book_cover") {
-          // Default author to Simon if user doesn’t specify
-          nextPreviewHtml = bookCoverTemplate({});
-        }
-      } else if (explicitPreview(message) || t.includes("show me preview")) {
-        // Generic “preview” that works for ANY request (open-ended builder)
-        nextPreviewName = "app_mock";
-        nextPreviewHtml = genericAppMockTemplate({ appName: "Preview Mock", tagline: "Generated from your request." });
-      }
-    }
-
-    // --- Deterministic edits ---
-    if (nextPreviewName === "landing_page" && nextPreviewHtml) {
-      if (isPriceEdit(message)) {
-        const money = extractMoney(message);
-        if (money) {
-          nextPreviewHtml = replacePrice(nextPreviewHtml, "pro", money);
-          const reply = `Done. Pro price is now $${money}/mo.`;
-          return json(200, {
-            ok: true,
-            reply,
-            preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-            preview_name: nextPreviewName,
-            preview_html: nextPreviewHtml,
-          });
-        }
-      }
-      if (isAddFaq(message)) {
-        nextPreviewHtml = ensureSection(nextPreviewHtml, "faq");
         return json(200, {
-          ok: true,
-          reply: "Done. FAQ added.",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
+          ok:true,
+          backend_label:"simo-backend-locked-v4",
+          reply: reply || "I’m here. What’s hitting you the hardest right now?"
         });
       }
-      if (isAddTestimonials(message)) {
-        nextPreviewHtml = ensureSection(nextPreviewHtml, "testimonials");
+
+      const reply = await callOpenAIChat(
+        "You are Simo, a practical problem-solver. Be concise. Ask 1-2 clarifying questions max. Provide actionable steps.",
+        `User said: ${text}`
+      ).catch(()=> null);
+
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: reply || "Alright — what’s the goal, and what’s blocking you?"
+      });
+    }
+
+    // --- BUILDING / PREVIEW ROUTING ---
+    // 1) Deterministic edit takes priority if there is an existing landing page preview
+    if(currentHtml && currentName === "landing_page" && wantsPriceEdit(text)){
+      const money = extractMoney(text);
+      if(money){
+        const updated = replaceProPrice(currentHtml, money);
         return json(200, {
-          ok: true,
-          reply: "Done. Testimonials added.",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
+          ok:true,
+          backend_label:"simo-backend-locked-v4",
+          reply: `Done. Pro price is now $${money}/mo.`,
+          preview_name: "landing_page",
+          preview_html: updated,
+          preview: { name:"landing_page", html: updated }
         });
       }
     }
 
-    if (nextPreviewName === "book_cover" && nextPreviewHtml) {
-      // Book cover edits OR affirmations shouldn’t loop
-      if (isChangeTitle(message)) {
-        const v = pullAfterColon(message) || message.replace(/change title to/i, "").replace(/set title to/i, "");
-        const title = strip(v) || "THE AMERICAN DREAM";
-        nextPreviewHtml = replaceSpan(nextPreviewHtml, "book", title); // (fallback if used incorrectly)
-        // Correct replacement (data-book="title")
-        nextPreviewHtml = nextPreviewHtml.replace(
-          /data-book="title">[\s\S]*?</i,
-          `data-book="title">${escapeHtml(title)}<`
-        );
-        return json(200, {
-          ok: true,
-          reply: `Locked. Title updated to “${title}”. Want a subtitle or author name on the bottom?`,
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
-        });
-      }
-
-      if (isChangeSubtitle(message)) {
-        const v = pullAfterColon(message) || message.replace(/change subtitle to/i, "").replace(/set subtitle to/i, "");
-        const sub = strip(v) || "An immigrant story of arriving young, working hard, and earning it.";
-        nextPreviewHtml = nextPreviewHtml.replace(
-          /data-book="subtitle">[\s\S]*?</i,
-          `data-book="subtitle">${escapeHtml(sub)}<`
-        );
-        return json(200, {
-          ok: true,
-          reply: "Done. Subtitle updated. Want the author name updated too?",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
-        });
-      }
-
-      if (isChangeAuthor(message)) {
-        const v = pullAfterColon(message) || message.replace(/change author to/i, "").replace(/set author to/i, "");
-        const a = strip(v) || "SIMON GOJCAJ";
-        nextPreviewHtml = nextPreviewHtml.replace(
-          /data-book="author">[\s\S]*?</i,
-          `data-book="author">${escapeHtml(a)}<`
-        );
-        return json(200, {
-          ok: true,
-          reply: "Done. Author updated.",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
-        });
-      }
-
-      if (isAffirmation(message)) {
-        // Don’t re-ask the same title question.
-        return json(200, {
-          ok: true,
-          reply: "Perfect. Cover locked. If you want changes later: “change title: …” / “subtitle: …” / “author: …”.",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
-        });
-      }
-
-      // If user asks to “show book cover”
-      if (t.includes("show me the book cover") || t === "show book cover") {
-        return json(200, {
-          ok: true,
-          reply: "Here it is. Want the title/subtitle/author changed?",
-          preview: pro ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml } : null,
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
-        });
-      }
+    if(currentHtml && currentName === "landing_page" && wantsAddFaq(text)){
+      const updated = ensureSection(currentHtml, "faq");
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: "Done. FAQ section added.",
+        preview_name: "landing_page",
+        preview_html: updated,
+        preview: { name:"landing_page", html: updated }
+      });
     }
 
-    // --- If we have a preview in building mode, don’t get “lost” ---
-    if (mode === "building" && wantsAnyPreview && pro && nextPreviewName && nextPreviewHtml) {
-      // If user typed “build landing page” or “show landing page” etc, return the preview.
-      if (wantsLanding(message) || wantsBookCover(message) || explicitPreview(message)) {
-        const msg =
-          nextPreviewName === "landing_page"
-            ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
-            : nextPreviewName === "book_cover"
-            ? "Book cover preview loaded. If you want changes: “change title: …” / “subtitle: …” / “author: …”."
-            : "Preview loaded. Tell me what to change about the mockup.";
+    if(currentHtml && currentName === "landing_page" && wantsAddTestimonials(text)){
+      const updated = ensureSection(currentHtml, "testimonials");
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: "Done. Testimonials added.",
+        preview_name: "landing_page",
+        preview_html: updated,
+        preview: { name:"landing_page", html: updated }
+      });
+    }
+
+    // 2) Landing page build
+    if(wantsLanding(text)){
+      const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: pro
+          ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
+          : "Preview loaded. (Turn Pro ON to enable saving + downloads.)",
+        preview_name: "landing_page",
+        preview_html: html,
+        preview: { name:"landing_page", html }
+      });
+    }
+
+    // 3) Book cover build
+    if(wantsBookCover(text)){
+      // If user just affirmed, don't loop. Acknowledge and offer next.
+      if(currentName === "book_cover" && isAffirmation(text)){
         return json(200, {
-          ok: true,
-          reply: msg,
-          preview: { name: nextPreviewName, kind: "html", html: nextPreviewHtml },
-          preview_name: nextPreviewName,
-          preview_html: nextPreviewHtml,
+          ok:true,
+          backend_label:"simo-backend-locked-v4",
+          reply: "Nice. Want to tweak the title/subtitle/author, or do you want me to help outline the book next?"
         });
       }
+
+      // If they provided explicit fields, use them; else use defaults
+      const fields = parseBookFields(text);
+      const html = bookCoverTemplate({
+        title: fields.title || "THE AMERICAN DREAM",
+        subtitle: fields.subtitle || "An immigrant story of arriving young, working hard, and earning it.",
+        author: fields.author || "SIMON GOJCAJ",
+      });
+
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: "Book cover preview loaded. If you want changes, say: title: ..., subtitle: ..., author: ...",
+        preview_name: "book_cover",
+        preview_html: html,
+        preview: { name:"book_cover", html }
+      });
     }
 
-    // --- Chat response (OpenAI) ---
-    // IMPORTANT: we avoid OpenAI when user is clearly doing deterministic preview edits.
-    // Also: in venting/solving we never attach previews unless explicitly requested.
-    let reply = "";
-    try {
-      // If user is in building mode but not asking for a deterministic edit, we can still chat.
-      reply = (await callOpenAI({ mode, message })) || "";
-    } catch (e) {
-      // Fallback
-      reply =
-        mode === "venting"
-          ? "I’m here. What’s hitting you the hardest right now?"
-          : mode === "solving"
-          ? "Alright — what’s the goal and what’s blocking you?"
-          : "Tell me what you want to build next (and say “show me a preview” if you want visuals).";
+    // 4) Generic preview for "show me a preview" requests
+    if(wantsPreview(text)){
+      // If they asked preview of landing page, route it
+      if(lower(text).includes("landing")) {
+        const html = landingPageTemplate({ proPrice: 29, starterPrice: 9 });
+        return json(200, {
+          ok:true,
+          backend_label:"simo-backend-locked-v4",
+          reply: "Preview loaded. Tell me what to change.",
+          preview_name: "landing_page",
+          preview_html: html,
+          preview: { name:"landing_page", html }
+        });
+      }
+
+      // If they asked preview of book cover, route it
+      if(lower(text).includes("book") || lower(text).includes("cover")) {
+        const html = bookCoverTemplate({});
+        return json(200, {
+          ok:true,
+          backend_label:"simo-backend-locked-v4",
+          reply: "Book cover preview loaded. Want to change title/subtitle/author?",
+          preview_name: "book_cover",
+          preview_html: html,
+          preview: { name:"book_cover", html }
+        });
+      }
+
+      // Otherwise generic app mock
+      const html = genericAppMockTemplate({ title: "App Preview" });
+      return json(200, {
+        ok:true,
+        backend_label:"simo-backend-locked-v4",
+        reply: "Preview loaded. Tell me what kind of app this is and what 3 screens you want.",
+        preview_name: "app_mock",
+        preview_html: html,
+        preview: { name:"app_mock", html }
+      });
     }
 
-    // Attach preview only if allowed + pro ON (your UI gates saving/downloads by pro).
-    const previewObj =
-      pro && wantsAnyPreview && nextPreviewName && nextPreviewHtml
-        ? { name: nextPreviewName, kind: "html", html: nextPreviewHtml }
-        : null;
+    // 5) If nothing matched, provide a ChatGPT-like builder reply (optional LLM), but NO preview
+    const sys = "You are Simo: best friend + builder. Be concise, natural, and helpful. Avoid therapy-speak unless user asks.";
+    const reply = await callOpenAIChat(sys, text).catch(()=> null);
 
     return json(200, {
-      ok: true,
-      version: "simo-backend-locked-v5",
-      reply: reply || "Okay.",
-      preview: previewObj,
-      preview_name: previewObj ? previewObj.name : (nextPreviewName || ""),
-      preview_html: previewObj ? previewObj.html : (nextPreviewHtml || ""),
+      ok:true,
+      backend_label:"simo-backend-locked-v4",
+      reply: reply || "Tell me what you want next — and if you want visuals, say “show me a preview”."
     });
-  } catch (e) {
-    return json(500, { ok: false, error: "Server error", details: String(e?.message || e) });
+
+  }catch(err){
+    return json(500, { ok:false, backend_label:"simo-backend-locked-v4", error:"Server error", details:String(err?.message || err) });
   }
 };
