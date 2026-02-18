@@ -1,10 +1,11 @@
-/* chat.js — Simo UI controller (fixed payload + backend_label)
+/* chat.js — Simo UI controller (safe + no null errors)
    - Buttons + Enter key work
    - Pro toggles
    - Calls Netlify function backend (/.netlify/functions/simon)
    - Loads preview via iframe srcdoc
    - Download HTML
    - Save build + Library (localStorage) when Pro ON
+   - MODE SWITCH UPGRADE: always sends current preview state so edits work across modes
 */
 
 (() => {
@@ -39,7 +40,6 @@
     previewLine: $("previewLine"),
   };
 
-  // Hard stop if the page didn’t load expected IDs.
   const required = ["chatList","msg","sendBtn","modeBuilding","modeSolving","modeVenting","proToggle","previewFrame"];
   const missing = required.filter(k => !els[k]);
   if (missing.length) {
@@ -56,7 +56,6 @@
     busy: false
   };
 
-  // Netlify function endpoint
   const API_URL = "/.netlify/functions/simon";
 
   function scrollChatToBottom() {
@@ -97,6 +96,7 @@
 
     els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
     els.libraryBtn.disabled = !state.pro;
+
     els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
   }
 
@@ -121,7 +121,7 @@
 
   function clearPreview() {
     setPreview("", "none");
-    bubble("simo", "Simo: Preview cleared.");
+    bubble("simo", "Preview cleared.");
   }
 
   function downloadCurrentPreview() {
@@ -171,7 +171,7 @@
     });
 
     setSavedBuilds(builds.slice(0, 30));
-    bubble("simo", `Simo: Saved build: ${name}`);
+    bubble("simo", `Saved build: ${name}`);
   }
 
   function openLibrary() {
@@ -179,7 +179,7 @@
 
     const builds = getSavedBuilds();
     if (!builds.length) {
-      bubble("simo", "Simo: Library is empty. Generate a preview, then Save build.");
+      bubble("simo", "Library is empty. Generate a preview, then Save build.");
       return;
     }
 
@@ -194,23 +194,22 @@
 
     const chosen = builds[idx];
     setPreview(chosen.html, chosen.name);
-    bubble("simo", `Simo: Loaded from library: ${chosen.name}`);
+    bubble("simo", `Loaded from library: ${chosen.name}`);
   }
 
-  // Flexible parsing: supports simon.js contract
   function extractFromResponse(data) {
     const root = data && (data.response || data);
 
     const text =
-      root?.reply ??
       root?.text ??
+      root?.reply ??
       root?.output_text ??
       root?.message ??
-      (root?.ok === false && root?.error ? `Error: ${root.error}` : "") ??
+      root?.assistant ??
       "";
 
     const backend =
-      root?.backend_label ??   // <-- your simon.js uses this
+      root?.backend_label ??
       root?.backend ??
       root?.meta?.backend ??
       root?.version ??
@@ -218,15 +217,20 @@
 
     const previewHtml =
       root?.preview_html ??
+      root?.previewHtml ??
       root?.preview?.html ??
+      root?.preview?.preview_html ??
+      root?.preview?.srcdoc ??
       "";
 
     const previewName =
       root?.preview_name ??
+      root?.previewName ??
       root?.preview?.name ??
+      root?.preview?.preview_name ??
       (previewHtml ? "preview" : "none");
 
-    return { text, backend, previewHtml, previewName, ok: root?.ok };
+    return { text, backend, previewHtml, previewName };
   }
 
   async function send() {
@@ -243,15 +247,13 @@
     els.previewStatusBadge.textContent = "thinking…";
 
     try {
-      // ✅ IMPORTANT: backend expects { text }, not { q }
+      // IMPORTANT: always send current preview state so edits work across modes
       const payload = {
         text: q,
         mode: state.mode,
         pro: state.pro,
-
-        // ✅ IMPORTANT: allow deterministic edits (price/faq/testimonials)
-        current_preview_html: state.lastPreviewHtml || "",
-        current_preview_name: state.lastPreviewName || "none"
+        current_preview_name: state.lastPreviewName,
+        current_preview_html: state.lastPreviewHtml
       };
 
       const res = await fetch(API_URL, {
@@ -274,7 +276,7 @@
       }
     } catch (err) {
       console.error(err);
-      bubble("simo", "Simo: Sorry — network/backend error. Check Netlify function logs.");
+      bubble("simo", "Simo: Sorry — I hit a network/backend error. Check Netlify function logs.");
       els.previewStatusBadge.textContent = "error";
     } finally {
       state.busy = false;
