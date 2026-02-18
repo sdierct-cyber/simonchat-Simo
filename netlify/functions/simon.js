@@ -1,422 +1,537 @@
 // netlify/functions/simon.js
-// SIMO backend — "locked v4" style behavior:
-// - mode routing (venting/solving/building) without breaking flow
-// - deterministic landing page + deterministic book cover
-// - preview edits (basic) work
-// - OPTIONAL OpenAI Responses call if OPENAI_API_KEY exists (fallback safe if not)
+// Simo backend: stable JSON, supports GET/POST/OPTIONS,
+// deterministic landing-page preview + simple edit commands,
+// optional OpenAI chat for non-preview conversations.
 
-// Node 18+ (Netlify) supports fetch
-const JSON_HEADERS = {
-  "content-type": "application/json; charset=utf-8",
-  "access-control-allow-origin": "*",
-  "access-control-allow-methods": "POST,OPTIONS",
-  "access-control-allow-headers": "content-type",
-};
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"; // safe default if you have access
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
-function j(statusCode, obj) {
-  return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(obj) };
+const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
+
+function json(statusCode, obj, extraHeaders = {}) {
+  return {
+    statusCode,
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": ALLOW_ORIGIN,
+      "access-control-allow-methods": "GET,POST,OPTIONS",
+      "access-control-allow-headers": "content-type,authorization",
+      "cache-control": "no-store",
+      ...extraHeaders,
+    },
+    body: JSON.stringify(obj),
+  };
 }
 
-function safeJsonParse(s) {
-  try { return JSON.parse(s); } catch { return null; }
+function safeParseJSON(str) {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return null;
+  }
 }
 
-function clampArr(a, n) {
-  if (!Array.isArray(a)) return [];
-  return a.slice(Math.max(0, a.length - n));
+function norm(s) {
+  return String(s || "").trim();
 }
 
-/* -------------------------
-   Deterministic generators
--------------------------- */
+function lower(s) {
+  return norm(s).toLowerCase();
+}
 
-function makeLandingPage({ title, subtitle, cta, theme }) {
-  const T = escapeHtml(title || "Simo Landing");
-  const S = escapeHtml(subtitle || "A clean, fast landing page you can ship today.");
-  const C = escapeHtml(cta || "Get Started");
-  const accent = theme === "pro" ? "#39ff7a" : "#2a66ff";
+function isPreviewAsk(t) {
+  const x = lower(t);
+  return (
+    x.includes("landing page") ||
+    x.includes("marketing page") ||
+    x.includes("show me a preview") ||
+    x.includes("show a preview") ||
+    x.startsWith("preview") ||
+    x.startsWith("build a landing page") ||
+    x.startsWith("generate the simo marketing page") ||
+    x.includes("make a landing page") ||
+    x.includes("create a landing page")
+  );
+}
+
+function isEditCommand(t) {
+  const x = lower(t);
+  return (
+    x.startsWith("headline:") ||
+    x.startsWith("cta:") ||
+    x.startsWith("title:") ||
+    x.startsWith("brand:") ||
+    x.startsWith("price:") ||
+    x === "add faq" ||
+    x === "remove faq" ||
+    x === "add pricing" ||
+    x === "remove pricing" ||
+    x === "add testimonials" ||
+    x === "remove testimonials" ||
+    x === "add benefits" ||
+    x === "remove benefits"
+  );
+}
+
+function extractTopic(text) {
+  // Best-effort: "landing page for a fitness coach" => "fitness coach"
+  const t = lower(text);
+  const m =
+    t.match(/landing page for (a|an)\s+(.+?)(\.|$)/i) ||
+    t.match(/page for (a|an)\s+(.+?)(\.|$)/i) ||
+    t.match(/for (a|an)\s+(.+?)(\.|$)/i);
+  if (m && m[2]) return norm(m[2]).replace(/\.$/, "");
+  // If user typed just "Fitness coach"
+  if (norm(text).length <= 40) return norm(text);
+  return "your offer";
+}
+
+function pickBrand(text, fallback = "Simo") {
+  const m = norm(text).match(/^brand:\s*(.+)$/i);
+  if (m && m[1]) return norm(m[1]).slice(0, 40);
+  return fallback;
+}
+
+function pickHeadline(topic, brand) {
+  // Keep it simple and “convert-y”
+  if (!topic || topic.toLowerCase() === "your offer") return `${brand} — made simple`;
+  return `${topic} — made simple`;
+}
+
+function sanitizeText(s) {
+  // Prevent HTML injection in fields we insert
+  return String(s || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function moneyFromText(text, fallback = "$19") {
+  const m = norm(text).match(/^price:\s*(.+)$/i);
+  if (!m) return fallback;
+  let v = norm(m[1]);
+  if (!v) return fallback;
+  // If they typed 29, make it $29
+  if (/^\d+(\.\d+)?$/.test(v)) v = `$${v}`;
+  return v;
+}
+
+function hasSection(html, id) {
+  return typeof html === "string" && html.includes(`data-section="${id}"`);
+}
+
+function toggleSection(html, id, wantOn) {
+  if (typeof html !== "string") return html;
+  const start = `<!--section:${id}:start-->`;
+  const end = `<!--section:${id}:end-->`;
+  const si = html.indexOf(start);
+  const ei = html.indexOf(end);
+  if (si === -1 || ei === -1 || ei <= si) return html;
+
+  const block = html.slice(si, ei + end.length);
+  const isHidden = block.includes(`data-hidden="true"`);
+
+  if (wantOn && isHidden) {
+    return html.replace(block, block.replace(`data-hidden="true"`, `data-hidden="false"`));
+  }
+  if (!wantOn && !isHidden) {
+    return html.replace(block, block.replace(`data-hidden="false"`, `data-hidden="true"`));
+  }
+  return html;
+}
+
+function setTextInHtml(html, markerId, newText) {
+  // marker format: data-field="headline"
+  const safe = sanitizeText(newText);
+  const re = new RegExp(`(data-field="${markerId}"[^>]*>)([\\s\\S]*?)(</)`, "i");
+  return html.replace(re, `$1${safe}$3`);
+}
+
+function setCtaInHtml(html, which, newText) {
+  const safe = sanitizeText(newText);
+  const re = new RegExp(`(data-cta="${which}"[^>]*>)([\\s\\S]*?)(</)`, "i");
+  return html.replace(re, `$1${safe}$3`);
+}
+
+function setPriceInHtml(html, newPrice) {
+  const safe = sanitizeText(newPrice);
+  const re = new RegExp(`(data-field="price"[^>]*>)([\\s\\S]*?)(</)`, "i");
+  return html.replace(re, `$1${safe}$3`);
+}
+
+function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
+  // Uses section markers + data-field hooks for reliable edits.
+  // Sections can be toggled by setting data-hidden true/false.
+  const B = sanitizeText(brand);
+  const T = sanitizeText(topic);
+  const H = sanitizeText(headline);
+  const C1 = sanitizeText(cta1);
+  const C2 = sanitizeText(cta2);
+  const P = sanitizeText(price);
 
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>${T}</title>
+<meta name="color-scheme" content="dark" />
+<title>${B} — Landing Page</title>
 <style>
-  :root{--bg:#0b1020;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--accent:${accent};}
+  :root{
+    --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+    --line:rgba(255,255,255,.12);
+    --blue:#2a66ff; --blue2:#1f4dd6;
+    --pro:#39ff7a;
+    --shadow: 0 12px 28px rgba(0,0,0,.35);
+    --radius:18px;
+  }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    background:radial-gradient(1200px 700px at 18% 0%, #162a66 0%, var(--bg) 55%);
-    color:var(--text);}
-  .wrap{max-width:980px;margin:0 auto;padding:28px}
-  .hero{padding:34px;border:1px solid var(--line);border-radius:22px;
-    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.16));}
-  .tag{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;border-radius:999px;
-    border:1px solid var(--line);background:rgba(0,0,0,.20);font-weight:800;color:var(--muted);font-size:12px}
-  .dot{width:10px;height:10px;border-radius:99px;background:var(--accent);box-shadow:0 0 18px rgba(57,255,122,.45)}
-  h1{margin:16px 0 10px;font-size:44px;line-height:1.05;letter-spacing:-.6px}
-  p{margin:0 0 18px;color:var(--muted);font-weight:650;font-size:16px;line-height:1.5}
-  .row{display:flex;gap:10px;flex-wrap:wrap}
-  .btn{border:1px solid rgba(255,255,255,.12);background:rgba(0,0,0,.22);color:var(--text);
-    font-weight:900;border-radius:14px;padding:12px 14px;cursor:pointer}
-  .btn.primary{border-color:rgba(57,255,122,.35);background:rgba(57,255,122,.15)}
-  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:22px}
-  @media (max-width:860px){.grid{grid-template-columns:1fr}}
-  .card{border:1px solid var(--line);border-radius:18px;padding:14px;background:rgba(0,0,0,.18)}
-  .card b{display:block;margin-bottom:6px}
+  html,body{height:100%}
+  body{
+    margin:0;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background: radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+    color:var(--text);
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:22px}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 18px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:900}
+  .dot{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.6)}
+  .tag{font-size:12px;color:var(--muted);font-weight:800}
+  .hero{
+    border:1px solid var(--line);
+    border-radius:22px;
+    background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18));
+    box-shadow:var(--shadow);
+    padding:22px;
+  }
+  h1{margin:8px 0 10px;font-size:54px;line-height:1.02;letter-spacing:-.02em}
+  p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
+  .ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    padding:12px 14px;border-radius:14px;font-weight:950;
+    border:1px solid rgba(255,255,255,.16);
+    background:rgba(255,255,255,.06);
+    color:var(--text);text-decoration:none;
+  }
+  .btn.primary{
+    border-color:rgba(57,255,122,.25);
+    background:rgba(57,255,122,.14);
+    box-shadow:0 10px 20px rgba(0,0,0,.25);
+  }
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+  @media (max-width:860px){h1{font-size:44px}.grid{grid-template-columns:1fr}}
+  .card{
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:rgba(0,0,0,.18);
+    padding:16px;
+  }
+  .card h3{margin:0 0 6px;font-size:18px}
+  .card p{margin:0}
+  [data-hidden="true"]{display:none !important;}
+  .sectionTitle{font-size:18px;font-weight:950;margin:22px 0 10px}
+  .list{display:grid;gap:10px}
+  .pill{
+    border:1px solid var(--line); border-radius:14px;
+    padding:12px;background:rgba(255,255,255,.04);
+    font-weight:800;color:var(--text);
+  }
+  .priceBox{
+    display:flex;align-items:flex-end;justify-content:space-between;gap:10px;
+    padding:16px;border-radius:18px;border:1px solid rgba(57,255,122,.25);
+    background:rgba(57,255,122,.10);
+  }
+  .price{
+    font-size:34px;font-weight:1000;letter-spacing:-.02em;
+  }
+  .small{font-size:12px;color:var(--muted);font-weight:850}
 </style>
 </head>
 <body>
   <div class="wrap">
+    <div class="top">
+      <div class="brand"><span class="dot"></span> <span data-field="brand">${B}</span></div>
+      <div class="tag">Deterministic landing page • topic: <span data-field="topic">${T}</span></div>
+    </div>
+
     <div class="hero">
-      <div class="tag"><span class="dot"></span> Deterministic landing page</div>
-      <h1>${T}</h1>
-      <p>${S}</p>
-      <div class="row">
-        <button class="btn primary">${C}</button>
-        <button class="btn">Learn More</button>
+      <div class="tag">Simo Preview</div>
+      <h1 data-field="headline">${H}</h1>
+      <p data-field="subhead">A clean landing page you can export as HTML. Ask me to change sections, CTA, or copy.</p>
+
+      <div class="ctaRow">
+        <a class="btn primary" href="#" data-cta="primary">${C1}</a>
+        <a class="btn" href="#" data-cta="secondary">${C2}</a>
       </div>
 
-      <div class="grid">
-        <div class="card"><b>Fast</b><span>Clean structure + simple styling.</span></div>
-        <div class="card"><b>Clear</b><span>Headline → value → call-to-action.</span></div>
-        <div class="card"><b>Polished</b><span>Modern dark UI with accent.</span></div>
+      <div class="grid" style="margin-top:18px">
+        <div class="card">
+          <h3>Fast</h3>
+          <p>Clean structure that converts.</p>
+        </div>
+        <div class="card">
+          <h3>Clear</h3>
+          <p>Headline → value → call-to-action.</p>
+        </div>
       </div>
     </div>
+
+    <!--section:benefits:start--><div data-section="benefits" data-hidden="false">
+      <div class="sectionTitle">Benefits</div>
+      <div class="list">
+        <div class="pill">Get a simple plan for <strong>${T}</strong> that people understand fast.</div>
+        <div class="pill">Show what you do, who it’s for, and how to start.</div>
+        <div class="pill">Turn visitors into leads with a clear CTA.</div>
+      </div>
+    </div><!--section:benefits:end-->
+
+    <!--section:testimonials:start--><div data-section="testimonials" data-hidden="false">
+      <div class="sectionTitle">Testimonials</div>
+      <div class="list">
+        <div class="pill">“This was exactly what I needed — clean and professional.”</div>
+        <div class="pill">“The layout made it easy to explain my offer.”</div>
+      </div>
+    </div><!--section:testimonials:end-->
+
+    <!--section:pricing:start--><div data-section="pricing" data-hidden="false">
+      <div class="sectionTitle">Pricing</div>
+      <div class="priceBox">
+        <div>
+          <div class="small">Starter package</div>
+          <div class="price" data-field="price">${P}</div>
+        </div>
+        <a class="btn primary" href="#" data-cta="pricing">Get Started</a>
+      </div>
+    </div><!--section:pricing:end-->
+
+    <!--section:faq:start--><div data-section="faq" data-hidden="false">
+      <div class="sectionTitle">FAQ</div>
+      <div class="list">
+        <div class="pill"><strong>How do I start?</strong><br><span class="small">Click Get Started and send your details.</span></div>
+        <div class="pill"><strong>Can I customize this?</strong><br><span class="small">Yes — tell me “headline:” “cta:” or “add/remove sections”.</span></div>
+      </div>
+    </div><!--section:faq:end-->
+
+    <div style="height:28px"></div>
   </div>
 </body>
 </html>`;
 }
 
-function makeBookCover({ title, author }) {
-  const T = escapeHtml(title || "I Am Angel");
-  const A = escapeHtml(author || "Simon Gojcaj");
+function applyEditsToHtml(text, lastHtml) {
+  let html = String(lastHtml || "");
+  const t = norm(text);
+  const x = lower(t);
 
-  // SVG cover inside HTML so iframe renders it instantly
-  return `<!doctype html>
-<html>
-<head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>${T} — Cover</title>
-<style>
-  html,body{height:100%;margin:0;background:transparent}
-  .wrap{height:100%;display:flex;align-items:center;justify-content:center;padding:16px}
-  .frame{width:min(520px,100%);aspect-ratio:2/3;border-radius:18px;overflow:hidden;
-    border:1px solid rgba(255,255,255,.12);box-shadow:0 18px 40px rgba(0,0,0,.45)}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="frame">
-      <svg viewBox="0 0 600 900" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="g" cx="20%" cy="0%" r="80%">
-            <stop offset="0%" stop-color="#1e4ad6"/>
-            <stop offset="55%" stop-color="#0b1020"/>
-            <stop offset="100%" stop-color="#070b14"/>
-          </radialGradient>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="6" result="b"/>
-            <feMerge>
-              <feMergeNode in="b"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-        </defs>
-        <rect width="600" height="900" fill="url(#g)"/>
-        <circle cx="140" cy="170" r="90" fill="#39ff7a" opacity="0.18" filter="url(#glow)"/>
-        <circle cx="470" cy="290" r="130" fill="#2a66ff" opacity="0.12" filter="url(#glow)"/>
-        <path d="M300 250 C260 330, 210 410, 170 500 C250 470, 320 430, 390 370 C350 330, 330 290, 300 250 Z"
-              fill="#eaf0ff" opacity="0.10"/>
-        <path d="M290 280 C250 350, 220 430, 205 510 C265 480, 320 440, 365 385 C335 350, 315 315, 290 280 Z"
-              fill="#39ff7a" opacity="0.14"/>
+  if (x.startsWith("headline:")) {
+    const v = norm(t.split(":").slice(1).join(":"));
+    if (v) html = setTextInHtml(html, "headline", v);
+    return { html, note: "Updated headline." };
+  }
 
-        <text x="300" y="150" text-anchor="middle" fill="#eaf0ff" font-size="48" font-family="system-ui" font-weight="900">${T}</text>
-        <text x="300" y="200" text-anchor="middle" fill="#a9b6d3" font-size="18" font-family="system-ui" font-weight="800">A novel</text>
+  if (x.startsWith("title:")) {
+    const v = norm(t.split(":").slice(1).join(":"));
+    if (v) html = setTextInHtml(html, "headline", v);
+    return { html, note: "Updated title/headline." };
+  }
 
-        <rect x="90" y="610" width="420" height="1" fill="rgba(255,255,255,.18)"/>
-        <text x="300" y="690" text-anchor="middle" fill="#eaf0ff" font-size="22" font-family="system-ui" font-weight="900">${A}</text>
+  if (x.startsWith("brand:")) {
+    const v = norm(t.split(":").slice(1).join(":"));
+    if (v) html = setTextInHtml(html, "brand", v);
+    return { html, note: "Updated brand." };
+  }
 
-        <text x="300" y="835" text-anchor="middle" fill="#a9b6d3" font-size="12" font-family="system-ui" font-weight="800">deterministic cover preview</text>
-      </svg>
-    </div>
-  </div>
-</body>
-</html>`;
+  if (x.startsWith("cta:")) {
+    const v = norm(t.split(":").slice(1).join(":"));
+    if (v) html = setCtaInHtml(html, "primary", v);
+    return { html, note: "Updated CTA." };
+  }
+
+  if (x.startsWith("price:")) {
+    const v = moneyFromText(t, "$19");
+    html = setPriceInHtml(html, v);
+    return { html, note: "Updated price." };
+  }
+
+  if (x === "add faq") return { html: toggleSection(html, "faq", true), note: "Added FAQ." };
+  if (x === "remove faq") return { html: toggleSection(html, "faq", false), note: "Removed FAQ." };
+
+  if (x === "add pricing") return { html: toggleSection(html, "pricing", true), note: "Added pricing." };
+  if (x === "remove pricing") return { html: toggleSection(html, "pricing", false), note: "Removed pricing." };
+
+  if (x === "add testimonials") return { html: toggleSection(html, "testimonials", true), note: "Added testimonials." };
+  if (x === "remove testimonials") return { html: toggleSection(html, "testimonials", false), note: "Removed testimonials." };
+
+  if (x === "add benefits") return { html: toggleSection(html, "benefits", true), note: "Added benefits." };
+  if (x === "remove benefits") return { html: toggleSection(html, "benefits", false), note: "Removed benefits." };
+
+  return { html, note: "No edit applied." };
 }
 
-function applySimpleHtmlEdit(html, instruction) {
-  // Lightweight edit rules: title, headline, button text, add FAQ section, etc.
-  // (deterministic so it won’t “brainfart”)
-  const t = (instruction || "").toLowerCase();
-
-  let out = html;
-
-  // Update title tag
-  const titleMatch = instruction.match(/title\s*:\s*(.+)/i);
-  if (titleMatch) {
-    const newTitle = escapeHtml(titleMatch[1].trim());
-    out = out.replace(/<title>.*?<\/title>/i, `<title>${newTitle}</title>`);
+async function openAIChat({ text, tier, conversation }) {
+  // If no key, return a helpful fallback instead of failing.
+  if (!OPENAI_API_KEY) {
+    return {
+      ok: true,
+      text:
+        "I’m running in offline mode (no OpenAI key on the server). " +
+        "If you want a landing page preview, say: “build a landing page for a fitness coach”. " +
+        "Or edit: “headline: …”, “cta: …”, “add faq”, “price: 29”.",
+    };
   }
 
-  // Update first <h1>
-  const h1Match = instruction.match(/headline\s*:\s*(.+)/i);
-  if (h1Match) {
-    const newH1 = escapeHtml(h1Match[1].trim());
-    out = out.replace(/<h1>.*?<\/h1>/i, `<h1>${newH1}</h1>`);
-  }
+  const sys =
+    "You are Simo: a best-friend voice that is practical and helpful, minimal therapy-speak. " +
+    "Be concise, actionable, and friendly. If the user asks to build a landing page or preview, " +
+    "tell them the preview will appear on the right and suggest 1-2 next edits like headline/cta/faq/pricing. " +
+    "Do not output code fences unless asked. Keep answers short.";
 
-  // Add FAQ if requested
-  if (t.includes("add faq") && !t.includes("remove faq")) {
-    if (!out.includes("id=\"faq\"")) {
-      out = out.replace(
-        /<\/body>/i,
-        `
-<section id="faq" style="max-width:980px;margin:18px auto 34px;padding:0 28px">
-  <div style="border:1px solid rgba(255,255,255,.12);border-radius:18px;padding:14px;background:rgba(0,0,0,.18)">
-    <div style="font-weight:900;margin-bottom:8px;color:#eaf0ff">FAQ</div>
-    <div style="color:#a9b6d3;font-weight:650;line-height:1.5">
-      <b style="color:#eaf0ff">Q:</b> How fast can I launch?<br/>
-      <b style="color:#eaf0ff">A:</b> This template is ready now—swap copy and ship.<br/><br/>
-      <b style="color:#eaf0ff">Q:</b> Can I customize it?<br/>
-      <b style="color:#eaf0ff">A:</b> Yes—ask Simo to edit headline, CTA, sections, etc.
-    </div>
-  </div>
-</section>
-</body>`
-      );
+  const msgs = [];
+  msgs.push({ role: "system", content: sys });
+
+  // include last few conversation turns for context (safe)
+  if (Array.isArray(conversation)) {
+    const tail = conversation.slice(-12);
+    for (const m of tail) {
+      if (!m || !m.role) continue;
+      const c = typeof m.content === "string" ? m.content : "";
+      if (!c) continue;
+      if (m.role === "user" || m.role === "assistant") msgs.push({ role: m.role, content: c });
     }
+  } else {
+    msgs.push({ role: "user", content: text });
   }
 
-  // Remove FAQ if requested
-  if (t.includes("remove faq")) {
-    out = out.replace(/<section id="faq"[\s\S]*?<\/section>\s*/i, "");
+  // Ensure the latest user text is present
+  if (!msgs.length || msgs[msgs.length - 1].role !== "user") {
+    msgs.push({ role: "user", content: text });
   }
-
-  // CTA text change
-  const ctaMatch = instruction.match(/cta\s*:\s*(.+)/i);
-  if (ctaMatch) {
-    const newCta = escapeHtml(ctaMatch[1].trim());
-    out = out.replace(/<button class="btn primary">.*?<\/button>/i, `<button class="btn primary">${newCta}</button>`);
-  }
-
-  return out;
-}
-
-function escapeHtml(s) {
-  return String(s || "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/* -------------------------
-   Mode routing (simple + stable)
--------------------------- */
-
-function detectMode(userText) {
-  const t = (userText || "").toLowerCase();
-
-  if (t.includes("i'm stressed") || t.includes("im stressed") || t.includes("vent") || t.includes("argument") || t.includes("wife") || t.includes("upset") || t.includes("anx")) {
-    return "venting";
-  }
-  if (t.includes("fix") || t.includes("debug") || t.includes("error") || t.includes("why") || t.includes("how do i") || t.includes("issue")) {
-    return "solving";
-  }
-  if (t.includes("build") || t.includes("landing page") || t.includes("book cover") || t.includes("preview") || t.includes("app") || t.includes("website") || t.includes("design")) {
-    return "building";
-  }
-  return "building"; // default
-}
-
-function wantsCover(userText) {
-  const t = (userText || "").toLowerCase();
-  return t.includes("book cover") || t.includes("cover");
-}
-
-function wantsLanding(userText) {
-  const t = (userText || "").toLowerCase();
-  return t.includes("landing page") || t.includes("website") || t.includes("homepage");
-}
-
-function wantsPreview(userText) {
-  const t = (userText || "").toLowerCase();
-  return t.includes("show me a preview") || t.includes("show preview") || t.includes("preview");
-}
-
-function wantsEdit(userText) {
-  const t = (userText || "").toLowerCase();
-  return t.startsWith("edit") || t.includes("edit the preview") || t.includes("update the preview") || t.includes("change the preview") || t.includes("add faq") || t.includes("remove faq") || t.includes("headline:") || t.includes("cta:");
-}
-
-/* -------------------------
-   Optional OpenAI Responses (safe)
--------------------------- */
-
-async function tryOpenAI({ userText, conversation }) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return null;
-
-  // Keep it conservative so it won't break if model changes:
-  const input = buildResponsesInput(userText, conversation);
 
   const body = {
-    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-    input,
-    // Keep responses strictly text
-    text: { format: { type: "text" } },
-    temperature: 0.6,
+    model: OPENAI_MODEL,
+    messages: msgs,
+    temperature: tier === "pro" ? 0.7 : 0.5,
   };
 
-  const r = await fetch("https://api.openai.com/v1/responses", {
+  const r = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
+      authorization: `Bearer ${OPENAI_API_KEY}`,
       "content-type": "application/json",
-      "authorization": `Bearer ${key}`,
     },
     body: JSON.stringify(body),
   });
 
+  const j = await r.json().catch(() => null);
+
   if (!r.ok) {
-    const errTxt = await r.text().catch(() => "");
-    return { error: `OpenAI error (${r.status})`, details: errTxt.slice(0, 1200) };
+    const msg = j?.error?.message || `OpenAI error (${r.status})`;
+    return { ok: false, error: msg, details: j || null };
   }
 
-  const data = await r.json();
-  const text = extractResponsesText(data);
-  return { text: text || "" };
+  const out = j?.choices?.[0]?.message?.content || "";
+  return { ok: true, text: out };
 }
-
-function buildResponsesInput(userText, conversation) {
-  // Build a single message with lightweight context (stable)
-  const ctx = Array.isArray(conversation) ? conversation.slice(-10) : [];
-  const history = ctx.map(m => `${m.role === "user" ? "User" : "Simo"}: ${m.content}`).join("\n");
-
-  const prompt =
-`You are Simo: a direct, helpful best-friend assistant.
-- If the user vents: be supportive and real, not therapy-speak.
-- If the user builds: give actionable steps and concise deliverables.
-- If the user solves: give tight troubleshooting steps.
-Keep it short, confident, and avoid asking lots of questions.
-
-Conversation so far:
-${history}
-
-User: ${userText}
-Simo:`;
-
-  return [
-    {
-      role: "user",
-      content: [{ type: "input_text", text: prompt }],
-    }
-  ];
-}
-
-function extractResponsesText(data) {
-  // responses API shape: data.output[] items with content[] having type 'output_text'
-  const out = data && Array.isArray(data.output) ? data.output : [];
-  let acc = "";
-  for (const item of out) {
-    const content = Array.isArray(item.content) ? item.content : [];
-    for (const c of content) {
-      if (c && c.type === "output_text" && typeof c.text === "string") {
-        acc += c.text;
-      }
-    }
-  }
-  return acc.trim();
-}
-
-/* -------------------------
-   Handler
--------------------------- */
 
 exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return j(200, { ok: true });
+  try {
+    // CORS preflight
+    if (event.httpMethod === "OPTIONS") {
+      return json(204, { ok: true });
+    }
 
-  if (event.httpMethod !== "POST") {
-    return j(405, { ok: false, error: "Method not allowed" });
-  }
+    // Health check + avoid “Method not allowed”
+    if (event.httpMethod === "GET") {
+      return json(200, {
+        ok: true,
+        service: "simo",
+        status: "alive",
+        expects: "POST JSON { text, tier, conversation, lastPreview }",
+      });
+    }
 
-  const body = safeJsonParse(event.body || "{}") || {};
-  const userText = (body.text || "").toString().trim();
-  const tier = (body.tier === "pro") ? "pro" : "free";
-  const conversation = clampArr(body.conversation, 16);
-  const lastPreview = body.lastPreview && typeof body.lastPreview.html === "string" ? body.lastPreview : null;
+    if (event.httpMethod !== "POST") {
+      // Instead of hard failing, return JSON so the UI won’t explode
+      return json(405, { ok: false, error: "Method not allowed" });
+    }
 
-  if (!userText) return j(400, { ok: false, error: "Missing message" });
+    const body = safeParseJSON(event.body || "{}") || {};
+    const text = norm(body.text || body.message || "");
+    const tier = body.tier === "pro" ? "pro" : "free";
+    const conversation = Array.isArray(body.conversation) ? body.conversation : [];
+    const lastPreview = body.lastPreview && typeof body.lastPreview === "object" ? body.lastPreview : null;
 
-  const mode = detectMode(userText);
+    if (!text) {
+      return json(400, { ok: false, error: "Missing message" });
+    }
 
-  // --- Deterministic preview logic ---
-  let preview = null;
-  let reply = "";
+    // 1) EDIT COMMANDS (require lastPreview.html)
+    if (isEditCommand(text) && lastPreview?.html) {
+      const edited = applyEditsToHtml(text, lastPreview.html);
+      return json(200, {
+        ok: true,
+        text: `Done. ${edited.note} If you want more changes, try:\n- headline: …\n- cta: …\n- add/remove faq\n- add/remove pricing\n- price: 29`,
+        preview: {
+          kind: "html",
+          title: "Landing page",
+          meta: "Edited deterministically",
+          html: edited.html,
+        },
+      });
+    }
 
-  // Preview edits
-  if (wantsEdit(userText) && lastPreview?.html) {
-    const newHtml = applySimpleHtmlEdit(lastPreview.html, userText);
-    preview = { kind: lastPreview.kind || "html", html: newHtml, title: "Preview updated", meta: "Edited deterministically" };
-    reply = `Done. I updated the preview. If you want a specific change, use:\n- headline: ...\n- cta: ...\n- add faq\n- remove faq\n- title: ...`;
-    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
-  }
+    // 2) PREVIEW REQUESTS (deterministic)
+    if (isPreviewAsk(text)) {
+      const brand = pickBrand(text, "Simo");
+      const topic = extractTopic(text);
+      const headline = pickHeadline(topic, brand);
+      const cta1 = "Get Started";
+      const cta2 = "Learn More";
+      const price = "$19";
 
-  // Deterministic cover
-  if (wantsCover(userText) && wantsPreview(userText)) {
-    const html = makeBookCover({ title: "I Am Angel", author: "Simon Gojcaj" });
-    preview = { kind: "cover", html, title: "Book cover", meta: "Deterministic cover preview" };
-    reply = `Here’s a clean book cover preview. If you want edits, say:\n- headline: YOUR TITLE\n- title: YOUR TITLE\n(Or tell me mood/colors and I’ll re-style it.)`;
-    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
-  }
+      const html = baseLandingTemplate({ brand, topic, headline, cta1, cta2, price });
 
-  // Deterministic landing page
-  if (wantsLanding(userText) && wantsPreview(userText)) {
-    const html = makeLandingPage({
-      title: (tier === "pro") ? "Simo Pro" : "Simo",
-      subtitle: "A clean landing page preview — ask me to edit headline/CTA/sections.",
-      cta: (tier === "pro") ? "Upgrade to Pro" : "Start Free",
-      theme: tier,
+      return json(200, {
+        ok: true,
+        text:
+          "Done. I updated the preview on the right.\n\n" +
+          "If you want a specific change, use:\n" +
+          "- headline: …\n" +
+          "- cta: …\n" +
+          "- price: 29\n" +
+          "- add faq / remove faq\n" +
+          "- add pricing / remove pricing\n" +
+          "- add testimonials / remove testimonials",
+        preview: {
+          kind: "html",
+          title: "Landing page",
+          meta: "Updated",
+          html,
+        },
+      });
+    }
+
+    // 3) NORMAL CHAT (OpenAI optional)
+    const ai = await openAIChat({ text, tier, conversation });
+    if (!ai.ok) {
+      return json(200, {
+        ok: false,
+        error: ai.error || "OpenAI error",
+        details: ai.details || null,
+      });
+    }
+
+    return json(200, { ok: true, text: ai.text });
+
+  } catch (err) {
+    return json(500, {
+      ok: false,
+      error: "Server error",
+      details: String(err?.message || err),
     });
-    preview = { kind: "html", html, title: "Landing page", meta: `Deterministic • theme: ${tier}` };
-    reply = `Preview is on the right. Want a change? Try:\n- headline: ...\n- cta: ...\n- add faq`;
-    return j(200, { ok: true, text: reply, preview, meta: { mode, tier } });
   }
-
-  // If user asks for preview but didn’t specify what:
-  if (wantsPreview(userText) && !wantsLanding(userText) && !wantsCover(userText) && !wantsEdit(userText)) {
-    reply = `Preview’s ready when you tell me what to preview.\nExamples:\n- “show me a preview of a landing page for a bakery”\n- “show me a preview of a space renting app”\n- “show me a preview book cover”`;
-    return j(200, { ok: true, text: reply, preview: { kind: "none" }, meta: { mode, tier } });
-  }
-
-  // --- Text replies (optional OpenAI, fallback deterministic) ---
-  // Try OpenAI if available:
-  const ai = await tryOpenAI({ userText, conversation });
-  if (ai && ai.error) {
-    // fall back (do NOT break)
-    reply = fallbackReply(mode, userText);
-    return j(200, { ok: true, text: reply, meta: { mode, tier, openai: "error", details: ai.details?.slice(0, 400) || "" } });
-  }
-  if (ai && typeof ai.text === "string" && ai.text.trim()) {
-    return j(200, { ok: true, text: ai.text.trim(), meta: { mode, tier, openai: "used" } });
-  }
-
-  // Deterministic fallback
-  reply = fallbackReply(mode, userText);
-  return j(200, { ok: true, text: reply, meta: { mode, tier, openai: "off" } });
 };
-
-function fallbackReply(mode, userText) {
-  const t = (userText || "").trim();
-
-  if (mode === "venting") {
-    return `I’m with you. Say it straight — what part is hitting you the hardest right now?\nIf you want me to help fix it too, tell me what outcome you want (quiet peace, respect, time, etc.).`;
-  }
-  if (mode === "solving") {
-    return `Alright. Paste the exact error text and tell me what you clicked right before it.\nThen I’ll give you one clean fix path (no detours).`;
-  }
-  // building
-  return `Got you. Tell me what you’re building in one line.\nIf you want the preview on the right, literally say: “show me a preview of ___”.`;
-}
