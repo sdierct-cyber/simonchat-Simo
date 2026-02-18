@@ -14,7 +14,6 @@
     if (!el) missing.push(id);
     els[id] = el || null;
   }
-
   if (missing.length) {
     console.error("Simo UI missing required elements:", missing);
     return;
@@ -26,8 +25,9 @@
     library: "simo_library_v1",
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
-    // NEW: preview history stack for undo (no UI change)
-    previewHistory: "simo_preview_history_v1",
+    // History stacks
+    undoStack: "simo_preview_undo_v1",
+    redoStack: "simo_preview_redo_v1",
   };
 
   const state = {
@@ -35,7 +35,8 @@
     busy: false,
     conversation: loadJson(LS.conversation, []),
     lastPreview: loadJson(LS.lastPreview, null),
-    previewHistory: loadJson(LS.previewHistory, []), // array of {kind, html, title, meta, ts}
+    undoStack: loadJson(LS.undoStack, []), // newest first
+    redoStack: loadJson(LS.redoStack, []), // newest first
   };
 
   // ---- init labels ----
@@ -48,18 +49,13 @@
   renderHistory();
   restorePreview();
   setStatus("Ready");
-
   if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
 
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; }
     catch { return fallback; }
   }
-
-  function saveJson(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
-
+  function saveJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
   function setStatus(t) { els.statusHint.textContent = t || "Ready"; }
 
   function setBusy(on) {
@@ -108,7 +104,6 @@
       };
     });
   }
-
   function isPro() { return state.tier === "pro"; }
 
   function syncGates() {
@@ -116,59 +111,68 @@
     toggleLocked(els.btnDownload, !isPro());
     toggleLocked(els.btnLibrary, !isPro());
   }
+  function toggleLocked(el, locked) { el.classList.toggle("locked", !!locked); }
 
-  function toggleLocked(el, locked) {
-    el.classList.toggle("locked", !!locked);
+  // ---- history helpers ----
+  function capStacks() {
+    state.undoStack = state.undoStack.slice(0, 12);
+    state.redoStack = state.redoStack.slice(0, 12);
+    saveJson(LS.undoStack, state.undoStack);
+    saveJson(LS.redoStack, state.redoStack);
   }
 
-  // ---- composer send ----
-  function initComposer() {
-    els.send.onclick = onSend;
-    els.input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        onSend();
-      }
-    });
+  function pushUndo(snapshot) {
+    if (!snapshot?.html) return;
+    state.undoStack.unshift(snapshot);
+    saveJson(LS.undoStack, state.undoStack);
+    // On new change, redo must be cleared (standard behavior)
+    state.redoStack = [];
+    saveJson(LS.redoStack, state.redoStack);
+    capStacks();
   }
 
-  function normalizeCmd(s) {
-    return String(s || "").trim().toLowerCase();
+  function pushRedo(snapshot) {
+    if (!snapshot?.html) return;
+    state.redoStack.unshift(snapshot);
+    saveJson(LS.redoStack, state.redoStack);
+    capStacks();
   }
 
+  function popUndo() {
+    const s = state.undoStack.shift() || null;
+    saveJson(LS.undoStack, state.undoStack);
+    return s;
+  }
+
+  function popRedo() {
+    const s = state.redoStack.shift() || null;
+    saveJson(LS.redoStack, state.redoStack);
+    return s;
+  }
+
+  function normalizeCmd(s) { return String(s || "").trim().toLowerCase(); }
   function isUndoCommand(text) {
     const t = normalizeCmd(text);
     return t === "undo" || t === "undo last edit" || t === "undo last" || t === "undo edit";
   }
-
-  function pushPreviewHistory(prev) {
-    if (!prev || !prev.html) return;
-    // cap history to avoid bloating storage
-    state.previewHistory.unshift(prev);
-    state.previewHistory = state.previewHistory.slice(0, 10);
-    saveJson(LS.previewHistory, state.previewHistory);
-  }
-
-  function popPreviewHistory() {
-    const prev = state.previewHistory.shift();
-    saveJson(LS.previewHistory, state.previewHistory);
-    return prev || null;
+  function isRedoCommand(text) {
+    const t = normalizeCmd(text);
+    return t === "redo" || t === "redo last" || t === "redo edit";
   }
 
   function handleUndo() {
     if (!state.lastPreview?.html) {
-      addMsg("assistant", "Nothing to undo yet — generate a preview first.");
-      state.conversation.push({ role: "assistant", content: "Nothing to undo yet — generate a preview first." });
-      saveJson(LS.conversation, state.conversation);
+      replyLocal("Nothing to undo yet — generate a preview first.");
       return true;
     }
-    const prev = popPreviewHistory();
+    const prev = popUndo();
     if (!prev?.html) {
-      addMsg("assistant", "No previous version found to undo.");
-      state.conversation.push({ role: "assistant", content: "No previous version found to undo." });
-      saveJson(LS.conversation, state.conversation);
+      replyLocal("No previous version found to undo.");
       return true;
     }
+
+    // current goes to redo
+    pushRedo(state.lastPreview);
 
     // swap to prev
     state.lastPreview = prev;
@@ -177,11 +181,49 @@
     els.previewFrame.srcdoc = prev.html;
     setPreviewMeta(prev.title || "Preview", "Undone to previous version");
 
-    addMsg("assistant", "Undone. Preview reverted to the previous version.");
-    state.conversation.push({ role: "assistant", content: "Undone. Preview reverted to the previous version." });
-    saveJson(LS.conversation, state.conversation);
-
+    replyLocal("Undone. Preview reverted to the previous version.");
     return true;
+  }
+
+  function handleRedo() {
+    if (!state.lastPreview?.html) {
+      replyLocal("Nothing to redo yet — generate a preview first.");
+      return true;
+    }
+    const next = popRedo();
+    if (!next?.html) {
+      replyLocal("No redo version found.");
+      return true;
+    }
+
+    // current goes to undo
+    state.undoStack.unshift(state.lastPreview);
+    saveJson(LS.undoStack, state.undoStack);
+
+    // swap to next
+    state.lastPreview = next;
+    saveJson(LS.lastPreview, state.lastPreview);
+
+    els.previewFrame.srcdoc = next.html;
+    setPreviewMeta(next.title || "Preview", "Redone to next version");
+
+    replyLocal("Redone. Preview moved forward to the next version.");
+    capStacks();
+    return true;
+  }
+
+  function replyLocal(text) {
+    addMsg("assistant", text);
+    state.conversation.push({ role: "assistant", content: text });
+    saveJson(LS.conversation, state.conversation);
+  }
+
+  // ---- composer send ----
+  function initComposer() {
+    els.send.onclick = onSend;
+    els.input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+    });
   }
 
   async function onSend() {
@@ -190,15 +232,12 @@
 
     els.input.value = "";
     addMsg("user", text);
-
     state.conversation.push({ role: "user", content: text });
     saveJson(LS.conversation, state.conversation);
 
-    // ✅ NEW: undo handled locally (no backend call)
-    if (isUndoCommand(text)) {
-      handleUndo();
-      return;
-    }
+    // ✅ local undo/redo
+    if (isUndoCommand(text)) return handleUndo();
+    if (isRedoCommand(text)) return handleRedo();
 
     setBusy(true);
     try {
@@ -251,10 +290,8 @@
     const title = preview.title || "Preview";
     const meta = preview.meta || "Updated";
 
-    // ✅ NEW: before overwriting lastPreview, push it to history for undo
-    if (state.lastPreview?.html) {
-      pushPreviewHistory(state.lastPreview);
-    }
+    // before overwriting, push current into undo stack (clears redo)
+    if (state.lastPreview?.html) pushUndo(state.lastPreview);
 
     els.previewFrame.srcdoc = preview.html;
 
@@ -269,7 +306,8 @@
       els.previewFrame.srcdoc = state.lastPreview.html;
       setPreviewMeta(state.lastPreview.title || "Preview", state.lastPreview.meta || "Restored");
     } else {
-      els.previewFrame.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
+      els.previewFrame.srcdoc =
+        `<!doctype html><html><head><meta charset="utf-8">
         <style>html,body{height:100%;margin:0;background:transparent}
         .c{height:100%;display:flex;align-items:center;justify-content:center;color:#a9b6d3;font-family:system-ui}</style>
         </head><body><div class="c">No preview yet</div></body></html>`;
@@ -297,10 +335,7 @@
   }
 
   function gated(fn) {
-    if (!isPro()) {
-      systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
-      return;
-    }
+    if (!isPro()) { systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library."); return; }
     fn();
   }
 
@@ -336,10 +371,7 @@
     systemMsg(`Downloaded: ${filename}`);
   }
 
-  function openLibrary() {
-    els.modalBack.style.display = "flex";
-    renderLibrary();
-  }
+  function openLibrary() { els.modalBack.style.display = "flex"; renderLibrary(); }
   function closeLibrary() { els.modalBack.style.display = "none"; }
 
   function renderLibrary() {
@@ -372,8 +404,7 @@
       loadBtn.textContent = "Load";
       loadBtn.onclick = () => {
         if (it.preview?.html) {
-          // also push current into history so Load can be undone too
-          if (state.lastPreview?.html) pushPreviewHistory(state.lastPreview);
+          if (state.lastPreview?.html) pushUndo(state.lastPreview);
           renderPreview({ ...it.preview, meta: "Loaded from Library" });
         }
         if (Array.isArray(it.conversation)) {
