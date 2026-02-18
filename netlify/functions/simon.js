@@ -1,6 +1,6 @@
 // netlify/functions/simon.js
-// Simo backend: stable preview contract + deterministic edits + optional OpenAI chat.
-// IMPORTANT: Works even if OpenAI key is missing.
+// Simo backend v3: rebuild previews on edits (no fragile regex patches).
+// Stable preview contract + deterministic edits + optional OpenAI chat.
 // Returns preview in BOTH formats:
 //  - preview_html + preview_name
 //  - preview: { name, kind, html }
@@ -57,8 +57,46 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-// ---------- Preview template (numbers are pre-rendered so never ${var}) ----------
-function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 29, includeFaq = true, includeTestimonials = true } = {}) {
+// ---- read current preview state safely (so edits preserve what exists) ----
+function readStarterPrice(html, fallback = 9) {
+  try {
+    // common patterns:
+    // $9/mo
+    // <div class="price">$9/mo</div>
+    // data-price="starter">9<
+    let m =
+      html.match(/data-plan="starter"[\s\S]{0,1200}?\$ ?(\d{1,4})\/mo/i) ||
+      html.match(/data-price="starter"[^>]*>(\d{1,4})</i) ||
+      html.match(/\bStarter\b[\s\S]{0,1200}?\$ ?(\d{1,4})\/mo/i);
+
+    return m ? clampPrice(m[1], fallback) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readBrand(html, fallback = "FlowPro") {
+  try {
+    const m = html.match(/<title>\s*([^<]{1,60})\s*[–-]/i);
+    if (m) return strip(m[1]) || fallback;
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function hasSection(html, sectionKey) {
+  return html.includes(`data-section="${sectionKey}"`) || html.toLowerCase().includes(`<h2>${sectionKey}</h2>`);
+}
+
+// ---------- Landing page template (clean, no duplicates) ----------
+function landingPageTemplate({
+  brand = "FlowPro",
+  starterPrice = 9,
+  proPrice = 29,
+  includeFaq = true,
+  includeTestimonials = true,
+} = {}) {
   const starter = clampPrice(starterPrice, 9);
   const pro = clampPrice(proPrice, 29);
 
@@ -204,61 +242,6 @@ function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 2
 </html>`;
 }
 
-// ---------- deterministic edits ----------
-function replaceProPrice(html, newPrice) {
-  const p = clampPrice(newPrice, 29);
-
-  // Replace ONLY the Pro plan price div content.
-  // Matches the Pro plan block and swaps the first price it finds inside it.
-  return html.replace(
-    /(<div class="plan"[^>]*data-plan="pro"[^>]*>[\s\S]*?<div class="price">)\$\d{1,4}\/mo(<\/div>)/i,
-    `$1$${p}/mo$2`
-  );
-}
-
-function ensureSection(html, key) {
-  if (html.includes(`data-section="${key}"`)) return html;
-
-  const insertAt = html.lastIndexOf("</div>\n</body>");
-  if (insertAt < 0) return html;
-
-  let block = "";
-  if (key === "faq") {
-    block = `
-    <div class="section" data-section="faq">
-      <h2>FAQ</h2>
-      <div class="cards">
-        <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
-        <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
-        <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
-      </div>
-    </div>`;
-  } else if (key === "testimonials") {
-    block = `
-    <div class="section" data-section="testimonials">
-      <h2>Testimonials</h2>
-      <div class="cards">
-        <div class="q"><b>“We shipped faster in week one.”</b><span class="muted"> — Ops Lead</span></div>
-        <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted"> — Founder</span></div>
-      </div>
-    </div>`;
-  } else {
-    return html;
-  }
-
-  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
-}
-
-function detectIntent(text) {
-  const t = (text || "").toLowerCase();
-  if (t.includes("build") && t.includes("landing")) return "build_landing";
-  if (t.includes("add faq") || t.includes("include faq")) return "add_faq";
-  if (t.includes("add testimonials") || t.includes("include testimonials")) return "add_testimonials";
-  // price edit: flexible triggers
-  if (t.includes("price") || t.includes("pricing") || /\$\s*\d{1,4}/.test(t) || /\b\d{1,4}\s*\/?\s*mo\b/.test(t)) return "edit_price";
-  return "chat";
-}
-
 // ---------- optional OpenAI chat ----------
 async function callOpenAIChat(system, user) {
   if (!OPENAI_API_KEY) return null;
@@ -293,16 +276,23 @@ function previewPayload({ reply, previewName, html, meta }) {
   const name = safeName(previewName || "landing_page");
   return {
     ok: true,
-    version: "simo-backend-v2-locked",
+    version: "simo-backend-v3-rebuild",
     ts: nowIso(),
     reply: reply || "Okay.",
     meta: meta || {},
-    // old format:
     preview_name: name,
     preview_html: html,
-    // new format:
     preview: { name, kind: "html", html },
   };
+}
+
+function detectIntent(message) {
+  const t = (message || "").toLowerCase();
+  if (t.includes("build") && t.includes("landing")) return "build_landing";
+  if (t.includes("add faq") || t.includes("include faq")) return "add_faq";
+  if (t.includes("add testimonials") || t.includes("include testimonials")) return "add_testimonials";
+  if (t.includes("price") || t.includes("pricing") || /\$?\s*\d{1,4}/.test(t)) return "edit_price";
+  return "chat";
 }
 
 // ---------- handler ----------
@@ -322,6 +312,7 @@ exports.handler = async (event) => {
       body.preview_html ||
       body?.preview?.html
     );
+
     const currentName = strip(
       body.current_preview_name ||
       body.preview_name ||
@@ -330,66 +321,98 @@ exports.handler = async (event) => {
 
     if (!message) return json(400, { ok: false, error: "Missing message" });
 
-    // Always allow a quick version check
     if (message.toLowerCase() === "version check") {
-      return json(200, { ok: true, version: "simo-backend-v2-locked", ts: nowIso() });
+      return json(200, { ok: true, version: "simo-backend-v3-rebuild", ts: nowIso() });
     }
 
-    // BUILDING: deterministic preview/edit
+    // BUILDING mode: deterministic preview/edit
     if (mode === "building") {
       const intent = detectIntent(message);
 
-      // build if requested or no current preview
+      // Build landing (fresh)
       if (intent === "build_landing" || !currentHtml) {
-        const html = landingPageTemplate({ brand: "FlowPro", starterPrice: 9, proPrice: 29, includeFaq: true, includeTestimonials: true });
+        const html = landingPageTemplate({
+          brand: "FlowPro",
+          starterPrice: 9,
+          proPrice: 29,
+          includeFaq: true,
+          includeTestimonials: true,
+        });
+
         return json(200, previewPayload({
           reply: pro
             ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
             : "Preview loaded. (Turn Pro ON to enable saving + downloads.)",
           previewName: "landing_page",
           html,
-          meta: { intent: "build_landing" }
+          meta: { intent: "build_landing" },
         }));
       }
 
-      // edits
+      // Edits: REBUILD based on current preview state (no patching)
+      const brand = readBrand(currentHtml, "FlowPro");
+      const starterPrice = readStarterPrice(currentHtml, 9);
+      const includeFaq = hasSection(currentHtml, "faq");
+      const includeTestimonials = hasSection(currentHtml, "testimonials");
+
       if (intent === "edit_price") {
         const money = extractMoney(message);
         if (money !== null) {
-          const updated = replaceProPrice(currentHtml, money);
+          const html = landingPageTemplate({
+            brand,
+            starterPrice,
+            proPrice: clampPrice(money, 29),
+            includeFaq,
+            includeTestimonials,
+          });
+
           return json(200, previewPayload({
             reply: `Done. Pro price is now $${clampPrice(money)}/mo.`,
             previewName: currentName || "landing_page",
-            html: updated,
-            meta: { intent: "edit_price" }
+            html,
+            meta: { intent: "edit_price", rebuilt: true },
           }));
         }
       }
 
       if (intent === "add_faq") {
-        const updated = ensureSection(currentHtml, "faq");
+        const html = landingPageTemplate({
+          brand,
+          starterPrice,
+          proPrice: 29, // keep default unless user changes it next
+          includeFaq: true,
+          includeTestimonials,
+        });
+
         return json(200, previewPayload({
           reply: "Done. FAQ added.",
           previewName: currentName || "landing_page",
-          html: updated,
-          meta: { intent: "add_faq" }
+          html,
+          meta: { intent: "add_faq", rebuilt: true },
         }));
       }
 
       if (intent === "add_testimonials") {
-        const updated = ensureSection(currentHtml, "testimonials");
+        const html = landingPageTemplate({
+          brand,
+          starterPrice,
+          proPrice: 29,
+          includeFaq,
+          includeTestimonials: true,
+        });
+
         return json(200, previewPayload({
           reply: "Done. Testimonials added.",
           previewName: currentName || "landing_page",
-          html: updated,
-          meta: { intent: "add_testimonials" }
+          html,
+          meta: { intent: "add_testimonials", rebuilt: true },
         }));
       }
 
-      // no deterministic match: helpful guidance without breaking preview
+      // no deterministic match
       return json(200, {
         ok: true,
-        version: "simo-backend-v2-locked",
+        version: "simo-backend-v3-rebuild",
         ts: nowIso(),
         reply: pro
           ? "Tell me exactly what to change (example: “change price to 19”, “add FAQ”, “add testimonials”, “change headline to …”)."
@@ -406,7 +429,7 @@ exports.handler = async (event) => {
 
       return json(200, {
         ok: true,
-        version: "simo-backend-v2-locked",
+        version: "simo-backend-v3-rebuild",
         ts: nowIso(),
         reply: reply || "I’m here. Talk to me — what’s going on?",
       });
@@ -420,7 +443,7 @@ exports.handler = async (event) => {
 
       return json(200, {
         ok: true,
-        version: "simo-backend-v2-locked",
+        version: "simo-backend-v3-rebuild",
         ts: nowIso(),
         reply: reply || "Alright — what’s the goal and what’s blocking you?",
       });
@@ -428,7 +451,7 @@ exports.handler = async (event) => {
 
     return json(200, {
       ok: true,
-      version: "simo-backend-v2-locked",
+      version: "simo-backend-v3-rebuild",
       ts: nowIso(),
       reply: "I’m here. Pick a mode — or just talk.",
     });
