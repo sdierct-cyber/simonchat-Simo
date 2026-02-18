@@ -4,385 +4,355 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Simo</title>
-
+  <meta name="color-scheme" content="dark" />
   <style>
     :root{
-      --bg:#071021;
-      --bg2:#050b16;
+      --bg:#0b1020;
+      --panel:#0f1730;
+      --panel2:#0d1428;
       --text:#eaf0ff;
       --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --glass:rgba(255,255,255,.04);
-      --glass2:rgba(0,0,0,.22);
-
       --blue:#2a66ff;
       --blue2:#1f4dd6;
-
-      --green:#19ff9a;
-      --green2:#00d57b;
-
-      --shadow: 0 18px 55px rgba(0,0,0,.45);
-      --shadow2: 0 12px 40px rgba(0,0,0,.35);
-      --radius: 22px;
-      --radius2: 16px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --good:#39d98a;
+      --bad:#ff4d4d;
+      --pro:#39ff7a; /* neon green */
+      --shadow: 0 12px 28px rgba(0,0,0,.35);
+      --radius:18px;
     }
-
     *{box-sizing:border-box}
+    html,body{height:100%}
     body{
       margin:0;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      background: radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
-      background:
-        radial-gradient(1200px 700px at 18% 0%, rgba(42,102,255,.35), transparent 55%),
-        radial-gradient(900px 700px at 82% 5%, rgba(25,255,154,.14), transparent 55%),
-        linear-gradient(180deg, var(--bg), var(--bg2));
-      min-height:100vh;
     }
-
-    .wrap{max-width:1240px;margin:0 auto;padding:18px 18px 24px}
-    .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:10px 6px 18px;
-      gap:12px;
-      flex-wrap:wrap;
+    .wrap{max-width:1100px;margin:0 auto;padding:18px}
+    .top{
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      margin-bottom:14px;
     }
     .brand{
-      display:flex;align-items:center;gap:10px;font-weight:900;font-size:28px;letter-spacing:.2px
+      display:flex;align-items:center;gap:10px;
+      font-weight:800;letter-spacing:.2px;
     }
-    .dot{
-      width:12px;height:12px;border-radius:999px;
-      background:radial-gradient(circle at 30% 30%, #b8ffe1 0%, var(--green) 40%, rgba(0,0,0,.1) 70%);
-      box-shadow: 0 0 18px rgba(25,255,154,.35), 0 0 36px rgba(25,255,154,.18);
-    }
+    .dot{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.6)}
+    .sub{font-size:12px;color:var(--muted);font-weight:600}
 
-    .modes{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .pills{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .pill{
-      user-select:none;
-      display:inline-flex;align-items:center;justify-content:center;
-      height:42px;padding:0 16px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.22);
-      color:rgba(234,240,255,.88);
-      font-weight:900;
-      letter-spacing:.2px;
-      cursor:pointer;
-      transition: transform .08s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.04);
+      padding:8px 10px;border-radius:999px;
+      font-weight:700;font-size:12px;color:var(--text);
+      cursor:pointer;user-select:none;
+      display:flex;align-items:center;gap:8px;
     }
-    .pill:hover{transform:translateY(-1px)}
-    .pill.active{
-      border-color: rgba(25,255,154,.55);
-      background: rgba(25,255,154,.10);
-      box-shadow:
-        0 0 0 2px rgba(25,255,154,.12),
-        0 0 28px rgba(25,255,154,.20),
-        0 0 55px rgba(25,255,154,.10);
-      color: #eafff6;
+    .pill small{font-weight:800;color:var(--muted)}
+    .pill.active{border-color:rgba(57,255,122,.55); box-shadow:0 0 0 3px rgba(57,255,122,.12) inset}
+    .pill.pro-badge{
+      border-color:rgba(57,255,122,.40);
     }
-    .pill.pro{
-      border-color: rgba(42,102,255,.25);
-    }
-    .pill.pro.active{
-      border-color: rgba(42,102,255,.55);
-      background: rgba(42,102,255,.12);
-      box-shadow:
-        0 0 0 2px rgba(42,102,255,.14),
-        0 0 28px rgba(42,102,255,.22),
-        0 0 55px rgba(42,102,255,.12);
-      color:#eef3ff;
+    .pill.pro-badge .badge{
+      width:10px;height:10px;border-radius:99px;background:var(--pro);
+      box-shadow:0 0 18px rgba(57,255,122,.55);
     }
 
     .grid{
       display:grid;
       grid-template-columns: 1.05fr .95fr;
-      gap:16px;
+      gap:14px;
     }
-    @media (max-width: 980px){
+    @media (max-width: 920px){
       .grid{grid-template-columns:1fr}
     }
 
-    .panel{
+    .card{
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
       border-radius: var(--radius);
-      background: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
-      box-shadow: var(--shadow2);
+      box-shadow: var(--shadow);
       overflow:hidden;
     }
-
-    .panelHead{
-      display:flex;align-items:center;justify-content:space-between;
-      gap:10px;
+    .card-h{
       padding:12px 12px;
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
       border-bottom:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.02));
-      flex-wrap:wrap;
+      background: rgba(0,0,0,.12);
     }
-    .panelTitle{
-      display:flex;align-items:center;gap:10px;
-      font-weight:1000;
-      font-size:20px;
-      letter-spacing:.2px;
-      flex-wrap:wrap;
-    }
+    .card-h .title{font-weight:900}
+    .card-h .hint{font-size:12px;color:var(--muted);font-weight:700}
+    .card-b{padding:12px}
 
-    .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .badge{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:rgba(234,240,255,.78);
-      font-weight:900;
-      font-size:12px;
-      line-height:1;
-      white-space:nowrap;
-    }
-    .badge.neon{
-      border-color: rgba(25,255,154,.40);
-      box-shadow: 0 0 18px rgba(25,255,154,.14);
-    }
-    .badge.mono{font-family:var(--mono); font-weight:800}
-
-    .panelTools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-
-    .btn{
-      height:40px;
-      padding:0 14px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      font-weight:900;
-      cursor:pointer;
-      transition: transform .08s ease, box-shadow .18s ease, background .18s ease;
-    }
-    .btn:hover{transform:translateY(-1px)}
-    .btn.primary{
-      background: linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
-      border-color: rgba(42,102,255,.55);
-      box-shadow: 0 12px 30px rgba(42,102,255,.18);
-    }
-    .btn.neon{
-      border-color: rgba(25,255,154,.45);
-      box-shadow: 0 0 20px rgba(25,255,154,.12);
-    }
-    .btn:disabled{
-      opacity:.45; cursor:not-allowed; transform:none;
-    }
-
-    .panelBody{
-      padding:12px;
-      background: radial-gradient(900px 520px at 10% 0%, rgba(25,255,154,.07), transparent 55%);
-      min-height: 520px;
-    }
-
-    /* Chat */
-    #chat{
+    .chat{
+      height: 560px;
       display:flex;
       flex-direction:column;
       gap:10px;
-      height: 520px;
     }
-
-    .chatList{
+    .msgs{
       flex:1;
       overflow:auto;
       padding-right:6px;
+      scroll-behavior:smooth;
+    }
+    .msg{
+      margin:10px 0;
+      display:flex;
+      gap:10px;
+    }
+    .avatar{
+      width:34px;height:34px;border-radius:12px;
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;
+      flex:0 0 auto;
     }
     .bubble{
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.18);
-      border-radius:18px;
-      padding:12px 14px;
-      margin:0 0 10px;
+      max-width: 100%;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.20);
+      white-space: pre-wrap;
       line-height:1.35;
-      box-shadow: 0 8px 22px rgba(0,0,0,.20);
-      white-space:pre-wrap;
+      font-weight:650;
     }
-    .bubble.me{
-      background: linear-gradient(180deg, rgba(42,102,255,.18), rgba(0,0,0,.14));
-      border-color: rgba(42,102,255,.25);
-    }
-    .bubble.simo{
-      background: linear-gradient(180deg, rgba(25,255,154,.10), rgba(0,0,0,.16));
-      border-color: rgba(25,255,154,.20);
-    }
-    .small{
-      color:rgba(234,240,255,.68);
+    .me .avatar{background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.25)}
+    .me .bubble{background:rgba(42,102,255,.12); border-color:rgba(42,102,255,.20)}
+    .simo .avatar{background:rgba(57,255,122,.12); border-color:rgba(57,255,122,.22)}
+    .simo .bubble{background:rgba(0,0,0,.20)}
+    .sys{
+      margin:10px 0;
+      padding:10px 12px;
+      border-radius: 14px;
+      border:1px dashed rgba(255,255,255,.16);
+      color:var(--muted);
+      background: rgba(0,0,0,.10);
+      font-weight:750;
       font-size:12px;
-      margin-top:8px;
     }
 
     .composer{
       display:flex;
       gap:10px;
-      align-items:center;
+      align-items:flex-end;
+      padding-top:8px;
       border-top:1px solid var(--line);
-      padding-top:12px;
     }
-    .input{
+    textarea{
       flex:1;
-      height:46px;
-      padding:0 14px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.22);
+      resize:none;
+      min-height:44px;
+      max-height:140px;
+      padding:10px 10px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.22);
       color:var(--text);
       outline:none;
-      font-size:15px;
+      font-weight:650;
+      line-height:1.3;
     }
-    .input:focus{
-      border-color: rgba(25,255,154,.38);
-      box-shadow: 0 0 0 3px rgba(25,255,154,.10);
+    textarea:focus{border-color:rgba(42,102,255,.35); box-shadow:0 0 0 3px rgba(42,102,255,.14)}
+    .btn{
+      border:1px solid rgba(42,102,255,.30);
+      background: linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
+      color:white;
+      font-weight:900;
+      border-radius:14px;
+      padding:10px 12px;
+      cursor:pointer;
+      min-width:92px;
+      box-shadow: 0 10px 20px rgba(0,0,0,.25);
     }
+    .btn:disabled{
+      opacity:.55; cursor:not-allowed;
+      filter:saturate(.85);
+    }
+
+    /* Actions row */
+    .actions{display:flex;gap:8px;flex-wrap:wrap}
+    .chip{
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.04);
+      padding:8px 10px;
+      border-radius: 999px;
+      font-weight:850;
+      font-size:12px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip.locked{opacity:.55}
+    .chip .lock{
+      display:inline-block; margin-left:6px; opacity:.9;
+      font-weight:900;
+    }
+    .chip.good{border-color:rgba(57,255,122,.25)}
+    .chip.blue{border-color:rgba(42,102,255,.25)}
 
     /* Preview */
-    .previewTop{
-      display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
-      padding:10px 12px;border-bottom:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.02));
-    }
-    .previewFrameWrap{
-      padding:12px;
-    }
-    .previewFrame{
-      width:100%;
-      height: 520px;
-      border:1px solid rgba(25,255,154,.22);
-      border-radius: 18px;
+    .previewWrap{
+      height: 560px;
+      border-radius: 16px;
       overflow:hidden;
-      background: rgba(0,0,0,.20);
-      box-shadow: 0 0 0 2px rgba(25,255,154,.10), 0 0 40px rgba(25,255,154,.08);
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.22);
+      position:relative;
     }
-    iframe{
-      width:100%;height:100%;
+    .previewTop{
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
+      padding:10px 10px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+    }
+    .previewTop .label{font-weight:900}
+    .previewTop .meta{font-size:12px;color:var(--muted);font-weight:800}
+    .iframe{
+      width:100%;
+      height: calc(100% - 44px);
       border:0;
-      background:transparent;
+      display:block;
+      background: transparent; /* kills the annoying white block */
     }
 
-    .tipRow{
-      display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
-      margin-top:10px;color:rgba(234,240,255,.70);font-size:12px;
+    /* Modal */
+    .modalBack{
+      position:fixed; inset:0;
+      background: rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      padding:18px;
+      z-index:50;
     }
-    .mono{font-family:var(--mono)}
-
-    /* =========================================================
-       SAFE OVERRIDES (do not move)
-       Fixes: ui badge "circle" + louder pro glow
-       ========================================================= */
-
-    /* Force ui badge to stay ONE line and pill-shaped (no wrap = no circle) */
-    #uiBadge{
-      display:inline-flex !important;
-      align-items:center !important;
-      white-space:nowrap !important;
-      word-break:keep-all !important;
-      overflow-wrap:normal !important;
-      hyphens:none !important;
-      padding:6px 14px !important;
-      line-height:1 !important;
-      height:auto !important;
-      min-width:max-content !important;
-      border-radius:14px !important;
+    .modal{
+      width:min(760px, 100%);
+      border-radius: 18px;
+      border:1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.18));
+      box-shadow: var(--shadow);
+      overflow:hidden;
     }
-    .panelTitle .badge{
-      white-space:nowrap !important;
-      line-height:1 !important;
-      height:auto !important;
+    .modalH{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 12px;
+      border-bottom:1px solid var(--line);
+      background: rgba(0,0,0,.16);
     }
-
-    /* LOUDER Pro blue glow when Pro is ON */
-    #proToggle.active,
-    #proToggle.on,
-    .pill.pro.active,
-    .pill.pro.on{
-      box-shadow:
-        0 0 0 1px rgba(170,220,255,1),
-        0 0 45px rgba(90,170,255,1),
-        0 0 120px rgba(90,170,255,1) !important;
+    .modalH .t{font-weight:950}
+    .modalB{padding:12px}
+    .libList{display:flex;flex-direction:column;gap:8px;max-height:360px;overflow:auto}
+    .libItem{
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      border-radius: 14px;
+      padding:10px 10px;
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+    }
+    .libItem .name{font-weight:900}
+    .libItem .when{font-size:12px;color:var(--muted);font-weight:800}
+    .miniBtn{
+      border:1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.06);
+      color:var(--text);
+      font-weight:900;
+      border-radius: 12px;
+      padding:8px 10px;
+      cursor:pointer;
+      white-space:nowrap;
+    }
+    .miniBtn.primary{
+      border-color:rgba(42,102,255,.35);
+      background: rgba(42,102,255,.18);
+    }
+    .miniBtn.danger{
+      border-color:rgba(255,77,77,.25);
+      background: rgba(255,77,77,.12);
     }
   </style>
 </head>
 
 <body>
   <div class="wrap">
-    <div class="topbar">
-      <div class="brand"><span class="dot"></span><span>Simo</span></div>
+    <div class="top">
+      <div>
+        <div class="brand"><span class="dot"></span> Simo</div>
+        <div class="sub">V1 checkpoint — stable chat + preview + Pro gating</div>
+      </div>
 
-      <div class="modes">
-        <button class="pill active" id="modeBuilding" type="button">Building</button>
-        <button class="pill" id="modeSolving" type="button">Solving</button>
-        <button class="pill" id="modeVenting" type="button">Venting</button>
-        <button class="pill pro" id="proToggle" type="button" aria-pressed="false">Pro: OFF</button>
+      <div class="pills" id="tierPills">
+        <div class="pill active" data-tier="free">
+          Free <small id="tierFreeLabel">$0</small>
+        </div>
+        <div class="pill pro-badge" data-tier="pro">
+          <span class="badge"></span> Pro <small id="tierProLabel">$19</small>
+        </div>
       </div>
     </div>
 
     <div class="grid">
-      <!-- CHAT PANEL -->
-      <div class="panel">
-        <div class="panelHead">
-          <div class="panelTitle">
-            <span>Chat</span>
-            <span class="badge neon" id="uiBadge">ui: neon-v1</span>
-            <span class="badge mono" id="backendBadge">backend: ?</span>
-          </div>
-
-          <div class="panelTools">
-            <button class="btn neon" id="resetBtn" type="button">Reset</button>
-            <button class="btn" id="devBtn" type="button">Dev</button>
-            <button class="btn" id="saveBtn" type="button" disabled>Save build</button>
-            <button class="btn" id="libraryBtn" type="button" disabled>Library</button>
-          </div>
+      <!-- Chat -->
+      <div class="card">
+        <div class="card-h">
+          <div class="title">Chat</div>
+          <div class="hint" id="statusHint">Ready</div>
         </div>
+        <div class="card-b chat">
+          <div class="actions">
+            <div class="chip blue" id="btnReset">Reset</div>
+            <div class="chip locked" id="btnSave">Save <span class="lock">🔒</span></div>
+            <div class="chip locked" id="btnDownload">Download <span class="lock">🔒</span></div>
+            <div class="chip locked" id="btnLibrary">Library <span class="lock">🔒</span></div>
+          </div>
 
-        <div class="panelBody">
-          <div id="chat">
-            <div class="chatList" id="chatList"></div>
+          <div class="msgs" id="msgs"></div>
 
-            <div class="composer">
-              <input class="input" id="msg" placeholder="Describe what you want to build. Say 'show me a preview' for visuals." />
-              <button class="btn primary" id="sendBtn" type="button">Send</button>
-            </div>
-
-            <div class="tipRow">
-              <div id="modeLine" class="mono">Mode: building</div>
-              <div id="proLine">Pro OFF: Save + Download disabled.</div>
-            </div>
+          <div class="composer">
+            <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
+            <button class="btn" id="send">Send</button>
           </div>
         </div>
       </div>
 
-      <!-- PREVIEW PANEL -->
-      <div class="panel">
-        <div class="previewTop">
-          <div class="panelTitle">Preview</div>
-          <div class="panelTools">
-            <button class="btn primary" id="downloadBtn" type="button" disabled>Download HTML</button>
-            <button class="btn" id="clearPreviewBtn" type="button">Clear</button>
-          </div>
+      <!-- Preview -->
+      <div class="card">
+        <div class="card-h">
+          <div class="title">Preview</div>
+          <div class="hint">HTML / cover / updates render here</div>
         </div>
-
-        <div class="previewFrameWrap">
-          <div class="badges" style="padding:0 0 10px">
-            <span class="badge neon" id="previewNameBadge">none</span>
-            <span class="badge mono" id="previewModeBadge">mode: building</span>
-            <span class="badge mono" id="previewProBadge">pro: off</span>
-            <span class="badge" id="previewStatusBadge">ready</span>
-          </div>
-
-          <div class="previewFrame">
-            <iframe id="previewFrame" title="preview" sandbox="allow-scripts allow-forms allow-popups"></iframe>
-          </div>
-
-          <div class="tipRow">
-            <div id="previewLine">No preview yet.</div>
-            <div class="mono">Tip: say “build landing page” or “show me a preview”.</div>
+        <div class="card-b">
+          <div class="previewWrap">
+            <div class="previewTop">
+              <div class="label" id="previewLabel">Idle</div>
+              <div class="meta" id="previewMeta">No preview yet</div>
+            </div>
+            <iframe class="iframe" id="previewFrame" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="/chat.js"></script>
+  <!-- Library Modal -->
+  <div class="modalBack" id="modalBack">
+    <div class="modal">
+      <div class="modalH">
+        <div class="t">Library</div>
+        <button class="miniBtn" id="closeModal">Close</button>
+      </div>
+      <div class="modalB">
+        <div class="sys" id="libHint">Saved items appear here (Pro).</div>
+        <div class="libList" id="libList"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+          <button class="miniBtn danger" id="clearLib">Clear All</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./chat.js"></script>
 </body>
 </html>
