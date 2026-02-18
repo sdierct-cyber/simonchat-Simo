@@ -1,3 +1,4 @@
+// ✅ LOCKED BASELINE (DO NOT REPLACE WHOLE FILE AGAIN) — if changes needed: patch small sections only.
 // netlify/functions/simon.js
 // Simo backend (locked):
 // - Deterministic previews for: Landing Page + Book Cover
