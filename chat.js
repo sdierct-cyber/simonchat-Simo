@@ -6,6 +6,7 @@
   // - Undo / Redo (local, reliable)
   // - Auto-version Save (Landing Page v1, v2… / Book Cover v1…)
   // - Library modal auto-creates if missing in index.html
+  // - FIX: Legacy saves show "Older save" instead of "Invalid Date"
   // =========================
 
   // ---- Required core element IDs (must exist in index.html) ----
@@ -60,7 +61,7 @@
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
   els.tierProLabel.textContent = `$${PRICING.pro}`;
 
-  // IMPORTANT: Resolve tier from (1) localStorage, (2) active pill in DOM, (3) default free
+  // Resolve tier from (1) localStorage, (2) active pill in DOM, (3) default free
   state.tier = resolveTier();
   applyTierUI();
 
@@ -146,12 +147,10 @@
   function isPro() { return state.tier === "pro"; }
 
   function applyTierUI() {
-    // update pill active styles
     [...els.tierPills.querySelectorAll(".pill")].forEach(p => {
       p.classList.toggle("active", p.dataset.tier === state.tier);
     });
 
-    // update locked button visuals (your CSS dims .locked)
     els.btnSave.classList.toggle("locked", !isPro());
     els.btnDownload.classList.toggle("locked", !isPro());
     els.btnLibrary.classList.toggle("locked", !isPro());
@@ -165,7 +164,6 @@
   }
 
   function initTierHandlers() {
-    // Event delegation ensures clicks always register even if DOM changes
     els.tierPills.addEventListener("click", (e) => {
       const pill = e.target.closest(".pill");
       if (!pill) return;
@@ -173,7 +171,6 @@
       setTier(t, true);
     });
 
-    // Also keep in sync on page restore
     window.addEventListener("focus", () => {
       const t = resolveTier();
       if (t !== state.tier) setTier(t, false);
@@ -203,7 +200,6 @@
     state.undoStack.unshift(snapshot);
     saveJson(LS.undoStack, state.undoStack);
 
-    // new change clears redo
     state.redoStack = [];
     saveJson(LS.redoStack, state.redoStack);
 
@@ -516,11 +512,17 @@
       const left = document.createElement("div");
 
       const name = document.createElement("div");
-      name.textContent = it.name;
+      name.textContent = it.name || "Untitled";
       name.style.fontWeight = "900";
 
       const when = document.createElement("div");
-      when.textContent = new Date(it.when).toLocaleString();
+      // ✅ FIX: no more "Invalid Date" for legacy items
+      if (it.when) {
+        const d = new Date(it.when);
+        when.textContent = isNaN(d.getTime()) ? "Older save" : d.toLocaleString();
+      } else {
+        when.textContent = "Older save";
+      }
       when.style.fontSize = "12px";
       when.style.color = "rgba(233,240,255,.72)";
       when.style.fontWeight = "800";
@@ -551,7 +553,7 @@
           saveJson(LS.conversation, state.conversation);
           els.msgs.innerHTML = "";
           renderHistory();
-          systemMsg(`Loaded: ${it.name}`);
+          systemMsg(`Loaded: ${it.name || "Saved item"}`);
         }
         closeLibrary();
       };
@@ -609,7 +611,6 @@
     state.conversation.push({ role: "user", content: text });
     saveJson(LS.conversation, state.conversation);
 
-    // Local commands
     if (isUndoCmd(text)) return handleUndo();
     if (isRedoCmd(text)) return handleRedo();
 
@@ -671,7 +672,6 @@
       setStatus("Ready");
     };
 
-    // Pro-gated
     els.btnSave.onclick = () => gated(() => saveToLibraryAuto());
     els.btnDownload.onclick = () => gated(downloadPreview);
     els.btnLibrary.onclick = () => gated(openLibrary);
