@@ -1,228 +1,368 @@
-/* chat.js
-   - Handles chat UI (send button + Enter key)
-   - Calls Netlify function /.netlify/functions/simo
-   - Intercepts preview requests and shows preview (tab or modal)
-*/
+// chat.js — Simo UI logic (LOCKED)
+// - Stable mode/pro switching + glowing pills
+// - Deterministic preview lifecycle (keeps landing + book cover + generic preview)
+// - Library + Save build + Download HTML
+// - Avoids loops: if preview exists, “show landing page” switches back
+// - Dynamic placeholder per mode + pro status
 
 (() => {
-  "use strict";
+  const $ = (id) => document.getElementById(id);
 
-  // ---- DOM ----
-  const chatEl = document.getElementById("chat");
-  const inputEl = document.getElementById("input");
-  const sendBtn = document.getElementById("sendBtn");
+  // ---------- State ----------
+  const state = {
+    mode: "building",          // building | solving | venting
+    pro: false,                // Pro toggle (enables preview attachments + save/download in UI)
+    dev: false,                // Dev badge visibility toggle
+    currentPreviewName: "",
+    currentPreviewHtml: "",
+    messages: [],
+  };
 
-  const statusTextEl = document.getElementById("statusText");
-  const debugLogEl = document.getElementById("debugLog");
+  // ---------- DOM ----------
+  const chatList = $("chatList");
+  const msg = $("msg");
+  const sendBtn = $("sendBtn");
 
-  const tabChat = document.getElementById("tabChat");
-  const tabPreview = document.getElementById("tabPreview");
-  const tabBuilder = document.getElementById("tabBuilder");
+  const buildingBtn = $("buildingBtn");
+  const solvingBtn = $("solvingBtn");
+  const ventingBtn = $("ventingBtn");
+  const proBtn = $("proBtn");
 
-  const viewChat = document.getElementById("viewChat");
-  const viewPreview = document.getElementById("viewPreview");
-  const viewBuilder = document.getElementById("viewBuilder");
+  const resetBtn = $("resetBtn");
+  const devBtn = $("devBtn");
+  const saveBtn = $("saveBtn");
+  const libraryBtn = $("libraryBtn");
 
-  // ---- Basic sanity ----
-  if (!chatEl || !inputEl || !sendBtn) {
-    alert("Missing required elements (#chat, #input, #sendBtn). Check index.html IDs.");
-    return;
+  const uiBadge = $("uiBadge");
+  const backendBadge = $("backendBadge");
+
+  const previewFrame = $("previewFrame");
+  const previewMeta = $("previewMeta");
+  const downloadBtn = $("downloadBtn");
+  const clearPreviewBtn = $("clearPreviewBtn");
+
+  const libraryModal = $("libraryModal");
+  const libraryList = $("libraryList");
+  const libraryClose = $("libraryClose");
+
+  // ---------- Helpers ----------
+  function nowISO() {
+    const d = new Date();
+    return d.toISOString();
   }
 
-  // ---- Config ----
-  const ENDPOINT = "/.netlify/functions/simo";
-  const MAX_LOCAL_MESSAGES = 40; // local memory sent to backend (trimmed server-side too)
-
-  // ---- Local chat memory ----
-  const messages = [];
-
-  // ---- UI helpers ----
-  function setStatus(text) {
-    if (statusTextEl) statusTextEl.textContent = text;
+  function safeFileName(name) {
+    return (name || "preview")
+      .toString()
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
   }
 
-  function logDebug(line) {
-    if (!debugLogEl) return;
-    const ts = new Date().toLocaleTimeString();
-    debugLogEl.textContent += `[${ts}] ${line}\n`;
-    debugLogEl.scrollTop = debugLogEl.scrollHeight;
+  function setActivePills() {
+    buildingBtn.classList.toggle("active", state.mode === "building");
+    solvingBtn.classList.toggle("active", state.mode === "solving");
+    ventingBtn.classList.toggle("active", state.mode === "venting");
+    proBtn.classList.toggle("active", !!state.pro);
+
+    // Glow: active pills get neon box shadow via CSS `.pill.active`
   }
 
-  function scrollChatToBottom() {
-    chatEl.scrollTop = chatEl.scrollHeight;
+  function setInputPlaceholder() {
+    let text = "";
+    if (state.mode === "venting") text = "Say what’s on your mind…";
+    else if (state.mode === "solving") text = "What are we trying to fix?";
+    else text = "Describe what you want to build. Say “show me a preview” for visuals.";
+
+    if (state.pro) text += "  (Pro ON: Save + Download enabled.)";
+    msg.placeholder = text;
   }
 
-  function escapeHtml(s) {
-    return String(s)
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+  function pushMessage(role, text) {
+    const item = { role, text, ts: nowISO() };
+    state.messages.push(item);
+
+    const row = document.createElement("div");
+    row.className = "bubble " + (role === "user" ? "user" : "bot");
+    row.innerHTML =
+      role === "user"
+        ? `<div class="who">You:</div><div class="txt"></div>`
+        : `<div class="who">Simo:</div><div class="txt"></div>`;
+    row.querySelector(".txt").textContent = text;
+    chatList.appendChild(row);
+    chatList.scrollTop = chatList.scrollHeight;
   }
 
-  function addMessage(role, text) {
-    const safe = escapeHtml(text);
-    const wrap = document.createElement("div");
-    wrap.className = `msg ${role === "user" ? "you" : "simo"}`;
+  function setPreview(name, html) {
+    state.currentPreviewName = name || "";
+    state.currentPreviewHtml = html || "";
 
-    const who = document.createElement("div");
-    who.className = "who";
-    who.textContent = role === "user" ? "You" : "S";
-
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.innerHTML = safe.replace(/\n/g, "<br/>");
-
-    wrap.appendChild(who);
-    wrap.appendChild(bubble);
-    chatEl.appendChild(wrap);
-    scrollChatToBottom();
-  }
-
-  function setActiveView(which) {
-    // Don’t fight app.js if it exists; but we can still do a safe fallback.
-    if (!viewChat || !viewPreview || !viewBuilder) return;
-
-    viewChat.style.display = which === "chat" ? "" : "none";
-    viewPreview.style.display = which === "preview" ? "" : "none";
-    viewBuilder.style.display = which === "builder" ? "" : "none";
-
-    if (tabChat) tabChat.classList.toggle("active", which === "chat");
-    if (tabPreview) tabPreview.classList.toggle("active", which === "preview");
-    if (tabBuilder) tabBuilder.classList.toggle("active", which === "builder");
-  }
-
-  // ---- Preview interception ----
-  function showPreviewFromText(userText) {
-    const t = String(userText || "").trim();
-    if (!t) return false;
-
-    // Detect preview intent
-    const wantsPreview =
-      /\b(show\s+me\s+a\s+preview|show\s+me\s+preview|preview|mockup|wireframe|what\s+would\s+it\s+look\s+like|ui)\b/i.test(t) &&
-      /\b(app|ui|screen|layout|bakery|store|shop|space|rent|parking|driveway)\b/i.test(t);
-
-    if (!wantsPreview) return false;
-
-    // 1) If preview.js is present, let it handle (modal with iframe)
-    if (window.SimoPreview && typeof window.SimoPreview.maybeHandle === "function") {
-      const res = window.SimoPreview.maybeHandle(t);
-      if (res && res.handled) {
-        setStatus("Showing preview…");
-        logDebug("Preview handled by preview.js modal.");
-        return true;
-      }
+    // Update iframe
+    if (html) {
+      previewFrame.srcdoc = html;
+      previewMeta.textContent = `${name || "preview"} • mode: ${state.mode} • pro: ${state.pro ? "on" : "off"}`;
+    } else {
+      previewFrame.srcdoc = "";
+      previewMeta.textContent = `none • mode: ${state.mode} • pro: ${state.pro ? "on" : "off"}`;
     }
 
-    // 2) Fallback: switch to the in-page preview tab
-    if (tabPreview) {
-      tabPreview.click();
-      setStatus("Showing preview…");
-      logDebug("Preview handled by switching to App Preview tab.");
-      return true;
-    }
-
-    // 3) Absolute fallback: show the preview section directly
-    setActiveView("preview");
-    setStatus("Showing preview…");
-    logDebug("Preview handled by fallback view switch.");
-    return true;
+    // Enable/disable download (UI policy: allow only when Pro ON and we have HTML)
+    downloadBtn.disabled = !(state.pro && !!state.currentPreviewHtml);
   }
 
-  // ---- Network ----
-  async function callSimo(userText) {
-    // Keep local messages trimmed
-    const trimmed = messages.slice(-MAX_LOCAL_MESSAGES);
+  function clearPreview() {
+    setPreview("", "");
+  }
 
+  function loadFromLocalStorage() {
+    try {
+      const raw = localStorage.getItem("simo_library_v1");
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  function saveToLocalStorage(items) {
+    localStorage.setItem("simo_library_v1", JSON.stringify(items));
+  }
+
+  function openLibrary() {
+    const items = loadFromLocalStorage();
+    libraryList.innerHTML = "";
+
+    if (!items.length) {
+      const empty = document.createElement("div");
+      empty.className = "libEmpty";
+      empty.textContent = "Library is empty. Use “Save build” after you generate a preview.";
+      libraryList.appendChild(empty);
+    } else {
+      items
+        .sort((a, b) => (b.savedAt || "").localeCompare(a.savedAt || ""))
+        .forEach((it, idx) => {
+          const row = document.createElement("div");
+          row.className = "libRow";
+
+          const left = document.createElement("div");
+          left.className = "libLeft";
+          left.innerHTML = `
+            <div class="libTitle">${it.name || "untitled"}</div>
+            <div class="libMeta">${it.kind || "html"} • ${it.savedAt || ""}</div>
+          `;
+
+          const right = document.createElement("div");
+          right.className = "libRight";
+
+          const loadBtn = document.createElement("button");
+          loadBtn.className = "btn";
+          loadBtn.textContent = "Load";
+          loadBtn.onclick = () => {
+            setPreview(it.name || "", it.html || "");
+            pushMessage("bot", `Loaded "${it.name || "build"}" from Library.`);
+            closeLibrary();
+          };
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn danger";
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => {
+            const next = items.filter((_, i) => i !== idx);
+            saveToLocalStorage(next);
+            openLibrary();
+          };
+
+          right.appendChild(loadBtn);
+          right.appendChild(delBtn);
+
+          row.appendChild(left);
+          row.appendChild(right);
+          libraryList.appendChild(row);
+        });
+    }
+
+    libraryModal.classList.add("open");
+  }
+
+  function closeLibrary() {
+    libraryModal.classList.remove("open");
+  }
+
+  function downloadCurrentHtml() {
+    if (!state.currentPreviewHtml) return;
+    const blob = new Blob([state.currentPreviewHtml], { type: "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    const base = safeFileName(state.currentPreviewName || "preview");
+    a.href = url;
+    a.download = `${base}.html`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  }
+
+  async function sendMessage(text) {
+    const message = (text || "").trim();
+    if (!message) return;
+
+    pushMessage("user", message);
+
+    // UI policy:
+    // - In building mode, previews are expected.
+    // - In venting/solving, previews only if user asks for “preview” or “book cover/landing”.
+    // Backend also enforces this, but we still send current preview so edits work.
     const payload = {
-      user_text: userText,
-      messages: trimmed
+      message,
+      mode: state.mode,
+      pro: state.pro,
+      current_preview_name: state.currentPreviewName,
+      current_preview_html: state.currentPreviewHtml,
     };
 
-    logDebug(`POST ${ENDPOINT} (messages=${trimmed.length})`);
+    // show “thinking”
+    const thinkingId = "thinking_" + Math.random().toString(16).slice(2);
+    const thinkingRow = document.createElement("div");
+    thinkingRow.className = "bubble bot";
+    thinkingRow.id = thinkingId;
+    thinkingRow.innerHTML = `<div class="who">Simo:</div><div class="txt">…</div>`;
+    chatList.appendChild(thinkingRow);
+    chatList.scrollTop = chatList.scrollHeight;
 
-    const res = await fetch(ENDPOINT, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload)
-    });
+    try {
+      const res = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      const err = data?.error || `Request failed (${res.status})`;
-      throw new Error(err);
+      // remove thinking
+      const tr = $(thinkingId);
+      if (tr) tr.remove();
+
+      // backend badge if present
+      if (data?.version) backendBadge.textContent = `backend: ${data.version}`;
+
+      const reply = (data?.reply || "").trim() || "Okay.";
+      pushMessage("bot", reply);
+
+      // Preview: prefer new contract, fallback to legacy
+      const p = data?.preview;
+      const name = p?.name || data?.preview_name || "";
+      const html = p?.html || data?.preview_html || "";
+
+      // Only set preview if we actually got HTML back (prevents “polluting” preview panel)
+      if (html && name) setPreview(name, html);
+
+    } catch (e) {
+      const tr = $(thinkingId);
+      if (tr) tr.remove();
+      pushMessage("bot", "Something broke on the server call. Open DevTools → Network and check /.netlify/functions/simon.");
     }
-
-    return String(data?.reply || "").trim() || "Hey — I’m here. What’s going on?";
   }
 
-  // ---- Send ----
-  async function send() {
-    const text = inputEl.value.trim();
+  // ---------- Events ----------
+  function setMode(mode) {
+    state.mode = mode;
+    setActivePills();
+    setInputPlaceholder();
+  }
 
-    // Preview intercept FIRST (does not call backend)
-    if (showPreviewFromText(text)) {
-      inputEl.value = "";
+  buildingBtn.onclick = () => setMode("building");
+  solvingBtn.onclick = () => setMode("solving");
+  ventingBtn.onclick = () => setMode("venting");
+
+  proBtn.onclick = () => {
+    state.pro = !state.pro;
+    setActivePills();
+    setInputPlaceholder();
+    // Enable download if we have HTML
+    downloadBtn.disabled = !(state.pro && !!state.currentPreviewHtml);
+  };
+
+  devBtn.onclick = () => {
+    state.dev = !state.dev;
+    document.body.classList.toggle("devOn", state.dev);
+  };
+
+  resetBtn.onclick = () => {
+    state.messages = [];
+    chatList.innerHTML = "";
+    pushMessage("bot", "Reset. I’m here.");
+    // Keep preview (so you don’t lose work), but you can Clear Preview if you want.
+  };
+
+  saveBtn.onclick = () => {
+    if (!state.pro) {
+      pushMessage("bot", "Turn Pro ON to enable saving.");
+      return;
+    }
+    if (!state.currentPreviewHtml) {
+      pushMessage("bot", "Nothing to save yet. Generate a preview first.");
       return;
     }
 
-    if (!text) return;
+    const items = loadFromLocalStorage();
+    items.push({
+      name: state.currentPreviewName || "build",
+      kind: "html",
+      html: state.currentPreviewHtml,
+      savedAt: nowISO(),
+    });
+    saveToLocalStorage(items);
+    pushMessage("bot", `Saved "${state.currentPreviewName || "build"}" to Library.`);
+  };
 
-    // UI: add user message
-    addMessage("user", text);
-    messages.push({ role: "user", content: text });
+  libraryBtn.onclick = () => openLibrary();
+  libraryClose.onclick = () => closeLibrary();
+  libraryModal.onclick = (e) => {
+    if (e.target === libraryModal) closeLibrary();
+  };
 
-    // Clear input + lock send
-    inputEl.value = "";
-    sendBtn.disabled = true;
-    setStatus("Simo is typing…");
-
-    try {
-      const reply = await callSimo(text);
-
-      addMessage("assistant", reply);
-      messages.push({ role: "assistant", content: reply });
-
-      setStatus("Ready.");
-      logDebug("Reply OK.");
-    } catch (e) {
-      const msg = e?.message || "Network error";
-      addMessage("assistant", `I hit an error: ${msg}`);
-      messages.push({ role: "assistant", content: `Error: ${msg}` });
-
-      setStatus("Error.");
-      logDebug(`ERROR: ${msg}`);
-    } finally {
-      sendBtn.disabled = false;
-      inputEl.focus();
+  downloadBtn.onclick = () => {
+    if (!state.pro) {
+      pushMessage("bot", "Turn Pro ON to enable downloads.");
+      return;
     }
-  }
+    downloadCurrentHtml();
+  };
 
-  // ---- Events ----
-  sendBtn.addEventListener("click", () => {
-    send();
-  });
+  clearPreviewBtn.onclick = () => {
+    clearPreview();
+    pushMessage("bot", "Preview cleared.");
+  };
 
-  inputEl.addEventListener("keydown", (e) => {
-    // Enter = send, Shift+Enter = newline
+  sendBtn.onclick = () => {
+    const v = msg.value;
+    msg.value = "";
+    sendMessage(v);
+  };
+
+  msg.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      send();
+      sendBtn.click();
     }
   });
 
-  // ---- Optional: tab fallback if app.js isn’t handling it ----
-  // We only attach these if the buttons exist; app.js can still override.
-  if (tabChat) tabChat.addEventListener("click", () => setActiveView("chat"));
-  if (tabPreview) tabPreview.addEventListener("click", () => setActiveView("preview"));
-  if (tabBuilder) tabBuilder.addEventListener("click", () => setActiveView("builder"));
+  // ---------- Boot ----------
+  function boot() {
+    uiBadge.textContent = "ui: neon-v1";
+    backendBadge.textContent = "backend: …";
+    setActivePills();
+    setInputPlaceholder();
 
-  // ---- Boot message ----
-  addMessage("assistant", "Hey — I’m Simo. What’s going on?");
-  messages.push({ role: "assistant", content: "Hey — I’m Simo. What’s going on?" });
+    // initial message
+    pushMessage("bot", "Reset. I’m here.");
 
-  setStatus("Ready.");
-  logDebug("chat.js loaded.");
+    // restore last preview if you want (optional):
+    // We keep it OFF by default to avoid confusion.
+    setPreview("", "");
+  }
+
+  boot();
 })();
