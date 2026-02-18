@@ -1,13 +1,19 @@
 (() => {
-  // =========================
-  // Simo chat.js — Checkpoint V1++ (stable)
-  // - Pro gating synced (no desync)
-  // - Library modal self-heals (adds missing controls)
-  // - Undo / Redo
-  // - Save / Download / Library gated
-  // - FIX: "Invalid Date" -> "Older save"
-  // - NEW: Export/Import Library Backup (Pro)
-  // =========================
+  // ==========================================================
+  // Simo chat.js — Market-ready Checkpoint V1+++ (LOCKED UI)
+  //
+  // Goals:
+  // - Do NOT break working UI or message flow
+  // - Keep Pro gating stable
+  // - Keep Preview iframe stable
+  // - Library: SHOW existing saves + never lose them
+  // - Add Export/Import backup
+  //
+  // IMPORTANT FIX:
+  // - Standardize library to simo_library_v2
+  // - One-time migrate from old keys:
+  //   simo_library, simo_library_v1, simo_build_library -> simo_library_v2
+  // ==========================================================
 
   const REQ = [
     "msgs","input","send","statusHint",
@@ -29,9 +35,14 @@
   }
 
   const PRICING = { free: 0, pro: 19 };
+
+  // ---- Storage keys (STANDARDIZED) ----
   const LS = {
     tier: "simo_tier",
-    library: "simo_library_v1",
+    // ✅ Standard library key:
+    library: "simo_library_v2",
+    // old/legacy keys that might exist in your browser:
+    legacyLibraries: ["simo_library", "simo_library_v1", "simo_build_library"],
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
     undoStack: "simo_preview_undo_v1",
@@ -52,6 +63,9 @@
   // -------------------------
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
   els.tierProLabel.textContent  = `$${PRICING.pro}`;
+
+  // ✅ One-time library migration before UI renders it
+  migrateLibraryToV2();
 
   state.tier = resolveTier();
   applyTierUI();
@@ -120,6 +134,103 @@
     const a = new Uint32Array(4);
     crypto.getRandomValues(a);
     return [...a].map(n => n.toString(16)).join("");
+  }
+
+  // -------------------------
+  // ✅ Library migration
+  // -------------------------
+  function migrateLibraryToV2() {
+    const current = loadJson(LS.library, []);
+    const usedIds = new Set(Array.isArray(current) ? current.map(x => x?.id).filter(Boolean) : []);
+
+    let merged = Array.isArray(current) ? current.slice() : [];
+
+    // Pull from each legacy key, normalize, merge
+    for (const k of LS.legacyLibraries) {
+      const legacy = loadJson(k, null);
+      if (!legacy) continue;
+
+      // Some older builds stored [] or an object shape; accept array only
+      if (!Array.isArray(legacy) || legacy.length === 0) continue;
+
+      const normalized = legacy
+        .map((it) => normalizeLibraryItem(it))
+        .filter(Boolean);
+
+      for (const it of normalized) {
+        if (usedIds.has(it.id)) it.id = cryptoId();
+        usedIds.add(it.id);
+        merged.push(it);
+      }
+    }
+
+    // De-dup by id (keep first occurrence)
+    const seen = new Set();
+    merged = merged.filter(it => {
+      if (!it?.id) it.id = cryptoId();
+      if (seen.has(it.id)) return false;
+      seen.add(it.id);
+      return true;
+    });
+
+    // Sort newest first
+    merged.sort((a, b) => (b.when || 0) - (a.when || 0));
+
+    // If anything was merged, write to v2
+    // Always write if v2 missing but legacy exists
+    const v2Exists = localStorage.getItem(LS.library) != null;
+    const anyLegacyExists = LS.legacyLibraries.some(k => localStorage.getItem(k) != null);
+
+    if (!v2Exists && anyLegacyExists) {
+      saveJson(LS.library, merged);
+    } else if (merged.length !== (Array.isArray(current) ? current.length : 0)) {
+      saveJson(LS.library, merged);
+    }
+
+    // Optional: do NOT delete legacy keys automatically (safer).
+    // If you want cleanup later, we’ll add a “Cleanup old keys” button.
+  }
+
+  function normalizeLibraryItem(it) {
+    try {
+      const id = it?.id || cryptoId();
+      const name = (it?.name || "Untitled").toString();
+
+      // Different versions used different timestamp keys
+      const when =
+        (typeof it?.when === "number" && isFinite(it.when)) ? it.when :
+        (typeof it?.savedAt === "number" && isFinite(it.savedAt)) ? it.savedAt :
+        Date.now();
+
+      const preview = it?.preview || it?.lastPreview || null;
+
+      // Preview can be stored as { html, kind } or raw html
+      let previewObj = null;
+      if (preview && typeof preview === "object" && typeof preview.html === "string") {
+        previewObj = {
+          kind: preview.kind || "html",
+          html: preview.html,
+          title: preview.title || "Preview",
+          meta: preview.meta || "Saved",
+          ts: preview.ts || when
+        };
+      } else if (typeof preview === "string" && preview.trim()) {
+        previewObj = { kind: "html", html: preview, title: "Preview", meta: "Saved", ts: when };
+      }
+
+      // Some older builds stored html under it.html
+      if (!previewObj && typeof it?.html === "string" && it.html.trim()) {
+        previewObj = { kind: it.kind || "html", html: it.html, title: "Preview", meta: "Saved", ts: when };
+      }
+
+      if (!previewObj || !previewObj.html || !previewObj.html.trim()) return null;
+
+      const conversation = Array.isArray(it?.conversation) ? it.conversation : [];
+
+      return { id, name, when, preview: previewObj, conversation };
+    } catch {
+      return null;
+    }
   }
 
   // -------------------------
@@ -385,7 +496,7 @@
     ensureLibraryModal();
     const input = document.getElementById("importFile");
     if (!input) {
-      systemMsg("Import control missing. Refresh the page and try again.");
+      systemMsg("Import control missing. Refresh and try again.");
       return;
     }
     input.value = "";
@@ -406,15 +517,8 @@
         if (!incoming) throw new Error("Invalid backup format.");
 
         const normalized = incoming
-          .map((it) => {
-            const id = it?.id || cryptoId();
-            const name = it?.name || "Untitled";
-            const when = (typeof it?.when === "number") ? it.when : Date.now();
-            const preview = it?.preview || null;
-            const conversation = Array.isArray(it?.conversation) ? it.conversation : [];
-            return { id, name, when, preview, conversation };
-          })
-          .filter(x => x.preview && typeof x.preview.html === "string" && x.preview.html.trim());
+          .map((it) => normalizeLibraryItem(it))
+          .filter(Boolean);
 
         const current = getLibrary();
         const used = new Set(current.map(x => x.id));
@@ -434,19 +538,16 @@
   }
 
   // -------------------------
-  // Library modal (SELF-HEAL)
-  // This is the key fix: even if an older modal exists,
-  // we inject Export/Import controls into it.
+  // Library modal (self-heal)
   // -------------------------
   function ensureLibraryModal() {
-    // Try to find existing modal elements first
     let back  = document.getElementById("modalBack");
     let close = document.getElementById("closeModal");
     let list  = document.getElementById("libList");
     let hint  = document.getElementById("libHint");
     let clear = document.getElementById("clearLib");
 
-    // If core modal pieces are missing, create full modal from scratch
+    // If core pieces missing: create full modal
     if (!back || !close || !list || !hint || !clear) {
       back = document.createElement("div");
       back.id = "modalBack";
@@ -522,11 +623,11 @@
       footer.style.gap = "10px";
       footer.style.flexWrap = "wrap";
 
-      const leftActions = document.createElement("div");
-      leftActions.id = "libActions";
-      leftActions.style.display = "flex";
-      leftActions.style.gap = "8px";
-      leftActions.style.flexWrap = "wrap";
+      const actions = document.createElement("div");
+      actions.id = "libActions";
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.flexWrap = "wrap";
 
       clear = document.createElement("button");
       clear.id = "clearLib";
@@ -539,7 +640,7 @@
       clear.style.padding = "8px 10px";
       clear.style.fontWeight = "900";
 
-      footer.appendChild(leftActions);
+      footer.appendChild(actions);
       footer.appendChild(clear);
 
       body.appendChild(hint);
@@ -553,10 +654,9 @@
       document.body.appendChild(back);
     }
 
-    // Ensure action container exists (inject into existing modal if needed)
+    // Ensure actions container exists
     let footer = document.getElementById("libFooter");
     if (!footer) {
-      // if old modal exists, create a footer area near Clear All button
       footer = document.createElement("div");
       footer.id = "libFooter";
       footer.style.display = "flex";
@@ -565,21 +665,8 @@
       footer.style.marginTop = "10px";
       footer.style.gap = "10px";
       footer.style.flexWrap = "wrap";
-
-      const clearBtn = document.getElementById("clearLib");
-      const parent = clearBtn?.parentElement || list?.parentElement;
-      if (parent) {
-        // If clear button exists, wrap it with our footer
-        if (clearBtn && clearBtn.parentElement && clearBtn.parentElement !== footer) {
-          // move clear button into footer
-          const oldParent = clearBtn.parentElement;
-          footer.appendChild(document.createElement("div")); // left placeholder for actions
-          footer.appendChild(clearBtn);
-          oldParent.appendChild(footer);
-        } else {
-          parent.appendChild(footer);
-        }
-      }
+      const parent = list?.parentElement;
+      if (parent) parent.appendChild(footer);
     }
 
     let actions = document.getElementById("libActions");
@@ -589,18 +676,10 @@
       actions.style.display = "flex";
       actions.style.gap = "8px";
       actions.style.flexWrap = "wrap";
-
-      // Try to place actions left of Clear All if possible
-      const clearBtn = document.getElementById("clearLib");
-      if (clearBtn && clearBtn.parentElement === footer) {
-        // footer children: [placeholder, clearBtn] possibly
-        footer.replaceChildren(actions, clearBtn);
-      } else {
-        footer.prepend(actions);
-      }
+      footer.prepend(actions);
     }
 
-    // Ensure Export/Import buttons exist
+    // Ensure Export / Import / hidden file input exist
     let exportBtn = document.getElementById("exportLib");
     if (!exportBtn) {
       exportBtn = document.createElement("button");
@@ -641,29 +720,26 @@
       actions.appendChild(importFile);
     }
 
-    // Wire handlers (idempotent)
+    // Wire (idempotent)
     close.onclick = closeLibrary;
     back.onclick = (e) => { if (e.target === back) closeLibrary(); };
-
     clear.onclick = () => gated(clearLibrary);
+
     exportBtn.onclick = () => gated(exportLibraryBackup);
     importBtn.onclick = () => gated(openImportPicker);
     importFile.onchange = () => gated(() => handleImportFile(importFile.files?.[0]));
 
-    // Cache references
+    // Cache
     els.modalBack = back;
     els.closeModal = close;
     els.libList = list;
     els.libHint = hint;
     els.clearLib = clear;
-    els.exportLib = exportBtn;
-    els.importLib = importBtn;
-    els.importFile = importFile;
   }
 
   function openLibrary() {
     ensureLibraryModal();
-    els.modalBack.style.display = "flex";
+    document.getElementById("modalBack").style.display = "flex";
     renderLibrary();
   }
 
