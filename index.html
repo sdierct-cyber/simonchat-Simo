@@ -141,6 +141,11 @@
       background:rgba(57,255,136,.10);
       box-shadow:var(--neonGlow);
     }
+    .btn:disabled{
+      opacity:.45 !important;
+      pointer-events:none !important;
+      transform:none !important;
+    }
 
     /* chat */
     .chatBody{padding:10px 12px}
@@ -306,20 +311,20 @@
       <div class="panelHead">
         <div class="panelTitle">
           Chat
+          <!-- DEV BADGES (hidden by default) -->
           <span id="devBadges" style="display:none; gap:8px; align-items:center;">
-  <span class="badge neon" id="uiBadge">ui: neon-v1</span>
-  <span class="badge" id="backendBadge">backend: ?</span>
-</span>
-
+            <span class="badge neon" id="uiBadge">ui: neon-v1</span>
+            <span class="badge" id="backendBadge">backend: ?</span>
+          </span>
         </div>
         <div class="panelTools">
-  <button class="btn neon" id="resetBtn">Reset</button>
-  <button class="btn" id="devBtn">Dev</button>
-  <button class="btn" id="saveBtn">Save build</button>
-  <button class="btn" id="libraryBtn">Library</button>
-</div>
-
+          <button class="btn neon" id="resetBtn">Reset</button>
+          <button class="btn" id="devBtn">Dev</button>
+          <button class="btn" id="saveBtn">Save build</button>
+          <button class="btn" id="libraryBtn">Library</button>
+        </div>
       </div>
+
       <div class="chatBody">
         <div class="chatlog" id="chatlog"></div>
         <div class="hint" id="chatHint">
@@ -389,6 +394,10 @@
   let mode = "building";
   let pro = false;
 
+  // ChatGPT-like memory (sent to backend; backend can choose to use it)
+  let history = []; // [{role:"user"|"assistant", content:"..."}]
+  const HISTORY_MAX = 24;
+
   // last preview (for deterministic edits)
   let current = {
     preview_html: "",
@@ -411,6 +420,10 @@
   const statusTag = document.getElementById("statusTag");
 
   const resetBtn = document.getElementById("resetBtn");
+  const devBtn = document.getElementById("devBtn");
+  const devBadges = document.getElementById("devBadges");
+  let devOn = false;
+
   const saveBtn = document.getElementById("saveBtn");
   const libraryBtn = document.getElementById("libraryBtn");
   const downloadBtn = document.getElementById("downloadBtn");
@@ -426,12 +439,20 @@
   // helpers
   function setStatus(s){ statusTag.textContent = s; }
 
+  function pushHistory(role, content){
+    history.push({ role, content: String(content || "") });
+    if(history.length > HISTORY_MAX) history = history.slice(-HISTORY_MAX);
+  }
+
   function add(role, text){
     const div = document.createElement("div");
     div.className = "msg " + (role === "you" ? "you" : "simo");
     div.textContent = (role === "you" ? "You: " : "Simo: ") + text;
     chatlog.appendChild(div);
     chatlog.scrollTop = chatlog.scrollHeight;
+
+    // memory
+    pushHistory(role === "you" ? "user" : "assistant", text);
   }
 
   function setMode(next){
@@ -442,11 +463,21 @@
     modeTag.textContent = `mode: ${mode}`;
   }
 
+  function syncProUI(){
+    // Real paid feature gating
+    saveBtn.disabled = !pro;
+    libraryBtn.disabled = !pro;
+    downloadBtn.disabled = !pro;
+    // Clearing preview should always be allowed
+    clearPreviewBtn.disabled = false;
+  }
+
   function setPro(next){
     pro = next;
     proState.textContent = pro ? "ON" : "OFF";
     proPill.classList.toggle("proOn", pro);
     proTag.textContent = `pro: ${pro ? "on" : "off"}`;
+    syncProUI();
   }
 
   function setPreview(name, html){
@@ -455,7 +486,8 @@
     previewNameTag.textContent = current.preview_name || "none";
 
     if(current.preview_html){
-      preview.srcdoc = current.preview_html; // critical fix: render HTML, not JS text
+      // critical: render the HTML
+      preview.srcdoc = current.preview_html;
       previewHint.textContent = "Preview loaded.";
     }else{
       preview.srcdoc = "";
@@ -513,7 +545,7 @@
       const empty = document.createElement("div");
       empty.style.color = "rgba(234,240,255,.75)";
       empty.style.padding = "10px";
-      empty.textContent = "No saved builds yet. Click “Save build” after you generate a preview.";
+      empty.textContent = "No saved builds yet. Click “Save build” after you generate a preview (Pro).";
       libraryList.appendChild(empty);
       return;
     }
@@ -614,6 +646,7 @@
       pro,
       current_preview_html: current.preview_html,
       current_preview_name: current.preview_name,
+      history, // ChatGPT-like memory
     };
 
     let result;
@@ -657,6 +690,7 @@
 
   resetBtn.addEventListener("click", () => {
     chatlog.innerHTML = "";
+    history = [];
     setPreview("none", "");
     current.preview_name = "landing_page";
     current.preview_html = "";
@@ -664,9 +698,19 @@
     setStatus("idle");
   });
 
+  devBtn.addEventListener("click", () => {
+    devOn = !devOn;
+    devBadges.style.display = devOn ? "inline-flex" : "none";
+    add("simo", devOn ? "Dev badges ON." : "Dev badges OFF.");
+  });
+
   saveBtn.addEventListener("click", () => {
+    if(!pro){
+      add("simo", "That’s a Pro feature. Turn Pro ON to save builds.");
+      return;
+    }
     if(!current.preview_html){
-      add("simo", "Nothing to save yet. Turn Pro ON + build a preview first.");
+      add("simo", "Nothing to save yet. Build a preview first.");
       return;
     }
     const list = loadLibrary();
@@ -683,7 +727,14 @@
     add("simo", "Saved to Library.");
   });
 
-  libraryBtn.addEventListener("click", openLibrary);
+  libraryBtn.addEventListener("click", () => {
+    if(!pro){
+      add("simo", "That’s a Pro feature. Turn Pro ON to open the library.");
+      return;
+    }
+    openLibrary();
+  });
+
   closeLibraryBtn.addEventListener("click", closeLibrary);
   libraryModal.addEventListener("click", (e) => {
     if(e.target === libraryModal) closeLibrary();
@@ -695,6 +746,10 @@
   });
 
   downloadBtn.addEventListener("click", () => {
+    if(!pro){
+      add("simo", "That’s a Pro feature. Turn Pro ON to download HTML.");
+      return;
+    }
     if(!current.preview_html){
       add("simo", "No preview to download yet.");
       return;
@@ -710,6 +765,7 @@
   // ----- boot -----
   setMode("building");
   setPro(false);
+  syncProUI();
   setStatus("idle");
   add("simo", "Reset. I’m here.");
   versionCheck();
@@ -717,4 +773,3 @@
 </script>
 </body>
 </html>
-
