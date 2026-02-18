@@ -6,338 +6,285 @@
   <title>Simo</title>
   <style>
     :root{
-      --bg:#0b1020;
-      --text:#eaf0ff;
-      --muted:#a9b6d3;
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --shadow: 0 18px 55px rgba(0,0,0,.45);
+      --panel:rgba(0,0,0,.18);
+      --panel2:rgba(255,255,255,.04);
 
       --blue:#2a66ff; --blue2:#1f4dd6;
-
-      /* Neon green accents */
-      --neon:#26ff8a;
-      --neonSoft: rgba(38,255,138,.18);
-      --neonLine: rgba(38,255,138,.35);
+      --green:#39d98a; --green2:#18b86a;
+      --shadow: 0 18px 55px rgba(0,0,0,.45);
+      --glow: 0 0 18px rgba(57,217,138,.28), 0 0 40px rgba(57,217,138,.12);
     }
     *{box-sizing:border-box}
     body{
       margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      color:var(--text);
       background:
         radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%),
-        radial-gradient(900px 650px at 85% 20%, rgba(38,255,138,.09), transparent 60%),
+        radial-gradient(900px 500px at 80% 10%, rgba(57,217,138,.10), transparent 60%),
         var(--bg);
-      color:var(--text);
     }
 
-    .wrap{max-width:1220px;margin:0 auto;padding:18px}
+    .wrap{max-width:1280px;margin:0 auto;padding:16px}
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      gap:12px;margin-bottom:14px;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:10px 6px 16px;
     }
     .brand{
-      display:flex;align-items:center;gap:10px;font-weight:1000;
-      letter-spacing:.2px;font-size:26px;
+      display:flex; align-items:center; gap:10px;
+      font-weight:900; letter-spacing:.2px;
     }
-    .dot{
-      width:12px;height:12px;border-radius:999px;background:var(--neon);
-      box-shadow:0 0 18px rgba(38,255,138,.55);
-    }
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--green); box-shadow: var(--glow)}
+    .title{font-size:22px}
 
-    .pills{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .modes{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     .pill{
+      border:1px solid rgba(57,217,138,.35);
+      background:rgba(0,0,0,.20);
+      color:rgba(234,240,255,.90);
+      padding:10px 16px;
       border-radius:999px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.18);
-      padding:10px 14px;
-      color:rgba(234,240,255,.88);
       font-weight:900;
       cursor:pointer;
+      transition:transform .06s ease, box-shadow .18s ease, background .18s ease;
       user-select:none;
-      transition:transform .08s ease, box-shadow .2s ease, border-color .2s ease;
     }
     .pill:hover{transform:translateY(-1px)}
     .pill.active{
-      border-color:var(--neonLine);
-      box-shadow: 0 0 0 2px rgba(38,255,138,.10), 0 0 28px rgba(38,255,138,.22);
-      background: linear-gradient(180deg, rgba(38,255,138,.16), rgba(0,0,0,.18));
+      background:rgba(57,217,138,.10);
+      box-shadow: var(--glow);
+      border-color:rgba(57,217,138,.55);
+    }
+    .pill.blue{
+      border-color:rgba(42,102,255,.35);
+    }
+    .pill.blue.active{
+      background:rgba(42,102,255,.12);
+      box-shadow: 0 0 18px rgba(42,102,255,.28), 0 0 40px rgba(42,102,255,.12);
+      border-color:rgba(42,102,255,.55);
     }
 
     .grid{
       display:grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1.05fr 1fr;
       gap:14px;
+      align-items:stretch;
     }
+
     .panel{
       border:1px solid var(--line);
       border-radius:18px;
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      background:linear-gradient(180deg, var(--panel2), var(--panel));
       box-shadow: var(--shadow);
       overflow:hidden;
-      min-height:720px;
-    }
-    .panelHead{
-      padding:14px 14px 10px;
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-    }
-    .panelTitle{
-      font-weight:1000;font-size:20px;display:flex;align-items:center;gap:10px;
-    }
-    .badges{
-      display:flex;gap:8px;align-items:center;flex-wrap:wrap;
-    }
-    .badge{
-      font-size:12px;font-weight:900;
-      padding:6px 10px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.18);
-      color:rgba(234,240,255,.78);
-      display:none;
-    }
-    body.devOn .badge{display:inline-block}
-    .badge.neon{
-      border-color:var(--neonLine);
-      background:rgba(38,255,138,.10);
-      color:rgba(234,240,255,.88);
+      min-height:72vh;
     }
 
-    .panelTools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .panelHead{
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 14px 10px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .panelHead h2{margin:0;font-size:18px;letter-spacing:.2px}
+    .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .badge{
+      display:inline-flex; align-items:center;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(57,217,138,.30);
+      background:rgba(0,0,0,.20);
+      color:rgba(234,240,255,.85);
+      font-size:12px;
+      font-weight:900;
+    }
+
+    .tools{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
     .btn{
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.18);
-      padding:10px 14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.22);
       color:rgba(234,240,255,.92);
-      font-weight:1000;
+      padding:10px 14px;
+      border-radius:14px;
+      font-weight:900;
       cursor:pointer;
-      transition:transform .08s ease, box-shadow .2s ease, border-color .2s ease;
+      transition:transform .06s ease, box-shadow .18s ease, background .18s ease, opacity .18s ease;
     }
     .btn:hover{transform:translateY(-1px)}
-    .btn.neon{
-      border-color:var(--neonLine);
-      box-shadow:0 0 0 2px rgba(38,255,138,.10);
-    }
     .btn.primary{
-      background:linear-gradient(180deg,var(--blue),var(--blue2));
+      background:linear-gradient(180deg, rgba(42,102,255,.95), rgba(31,77,214,.95));
       border-color:rgba(42,102,255,.55);
-      box-shadow:0 10px 24px rgba(42,102,255,.18);
+      box-shadow: 0 0 18px rgba(42,102,255,.16);
     }
-    .btn.danger{
-      border-color:rgba(255,77,77,.35);
-      background:rgba(255,77,77,.08);
+    .btn.neon{
+      border-color:rgba(57,217,138,.50);
+      box-shadow: var(--glow);
+      background:rgba(57,217,138,.08);
     }
     .btn:disabled{
-      opacity:.45;cursor:not-allowed;transform:none;
+      opacity:.45;
+      cursor:not-allowed;
+      transform:none;
+      box-shadow:none;
     }
 
-    .chatBody{padding:0 14px 14px;display:flex;flex-direction:column;height:640px}
-    .chatList{
-      flex:1;
+    .chatBody{
+      padding:14px;
+      height: calc(72vh - 64px - 74px);
       overflow:auto;
-      padding:10px 0;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
     }
-    .bubble{
-      border:1px solid rgba(255,255,255,.10);
+    .msg{
+      padding:12px 14px;
       border-radius:16px;
+      border:1px solid rgba(255,255,255,.10);
       background:rgba(0,0,0,.18);
-      padding:12px 12px;
+      margin:10px 0;
+      line-height:1.4;
+      white-space:pre-wrap;
     }
-    .bubble.user{
-      background:linear-gradient(180deg, rgba(42,102,255,.18), rgba(0,0,0,.18));
-      border-color:rgba(42,102,255,.25);
+    .msg.you{
+      background:rgba(42,102,255,.12);
+      border-color:rgba(42,102,255,.22);
     }
-    .bubble.bot{
-      background:linear-gradient(180deg, rgba(38,255,138,.12), rgba(0,0,0,.18));
-      border-color:rgba(38,255,138,.20);
+    .msg.simo{
+      background:rgba(57,217,138,.08);
+      border-color:rgba(57,217,138,.20);
     }
-    .who{font-size:12px;font-weight:1000;color:rgba(234,240,255,.75);margin-bottom:6px}
-    .txt{white-space:pre-wrap;line-height:1.35}
 
     .composer{
-      display:flex;gap:10px;align-items:center;margin-top:10px;
+      padding:12px 14px;
+      border-top:1px solid rgba(255,255,255,.08);
+      display:flex;
+      gap:10px;
+      align-items:center;
     }
     .input{
       flex:1;
       border-radius:14px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(0,0,0,.18);
-      padding:12px 12px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(0,0,0,.22);
       color:var(--text);
+      padding:12px 12px;
       outline:none;
-      font-size:14px;
-    }
-    .hint{
-      margin-top:10px;
-      color:rgba(234,240,255,.62);
-      font-size:12px;
+      font-size:15px;
     }
 
-    .previewBody{padding:0 14px 14px;height:640px;display:flex;flex-direction:column;gap:10px}
-    .previewMeta{
-      font-size:12px;
-      color:rgba(234,240,255,.72);
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.18);
-      border-radius:999px;
-      padding:8px 10px;
-      width:fit-content;
+    .previewWrap{
+      padding:12px 14px 14px;
+      height: calc(72vh - 64px);
+      display:flex;
+      flex-direction:column;
+      gap:10px;
     }
-    .frameWrap{
+    .previewMeta{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px; flex-wrap:wrap;
+    }
+    .previewFrame{
       flex:1;
-      border:1px solid rgba(38,255,138,.25);
-      box-shadow: 0 0 0 2px rgba(38,255,138,.08);
+      border:1px solid rgba(57,217,138,.25);
       border-radius:16px;
       overflow:hidden;
-      background:rgba(0,0,0,.18);
+      box-shadow: var(--glow);
+      background:rgba(0,0,0,.22);
     }
-    iframe{
-      width:100%;height:100%;
-      border:0;
-      background:transparent;
+    iframe{width:100%;height:100%;border:0;background:transparent}
+
+    .hint{
+      color:rgba(234,240,255,.65);
+      font-size:12px;
+      padding:0 14px 14px;
     }
 
-    /* Library modal */
-    .modal{
-      position:fixed;inset:0;
-      display:none;
-      align-items:center;justify-content:center;
-      background:rgba(0,0,0,.55);
-      padding:18px;
-    }
-    .modal.open{display:flex}
-    .modalCard{
-      width:min(920px, 96vw);
-      max-height:min(720px, 92vh);
-      overflow:auto;
-      border:1px solid rgba(255,255,255,.12);
-      border-radius:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.02));
-      box-shadow:var(--shadow);
-      padding:14px;
-    }
-    .modalHead{
-      display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;
-    }
-    .modalTitle{font-weight:1000;font-size:18px}
-    .libRow{
-      display:flex;align-items:center;justify-content:space-between;
-      gap:12px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.18);
-      border-radius:16px;
-      padding:12px;
-      margin-bottom:10px;
-    }
-    .libTitle{font-weight:1000}
-    .libMeta{color:rgba(234,240,255,.62);font-size:12px;margin-top:4px}
-    .libRight{display:flex;gap:10px;align-items:center}
-    .libEmpty{color:rgba(234,240,255,.70);padding:18px}
-
-    @media (max-width:980px){
+    @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
-      .panel{min-height:640px}
-      .chatBody,.previewBody{height:auto}
-      .frameWrap{height:520px}
+      .panel{min-height:60vh}
+      .chatBody{height: calc(60vh - 64px - 74px)}
+      .previewWrap{height: calc(60vh - 64px)}
     }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="brand"><span class="dot"></span><span>Simo</span></div>
-      <div class="pills">
-        <div class="pill active" id="buildingBtn">Building</div>
-        <div class="pill" id="solvingBtn">Solving</div>
-        <div class="pill" id="ventingBtn">Venting</div>
-        <div class="pill" id="proBtn">Pro: OFF</div>
+      <div class="brand">
+        <div class="dot"></div>
+        <div class="title">Simo</div>
+      </div>
+
+      <div class="modes">
+        <button class="pill active" id="modeBuilding">Building</button>
+        <button class="pill" id="modeSolving">Solving</button>
+        <button class="pill" id="modeVenting">Venting</button>
+        <button class="pill blue" id="togglePro">Pro: OFF</button>
       </div>
     </div>
 
     <div class="grid">
-      <!-- Chat panel -->
+      <!-- CHAT -->
       <div class="panel">
         <div class="panelHead">
-          <div class="panelTitle">
-            <span>Chat</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+            <h2>Chat</h2>
             <div class="badges">
-              <span class="badge neon" id="uiBadge">ui: neon-v1</span>
-              <span class="badge" id="backendBadge">backend: …</span>
+              <span class="badge" id="uiBadge">ui: neon-v1</span>
+              <span class="badge" id="backendBadge">backend: ?</span>
             </div>
           </div>
-          <div class="panelTools">
+          <div class="tools">
             <button class="btn neon" id="resetBtn">Reset</button>
             <button class="btn" id="devBtn">Dev</button>
-            <button class="btn" id="saveBtn">Save build</button>
-            <button class="btn" id="libraryBtn">Library</button>
+            <button class="btn" id="saveBtn" disabled>Save build</button>
+            <button class="btn" id="libraryBtn" disabled>Library</button>
           </div>
         </div>
 
-        <div class="chatBody">
-          <div class="chatList" id="chat"></div>
+        <!-- REQUIRED IDs for the UI validator -->
+        <div class="chatBody" id="chat"></div>
 
-          <div class="composer">
-            <input class="input" id="input" placeholder="Describe what you want to build. Say “show me a preview” for visuals." />
-            <button class="btn primary" id="sendBtn">Send</button>
-          </div>
-
-          <div class="hint" id="hintLine">
-            Tip: Pro ON unlocks Save build + Download HTML. Modes change how Simo responds (like ChatGPT + best friend).
-          </div>
+        <div class="composer">
+          <!-- REQUIRED id="input" -->
+          <input class="input" id="input" placeholder="Describe what you want to build. Say 'show me a preview' for visuals." />
+          <!-- REQUIRED id="sendBtn" -->
+          <button class="btn primary" id="sendBtn">Send</button>
         </div>
+
+        <div class="hint" id="hintLine"></div>
       </div>
 
-      <!-- Preview panel -->
+      <!-- PREVIEW -->
       <div class="panel">
         <div class="panelHead">
-          <div class="panelTitle">Preview</div>
-          <div class="panelTools">
+          <h2>Preview</h2>
+          <div class="tools">
             <button class="btn primary" id="downloadBtn" disabled>Download HTML</button>
-            <button class="btn danger" id="clearPreviewBtn">Clear</button>
+            <button class="btn" id="clearPreviewBtn">Clear</button>
           </div>
         </div>
 
-        <div class="previewBody">
-          <div class="previewMeta" id="previewMeta">none • mode: building • pro: off</div>
-          <div class="frameWrap">
-            <iframe id="previewFrame" title="Preview"></iframe>
+        <div class="previewWrap">
+          <div class="previewMeta" id="previewMeta">
+            <div class="badges" style="gap:10px">
+              <span class="badge" id="previewName">none</span>
+              <span class="badge" id="previewMode">mode: building</span>
+              <span class="badge" id="previewPro">pro: off</span>
+            </div>
+            <span class="badge" id="previewStatus">ready</span>
           </div>
+
+          <div class="previewFrame">
+            <iframe id="previewFrame" title="preview"></iframe>
+          </div>
+        </div>
+
+        <div class="hint">
+          Tip: If you want visuals, say: <b>“show me a preview”</b> or <b>“build landing page”</b>.
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Library modal -->
-  <div class="modal" id="libraryModal">
-    <div class="modalCard">
-      <div class="modalHead">
-        <div class="modalTitle">Library</div>
-        <button class="btn" id="libraryClose">Close</button>
-      </div>
-      <div id="libraryList"></div>
-    </div>
-  </div>
-
-  <script src="./chat.js"></script>
-  <script>
-    // Pro button label updates (tiny UI-only helper)
-    const proBtn = document.getElementById("proBtn");
-    const buildingBtn = document.getElementById("buildingBtn");
-    const solvingBtn = document.getElementById("solvingBtn");
-    const ventingBtn = document.getElementById("ventingBtn");
-
-    function syncProText(){
-      const on = proBtn.classList.contains("active");
-      proBtn.textContent = on ? "Pro: ON" : "Pro: OFF";
-    }
-    const obs = new MutationObserver(syncProText);
-    obs.observe(proBtn, { attributes:true, attributeFilter:["class"] });
-
-    // Keep pill label accurate on load
-    window.addEventListener("load", syncProText);
-  </script>
+  <script src="/chat.js"></script>
 </body>
 </html>
-
