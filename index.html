@@ -4,22 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Simo</title>
-  
-  <style>
-   /* ===== PRO PILL STRONGER BLUE GLOW (targets real Pro button) ===== */
-#proToggle.active,
-#proToggle[aria-pressed="true"]{
-  border-color: rgba(120,190,255,.95) !important;
-  background: rgba(42,102,255,.14) !important;
-  box-shadow:
-    0 0 0 2px rgba(42,102,255,.18),
-    0 0 34px rgba(90,170,255,.45),
-    0 0 85px rgba(90,170,255,.38),
-    0 0 130px rgba(90,170,255,.22);
-  filter: saturate(1.15) brightness(1.08);
-  transition: box-shadow .25s ease, filter .25s ease, border-color .25s ease, background .25s ease;
-}
 
+  <style>
     :root{
       --bg:#071021;
       --bg2:#050b16;
@@ -58,6 +44,8 @@
     .topbar{
       display:flex;align-items:center;justify-content:space-between;
       padding:10px 6px 18px;
+      gap:12px;
+      flex-wrap:wrap;
     }
     .brand{
       display:flex;align-items:center;gap:10px;font-weight:900;font-size:28px;letter-spacing:.2px
@@ -91,6 +79,9 @@
         0 0 55px rgba(25,255,154,.10);
       color: #eafff6;
     }
+    .pill.pro{
+      border-color: rgba(42,102,255,.25);
+    }
     .pill.pro.active{
       border-color: rgba(42,102,255,.55);
       background: rgba(42,102,255,.12);
@@ -98,6 +89,7 @@
         0 0 0 2px rgba(42,102,255,.14),
         0 0 28px rgba(42,102,255,.22),
         0 0 55px rgba(42,102,255,.12);
+      color:#eef3ff;
     }
 
     .grid{
@@ -123,62 +115,28 @@
       padding:12px 12px;
       border-bottom:1px solid var(--line);
       background: linear-gradient(180deg, rgba(0,0,0,.12), rgba(0,0,0,.02));
+      flex-wrap:wrap;
     }
     .panelTitle{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  font-weight:1000;
-  font-size:20px;
-  letter-spacing:.2px;
-  flex-wrap: nowrap;   /* <-- ADD THIS */
-}
+      display:flex;align-items:center;gap:10px;
+      font-weight:1000;
+      font-size:20px;
+      letter-spacing:.2px;
+      flex-wrap:wrap;
+    }
 
     .badges{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
     .badge{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(0,0,0,.18);
-  color:rgba(234,240,255,.78);
-  font-weight:900;
-  font-size:12px;
-      
-      /* Force ui badge to stay on ONE line (prevents the tall "circle" look) */
-#uiBadge{
-  white-space: nowrap;
-  word-break: keep-all;
-  overflow-wrap: normal;
-  hyphens: none;
-
-  width: auto;
-  min-width: max-content;
-
-  padding: 6px 12px;  /* a touch wider so it never wraps */
-  line-height: 1;
-}
-
-/* Fix badge looking like a tall circle in the Chat header */
-.panelTitle .badge{
-  font-size:12px;
-  line-height:1;
-  height:auto;
-  align-self:center;
-  padding:6px 10px;
-}
-
-/* Optional: slightly less rounded UI badge only */
-#uiBadge{
-  border-radius:14px !important;
-}
-
-#uiBadge{
-  border-radius: 14px !important;
-}
-  
+      display:inline-flex;align-items:center;gap:8px;
+      padding:6px 10px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      color:rgba(234,240,255,.78);
+      font-weight:900;
+      font-size:12px;
+      line-height:1;
+      white-space:nowrap;
+    }
     .badge.neon{
       border-color: rgba(25,255,154,.40);
       box-shadow: 0 0 18px rgba(25,255,154,.14);
@@ -239,6 +197,7 @@
       margin:0 0 10px;
       line-height:1.35;
       box-shadow: 0 8px 22px rgba(0,0,0,.20);
+      white-space:pre-wrap;
     }
     .bubble.me{
       background: linear-gradient(180deg, rgba(42,102,255,.18), rgba(0,0,0,.14));
@@ -306,8 +265,45 @@
       margin-top:10px;color:rgba(234,240,255,.70);font-size:12px;
     }
     .mono{font-family:var(--mono)}
+
+    /* =========================================================
+       SAFE OVERRIDES (do not move)
+       Fixes: ui badge "circle" + louder pro glow
+       ========================================================= */
+
+    /* Force ui badge to stay ONE line and pill-shaped (no wrap = no circle) */
+    #uiBadge{
+      display:inline-flex !important;
+      align-items:center !important;
+      white-space:nowrap !important;
+      word-break:keep-all !important;
+      overflow-wrap:normal !important;
+      hyphens:none !important;
+      padding:6px 14px !important;
+      line-height:1 !important;
+      height:auto !important;
+      min-width:max-content !important;
+      border-radius:14px !important;
+    }
+    .panelTitle .badge{
+      white-space:nowrap !important;
+      line-height:1 !important;
+      height:auto !important;
+    }
+
+    /* LOUDER Pro blue glow when Pro is ON */
+    #proToggle.active,
+    #proToggle.on,
+    .pill.pro.active,
+    .pill.pro.on{
+      box-shadow:
+        0 0 0 1px rgba(170,220,255,1),
+        0 0 45px rgba(90,170,255,1),
+        0 0 120px rgba(90,170,255,1) !important;
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="topbar">
@@ -390,9 +386,3 @@
   <script src="/chat.js"></script>
 </body>
 </html>
-
-
-
-
-
-
