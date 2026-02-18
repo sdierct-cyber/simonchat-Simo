@@ -1,10 +1,12 @@
 // netlify/functions/simon.js
-// Simo backend: deterministic previews + optional AI chat.
-// Returns preview in BOTH formats: preview_html AND preview: { html }.
+// Simo backend: stable preview contract + deterministic edits + optional OpenAI chat.
+// IMPORTANT: Works even if OpenAI key is missing.
+// Returns preview in BOTH formats:
+//  - preview_html + preview_name
+//  - preview: { name, kind, html }
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
-// ---------- helpers ----------
 function json(statusCode, obj) {
   return {
     statusCode,
@@ -51,10 +53,37 @@ function escapeHtml(s = "") {
     .replaceAll("'", "&#039;");
 }
 
-// ---------- preview template ----------
-function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 29 } = {}) {
+function nowIso() {
+  return new Date().toISOString();
+}
+
+// ---------- Preview template (numbers are pre-rendered so never ${var}) ----------
+function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 29, includeFaq = true, includeTestimonials = true } = {}) {
   const starter = clampPrice(starterPrice, 9);
   const pro = clampPrice(proPrice, 29);
+
+  const testimonials = includeTestimonials
+    ? `
+      <div class="section" data-section="testimonials">
+        <h2>Testimonials</h2>
+        <div class="cards">
+          <div class="q"><b>“We shipped faster in week one.”</b><span class="muted">— Ops Lead</span></div>
+          <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted">— Founder</span></div>
+        </div>
+      </div>`
+    : "";
+
+  const faq = includeFaq
+    ? `
+      <div class="section" data-section="faq">
+        <h2>FAQ</h2>
+        <div class="cards">
+          <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+          <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+          <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+        </div>
+      </div>`
+    : "";
 
   return `<!doctype html>
 <html lang="en">
@@ -66,7 +95,7 @@ function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 2
   :root{
     --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
     --line:rgba(255,255,255,.10);
-    --shadow: 0 18px 55px rgba(0,0,0,.45);
+    --shadow:0 18px 55px rgba(0,0,0,.45);
     --btn:#2a66ff; --btn2:#1f4dd6;
   }
   *{box-sizing:border-box}
@@ -118,6 +147,13 @@ function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 2
     background:rgba(42,102,255,.18);
     font-weight:900;font-size:12px;margin-bottom:10px;
   }
+  .section{margin-top:22px}
+  .section h2{margin:0 0 10px;font-size:18px;letter-spacing:.2px}
+  .cards{display:grid;gap:10px}
+  .q{
+    border:1px solid var(--line);border-radius:14px;padding:14px;
+    background:rgba(0,0,0,.14);
+  }
   @media (max-width:860px){ .grid{grid-template-columns:1fr} h1{font-size:34px} }
 </style>
 </head>
@@ -138,14 +174,14 @@ function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 2
     </div>
 
     <div class="grid">
-      <div class="plan">
+      <div class="plan" data-plan="starter">
         <h3>Starter</h3>
         <div class="price">$${starter}/mo</div>
         <div class="muted">Basic support<br/>Core features<br/>1 user</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
 
-      <div class="plan">
+      <div class="plan" data-plan="pro">
         <div class="badge">Most Popular</div>
         <h3>Pro</h3>
         <div class="price">$${pro}/mo</div>
@@ -153,42 +189,78 @@ function landingPageTemplate({ brand = "FlowPro", starterPrice = 9, proPrice = 2
         <div style="margin-top:16px"><a class="btn primary" href="#">Choose Plan</a></div>
       </div>
 
-      <div class="plan">
+      <div class="plan" data-plan="enterprise">
         <h3>Enterprise</h3>
         <div class="price">$99/mo</div>
         <div class="muted">Dedicated support<br/>Custom integrations<br/>Unlimited users</div>
         <div style="margin-top:16px"><a class="btn primary" href="#">Contact Sales</a></div>
       </div>
     </div>
+
+    ${testimonials}
+    ${faq}
   </div>
 </body>
 </html>`;
 }
 
+// ---------- deterministic edits ----------
 function replaceProPrice(html, newPrice) {
   const p = clampPrice(newPrice, 29);
-  // replace $29/mo style safely:
-  return html.replace(/\$(\d{1,4})\/mo<\/div>\s*<div class="muted">Priority support/i, `$${p}/mo</div>\n        <div class="muted">Priority support`);
-}
 
-function isBuildRequest(text) {
-  const t = (text || "").toLowerCase();
-  return t.includes("build") && t.includes("landing");
-}
-
-function isPriceEdit(text) {
-  const t = (text || "").toLowerCase();
-  return (
-    t.includes("price") ||
-    t.includes("pricing") ||
-    /\$\s*\d{1,4}/.test(t) ||
-    /\b\d{1,4}\s*\/\s*mo\b/.test(t) ||
-    /\b\d{1,4}\s*mo\b/.test(t)
+  // Replace ONLY the Pro plan price div content.
+  // Matches the Pro plan block and swaps the first price it finds inside it.
+  return html.replace(
+    /(<div class="plan"[^>]*data-plan="pro"[^>]*>[\s\S]*?<div class="price">)\$\d{1,4}\/mo(<\/div>)/i,
+    `$1$${p}/mo$2`
   );
 }
 
-// optional AI (chat-only)
-async function callOpenAIChat(prompt) {
+function ensureSection(html, key) {
+  if (html.includes(`data-section="${key}"`)) return html;
+
+  const insertAt = html.lastIndexOf("</div>\n</body>");
+  if (insertAt < 0) return html;
+
+  let block = "";
+  if (key === "faq") {
+    block = `
+    <div class="section" data-section="faq">
+      <h2>FAQ</h2>
+      <div class="cards">
+        <div class="q"><b>Can I cancel anytime?</b>Yes — cancel in seconds.</div>
+        <div class="q"><b>Do you offer team plans?</b>Yep — upgrade whenever you want.</div>
+        <div class="q"><b>Is there a free trial?</b>We offer a 7-day trial on Pro.</div>
+      </div>
+    </div>`;
+  } else if (key === "testimonials") {
+    block = `
+    <div class="section" data-section="testimonials">
+      <h2>Testimonials</h2>
+      <div class="cards">
+        <div class="q"><b>“We shipped faster in week one.”</b><span class="muted"> — Ops Lead</span></div>
+        <div class="q"><b>“The dashboard saved us hours.”</b><span class="muted"> — Founder</span></div>
+      </div>
+    </div>`;
+  } else {
+    return html;
+  }
+
+  return html.slice(0, insertAt) + block + "\n" + html.slice(insertAt);
+}
+
+function detectIntent(text) {
+  const t = (text || "").toLowerCase();
+  if (t.includes("build") && t.includes("landing")) return "build_landing";
+  if (t.includes("add faq") || t.includes("include faq")) return "add_faq";
+  if (t.includes("add testimonials") || t.includes("include testimonials")) return "add_testimonials";
+  // price edit: flexible triggers
+  if (t.includes("price") || t.includes("pricing") || /\$\s*\d{1,4}/.test(t) || /\b\d{1,4}\s*\/?\s*mo\b/.test(t)) return "edit_price";
+  return "chat";
+}
+
+// ---------- optional OpenAI chat ----------
+async function callOpenAIChat(system, user) {
   if (!OPENAI_API_KEY) return null;
 
   const resp = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -199,21 +271,17 @@ async function callOpenAIChat(prompt) {
     },
     body: JSON.stringify({
       model: "gpt-4o-mini",
-      temperature: 0.6,
+      temperature: 0.65,
       messages: [
-        {
-          role: "system",
-          content:
-            "You are Simo: a best-friend + builder. Be concise, natural, and helpful. Avoid therapy-speak unless asked.",
-        },
-        { role: "user", content: prompt },
+        { role: "system", content: system },
+        { role: "user", content: user },
       ],
     }),
   });
 
   if (!resp.ok) {
     const txt = await resp.text().catch(() => "");
-    throw new Error("OpenAI error: " + txt.slice(0, 220));
+    throw new Error("OpenAI error: " + txt.slice(0, 240));
   }
 
   const data = await resp.json();
@@ -221,15 +289,18 @@ async function callOpenAIChat(prompt) {
   return typeof msg === "string" ? msg.trim() : null;
 }
 
-function previewPayload({ reply, previewName, html }) {
+function previewPayload({ reply, previewName, html, meta }) {
   const name = safeName(previewName || "landing_page");
   return {
     ok: true,
+    version: "simo-backend-v2-locked",
+    ts: nowIso(),
     reply: reply || "Okay.",
-    // old format
+    meta: meta || {},
+    // old format:
     preview_name: name,
     preview_html: html,
-    // new format
+    // new format:
     preview: { name, kind: "html", html },
   };
 }
@@ -246,67 +317,122 @@ exports.handler = async (event) => {
     const mode = strip(body.mode) || "building";
     const pro = !!body.pro;
 
-    const currentHtml = strip(body.current_preview_html || body.preview_html || body?.preview?.html);
-    const currentName = strip(body.current_preview_name || body.preview_name || body?.preview?.name);
+    const currentHtml = strip(
+      body.current_preview_html ||
+      body.preview_html ||
+      body?.preview?.html
+    );
+    const currentName = strip(
+      body.current_preview_name ||
+      body.preview_name ||
+      body?.preview?.name
+    );
 
     if (!message) return json(400, { ok: false, error: "Missing message" });
 
+    // Always allow a quick version check
+    if (message.toLowerCase() === "version check") {
+      return json(200, { ok: true, version: "simo-backend-v2-locked", ts: nowIso() });
+    }
+
+    // BUILDING: deterministic preview/edit
     if (mode === "building") {
-      // build new preview
-      if (isBuildRequest(message) || !currentHtml) {
-        const html = landingPageTemplate({ brand: "FlowPro", starterPrice: 9, proPrice: 29 });
-        return json(
-          200,
-          previewPayload({
-            reply: pro
-              ? "Preview loaded. Tell me what to change (e.g., “change price to $19”)."
-              : "Preview loaded. (Turn on Pro Mode for more previews.)",
-            previewName: "landing_page",
-            html,
-          })
-        );
+      const intent = detectIntent(message);
+
+      // build if requested or no current preview
+      if (intent === "build_landing" || !currentHtml) {
+        const html = landingPageTemplate({ brand: "FlowPro", starterPrice: 9, proPrice: 29, includeFaq: true, includeTestimonials: true });
+        return json(200, previewPayload({
+          reply: pro
+            ? "Preview loaded. Tell me what to change (price / add FAQ / add testimonials / headline)."
+            : "Preview loaded. (Turn Pro ON to enable saving + downloads.)",
+          previewName: "landing_page",
+          html,
+          meta: { intent: "build_landing" }
+        }));
       }
 
-      // edit price
-      if (isPriceEdit(message)) {
+      // edits
+      if (intent === "edit_price") {
         const money = extractMoney(message);
         if (money !== null) {
           const updated = replaceProPrice(currentHtml, money);
-          return json(
-            200,
-            previewPayload({
-              reply: `Done. Pro price is now $${clampPrice(money)}/mo.`,
-              previewName: currentName || "landing_page",
-              html: updated,
-            })
-          );
+          return json(200, previewPayload({
+            reply: `Done. Pro price is now $${clampPrice(money)}/mo.`,
+            previewName: currentName || "landing_page",
+            html: updated,
+            meta: { intent: "edit_price" }
+          }));
         }
       }
 
-      // no deterministic match
+      if (intent === "add_faq") {
+        const updated = ensureSection(currentHtml, "faq");
+        return json(200, previewPayload({
+          reply: "Done. FAQ added.",
+          previewName: currentName || "landing_page",
+          html: updated,
+          meta: { intent: "add_faq" }
+        }));
+      }
+
+      if (intent === "add_testimonials") {
+        const updated = ensureSection(currentHtml, "testimonials");
+        return json(200, previewPayload({
+          reply: "Done. Testimonials added.",
+          previewName: currentName || "landing_page",
+          html: updated,
+          meta: { intent: "add_testimonials" }
+        }));
+      }
+
+      // no deterministic match: helpful guidance without breaking preview
       return json(200, {
         ok: true,
+        version: "simo-backend-v2-locked",
+        ts: nowIso(),
         reply: pro
-          ? "Say exactly what to change (example: “change price to 19”, “build landing page”)."
-          : "Tell me what you want to change. (Enable Pro for previews.)",
+          ? "Tell me exactly what to change (example: “change price to 19”, “add FAQ”, “add testimonials”, “change headline to …”)."
+          : "Tell me what to change. (Turn Pro ON for saving + downloads.)",
       });
     }
 
+    // SOLVING / VENTING: OpenAI optional
     if (mode === "venting") {
-      const reply = await callOpenAIChat(`User is venting. Respond like a private best friend. User said: ${message}`).catch(
-        () => null
-      );
-      return json(200, { ok: true, reply: reply || "I’m here. Talk to me — what’s going on?" });
+      const reply = await callOpenAIChat(
+        "You are Simo: private best friend. Be real, supportive, direct. Avoid therapy clichés unless asked.",
+        `User: ${message}`
+      ).catch(() => null);
+
+      return json(200, {
+        ok: true,
+        version: "simo-backend-v2-locked",
+        ts: nowIso(),
+        reply: reply || "I’m here. Talk to me — what’s going on?",
+      });
     }
 
     if (mode === "solving") {
       const reply = await callOpenAIChat(
-        `User wants help solving a problem. Be practical, structured, and concise. User said: ${message}`
+        "You are Simo: practical problem-solver. Give steps. Ask at most one clarifying question.",
+        `User: ${message}`
       ).catch(() => null);
-      return json(200, { ok: true, reply: reply || "Alright — what’s the goal and what’s blocking you?" });
+
+      return json(200, {
+        ok: true,
+        version: "simo-backend-v2-locked",
+        ts: nowIso(),
+        reply: reply || "Alright — what’s the goal and what’s blocking you?",
+      });
     }
 
-    return json(200, { ok: true, reply: "I’m here. Pick a mode — or just talk." });
+    return json(200, {
+      ok: true,
+      version: "simo-backend-v2-locked",
+      ts: nowIso(),
+      reply: "I’m here. Pick a mode — or just talk.",
+    });
+
   } catch (e) {
     return json(500, { ok: false, error: "Server error", details: String(e?.message || e) });
   }
