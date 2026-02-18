@@ -13,8 +13,6 @@
       --pro:#39ff7a;
       --shadow: 0 12px 28px rgba(0,0,0,.35);
       --radius:18px;
-      --warn:#f7c948;
-      --bad:#ff4d4d;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -28,7 +26,6 @@
     .brand{display:flex;align-items:center;gap:10px;font-weight:900}
     .dot{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.6)}
     .sub{font-size:12px;color:var(--muted);font-weight:700}
-
     .pills{display:flex;gap:8px;flex-wrap:wrap}
     .pill{
       border:1px solid var(--line);
@@ -40,10 +37,8 @@
     .pill small{color:var(--muted);font-weight:900}
     .pill.active{border-color:rgba(57,255,122,.55); box-shadow:0 0 0 3px rgba(57,255,122,.12) inset}
     .pill .badge{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.55)}
-
     .grid{display:grid;grid-template-columns: 1.05fr .95fr;gap:14px}
     @media (max-width:920px){.grid{grid-template-columns:1fr}}
-
     .card{
       background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -59,7 +54,6 @@
     .card-h .title{font-weight:950}
     .card-h .hint{font-size:12px;color:var(--muted);font-weight:800}
     .card-b{padding:12px}
-
     .chat{height:560px;display:flex;flex-direction:column;gap:10px}
     .actions{display:flex;gap:8px;flex-wrap:wrap}
     .chip{
@@ -69,15 +63,6 @@
       font-weight:900;font-size:12px;cursor:pointer;user-select:none;
     }
     .chip.locked{opacity:.55}
-    .starterRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:2px}
-    .starter{
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.14);
-      padding:7px 10px;border-radius:999px;
-      font-weight:900;font-size:12px;cursor:pointer;user-select:none;
-      color:var(--text);
-    }
-    .starter span{color:var(--muted);font-weight:900}
     .msgs{flex:1;overflow:auto;padding-right:6px}
     .msg{margin:10px 0;display:flex;gap:10px}
     .avatar{
@@ -101,7 +86,6 @@
       color:var(--muted);background:rgba(0,0,0,.10);
       font-weight:850;font-size:12px;
     }
-
     .composer{display:flex;gap:10px;align-items:flex-end;padding-top:8px;border-top:1px solid var(--line)}
     textarea{
       flex:1;resize:none;min-height:44px;max-height:140px;
@@ -116,7 +100,6 @@
       cursor:pointer;min-width:92px;box-shadow:0 10px 20px rgba(0,0,0,.25);
     }
     .btn:disabled{opacity:.55;cursor:not-allowed}
-
     .previewWrap{
       height:560px;border-radius:16px;overflow:hidden;
       border:1px solid var(--line);
@@ -129,16 +112,14 @@
     }
     .iframe{
       width:100%;height:calc(100% - 44px);
-      border:0;display:block;background:transparent;
+      border:0;display:block;background:transparent; /* kills white block */
     }
-
-    /* Modal */
     .modalBack{
       position:fixed; inset:0; background: rgba(0,0,0,.55);
       display:none; align-items:center; justify-content:center; padding:18px; z-index:50;
     }
     .modal{
-      width:min(820px,100%); border-radius:18px; border:1px solid var(--line);
+      width:min(760px,100%); border-radius:18px; border:1px solid var(--line);
       background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(0,0,0,.18));
       box-shadow: var(--shadow); overflow:hidden;
     }
@@ -151,30 +132,8 @@
     .libItem .when{font-size:12px;color:var(--muted);font-weight:850}
     .miniBtn{border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:var(--text);font-weight:950;border-radius:12px;padding:8px 10px;cursor:pointer;white-space:nowrap}
     .miniBtn.primary{border-color:rgba(42,102,255,.35);background:rgba(42,102,255,.18)}
-    .miniBtn.good{border-color:rgba(57,255,122,.25);background:rgba(57,255,122,.12)}
+    .miniBtn.success{border-color:rgba(57,217,138,.25);background:rgba(57,217,138,.14)}
     .miniBtn.danger{border-color:rgba(255,77,77,.25);background:rgba(255,77,77,.12)}
-    #libFooter{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
-    #libActions{display:flex;gap:8px;flex-wrap:wrap}
-
-    /* Toasts */
-    #toastWrap{
-      position:fixed; right:14px; bottom:14px; z-index:99;
-      display:flex; flex-direction:column; gap:8px; pointer-events:none;
-    }
-    .toast{
-      pointer-events:none;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(10,16,32,.92);
-      color:var(--text);
-      padding:10px 12px;
-      border-radius:14px;
-      box-shadow:0 14px 30px rgba(0,0,0,.45);
-      font-weight:850;
-      font-size:12px;
-      max-width:320px;
-    }
-    .toast.warn{border-color:rgba(247,201,72,.30)}
-    .toast.bad{border-color:rgba(255,77,77,.30)}
   </style>
 </head>
 <body>
@@ -182,7 +141,7 @@
     <div class="top">
       <div>
         <div class="brand"><span class="dot"></span> Simo</div>
-        <div class="sub">Build landing pages with AI — simple, fast, exportable.</div>
+        <div class="sub">Checkpoint V1 — stable chat + preview + Pro gating</div>
       </div>
 
       <div class="pills" id="tierPills">
@@ -200,23 +159,17 @@
         </div>
         <div class="card-b chat">
           <div class="actions">
-            <div class="chip" id="btnReset">New</div>
+            <div class="chip" id="btnReset">Reset</div>
             <div class="chip locked" id="btnSave">Save 🔒</div>
-            <div class="chip locked" id="btnDownload">Export 🔒</div>
-            <div class="chip locked" id="btnLibrary">My Pages 🔒</div>
-          </div>
-
-          <div class="starterRow" id="starterRow">
-            <div class="starter" data-text="Build a landing page for a fitness coach. Include hero, benefits, testimonials, pricing, FAQ."><span>Example:</span> Fitness coach</div>
-            <div class="starter" data-text="Build a landing page for a dentist. Include services, insurance note, testimonials, booking CTA, FAQ."><span>Example:</span> Dentist</div>
-            <div class="starter" data-text="Build a SaaS waitlist landing page. Include hero, problem/solution, feature bullets, waitlist form, FAQ."><span>Example:</span> SaaS waitlist</div>
+            <div class="chip locked" id="btnDownload">Download 🔒</div>
+            <div class="chip locked" id="btnLibrary">Library 🔒</div>
           </div>
 
           <div class="msgs" id="msgs"></div>
 
           <div class="composer">
-            <textarea id="input" placeholder="Describe what you’re building… (Enter to send • Shift+Enter new line)"></textarea>
-            <button class="btn" id="send" type="button">Send</button>
+            <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
+            <button class="btn" id="send">Send</button>
           </div>
         </div>
       </div>
@@ -225,7 +178,7 @@
       <div class="card">
         <div class="card-h">
           <div class="title">Preview</div>
-          <div class="hint">Your page renders here</div>
+          <div class="hint">HTML / cover / updates render here</div>
         </div>
         <div class="card-b">
           <div class="previewWrap">
@@ -244,27 +197,26 @@
   <div class="modalBack" id="modalBack">
     <div class="modal">
       <div class="modalH">
-        <div class="t">My Pages</div>
-        <button class="miniBtn" id="closeModal" type="button">Close</button>
+        <div class="t">Library</div>
+        <button class="miniBtn" id="closeModal">Close</button>
       </div>
       <div class="modalB">
-        <div class="sys" id="libHint">Saved pages appear here (Pro).</div>
+        <div class="sys" id="libHint">Saved items appear here (Pro).</div>
+
         <div class="libList" id="libList"></div>
 
-        <div id="libFooter">
-          <div id="libActions"></div>
-          <button class="miniBtn danger" id="clearLib" type="button">Clear All</button>
+        <div style="display:flex;gap:8px;justify-content:space-between;align-items:center;margin-top:10px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="miniBtn primary" id="exportLib">Export Backup</button>
+            <button class="miniBtn success" id="importLib">Import Backup</button>
+            <input id="importFile" type="file" accept="application/json,.json" style="display:none" />
+          </div>
+          <button class="miniBtn danger" id="clearLib">Clear All</button>
         </div>
-
-        <input id="importFile" type="file" accept="application/json,.json" style="display:none" />
       </div>
     </div>
   </div>
 
-  <!-- TOASTS -->
-  <div id="toastWrap"></div>
-
-  <!-- IMPORTANT: cache-bust so Netlify never serves old JS -->
-  <script src="./chat.js?v=20260218_2"></script>
+  <script src="./chat.js"></script>
 </body>
 </html>
