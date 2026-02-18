@@ -1,82 +1,70 @@
-/* chat.js — V1 checkpoint
-   - Plan tiers + Pro pill
-   - Save/Download/Library gated
-   - Stable message flow
-   - Preview iframe (srcdoc) working
-*/
-
 (() => {
-  const $ = (id) => document.getElementById(id);
+  const reqIds = [
+    "msgs","input","send","statusHint",
+    "tierPills","tierFreeLabel","tierProLabel",
+    "btnReset","btnSave","btnDownload","btnLibrary",
+    "previewFrame","previewLabel","previewMeta",
+    "modalBack","closeModal","libList","libHint","clearLib"
+  ];
 
-  const els = {
-    msgs: $("msgs"),
-    input: $("input"),
-    send: $("send"),
-    statusHint: $("statusHint"),
+  const els = {};
+  const missing = [];
+  for (const id of reqIds) {
+    const el = document.getElementById(id);
+    if (!el) missing.push(id);
+    els[id] = el || null;
+  }
 
-    tierPills: $("tierPills"),
-    tierFreeLabel: $("tierFreeLabel"),
-    tierProLabel: $("tierProLabel"),
+  if (missing.length) {
+    console.error("Simo UI missing required elements:", missing);
+    // HARD STOP so it doesn't half-run and glitch.
+    return;
+  }
 
-    btnReset: $("btnReset"),
-    btnSave: $("btnSave"),
-    btnDownload: $("btnDownload"),
-    btnLibrary: $("btnLibrary"),
-
-    previewFrame: $("previewFrame"),
-    previewLabel: $("previewLabel"),
-    previewMeta: $("previewMeta"),
-
-    modalBack: $("modalBack"),
-    closeModal: $("closeModal"),
-    libList: $("libList"),
-    libHint: $("libHint"),
-    clearLib: $("clearLib"),
-  };
-
-  // --- State ---
   const PRICING = { free: 0, pro: 19 };
-  const LS_KEYS = {
+  const LS = {
     tier: "simo_tier",
     library: "simo_library_v1",
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
   };
 
-  let state = {
-    tier: loadTier(),
-    conversation: loadConversation(),
-    lastPreview: loadLastPreview(),
+  const state = {
+    tier: (localStorage.getItem(LS.tier) === "pro") ? "pro" : "free",
     busy: false,
+    conversation: loadJson(LS.conversation, []),
+    lastPreview: loadJson(LS.lastPreview, null),
   };
 
-  // --- Init ---
-  initTierUI();
-  initActions();
+  // ---- init labels ----
+  els.tierFreeLabel.textContent = `$${PRICING.free}`;
+  els.tierProLabel.textContent = `$${PRICING.pro}`;
+  syncTierUI();
+  syncGates();
   initComposer();
-  initConversationRender();
-  initPreviewFromStorage();
+  initActions();
+  renderHistory();
+  restorePreview();
   setStatus("Ready");
 
-  if (state.conversation.length === 0) {
-    systemMsg("Simo: Reset. I’m here.");
+  if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
+
+  function loadJson(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; }
+    catch { return fallback; }
   }
 
-  // --- UI helpers ---
-  function setStatus(text) {
-    els.statusHint.textContent = text || "Ready";
+  function saveJson(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
   }
 
-  function scrollToBottom() {
-    els.msgs.scrollTop = els.msgs.scrollHeight;
-  }
+  function setStatus(t) { els.statusHint.textContent = t || "Ready"; }
 
-  function systemMsg(text) {
-    const div = document.createElement("div");
-    div.className = "sys";
-    div.textContent = text;
-    els.msgs.appendChild(div);
-    scrollToBottom();
+  function setBusy(on) {
+    state.busy = !!on;
+    els.send.disabled = state.busy;
+    els.input.disabled = state.busy;
+    setStatus(state.busy ? "Thinking…" : "Ready");
   }
 
   function addMsg(role, text) {
@@ -94,62 +82,46 @@
     row.appendChild(av);
     row.appendChild(b);
     els.msgs.appendChild(row);
-    scrollToBottom();
+    els.msgs.scrollTop = els.msgs.scrollHeight;
   }
 
-  function setBusy(on) {
-    state.busy = !!on;
-    els.send.disabled = state.busy;
-    els.input.disabled = state.busy;
-    setStatus(state.busy ? "Thinking…" : "Ready");
+  function systemMsg(text) {
+    const div = document.createElement("div");
+    div.className = "sys";
+    div.textContent = text;
+    els.msgs.appendChild(div);
+    els.msgs.scrollTop = els.msgs.scrollHeight;
   }
 
-  // --- Tier ---
-  function loadTier() {
-    const v = localStorage.getItem(LS_KEYS.tier);
-    return (v === "pro" || v === "free") ? v : "free";
-  }
-  function saveTier(tier) {
-    localStorage.setItem(LS_KEYS.tier, tier);
-  }
-
-  function initTierUI() {
-    els.tierFreeLabel.textContent = `$${PRICING.free}`;
-    els.tierProLabel.textContent = `$${PRICING.pro}`;
-
+  // ---- tier pills ----
+  function syncTierUI() {
     [...els.tierPills.querySelectorAll(".pill")].forEach(p => {
       p.classList.toggle("active", p.dataset.tier === state.tier);
-      p.addEventListener("click", () => {
-        const next = p.dataset.tier;
-        state.tier = next;
-        saveTier(next);
-        [...els.tierPills.querySelectorAll(".pill")].forEach(x => x.classList.toggle("active", x.dataset.tier === state.tier));
-        refreshGates();
-        systemMsg(next === "pro" ? "Pro mode enabled." : "Free mode enabled.");
-      });
+      p.onclick = () => {
+        state.tier = p.dataset.tier;
+        localStorage.setItem(LS.tier, state.tier);
+        syncTierUI();
+        syncGates();
+        systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
+      };
     });
-
-    refreshGates();
   }
 
   function isPro() { return state.tier === "pro"; }
 
-  function refreshGates() {
-    const pro = isPro();
-    setChipLocked(els.btnSave, !pro);
-    setChipLocked(els.btnDownload, !pro);
-    setChipLocked(els.btnLibrary, !pro);
+  function syncGates() {
+    toggleLocked(els.btnSave, !isPro());
+    toggleLocked(els.btnDownload, !isPro());
+    toggleLocked(els.btnLibrary, !isPro());
   }
 
-  function setChipLocked(el, locked) {
+  function toggleLocked(el, locked) {
     el.classList.toggle("locked", !!locked);
-    // keep labels intact (we already show 🔒 in HTML). No UI reflow.
   }
 
-  // --- Composer ---
+  // ---- composer send ----
   function initComposer() {
-    els.send.addEventListener("click", onSend);
-
+    els.send.onclick = onSend;
     els.input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
@@ -164,30 +136,41 @@
 
     els.input.value = "";
     addMsg("user", text);
+
     state.conversation.push({ role: "user", content: text });
-    persistConversation();
+    saveJson(LS.conversation, state.conversation);
 
     setBusy(true);
     try {
-      const resp = await callBackend(text);
-      if (!resp || resp.ok === false) {
-        addMsg("assistant", resp?.error ? `Error: ${resp.error}` : "Error: Something went wrong.");
+      const payload = {
+        text,
+        tier: state.tier,
+        conversation: state.conversation.slice(-16),
+        lastPreview: state.lastPreview ? { kind: state.lastPreview.kind, html: state.lastPreview.html } : null,
+      };
+
+      const r = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const j = await r.json().catch(() => null);
+
+      if (!j || j.ok === false) {
+        addMsg("assistant", j?.error ? `Error: ${j.error}` : "Error: Request failed.");
         return;
       }
 
-      const replyText = resp.text || resp.reply || "";
-      if (replyText) {
-        addMsg("assistant", replyText);
-        state.conversation.push({ role: "assistant", content: replyText });
-        persistConversation();
+      const reply = (j.text || j.reply || "").trim();
+      if (reply) {
+        addMsg("assistant", reply);
+        state.conversation.push({ role: "assistant", content: reply });
+        saveJson(LS.conversation, state.conversation);
       }
 
-      // Preview contract: resp.preview can be { kind, html, title, meta }
-      if (resp.preview && resp.preview.html) {
-        renderPreview(resp.preview);
-      } else if (resp.preview && resp.preview.kind === "none") {
-        // explicit no preview
-        setPreviewMeta("Idle", "No preview");
+      if (j.preview && typeof j.preview.html === "string" && j.preview.html.trim()) {
+        renderPreview(j.preview);
       }
 
     } catch (err) {
@@ -197,26 +180,7 @@
     }
   }
 
-  // --- Backend call ---
-  async function callBackend(userText) {
-    const body = {
-      text: userText,
-      tier: state.tier,
-      // send a lightweight context (last 16 turns) to preserve flow
-      conversation: state.conversation.slice(-16),
-      lastPreview: state.lastPreview ? { kind: state.lastPreview.kind, html: state.lastPreview.html } : null,
-    };
-
-    const r = await fetch("/.netlify/functions/simon", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    const j = await r.json().catch(() => null);
-    return j;
-  }
-
-  // --- Preview ---
+  // ---- preview ----
   function setPreviewMeta(label, meta) {
     els.previewLabel.textContent = label || "Idle";
     els.previewMeta.textContent = meta || "No preview";
@@ -224,129 +188,85 @@
 
   function renderPreview(preview) {
     const kind = preview.kind || "html";
-    const title = preview.title || (kind === "cover" ? "Book cover" : "Preview");
+    const title = preview.title || "Preview";
     const meta = preview.meta || "Updated";
 
-    // Kill white block: srcdoc + transparent iframe background already set in CSS
     els.previewFrame.srcdoc = preview.html;
 
     state.lastPreview = { kind, html: preview.html, title, meta, ts: Date.now() };
-    localStorage.setItem(LS_KEYS.lastPreview, JSON.stringify(state.lastPreview));
+    saveJson(LS.lastPreview, state.lastPreview);
 
     setPreviewMeta(title, meta);
   }
 
-  function initPreviewFromStorage() {
+  function restorePreview() {
     if (state.lastPreview?.html) {
       els.previewFrame.srcdoc = state.lastPreview.html;
       setPreviewMeta(state.lastPreview.title || "Preview", state.lastPreview.meta || "Restored");
     } else {
-      // Set a dark default blank to avoid “white flash”
-      els.previewFrame.srcdoc =
-        `<!doctype html><html><head><meta charset="utf-8"><style>
-          html,body{height:100%;margin:0;background:transparent}
-          .c{height:100%;display:flex;align-items:center;justify-content:center;
-             color:#a9b6d3;font-family:system-ui}
-        </style></head><body><div class="c">No preview yet</div></body></html>`;
+      els.previewFrame.srcdoc = `<!doctype html><html><head><meta charset="utf-8">
+        <style>html,body{height:100%;margin:0;background:transparent}
+        .c{height:100%;display:flex;align-items:center;justify-content:center;color:#a9b6d3;font-family:system-ui}</style>
+        </head><body><div class="c">No preview yet</div></body></html>`;
       setPreviewMeta("Idle", "No preview yet");
     }
   }
 
-  function loadLastPreview() {
-    try { return JSON.parse(localStorage.getItem(LS_KEYS.lastPreview) || "null"); }
-    catch { return null; }
-  }
-
-  // --- Conversation persistence ---
-  function loadConversation() {
-    try { return JSON.parse(localStorage.getItem(LS_KEYS.conversation) || "[]"); }
-    catch { return []; }
-  }
-  function persistConversation() {
-    localStorage.setItem(LS_KEYS.conversation, JSON.stringify(state.conversation));
-  }
-
-  function initConversationRender() {
-    // render prior chat
-    for (const turn of state.conversation) {
-      if (turn.role === "user") addMsg("user", turn.content);
-      if (turn.role === "assistant") addMsg("assistant", turn.content);
-    }
-    scrollToBottom();
-  }
-
-  // --- Actions: Reset / Save / Download / Library ---
+  // ---- actions ----
   function initActions() {
-    els.btnReset.addEventListener("click", () => {
+    els.btnReset.onclick = () => {
       state.conversation = [];
-      persistConversation();
+      saveJson(LS.conversation, state.conversation);
       els.msgs.innerHTML = "";
       systemMsg("Simo: Reset. I’m here.");
       setStatus("Ready");
-    });
+    };
 
-    els.btnSave.addEventListener("click", () => gated(() => saveToLibrary()));
-    els.btnDownload.addEventListener("click", () => gated(() => downloadCurrentPreview()));
-    els.btnLibrary.addEventListener("click", () => gated(() => openLibrary()));
+    els.btnSave.onclick = () => gated(saveToLibrary);
+    els.btnDownload.onclick = () => gated(downloadPreview);
+    els.btnLibrary.onclick = () => gated(openLibrary);
 
-    els.closeModal.addEventListener("click", closeLibrary);
-    els.modalBack.addEventListener("click", (e) => {
-      if (e.target === els.modalBack) closeLibrary();
-    });
-    els.clearLib.addEventListener("click", () => gated(() => clearLibrary(), true));
+    els.closeModal.onclick = closeLibrary;
+    els.modalBack.onclick = (e) => { if (e.target === els.modalBack) closeLibrary(); };
+    els.clearLib.onclick = () => gated(clearLibrary);
   }
 
-  function gated(fn, allowIfProOnly = true) {
-    if (allowIfProOnly && !isPro()) {
+  function gated(fn) {
+    if (!isPro()) {
       systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library.");
       return;
     }
     fn();
   }
 
-  function getLibrary() {
-    try { return JSON.parse(localStorage.getItem(LS_KEYS.library) || "[]"); }
-    catch { return []; }
-  }
-  function setLibrary(items) {
-    localStorage.setItem(LS_KEYS.library, JSON.stringify(items));
-  }
+  function getLibrary() { return loadJson(LS.library, []); }
+  function setLibrary(items) { saveJson(LS.library, items); }
 
   function saveToLibrary() {
-    if (!state.lastPreview?.html) {
-      systemMsg("Nothing to save yet. Generate a preview first.");
-      return;
-    }
-    const items = getLibrary();
-    const name = prompt("Name this save:", state.lastPreview.title || "Preview") || "";
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    if (!state.lastPreview?.html) return systemMsg("Nothing to save yet. Generate a preview first.");
+    const name = (prompt("Name this save:", state.lastPreview.title || "Preview") || "").trim();
+    if (!name) return;
 
+    const items = getLibrary();
     items.unshift({
-      id: cryptoRandomId(),
-      name: trimmed,
+      id: cryptoId(),
+      name,
       when: Date.now(),
       preview: state.lastPreview,
       conversation: state.conversation.slice(-24),
     });
     setLibrary(items);
-    systemMsg(`Saved: ${trimmed}`);
+    systemMsg(`Saved: ${name}`);
   }
 
-  function downloadCurrentPreview() {
-    if (!state.lastPreview?.html) {
-      systemMsg("Nothing to download yet. Generate a preview first.");
-      return;
-    }
+  function downloadPreview() {
+    if (!state.lastPreview?.html) return systemMsg("Nothing to download yet. Generate a preview first.");
     const filename = (state.lastPreview.kind === "cover") ? "book-cover.html" : "preview.html";
     const blob = new Blob([state.lastPreview.html], { type: "text/html;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
     URL.revokeObjectURL(url);
     systemMsg(`Downloaded: ${filename}`);
   }
@@ -355,20 +275,12 @@
     els.modalBack.style.display = "flex";
     renderLibrary();
   }
-  function closeLibrary() {
-    els.modalBack.style.display = "none";
-  }
+  function closeLibrary() { els.modalBack.style.display = "none"; }
 
   function renderLibrary() {
     const items = getLibrary();
     els.libList.innerHTML = "";
-
-    if (!items.length) {
-      els.libHint.textContent = "No saves yet. Use Save after you generate a preview.";
-      return;
-    }
-
-    els.libHint.textContent = `${items.length} saved item(s).`;
+    els.libHint.textContent = items.length ? `${items.length} saved item(s).` : "No saves yet. Use Save after you generate a preview.";
 
     for (const it of items) {
       const row = document.createElement("div");
@@ -394,14 +306,12 @@
       loadBtn.className = "miniBtn primary";
       loadBtn.textContent = "Load";
       loadBtn.onclick = () => {
-        if (it.preview?.html) {
-          renderPreview({ ...it.preview, meta: "Loaded from Library" });
-        }
-        if (Array.isArray(it.conversation) && it.conversation.length) {
+        if (it.preview?.html) renderPreview({ ...it.preview, meta: "Loaded from Library" });
+        if (Array.isArray(it.conversation)) {
           state.conversation = it.conversation;
-          persistConversation();
+          saveJson(LS.conversation, state.conversation);
           els.msgs.innerHTML = "";
-          initConversationRender();
+          renderHistory();
           systemMsg(`Loaded conversation: ${it.name}`);
         }
         closeLibrary();
@@ -411,8 +321,7 @@
       delBtn.className = "miniBtn danger";
       delBtn.textContent = "Delete";
       delBtn.onclick = () => {
-        const next = getLibrary().filter(x => x.id !== it.id);
-        setLibrary(next);
+        setLibrary(getLibrary().filter(x => x.id !== it.id));
         renderLibrary();
       };
 
@@ -421,7 +330,6 @@
 
       row.appendChild(left);
       row.appendChild(right);
-
       els.libList.appendChild(row);
     }
   }
@@ -433,8 +341,15 @@
     systemMsg("Library cleared.");
   }
 
-  function cryptoRandomId() {
-    // simple stable id
+  function renderHistory() {
+    for (const turn of state.conversation) {
+      if (turn.role === "user") addMsg("user", turn.content);
+      if (turn.role === "assistant") addMsg("assistant", turn.content);
+    }
+    els.msgs.scrollTop = els.msgs.scrollHeight;
+  }
+
+  function cryptoId() {
     const a = new Uint32Array(4);
     crypto.getRandomValues(a);
     return [...a].map(n => n.toString(16)).join("");
