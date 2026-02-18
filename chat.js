@@ -5,7 +5,8 @@
    - Loads preview via iframe srcdoc
    - Download HTML
    - Save build + Library (localStorage) when Pro ON
-   - MODE SWITCH UPGRADE: always sends current preview state so edits work across modes
+   - MODE SWITCH: always sends current preview state so edits work across modes
+   - NEW: Free daily message limit (Pro unlimited)
 */
 
 (() => {
@@ -58,6 +59,74 @@
 
   const API_URL = "/.netlify/functions/simon";
 
+  // =========================
+  // PLAN LIMITS (SAFE)
+  // =========================
+  const LIMITS = {
+    FREE_DAILY_MESSAGES: 30,     // change this later if you want
+  };
+
+  function todayKey() {
+    // local date key (YYYY-MM-DD)
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
+  function usageStorageKey() {
+    return `simo_usage_${todayKey()}`;
+  }
+
+  function getUsage() {
+    try {
+      const raw = localStorage.getItem(usageStorageKey());
+      const parsed = raw ? JSON.parse(raw) : null;
+      return {
+        msgs: Number(parsed?.msgs || 0),
+      };
+    } catch {
+      return { msgs: 0 };
+    }
+  }
+
+  function setUsage(u) {
+    localStorage.setItem(usageStorageKey(), JSON.stringify({
+      msgs: Number(u?.msgs || 0)
+    }));
+  }
+
+  function canSendMessage() {
+    if (state.pro) return { ok: true, left: Infinity, limit: Infinity };
+
+    const u = getUsage();
+    const limit = LIMITS.FREE_DAILY_MESSAGES;
+    const left = Math.max(0, limit - u.msgs);
+    return { ok: left > 0, left, limit };
+  }
+
+  function consumeMessage() {
+    if (state.pro) return;
+    const u = getUsage();
+    u.msgs = (u.msgs || 0) + 1;
+    setUsage(u);
+  }
+
+  function updateProLine() {
+    if (state.pro) {
+      els.proLine.textContent = "Pro ON: Save build + Download enabled. (Unlimited messages)";
+      return;
+    }
+    const u = getUsage();
+    const limit = LIMITS.FREE_DAILY_MESSAGES;
+    const left = Math.max(0, limit - u.msgs);
+    els.proLine.textContent = `Pro OFF: Save + Download disabled. (Free: ${left}/${limit} messages left today)`;
+  }
+
+  // =========================
+  // UI helpers
+  // =========================
   function scrollChatToBottom() {
     els.chatList.scrollTop = els.chatList.scrollHeight + 9999;
   }
@@ -90,14 +159,15 @@
     els.proToggle.textContent = state.pro ? "Pro: ON" : "Pro: OFF";
 
     els.previewProBadge.textContent = state.pro ? "pro: on" : "pro: off";
-    els.proLine.textContent = state.pro
-      ? "Pro ON: Save build + Download enabled."
-      : "Pro OFF: Save + Download disabled.";
 
+    // Save + Library allowed only when Pro on
     els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
     els.libraryBtn.disabled = !state.pro;
 
+    // Download enabled only when Pro on + preview exists
     els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
+
+    updateProLine();
   }
 
   function setBackendLabel(label) {
@@ -239,15 +309,26 @@
     const q = (els.msg.value || "").trim();
     if (!q) return;
 
+    // LIMIT CHECK (Free only)
+    const allowed = canSendMessage();
+    if (!allowed.ok) {
+      bubble("simo", `Simo: You’ve hit today’s Free limit (${allowed.limit} messages). Turn Pro ON for unlimited messages.`);
+      updateProLine();
+      return;
+    }
+
     bubble("me", `You: ${q}`);
     els.msg.value = "";
+
+    // consume immediately so refresh spamming can’t bypass it
+    consumeMessage();
+    updateProLine();
 
     state.busy = true;
     els.sendBtn.disabled = true;
     els.previewStatusBadge.textContent = "thinking…";
 
     try {
-      // IMPORTANT: always send current preview state so edits work across modes
       const payload = {
         text: q,
         mode: state.mode,
@@ -289,16 +370,19 @@
     bubble("simo", "Simo: Reset. I’m here.");
     setPreview("", "none");
     setBackendLabel(state.lastBackend || "?");
+    updateProLine();
   }
 
   function devDump() {
+    const u = getUsage();
     const info = [
       `mode=${state.mode}`,
       `pro=${state.pro}`,
       `preview=${state.lastPreviewName}`,
       `hasPreviewHtml=${!!state.lastPreviewHtml}`,
       `backend=${state.lastBackend}`,
-      `api=${API_URL}`
+      `api=${API_URL}`,
+      `free_used_today=${u.msgs}`
     ].join(" | ");
     bubble("simo", `Simo (dev): ${info}`);
   }
