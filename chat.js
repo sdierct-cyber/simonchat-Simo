@@ -25,7 +25,6 @@
     library: "simo_library_v1",
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
-    // History stacks
     undoStack: "simo_preview_undo_v1",
     redoStack: "simo_preview_redo_v1",
   };
@@ -113,7 +112,7 @@
   }
   function toggleLocked(el, locked) { el.classList.toggle("locked", !!locked); }
 
-  // ---- history helpers ----
+  // ---- history helpers (undo/redo) ----
   function capStacks() {
     state.undoStack = state.undoStack.slice(0, 12);
     state.redoStack = state.redoStack.slice(0, 12);
@@ -125,7 +124,7 @@
     if (!snapshot?.html) return;
     state.undoStack.unshift(snapshot);
     saveJson(LS.undoStack, state.undoStack);
-    // On new change, redo must be cleared (standard behavior)
+    // new change clears redo
     state.redoStack = [];
     saveJson(LS.redoStack, state.redoStack);
     capStacks();
@@ -150,72 +149,110 @@
     return s;
   }
 
-  function normalizeCmd(s) { return String(s || "").trim().toLowerCase(); }
+  function normalizeCmd(s) { return String(s || "").trim(); }
+  function normalizeLower(s) { return normalizeCmd(s).toLowerCase(); }
+
   function isUndoCommand(text) {
-    const t = normalizeCmd(text);
+    const t = normalizeLower(text);
     return t === "undo" || t === "undo last edit" || t === "undo last" || t === "undo edit";
   }
   function isRedoCommand(text) {
-    const t = normalizeCmd(text);
+    const t = normalizeLower(text);
     return t === "redo" || t === "redo last" || t === "redo edit";
   }
 
-  function handleUndo() {
-    if (!state.lastPreview?.html) {
-      replyLocal("Nothing to undo yet — generate a preview first.");
-      return true;
-    }
-    const prev = popUndo();
-    if (!prev?.html) {
-      replyLocal("No previous version found to undo.");
-      return true;
-    }
+  // NEW: "save as:" chat command (optional)
+  function parseSaveAs(text) {
+    const raw = normalizeCmd(text);
+    const m = raw.match(/^save\s+as\s*:\s*(.+)$/i);
+    if (!m) return null;
+    return m[1].trim() || null;
+  }
 
-    // current goes to redo
+  function handleUndo() {
+    if (!state.lastPreview?.html) return replyLocal("Nothing to undo yet — generate a preview first.");
+    const prev = popUndo();
+    if (!prev?.html) return replyLocal("No previous version found to undo.");
+
     pushRedo(state.lastPreview);
 
-    // swap to prev
     state.lastPreview = prev;
     saveJson(LS.lastPreview, state.lastPreview);
-
     els.previewFrame.srcdoc = prev.html;
     setPreviewMeta(prev.title || "Preview", "Undone to previous version");
 
     replyLocal("Undone. Preview reverted to the previous version.");
-    return true;
   }
 
   function handleRedo() {
-    if (!state.lastPreview?.html) {
-      replyLocal("Nothing to redo yet — generate a preview first.");
-      return true;
-    }
+    if (!state.lastPreview?.html) return replyLocal("Nothing to redo yet — generate a preview first.");
     const next = popRedo();
-    if (!next?.html) {
-      replyLocal("No redo version found.");
-      return true;
-    }
+    if (!next?.html) return replyLocal("No redo version found.");
 
-    // current goes to undo
     state.undoStack.unshift(state.lastPreview);
     saveJson(LS.undoStack, state.undoStack);
 
-    // swap to next
     state.lastPreview = next;
     saveJson(LS.lastPreview, state.lastPreview);
-
     els.previewFrame.srcdoc = next.html;
     setPreviewMeta(next.title || "Preview", "Redone to next version");
 
     replyLocal("Redone. Preview moved forward to the next version.");
     capStacks();
-    return true;
   }
 
   function replyLocal(text) {
     addMsg("assistant", text);
     state.conversation.push({ role: "assistant", content: text });
     saveJson(LS.conversation, state.conversation);
+  }
+
+  // ---- Auto-versioned Save ----
+  function getLibrary() { return loadJson(LS.library, []); }
+  function setLibrary(items) { saveJson(LS.library, items); }
+
+  function deriveBaseName(preview) {
+    const kind = preview?.kind || "html";
+    if (kind === "cover") return "Book Cover";
+    // default: landing page / html preview
+    return "Landing Page";
+  }
+
+  function nextVersionName(base) {
+    const items = getLibrary();
+    const re = new RegExp("^" + escapeRegExp(base) + "\\s+v(\\d+)$", "i");
+    let maxV = 0;
+    for (const it of items) {
+      const m = String(it.name || "").match(re);
+      if (m) {
+        const v = parseInt(m[1], 10);
+        if (!Number.isNaN(v)) maxV = Math.max(maxV, v);
+      }
+    }
+    return `${base} v${maxV + 1}`;
+  }
+
+  function escapeRegExp(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function saveToLibraryAuto(optionalName = null) {
+    if (!state.lastPreview?.html) return systemMsg("Nothing to save yet. Generate a preview first.");
+
+    const name = (optionalName && optionalName.trim())
+      ? optionalName.trim()
+      : nextVersionName(deriveBaseName(state.lastPreview));
+
+    const items = getLibrary();
+    items.unshift({
+      id: cryptoId(),
+      name,
+      when: Date.now(),
+      preview: state.lastPreview,
+      conversation: state.conversation.slice(-24),
+    });
+    setLibrary(items);
+    systemMsg(`Saved: ${name}`);
   }
 
   // ---- composer send ----
@@ -235,9 +272,17 @@
     state.conversation.push({ role: "user", content: text });
     saveJson(LS.conversation, state.conversation);
 
-    // ✅ local undo/redo
-    if (isUndoCommand(text)) return handleUndo();
-    if (isRedoCommand(text)) return handleRedo();
+    // local commands
+    if (isUndoCommand(text)) { handleUndo(); return; }
+    if (isRedoCommand(text)) { handleRedo(); return; }
+
+    const saveAsName = parseSaveAs(text);
+    if (saveAsName) {
+      if (!isPro()) { replyLocal("🔒 Pro feature. Toggle Pro to use Save / Download / Library."); return; }
+      saveToLibraryAuto(saveAsName);
+      replyLocal(`Saved as: ${saveAsName}`);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -290,7 +335,6 @@
     const title = preview.title || "Preview";
     const meta = preview.meta || "Updated";
 
-    // before overwriting, push current into undo stack (clears redo)
     if (state.lastPreview?.html) pushUndo(state.lastPreview);
 
     els.previewFrame.srcdoc = preview.html;
@@ -325,7 +369,9 @@
       setStatus("Ready");
     };
 
-    els.btnSave.onclick = () => gated(saveToLibrary);
+    // CHANGED: Save is now auto-versioned (no prompt)
+    els.btnSave.onclick = () => gated(() => saveToLibraryAuto());
+
     els.btnDownload.onclick = () => gated(downloadPreview);
     els.btnLibrary.onclick = () => gated(openLibrary);
 
@@ -337,26 +383,6 @@
   function gated(fn) {
     if (!isPro()) { systemMsg("🔒 Pro feature. Toggle Pro to use Save / Download / Library."); return; }
     fn();
-  }
-
-  function getLibrary() { return loadJson(LS.library, []); }
-  function setLibrary(items) { saveJson(LS.library, items); }
-
-  function saveToLibrary() {
-    if (!state.lastPreview?.html) return systemMsg("Nothing to save yet. Generate a preview first.");
-    const name = (prompt("Name this save:", state.lastPreview.title || "Preview") || "").trim();
-    if (!name) return;
-
-    const items = getLibrary();
-    items.unshift({
-      id: cryptoId(),
-      name,
-      when: Date.now(),
-      preview: state.lastPreview,
-      conversation: state.conversation.slice(-24),
-    });
-    setLibrary(items);
-    systemMsg(`Saved: ${name}`);
   }
 
   function downloadPreview() {
