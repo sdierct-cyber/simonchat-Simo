@@ -39,7 +39,6 @@
     }
     .wrap{max-width:1320px;margin:0 auto;padding:18px}
 
-    /* header */
     .top{
       display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
       margin-bottom:12px;
@@ -54,7 +53,6 @@
       box-shadow:var(--neonGlow);
     }
 
-    /* pills */
     .pills{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .pill{
       border:1px solid rgba(255,255,255,.12);
@@ -78,7 +76,6 @@
       box-shadow:var(--neonGlow);
     }
 
-    /* layout */
     .grid{
       display:grid;
       grid-template-columns: 1.06fr .94fr;
@@ -147,7 +144,6 @@
       transform:none !important;
     }
 
-    /* chat */
     .chatBody{padding:10px 12px}
     .chatlog{
       height:520px;
@@ -205,7 +201,6 @@
       padding:10px 12px 0;
     }
 
-    /* preview */
     .previewWrap{
       padding:12px;
       height: calc(700px - 54px);
@@ -256,7 +251,6 @@
       pointer-events:none;
     }
 
-    /* modal */
     #libraryModal{
       display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:9999;
     }
@@ -306,12 +300,10 @@
   </div>
 
   <div class="grid">
-    <!-- CHAT -->
     <div class="panel">
       <div class="panelHead">
         <div class="panelTitle">
           Chat
-          <!-- DEV BADGES (hidden by default) -->
           <span id="devBadges" style="display:none; gap:8px; align-items:center;">
             <span class="badge neon" id="uiBadge">ui: neon-v1</span>
             <span class="badge" id="backendBadge">backend: ?</span>
@@ -338,7 +330,6 @@
       </div>
     </div>
 
-    <!-- PREVIEW -->
     <div class="panel">
       <div class="panelHead">
         <div class="panelTitle">Preview</div>
@@ -369,7 +360,6 @@
   </div>
 </div>
 
-<!-- LIBRARY MODAL -->
 <div id="libraryModal">
   <div class="modalCard">
     <div class="modalHead">
@@ -390,21 +380,14 @@
 
 <script>
 (() => {
-  // ---------- state ----------
   let mode = "building";
   let pro = false;
 
-  // ChatGPT-like memory (sent to backend; backend can choose to use it)
-  let history = []; // [{role:"user"|"assistant", content:"..."}]
+  let history = [];
   const HISTORY_MAX = 24;
 
-  // last preview (for deterministic edits)
-  let current = {
-    preview_html: "",
-    preview_name: "landing_page"
-  };
+  let current = { preview_html: "", preview_name: "landing_page" };
 
-  // dom
   const chatlog = document.getElementById("chatlog");
   const msg = document.getElementById("msg");
   const send = document.getElementById("send");
@@ -436,7 +419,6 @@
   const libraryList = document.getElementById("libraryList");
   const exportAllBtn = document.getElementById("exportAllBtn");
 
-  // helpers
   function setStatus(s){ statusTag.textContent = s; }
 
   function pushHistory(role, content){
@@ -450,8 +432,6 @@
     div.textContent = (role === "you" ? "You: " : "Simo: ") + text;
     chatlog.appendChild(div);
     chatlog.scrollTop = chatlog.scrollHeight;
-
-    // memory
     pushHistory(role === "you" ? "user" : "assistant", text);
   }
 
@@ -464,11 +444,9 @@
   }
 
   function syncProUI(){
-    // Real paid feature gating
     saveBtn.disabled = !pro;
     libraryBtn.disabled = !pro;
     downloadBtn.disabled = !pro;
-    // Clearing preview should always be allowed
     clearPreviewBtn.disabled = false;
   }
 
@@ -486,7 +464,6 @@
     previewNameTag.textContent = current.preview_name || "none";
 
     if(current.preview_html){
-      // critical: render the HTML
       preview.srcdoc = current.preview_html;
       previewHint.textContent = "Preview loaded.";
     }else{
@@ -499,6 +476,24 @@
     const d = new Date();
     const pad = (n)=> String(n).padStart(2,"0");
     return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  // ------- Smart auto-mode detection (ChatGPT-like) -------
+  function guessModeFromText(text){
+    const t = (text || "").toLowerCase();
+
+    // building cues
+    if (/(build|create|make|generate|landing|website|page|app|mockup|preview|design|ui|html|css|code)/.test(t)) return "building";
+
+    // solving cues
+    if (/(how do i|how to|help me|fix|error|debug|issue|problem|steps|what should i do|why is|doesn't work)/.test(t)) return "solving";
+
+    // venting cues
+    if (/(i'm|im)\s+(stressed|upset|mad|angry|sad|tired|overwhelmed|done|frustrated|hurt)|anxiety|depressed|i hate|i can’t|cant take|argument|fighting/.test(t)) {
+      return "venting";
+    }
+
+    return null;
   }
 
   // ----- library -----
@@ -618,7 +613,7 @@
 
   async function versionCheck(){
     try{
-      const { ok, data } = await postToSimo({ message: "version check", mode: "building", pro: false });
+      const { ok, data } = await postToSimo({ message: "version check", text:"version check", mode: "building", pro: false });
       if(ok && data && data.version){
         backendBadge.textContent = `backend: ${data.version}`;
         backendBadge.classList.add("neon");
@@ -637,16 +632,27 @@
     if(!text) return;
 
     msg.value = "";
+
+    // Auto-switch mode for ChatGPT-like behavior (only if user didn’t explicitly choose)
+    const guessed = guessModeFromText(text);
+    if(guessed && guessed !== mode){
+      // If they are clearly venting while in building, switch.
+      // If they are clearly building while in venting, switch.
+      setMode(guessed);
+    }
+
     add("you", text);
     setStatus("thinking...");
 
+    // IMPORTANT: send BOTH message + text so we never mismatch again
     const payload = {
       message: text,
+      text: text,
       mode,
       pro,
       current_preview_html: current.preview_html,
       current_preview_name: current.preview_name,
-      history, // ChatGPT-like memory
+      history,
     };
 
     let result;
@@ -661,7 +667,7 @@
     const data = result.data || {};
     add("simo", data.reply || "Okay.");
 
-    // Accept BOTH preview formats
+    // Only update preview if backend returned one AND we are in building AND Pro ON
     const html = (data.preview && data.preview.html) || data.preview_html || "";
     const name = (data.preview && data.preview.name) || data.preview_name || "";
 
@@ -673,7 +679,7 @@
     }
   }
 
-  // ----- events -----
+  // events
   document.querySelectorAll(".pill[data-mode]").forEach(p => {
     p.addEventListener("click", () => setMode(p.dataset.mode));
   });
@@ -762,13 +768,20 @@
     add("simo", "Preview cleared.");
   });
 
-  // ----- boot -----
+  // boot
   setMode("building");
   setPro(false);
   syncProUI();
   setStatus("idle");
   add("simo", "Reset. I’m here.");
   versionCheck();
+
+  function syncProUI(){
+    saveBtn.disabled = !pro;
+    libraryBtn.disabled = !pro;
+    downloadBtn.disabled = !pro;
+    clearPreviewBtn.disabled = false;
+  }
 })();
 </script>
 </body>
