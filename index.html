@@ -306,16 +306,20 @@
       <div class="panelHead">
         <div class="panelTitle">
           Chat
-          <span class="badge neon" id="uiBadge">ui: neon-v1</span>
-          <span class="badge" id="backendBadge">backend: ?</span>
+          <span id="devBadges" style="display:none; gap:8px; align-items:center;">
+  <span class="badge neon" id="uiBadge">ui: neon-v1</span>
+  <span class="badge" id="backendBadge">backend: ?</span>
+</span>
+
         </div>
         <div class="panelTools">
-          <button class="btn neon" id="resetBtn">Reset</button>
-          <button class="btn" id="saveBtn">Save build</button>
-          <button class="btn" id="libraryBtn">Library</button>
-        </div>
-      </div>
+  <button class="btn neon" id="resetBtn">Reset</button>
+  <button class="btn" id="devBtn">Dev</button>
+  <button class="btn" id="saveBtn">Save build</button>
+  <button class="btn" id="libraryBtn">Library</button>
+</div>
 
+      </div>
       <div class="chatBody">
         <div class="chatlog" id="chatlog"></div>
         <div class="hint" id="chatHint">
@@ -713,3 +717,4 @@
 </script>
 </body>
 </html>
+
