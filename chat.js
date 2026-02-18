@@ -1,9 +1,10 @@
-/* chat.js — MUST match netlify/functions/simon.js contract
-   Backend expects:
-   { text, mode, pro, current_preview_html, current_preview_name }
-
-   Backend returns:
-   { reply, preview_name, preview_html, preview:{name,html}, backend_label }
+/* chat.js — Simo UI controller (fixed payload + backend_label)
+   - Buttons + Enter key work
+   - Pro toggles
+   - Calls Netlify function backend (/.netlify/functions/simon)
+   - Loads preview via iframe srcdoc
+   - Download HTML
+   - Save build + Library (localStorage) when Pro ON
 */
 
 (() => {
@@ -38,7 +39,7 @@
     previewLine: $("previewLine"),
   };
 
-  // Fail fast if something important is missing
+  // Hard stop if the page didn’t load expected IDs.
   const required = ["chatList","msg","sendBtn","modeBuilding","modeSolving","modeVenting","proToggle","previewFrame"];
   const missing = required.filter(k => !els[k]);
   if (missing.length) {
@@ -46,18 +47,17 @@
     return;
   }
 
-  const API_URL = "/.netlify/functions/simon";
-
   const state = {
     mode: "building",
     pro: false,
-    busy: false,
-    backendLabel: "simo-backend-locked-v4",
-
-    // These two MUST be sent to backend for edits to work
-    currentPreviewHtml: "",
-    currentPreviewName: "none",
+    lastPreviewHtml: "",
+    lastPreviewName: "none",
+    lastBackend: "?",
+    busy: false
   };
+
+  // Netlify function endpoint
+  const API_URL = "/.netlify/functions/simon";
 
   function scrollChatToBottom() {
     els.chatList.scrollTop = els.chatList.scrollHeight + 9999;
@@ -69,11 +69,6 @@
     div.textContent = text;
     els.chatList.appendChild(div);
     scrollChatToBottom();
-  }
-
-  function setBackendLabel(label) {
-    state.backendLabel = label || state.backendLabel || "simo-backend-locked-v4";
-    if (els.backendBadge) els.backendBadge.textContent = `backend: ${state.backendLabel}`;
   }
 
   function setMode(mode) {
@@ -100,25 +95,28 @@
       ? "Pro ON: Save build + Download enabled."
       : "Pro OFF: Save + Download disabled.";
 
-    // Enable/disable buttons based on pro + preview existence
-    els.downloadBtn.disabled = !state.pro || !state.currentPreviewHtml;
-    els.saveBtn.disabled = !state.pro || !state.currentPreviewHtml;
+    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
     els.libraryBtn.disabled = !state.pro;
+    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
   }
 
-  function setPreview(html, name) {
-    state.currentPreviewHtml = html || "";
-    state.currentPreviewName = name || (html ? "preview" : "none");
+  function setBackendLabel(label) {
+    state.lastBackend = label || "?";
+    els.backendBadge.textContent = `backend: ${state.lastBackend}`;
+  }
 
-    els.previewNameBadge.textContent = state.currentPreviewName || "none";
+  function setPreview(html, name = "preview") {
+    state.lastPreviewHtml = html || "";
+    state.lastPreviewName = name || "preview";
+
+    els.previewNameBadge.textContent = state.lastPreviewName || "preview";
     els.previewStatusBadge.textContent = html ? "ready" : "empty";
     els.previewLine.textContent = html ? "Preview loaded." : "No preview yet.";
 
     els.previewFrame.srcdoc = html || "";
 
-    // Update buttons based on pro state
-    els.downloadBtn.disabled = !state.pro || !state.currentPreviewHtml;
-    els.saveBtn.disabled = !state.pro || !state.currentPreviewHtml;
+    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
+    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
   }
 
   function clearPreview() {
@@ -127,13 +125,13 @@
   }
 
   function downloadCurrentPreview() {
-    if (!state.pro || !state.currentPreviewHtml) return;
+    if (!state.pro || !state.lastPreviewHtml) return;
 
-    const blob = new Blob([state.currentPreviewHtml], { type: "text/html;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
+    const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
+    const url = URL.createObjectURL(blob);
 
-    const safeName = (state.currentPreviewName || "preview")
+    const safeName = (state.lastPreviewName || "preview")
       .toLowerCase()
       .replace(/[^a-z0-9_-]+/g, "_")
       .slice(0, 40);
@@ -146,25 +144,33 @@
     URL.revokeObjectURL(url);
   }
 
-  // --- Local library (Pro only)
   function getSavedBuilds() {
-    try { return JSON.parse(localStorage.getItem("simo_builds") || "[]"); }
-    catch { return []; }
+    try {
+      return JSON.parse(localStorage.getItem("simo_builds") || "[]");
+    } catch {
+      return [];
+    }
   }
+
   function setSavedBuilds(list) {
     localStorage.setItem("simo_builds", JSON.stringify(list));
   }
 
   function saveBuild() {
-    if (!state.pro || !state.currentPreviewHtml) return;
+    if (!state.pro || !state.lastPreviewHtml) return;
 
-    const name = prompt("Name this build (e.g., lp_v1):", state.currentPreviewName || "build");
+    const name = prompt("Name this build (e.g., lp_v1):", state.lastPreviewName || "build");
     if (!name) return;
 
     const builds = getSavedBuilds();
-    builds.unshift({ name, html: state.currentPreviewHtml, ts: Date.now(), mode: state.mode });
-    setSavedBuilds(builds.slice(0, 30));
+    builds.unshift({
+      name,
+      html: state.lastPreviewHtml,
+      ts: Date.now(),
+      mode: state.mode
+    });
 
+    setSavedBuilds(builds.slice(0, 30));
     bubble("simo", `Simo: Saved build: ${name}`);
   }
 
@@ -177,7 +183,11 @@
       return;
     }
 
-    const menu = builds.slice(0, 12).map((b, i) => `${i + 1}) ${b.name}`).join("\n");
+    const menu = builds
+      .slice(0, 12)
+      .map((b, i) => `${i + 1}) ${b.name}`)
+      .join("\n");
+
     const pick = prompt(`Library:\n${menu}\n\nType a number to load:`, "1");
     const idx = Number(pick) - 1;
     if (!Number.isFinite(idx) || idx < 0 || idx >= builds.length) return;
@@ -187,39 +197,45 @@
     bubble("simo", `Simo: Loaded from library: ${chosen.name}`);
   }
 
-  // --- Response parsing (matches your simon.js)
-  function parseBackendResponse(data) {
-    const reply =
-      data?.reply ??
-      data?.text ??
-      data?.message ??
+  // Flexible parsing: supports simon.js contract
+  function extractFromResponse(data) {
+    const root = data && (data.response || data);
+
+    const text =
+      root?.reply ??
+      root?.text ??
+      root?.output_text ??
+      root?.message ??
+      (root?.ok === false && root?.error ? `Error: ${root.error}` : "") ??
       "";
 
-    const backendLabel =
-      data?.backend_label ??
-      data?.backend ??
-      "";
-
-    const previewName =
-      data?.preview?.name ??
-      data?.preview_name ??
+    const backend =
+      root?.backend_label ??   // <-- your simon.js uses this
+      root?.backend ??
+      root?.meta?.backend ??
+      root?.version ??
       "";
 
     const previewHtml =
-      data?.preview?.html ??
-      data?.preview_html ??
+      root?.preview_html ??
+      root?.preview?.html ??
       "";
 
-    return { reply, backendLabel, previewName, previewHtml };
+    const previewName =
+      root?.preview_name ??
+      root?.preview?.name ??
+      (previewHtml ? "preview" : "none");
+
+    return { text, backend, previewHtml, previewName, ok: root?.ok };
   }
 
   async function send() {
     if (state.busy) return;
 
-    const text = (els.msg.value || "").trim();
-    if (!text) return;
+    const q = (els.msg.value || "").trim();
+    if (!q) return;
 
-    bubble("me", `You: ${text}`);
+    bubble("me", `You: ${q}`);
     els.msg.value = "";
 
     state.busy = true;
@@ -227,14 +243,15 @@
     els.previewStatusBadge.textContent = "thinking…";
 
     try {
-      // ✅ THIS IS THE CRITICAL FIX:
-      // send fields that simon.js expects
+      // ✅ IMPORTANT: backend expects { text }, not { q }
       const payload = {
-        text,                 // <-- REQUIRED
+        text: q,
         mode: state.mode,
         pro: state.pro,
-        current_preview_html: state.currentPreviewHtml,  // <-- REQUIRED for edits
-        current_preview_name: state.currentPreviewName,  // <-- REQUIRED for edits
+
+        // ✅ IMPORTANT: allow deterministic edits (price/faq/testimonials)
+        current_preview_html: state.lastPreviewHtml || "",
+        current_preview_name: state.lastPreviewName || "none"
       };
 
       const res = await fetch(API_URL, {
@@ -244,13 +261,12 @@
       });
 
       const data = await res.json().catch(() => ({}));
-      const { reply, backendLabel, previewName, previewHtml } = parseBackendResponse(data);
+      const { text, backend, previewHtml, previewName } = extractFromResponse(data);
 
-      if (backendLabel) setBackendLabel(backendLabel);
+      if (backend) setBackendLabel(backend);
 
-      bubble("simo", `Simo: ${reply || "(no reply text)"}`);
+      bubble("simo", text ? `Simo: ${text}` : "Simo: (no response text)");
 
-      // If backend returns preview, load it
       if (previewHtml) {
         setPreview(previewHtml, previewName || "preview");
       } else {
@@ -258,7 +274,7 @@
       }
     } catch (err) {
       console.error(err);
-      bubble("simo", "Simo: Network/backend error. Check Netlify function logs.");
+      bubble("simo", "Simo: Sorry — network/backend error. Check Netlify function logs.");
       els.previewStatusBadge.textContent = "error";
     } finally {
       state.busy = false;
@@ -270,22 +286,22 @@
     els.chatList.innerHTML = "";
     bubble("simo", "Simo: Reset. I’m here.");
     setPreview("", "none");
-    setBackendLabel(state.backendLabel || "simo-backend-locked-v4");
+    setBackendLabel(state.lastBackend || "?");
   }
 
   function devDump() {
     const info = [
       `mode=${state.mode}`,
       `pro=${state.pro}`,
-      `current_preview_name=${state.currentPreviewName}`,
-      `has_preview_html=${!!state.currentPreviewHtml}`,
-      `backend=${state.backendLabel}`,
+      `preview=${state.lastPreviewName}`,
+      `hasPreviewHtml=${!!state.lastPreviewHtml}`,
+      `backend=${state.lastBackend}`,
       `api=${API_URL}`
     ].join(" | ");
     bubble("simo", `Simo (dev): ${info}`);
   }
 
-  // Wire up
+  // Wire up events
   els.sendBtn.addEventListener("click", send);
   els.msg.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
@@ -312,6 +328,6 @@
   // Boot
   setMode("building");
   setPro(false);
-  setBackendLabel("simo-backend-locked-v4");
+  setBackendLabel("?");
   resetAll();
 })();
