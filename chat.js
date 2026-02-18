@@ -17,7 +17,6 @@
 
   if (missing.length) {
     console.error("Simo UI missing required elements:", missing);
-    // HARD STOP so it doesn't half-run and glitch.
     return;
   }
 
@@ -27,6 +26,8 @@
     library: "simo_library_v1",
     lastPreview: "simo_last_preview_v1",
     conversation: "simo_conversation_v1",
+    // NEW: preview history stack for undo (no UI change)
+    previewHistory: "simo_preview_history_v1",
   };
 
   const state = {
@@ -34,6 +35,7 @@
     busy: false,
     conversation: loadJson(LS.conversation, []),
     lastPreview: loadJson(LS.lastPreview, null),
+    previewHistory: loadJson(LS.previewHistory, []), // array of {kind, html, title, meta, ts}
   };
 
   // ---- init labels ----
@@ -130,6 +132,58 @@
     });
   }
 
+  function normalizeCmd(s) {
+    return String(s || "").trim().toLowerCase();
+  }
+
+  function isUndoCommand(text) {
+    const t = normalizeCmd(text);
+    return t === "undo" || t === "undo last edit" || t === "undo last" || t === "undo edit";
+  }
+
+  function pushPreviewHistory(prev) {
+    if (!prev || !prev.html) return;
+    // cap history to avoid bloating storage
+    state.previewHistory.unshift(prev);
+    state.previewHistory = state.previewHistory.slice(0, 10);
+    saveJson(LS.previewHistory, state.previewHistory);
+  }
+
+  function popPreviewHistory() {
+    const prev = state.previewHistory.shift();
+    saveJson(LS.previewHistory, state.previewHistory);
+    return prev || null;
+  }
+
+  function handleUndo() {
+    if (!state.lastPreview?.html) {
+      addMsg("assistant", "Nothing to undo yet — generate a preview first.");
+      state.conversation.push({ role: "assistant", content: "Nothing to undo yet — generate a preview first." });
+      saveJson(LS.conversation, state.conversation);
+      return true;
+    }
+    const prev = popPreviewHistory();
+    if (!prev?.html) {
+      addMsg("assistant", "No previous version found to undo.");
+      state.conversation.push({ role: "assistant", content: "No previous version found to undo." });
+      saveJson(LS.conversation, state.conversation);
+      return true;
+    }
+
+    // swap to prev
+    state.lastPreview = prev;
+    saveJson(LS.lastPreview, state.lastPreview);
+
+    els.previewFrame.srcdoc = prev.html;
+    setPreviewMeta(prev.title || "Preview", "Undone to previous version");
+
+    addMsg("assistant", "Undone. Preview reverted to the previous version.");
+    state.conversation.push({ role: "assistant", content: "Undone. Preview reverted to the previous version." });
+    saveJson(LS.conversation, state.conversation);
+
+    return true;
+  }
+
   async function onSend() {
     const text = (els.input.value || "").trim();
     if (!text || state.busy) return;
@@ -139,6 +193,12 @@
 
     state.conversation.push({ role: "user", content: text });
     saveJson(LS.conversation, state.conversation);
+
+    // ✅ NEW: undo handled locally (no backend call)
+    if (isUndoCommand(text)) {
+      handleUndo();
+      return;
+    }
 
     setBusy(true);
     try {
@@ -190,6 +250,11 @@
     const kind = preview.kind || "html";
     const title = preview.title || "Preview";
     const meta = preview.meta || "Updated";
+
+    // ✅ NEW: before overwriting lastPreview, push it to history for undo
+    if (state.lastPreview?.html) {
+      pushPreviewHistory(state.lastPreview);
+    }
 
     els.previewFrame.srcdoc = preview.html;
 
@@ -306,7 +371,11 @@
       loadBtn.className = "miniBtn primary";
       loadBtn.textContent = "Load";
       loadBtn.onclick = () => {
-        if (it.preview?.html) renderPreview({ ...it.preview, meta: "Loaded from Library" });
+        if (it.preview?.html) {
+          // also push current into history so Load can be undone too
+          if (state.lastPreview?.html) pushPreviewHistory(state.lastPreview);
+          renderPreview({ ...it.preview, meta: "Loaded from Library" });
+        }
         if (Array.isArray(it.conversation)) {
           state.conversation = it.conversation;
           saveJson(LS.conversation, state.conversation);
