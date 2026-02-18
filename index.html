@@ -4,16 +4,20 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Simo</title>
+  
   <style>
-   /* ===== PRO PILL STRONGER BLUE GLOW ===== */
-#proBtn.on,
-#proBtn.active,
-.pill.pro.on {
+   /* ===== PRO PILL STRONGER BLUE GLOW (targets real Pro button) ===== */
+#proToggle.active,
+#proToggle[aria-pressed="true"]{
+  border-color: rgba(120,190,255,.95) !important;
+  background: rgba(42,102,255,.14) !important;
   box-shadow:
-    0 0 0 1px rgba(120,190,255,.8),
-    0 0 30px rgba(90,170,255,.95),
-    0 0 65px rgba(90,170,255,.7);
-  transition: box-shadow .25s ease;
+    0 0 0 2px rgba(42,102,255,.18),
+    0 0 34px rgba(90,170,255,.45),
+    0 0 85px rgba(90,170,255,.38),
+    0 0 130px rgba(90,170,255,.22);
+  filter: saturate(1.15) brightness(1.08);
+  transition: box-shadow .25s ease, filter .25s ease, border-color .25s ease, background .25s ease;
 }
 
     :root{
@@ -348,4 +352,5 @@
   <script src="/chat.js"></script>
 </body>
 </html>
+
 
