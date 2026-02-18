@@ -1,351 +1,345 @@
+/* chat.js — Simo UI controller (safe + no null errors)
+   - Buttons + Enter key work
+   - Pro toggles (louder glow via CSS)
+   - Calls Netlify function backend (defaults to /.netlify/functions/simon)
+   - Loads preview via iframe srcdoc
+   - Download HTML
+   - Save build + Library (localStorage) when Pro ON
+*/
+
 (() => {
-  // ---------- Required elements (must match index.html IDs exactly) ----------
-  const el = {
-    chatList: document.getElementById("chatList"),
-    msg: document.getElementById("msg"),
-    sendBtn: document.getElementById("sendBtn"),
+  const $ = (id) => document.getElementById(id);
 
-    resetBtn: document.getElementById("resetBtn"),
-    devBtn: document.getElementById("devBtn"),
-    saveBtn: document.getElementById("saveBtn"),
-    libraryBtn: document.getElementById("libraryBtn"),
+  const els = {
+    chatList: $("chatList"),
+    msg: $("msg"),
+    sendBtn: $("sendBtn"),
+    resetBtn: $("resetBtn"),
+    devBtn: $("devBtn"),
+    saveBtn: $("saveBtn"),
+    libraryBtn: $("libraryBtn"),
 
-    modeBuilding: document.getElementById("modeBuilding"),
-    modeSolving: document.getElementById("modeSolving"),
-    modeVenting: document.getElementById("modeVenting"),
-    proToggle: document.getElementById("proToggle"),
+    modeBuilding: $("modeBuilding"),
+    modeSolving: $("modeSolving"),
+    modeVenting: $("modeVenting"),
+    proToggle: $("proToggle"),
 
-    uiBadge: document.getElementById("uiBadge"),
-    backendBadge: document.getElementById("backendBadge"),
+    backendBadge: $("backendBadge"),
+    modeLine: $("modeLine"),
+    proLine: $("proLine"),
 
-    previewFrame: document.getElementById("previewFrame"),
-    previewNameBadge: document.getElementById("previewNameBadge"),
-    previewModeBadge: document.getElementById("previewModeBadge"),
-    previewProBadge: document.getElementById("previewProBadge"),
-    previewStatusBadge: document.getElementById("previewStatusBadge"),
-    previewLine: document.getElementById("previewLine"),
+    previewFrame: $("previewFrame"),
+    downloadBtn: $("downloadBtn"),
+    clearPreviewBtn: $("clearPreviewBtn"),
 
-    downloadBtn: document.getElementById("downloadBtn"),
-    clearPreviewBtn: document.getElementById("clearPreviewBtn"),
-
-    modeLine: document.getElementById("modeLine"),
-    proLine: document.getElementById("proLine"),
+    previewNameBadge: $("previewNameBadge"),
+    previewModeBadge: $("previewModeBadge"),
+    previewProBadge: $("previewProBadge"),
+    previewStatusBadge: $("previewStatusBadge"),
+    previewLine: $("previewLine"),
   };
 
-  const missing = Object.entries(el).filter(([,v]) => !v).map(([k]) => k);
+  // Hard stop if the page didn’t load expected IDs.
+  const required = ["chatList","msg","sendBtn","modeBuilding","modeSolving","modeVenting","proToggle","previewFrame"];
+  const missing = required.filter(k => !els[k]);
   if (missing.length) {
-    document.body.innerHTML = `
-      <div style="padding:24px;font-family:system-ui;background:#000;color:#fff">
-        <h1>Simo UI Error</h1>
-        <p>This page is missing required elements (chat/input/sendBtn).</p>
-        <pre style="background:#111;border:1px solid #333;padding:12px;border-radius:12px">${missing.join("\n")}</pre>
-        <p>Fix: make sure <b>index.html</b> and <b>chat.js</b> are from the same matched set.</p>
-      </div>
-    `;
+    console.error("Simo UI missing required elements:", missing);
     return;
   }
 
-  // ---------- State ----------
-  const LS = {
-    PRO: "simo_pro_on_v1",
-    MODE: "simo_mode_v1",
-    CHAT: "simo_chat_v1",
-    PREVIEW: "simo_preview_v1",
-    LIB: "simo_library_v1",
+  const state = {
+    mode: "building",
+    pro: false,
+    lastPreviewHtml: "",
+    lastPreviewName: "none",
+    lastBackend: "?",
+    busy: false
   };
 
-  let state = {
-    mode: localStorage.getItem(LS.MODE) || "building",
-    pro: localStorage.getItem(LS.PRO) === "1",
-    chat: [],
-    preview: {
-      name: "none",
-      html: "",
-      lastUpdated: 0,
-    }
-  };
+  // If your Netlify function is different, change this one line:
+  const API_URL = "/.netlify/functions/simon";
 
-  // ---------- Helpers ----------
-  const now = () => Date.now();
-
-  function saveLocal() {
-    localStorage.setItem(LS.MODE, state.mode);
-    localStorage.setItem(LS.PRO, state.pro ? "1" : "0");
-    localStorage.setItem(LS.CHAT, JSON.stringify(state.chat.slice(-80)));
-    localStorage.setItem(LS.PREVIEW, JSON.stringify(state.preview));
+  function scrollChatToBottom() {
+    els.chatList.scrollTop = els.chatList.scrollHeight + 9999;
   }
 
-  function loadLocal() {
-    try {
-      const c = JSON.parse(localStorage.getItem(LS.CHAT) || "[]");
-      if (Array.isArray(c)) state.chat = c;
-    } catch {}
-    try {
-      const p = JSON.parse(localStorage.getItem(LS.PREVIEW) || "{}");
-      if (p && typeof p === "object") state.preview = { ...state.preview, ...p };
-    } catch {}
+  function bubble(role, text) {
+    const div = document.createElement("div");
+    div.className = `bubble ${role === "me" ? "me" : "simo"}`;
+    div.textContent = text;
+    els.chatList.appendChild(div);
+    scrollChatToBottom();
   }
 
-  function addBubble(role, text) {
-    state.chat.push({ role, text, t: now() });
-    renderChat();
-    saveLocal();
+  function setMode(mode) {
+    state.mode = mode;
+
+    els.modeBuilding.classList.toggle("active", mode === "building");
+    els.modeSolving.classList.toggle("active", mode === "solving");
+    els.modeVenting.classList.toggle("active", mode === "venting");
+
+    els.modeLine.textContent = `Mode: ${mode}`;
+    els.previewModeBadge.textContent = `mode: ${mode}`;
   }
 
-  function renderChat() {
-    el.chatList.innerHTML = "";
-    for (const m of state.chat) {
-      const div = document.createElement("div");
-      div.className = "bubble " + (m.role === "user" ? "me" : "simo");
-      div.textContent = (m.role === "user" ? "You: " : "Simo: ") + m.text;
-      el.chatList.appendChild(div);
-    }
-    el.chatList.scrollTop = el.chatList.scrollHeight;
-  }
+  function setPro(on) {
+    state.pro = !!on;
 
-  function setActiveModeButtons() {
-    el.modeBuilding.classList.toggle("active", state.mode === "building");
-    el.modeSolving.classList.toggle("active", state.mode === "solving");
-    el.modeVenting.classList.toggle("active", state.mode === "venting");
-    el.modeLine.textContent = `Mode: ${state.mode}`;
-    el.previewModeBadge.textContent = `mode: ${state.mode}`;
-  }
+    els.proToggle.classList.toggle("active", state.pro);
+    els.proToggle.classList.toggle("on", state.pro);
+    els.proToggle.setAttribute("aria-pressed", String(state.pro));
+    els.proToggle.textContent = state.pro ? "Pro: ON" : "Pro: OFF";
 
-  function setProUI() {
-    el.proToggle.classList.toggle("active", state.pro);
-    el.proToggle.setAttribute("aria-pressed", state.pro ? "true" : "false");
-    el.proToggle.textContent = state.pro ? "Pro: ON" : "Pro: OFF";
-
-    // Enable premium actions only when pro ON
-    el.saveBtn.disabled = !state.pro;
-    el.libraryBtn.disabled = !state.pro;
-    el.downloadBtn.disabled = !state.pro || !state.preview.html;
-
-    el.proLine.textContent = state.pro
+    els.previewProBadge.textContent = state.pro ? "pro: on" : "pro: off";
+    els.proLine.textContent = state.pro
       ? "Pro ON: Save build + Download enabled."
       : "Pro OFF: Save + Download disabled.";
 
-    el.previewProBadge.textContent = `pro: ${state.pro ? "on" : "off"}`;
+    // Save + Library allowed only when Pro on
+    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
+    els.libraryBtn.disabled = !state.pro;
+
+    // Download enabled only when Pro on + preview exists
+    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
   }
 
-  function setInputPlaceholder() {
-    let text = "";
-    if (state.mode === "venting") text = "Say what’s on your mind…";
-    else if (state.mode === "solving") text = "What are we trying to fix?";
-    else text = "Describe what you want to build. Say 'show me a preview' for visuals.";
-    if (state.pro) text += "  (Pro ON: Save + Download enabled.)";
-    el.msg.placeholder = text;
+  function setBackendLabel(label) {
+    state.lastBackend = label || "?";
+    els.backendBadge.textContent = `backend: ${state.lastBackend}`;
   }
 
-  function setBackendBadge(label) {
-    el.backendBadge.textContent = `backend: ${label || "?"}`;
+  function setPreview(html, name = "preview") {
+    state.lastPreviewHtml = html || "";
+    state.lastPreviewName = name || "preview";
+
+    els.previewNameBadge.textContent = state.lastPreviewName || "preview";
+    els.previewStatusBadge.textContent = html ? "ready" : "empty";
+    els.previewLine.textContent = html ? "Preview loaded." : "No preview yet.";
+
+    // Load preview safely
+    els.previewFrame.srcdoc = html || "";
+
+    // Enable buttons based on pro
+    els.downloadBtn.disabled = !state.pro || !state.lastPreviewHtml;
+    els.saveBtn.disabled = !state.pro || !state.lastPreviewHtml;
   }
 
-  function setPreview({ name, html }) {
-    state.preview.name = name || "none";
-    state.preview.html = html || "";
-    state.preview.lastUpdated = now();
-
-    el.previewNameBadge.textContent = state.preview.name || "none";
-    el.previewLine.textContent = state.preview.html ? "Preview loaded." : "No preview yet.";
-
-    if (state.preview.html) {
-      // Use srcdoc to avoid hosting issues
-      el.previewFrame.srcdoc = state.preview.html;
-    } else {
-      el.previewFrame.srcdoc = `<html><body style="margin:0;background:transparent"></body></html>`;
-    }
-
-    // Download button depends on pro + html
-    el.downloadBtn.disabled = !state.pro || !state.preview.html;
-    saveLocal();
+  function clearPreview() {
+    setPreview("", "none");
+    bubble("simo", "Preview cleared.");
   }
 
-  function downloadHtml() {
-    if (!state.pro || !state.preview.html) return;
-    const blob = new Blob([state.preview.html], { type: "text/html;charset=utf-8" });
+  function downloadCurrentPreview() {
+    if (!state.pro || !state.lastPreviewHtml) return;
+
+    const blob = new Blob([state.lastPreviewHtml], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (state.preview.name || "preview") + ".html";
+    const url = URL.createObjectURL(blob);
+
+    const safeName = (state.lastPreviewName || "preview")
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]+/g, "_")
+      .slice(0, 40);
+
+    a.href = url;
+    a.download = `${safeName || "preview"}.html`;
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => {
-      URL.revokeObjectURL(a.href);
-      a.remove();
-    }, 250);
+    a.remove();
+    URL.revokeObjectURL(url);
   }
 
-  function getLibrary() {
-    try { return JSON.parse(localStorage.getItem(LS.LIB) || "[]"); } catch { return []; }
-  }
-  function setLibrary(items) {
-    localStorage.setItem(LS.LIB, JSON.stringify(items));
-  }
-
-  function saveBuildToLibrary() {
-    if (!state.pro) return;
-    if (!state.preview.html) {
-      addBubble("assistant", "No preview to save yet. Ask for a preview first.");
-      return;
+  function getSavedBuilds() {
+    try {
+      return JSON.parse(localStorage.getItem("simo_builds") || "[]");
+    } catch {
+      return [];
     }
-    const items = getLibrary();
-    const entry = {
-      id: "b_" + now(),
-      name: state.preview.name || "preview",
-      html: state.preview.html,
-      savedAt: now()
-    };
-    items.unshift(entry);
-    setLibrary(items.slice(0, 30));
-    addBubble("assistant", `Saved to Library: ${entry.name}.`);
+  }
+
+  function setSavedBuilds(list) {
+    localStorage.setItem("simo_builds", JSON.stringify(list));
+  }
+
+  function saveBuild() {
+    if (!state.pro || !state.lastPreviewHtml) return;
+
+    const name = prompt("Name this build (e.g., lp_v1):", state.lastPreviewName || "build");
+    if (!name) return;
+
+    const builds = getSavedBuilds();
+    builds.unshift({
+      name,
+      html: state.lastPreviewHtml,
+      ts: Date.now(),
+      mode: state.mode
+    });
+
+    // keep small + safe
+    setSavedBuilds(builds.slice(0, 30));
+    bubble("simo", `Saved build: ${name}`);
   }
 
   function openLibrary() {
     if (!state.pro) return;
-    const items = getLibrary();
-    if (!items.length) {
-      addBubble("assistant", "Library is empty. Save a build first.");
-      return;
-    }
-    // Simple: load the most recent (you can later expand to modal UI)
-    const top = items[0];
-    setPreview({ name: top.name, html: top.html });
-    addBubble("assistant", `Loaded from Library: ${top.name}.`);
-  }
 
-  // ---------- API call ----------
-  async function callSimo(text) {
-    el.previewStatusBadge.textContent = "thinking…";
-
-    const payload = {
-      text,
-      mode: state.mode,
-      pro: state.pro,
-
-      // current preview so the function can edit instead of rebuild
-      current_preview_name: state.preview.name,
-      current_preview_html: state.preview.html,
-    };
-
-    const res = await fetch("/.netlify/functions/simon", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    // Prefer server-provided debug label if present
-    if (data && data.backend_label) setBackendBadge(data.backend_label);
-
-    if (!res.ok || !data.ok) {
-      el.previewStatusBadge.textContent = "error";
-      const msg = data?.error || `Server error (${res.status})`;
-      addBubble("assistant", msg + (data?.details ? ` — ${data.details}` : ""));
+    const builds = getSavedBuilds();
+    if (!builds.length) {
+      bubble("simo", "Library is empty. Generate a preview, then Save build.");
       return;
     }
 
-    el.previewStatusBadge.textContent = "ready";
+    // Simple picker
+    const menu = builds
+      .slice(0, 12)
+      .map((b, i) => `${i + 1}) ${b.name}`)
+      .join("\n");
 
-    if (data.reply) addBubble("assistant", data.reply);
+    const pick = prompt(`Library:\n${menu}\n\nType a number to load:`, "1");
+    const idx = Number(pick) - 1;
+    if (!Number.isFinite(idx) || idx < 0 || idx >= builds.length) return;
 
-    // Accept BOTH contracts:
-    // - legacy: preview_html + preview_name
-    // - new: preview: { name, html }
-    const pName = data.preview?.name || data.preview_name;
-    const pHtml = data.preview?.html || data.preview_html;
+    const chosen = builds[idx];
+    setPreview(chosen.html, chosen.name);
+    bubble("simo", `Loaded from library: ${chosen.name}`);
+  }
 
-    if (pHtml) {
-      setPreview({ name: pName || "preview", html: pHtml });
+  // Flexible parsing: supports multiple backend formats so it won’t “get stuck”
+  function extractFromResponse(data) {
+    // common variants:
+    // { ok:true, text:"...", preview_html:"...", preview_name:"landing_page" }
+    // { ok:true, reply:"...", preview:{ html:"...", name:"..." } }
+    // { output_text:"...", preview:{...} }
+    // { response:{ ... } }
+    const root = data && (data.response || data);
+    const text =
+      root?.text ??
+      root?.reply ??
+      root?.output_text ??
+      root?.message ??
+      root?.assistant ??
+      "";
+
+    const backend =
+      root?.backend ??
+      root?.meta?.backend ??
+      root?.version ??
+      "";
+
+    const previewHtml =
+      root?.preview_html ??
+      root?.previewHtml ??
+      root?.preview?.html ??
+      root?.preview?.preview_html ??
+      root?.preview?.srcdoc ??
+      "";
+
+    const previewName =
+      root?.preview_name ??
+      root?.previewName ??
+      root?.preview?.name ??
+      root?.preview?.preview_name ??
+      (previewHtml ? "preview" : "none");
+
+    return { text, backend, previewHtml, previewName };
+  }
+
+  async function send() {
+    if (state.busy) return;
+
+    const q = (els.msg.value || "").trim();
+    if (!q) return;
+
+    bubble("me", `You: ${q}`);
+    els.msg.value = "";
+
+    state.busy = true;
+    els.sendBtn.disabled = true;
+    els.previewStatusBadge.textContent = "thinking…";
+
+    try {
+      const payload = {
+        q,
+        mode: state.mode,
+        pro: state.pro
+      };
+
+      const res = await fetch(API_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json().catch(() => ({}));
+      const { text, backend, previewHtml, previewName } = extractFromResponse(data);
+
+      if (backend) setBackendLabel(backend);
+
+      // show assistant text
+      bubble("simo", text ? `Simo: ${text}` : "Simo: (no response text)");
+
+      // load preview if provided
+      if (previewHtml) {
+        setPreview(previewHtml, previewName || "preview");
+      } else {
+        els.previewStatusBadge.textContent = "ready";
+      }
+    } catch (err) {
+      console.error(err);
+      bubble("simo", "Simo: Sorry — I hit a network/backend error. Check Netlify function logs.");
+      els.previewStatusBadge.textContent = "error";
+    } finally {
+      state.busy = false;
+      els.sendBtn.disabled = false;
     }
   }
 
-  // ---------- Router to avoid loops ----------
-  // If user says "that's good" after a preview, don't ask title again. Just confirm & offer next.
-  function isAffirmation(t) {
-    const s = (t || "").trim().toLowerCase();
-    return ["ok", "okay", "yes", "yep", "thats good", "that's good", "looks good", "perfect", "fine"].includes(s);
+  function resetAll() {
+    els.chatList.innerHTML = "";
+    bubble("simo", "Simo: Reset. I’m here.");
+    setPreview("", "none");
+    setBackendLabel(state.lastBackend || "?");
   }
 
-  function onSend() {
-    const text = (el.msg.value || "").trim();
-    if (!text) return;
+  function devDump() {
+    const info = [
+      `mode=${state.mode}`,
+      `pro=${state.pro}`,
+      `preview=${state.lastPreviewName}`,
+      `hasPreviewHtml=${!!state.lastPreviewHtml}`,
+      `backend=${state.lastBackend}`,
+      `api=${API_URL}`
+    ].join(" | ");
+    bubble("simo", `Simo (dev): ${info}`);
+  }
 
-    el.msg.value = "";
-    addBubble("user", text);
-
-    // Tiny client-side guard: if they say "that's good" right after preview, keep it moving
-    const lastAssistant = [...state.chat].reverse().find(m => m.role === "assistant");
-    if (lastAssistant && isAffirmation(text) && state.preview.html) {
-      addBubble("assistant", "Got it. Want to build something else or tweak this preview?");
-      return;
+  // Wire up events
+  els.sendBtn.addEventListener("click", send);
+  els.msg.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      send();
     }
-
-    callSimo(text);
-  }
-
-  // ---------- Events ----------
-  el.sendBtn.addEventListener("click", onSend);
-  el.msg.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") onSend();
   });
 
-  el.modeBuilding.addEventListener("click", () => {
-    state.mode = "building"; setActiveModeButtons(); setInputPlaceholder(); saveLocal();
-  });
-  el.modeSolving.addEventListener("click", () => {
-    state.mode = "solving"; setActiveModeButtons(); setInputPlaceholder(); saveLocal();
-  });
-  el.modeVenting.addEventListener("click", () => {
-    state.mode = "venting"; setActiveModeButtons(); setInputPlaceholder(); saveLocal();
-  });
+  els.modeBuilding.addEventListener("click", () => setMode("building"));
+  els.modeSolving.addEventListener("click", () => setMode("solving"));
+  els.modeVenting.addEventListener("click", () => setMode("venting"));
 
-  el.proToggle.addEventListener("click", () => {
-    state.pro = !state.pro;
-    setProUI();
-    setInputPlaceholder();
-    saveLocal();
-  });
+  els.proToggle.addEventListener("click", () => setPro(!state.pro));
 
-  el.resetBtn.addEventListener("click", () => {
-    state.chat = [];
-    renderChat();
-    addBubble("assistant", "Reset. I’m here.");
-  });
+  els.resetBtn.addEventListener("click", resetAll);
+  els.devBtn.addEventListener("click", devDump);
 
-  el.clearPreviewBtn.addEventListener("click", () => {
-    setPreview({ name: "none", html: "" });
-    addBubble("assistant", "Preview cleared.");
-  });
+  els.clearPreviewBtn.addEventListener("click", clearPreview);
+  els.downloadBtn.addEventListener("click", downloadCurrentPreview);
 
-  el.downloadBtn.addEventListener("click", downloadHtml);
-  el.saveBtn.addEventListener("click", saveBuildToLibrary);
-  el.libraryBtn.addEventListener("click", openLibrary);
+  els.saveBtn.addEventListener("click", saveBuild);
+  els.libraryBtn.addEventListener("click", openLibrary);
 
-  el.devBtn.addEventListener("click", () => {
-    const info = {
-      mode: state.mode,
-      pro: state.pro,
-      preview: { name: state.preview.name, hasHtml: !!state.preview.html, lastUpdated: state.preview.lastUpdated },
-    };
-    addBubble("assistant", "Dev: " + JSON.stringify(info));
-  });
-
-  // ---------- Init ----------
-  loadLocal();
-  setBackendBadge("simo-backend-locked-v4");
-  setActiveModeButtons();
-  setProUI();
-  setInputPlaceholder();
-  renderChat();
-
-  // Rehydrate preview
-  if (state.preview && state.preview.html) {
-    setPreview({ name: state.preview.name, html: state.preview.html });
-  } else {
-    setPreview({ name: "none", html: "" });
-  }
-
-  // Greeting if empty
-  if (!state.chat.length) addBubble("assistant", "Reset. I’m here.");
+  // Boot
+  setMode("building");
+  setPro(false);
+  setBackendLabel("?");
+  resetAll();
 })();
