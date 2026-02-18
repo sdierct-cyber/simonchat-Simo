@@ -1,9 +1,15 @@
 (() => {
-  // -------------------------
-  // 1) REQUIRED UI ELEMENTS
-  // -------------------------
-  // Only require the core UI. Library modal can be auto-created if missing.
-  const reqIds = [
+  // =========================
+  // Simo chat.js — Checkpoint V1+
+  // - Stable UI wiring
+  // - Tier gating (Free/Pro) FIXED (no desync)
+  // - Undo / Redo (local, reliable)
+  // - Auto-version Save (Landing Page v1, v2… / Book Cover v1…)
+  // - Library modal auto-creates if missing in index.html
+  // =========================
+
+  // ---- Required core element IDs (must exist in index.html) ----
+  const REQ = [
     "msgs","input","send","statusHint",
     "tierPills","tierFreeLabel","tierProLabel",
     "btnReset","btnSave","btnDownload","btnLibrary",
@@ -12,17 +18,17 @@
 
   const els = {};
   const missing = [];
-  for (const id of reqIds) {
+  for (const id of REQ) {
     const el = document.getElementById(id);
-    if (!el) missing.push(id);
     els[id] = el || null;
+    if (!el) missing.push(id);
   }
   if (missing.length) {
     console.error("Simo UI missing required elements:", missing);
     return;
   }
 
-  // Optional modal ids (may not exist in index.html)
+  // Optional modal IDs (may not exist; we can create them)
   els.modalBack  = document.getElementById("modalBack");
   els.closeModal = document.getElementById("closeModal");
   els.libList    = document.getElementById("libList");
@@ -40,34 +46,48 @@
   };
 
   const state = {
-    tier: (localStorage.getItem(LS.tier) === "pro") ? "pro" : "free",
     busy: false,
+    tier: "free",
     conversation: loadJson(LS.conversation, []),
     lastPreview: loadJson(LS.lastPreview, null),
     undoStack: loadJson(LS.undoStack, []),
     redoStack: loadJson(LS.redoStack, []),
   };
 
-  // ---- init labels ----
+  // -------------------------
+  // INIT
+  // -------------------------
   els.tierFreeLabel.textContent = `$${PRICING.free}`;
   els.tierProLabel.textContent = `$${PRICING.pro}`;
-  syncTierUI();
-  syncGates();
+
+  // IMPORTANT: Resolve tier from (1) localStorage, (2) active pill in DOM, (3) default free
+  state.tier = resolveTier();
+  applyTierUI();
+
+  initTierHandlers();   // event delegation (prevents desync)
   initComposer();
   initActions();
+
   renderHistory();
   restorePreview();
   setStatus("Ready");
+
   if (!state.conversation.length) systemMsg("Simo: Reset. I’m here.");
 
   // -------------------------
-  // Helpers
+  // Storage helpers
   // -------------------------
   function loadJson(key, fallback) {
     try { return JSON.parse(localStorage.getItem(key) || "null") ?? fallback; }
     catch { return fallback; }
   }
-  function saveJson(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+  function saveJson(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+
+  // -------------------------
+  // Status / UI helpers
+  // -------------------------
   function setStatus(t) { els.statusHint.textContent = t || "Ready"; }
 
   function setBusy(on) {
@@ -103,31 +123,61 @@
     els.msgs.scrollTop = els.msgs.scrollHeight;
   }
 
-  function normalizeCmd(s) { return String(s || "").trim(); }
-  function normalizeLower(s) { return normalizeCmd(s).toLowerCase(); }
+  function normalize(s) { return String(s || "").trim(); }
+  function lower(s) { return normalize(s).toLowerCase(); }
 
   // -------------------------
-  // Tier pills + gating
+  // Tier (Free/Pro) — FIXED
   // -------------------------
-  function syncTierUI() {
-    [...els.tierPills.querySelectorAll(".pill")].forEach(p => {
-      p.classList.toggle("active", p.dataset.tier === state.tier);
-      p.onclick = () => {
-        state.tier = p.dataset.tier;
-        localStorage.setItem(LS.tier, state.tier);
-        syncTierUI();
-        syncGates();
-        systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
-      };
-    });
+  function resolveTier() {
+    // 1) localStorage
+    const stored = localStorage.getItem(LS.tier);
+    if (stored === "pro" || stored === "free") return stored;
+
+    // 2) active pill in DOM (if present)
+    const active = els.tierPills.querySelector(".pill.active");
+    const domTier = active?.dataset?.tier;
+    if (domTier === "pro" || domTier === "free") return domTier;
+
+    // 3) default
+    return "free";
   }
+
   function isPro() { return state.tier === "pro"; }
 
-  function syncGates() {
-    // These just visually “dim” buttons if your CSS supports .locked
+  function applyTierUI() {
+    // update pill active styles
+    [...els.tierPills.querySelectorAll(".pill")].forEach(p => {
+      p.classList.toggle("active", p.dataset.tier === state.tier);
+    });
+
+    // update locked button visuals (your CSS dims .locked)
     els.btnSave.classList.toggle("locked", !isPro());
     els.btnDownload.classList.toggle("locked", !isPro());
     els.btnLibrary.classList.toggle("locked", !isPro());
+  }
+
+  function setTier(nextTier, announce = true) {
+    state.tier = (nextTier === "pro") ? "pro" : "free";
+    localStorage.setItem(LS.tier, state.tier);
+    applyTierUI();
+    if (announce) systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
+  }
+
+  function initTierHandlers() {
+    // Event delegation ensures clicks always register even if DOM changes
+    els.tierPills.addEventListener("click", (e) => {
+      const pill = e.target.closest(".pill");
+      if (!pill) return;
+      const t = pill.dataset.tier;
+      setTier(t, true);
+    });
+
+    // Also keep in sync on page restore
+    window.addEventListener("focus", () => {
+      const t = resolveTier();
+      if (t !== state.tier) setTier(t, false);
+    });
   }
 
   function gated(fn) {
@@ -139,7 +189,7 @@
   }
 
   // -------------------------
-  // Undo/Redo stacks
+  // Undo / Redo (Preview History)
   // -------------------------
   function capStacks() {
     state.undoStack = state.undoStack.slice(0, 12);
@@ -147,44 +197,52 @@
     saveJson(LS.undoStack, state.undoStack);
     saveJson(LS.redoStack, state.redoStack);
   }
+
   function pushUndo(snapshot) {
     if (!snapshot?.html) return;
     state.undoStack.unshift(snapshot);
     saveJson(LS.undoStack, state.undoStack);
+
+    // new change clears redo
     state.redoStack = [];
     saveJson(LS.redoStack, state.redoStack);
+
     capStacks();
   }
+
   function pushRedo(snapshot) {
     if (!snapshot?.html) return;
     state.redoStack.unshift(snapshot);
     saveJson(LS.redoStack, state.redoStack);
     capStacks();
   }
+
   function popUndo() {
     const s = state.undoStack.shift() || null;
     saveJson(LS.undoStack, state.undoStack);
     return s;
   }
+
   function popRedo() {
     const s = state.redoStack.shift() || null;
     saveJson(LS.redoStack, state.redoStack);
     return s;
   }
 
+  function isUndoCmd(text) {
+    const t = lower(text);
+    return t === "undo" || t === "undo last edit" || t === "undo last" || t === "undo edit";
+  }
+
+  function isRedoCmd(text) {
+    const t = lower(text);
+    return t === "redo" || t === "redo last" || t === "redo edit";
+  }
+
   function replyLocal(text) {
     addMsg("assistant", text);
     state.conversation.push({ role: "assistant", content: text });
     saveJson(LS.conversation, state.conversation);
-  }
-
-  function isUndoCommand(text) {
-    const t = normalizeLower(text);
-    return t === "undo" || t === "undo last edit" || t === "undo last" || t === "undo edit";
-  }
-  function isRedoCommand(text) {
-    const t = normalizeLower(text);
-    return t === "redo" || t === "redo last" || t === "redo edit";
   }
 
   function handleUndo() {
@@ -222,7 +280,7 @@
   }
 
   // -------------------------
-  // Library storage + auto-version save
+  // Library + Auto-version Save
   // -------------------------
   function getLibrary() { return loadJson(LS.library, []); }
   function setLibrary(items) { saveJson(LS.library, items); }
@@ -233,7 +291,9 @@
     return "Landing Page";
   }
 
-  function escapeRegExp(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+  function escapeRegExp(s) {
+    return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
 
   function nextVersionName(base) {
     const items = getLibrary();
@@ -268,16 +328,15 @@
     systemMsg(`Saved: ${name}`);
   }
 
-  // Optional: chat command "save as: ..."
   function parseSaveAs(text) {
-    const raw = normalizeCmd(text);
+    const raw = normalize(text);
     const m = raw.match(/^save\s+as\s*:\s*(.+)$/i);
     if (!m) return null;
-    return m[1].trim() || null;
+    return (m[1] || "").trim() || null;
   }
 
   // -------------------------
-  // Preview
+  // Preview render
   // -------------------------
   function setPreviewMeta(label, meta) {
     els.previewLabel.textContent = label || "Idle";
@@ -314,12 +373,11 @@
   }
 
   // -------------------------
-  // Library Modal (AUTO CREATE if missing)
+  // Library Modal (auto-create)
   // -------------------------
   function ensureLibraryModal() {
     if (els.modalBack && els.libList && els.closeModal && els.libHint && els.clearLib) return;
 
-    // Create a simple modal overlay with inline styles so it works even if CSS is missing
     const back = document.createElement("div");
     back.id = "modalBack";
     back.style.position = "fixed";
@@ -350,6 +408,7 @@
     const title = document.createElement("div");
     title.textContent = "Library";
     title.style.fontWeight = "900";
+    title.style.color = "#eaf0ff";
 
     const close = document.createElement("button");
     close.id = "closeModal";
@@ -411,14 +470,12 @@
     back.appendChild(modal);
     document.body.appendChild(back);
 
-    // Wire refs
     els.modalBack = back;
     els.closeModal = close;
     els.libList = list;
     els.libHint = hint;
     els.clearLib = clear;
 
-    // Close handlers
     close.onclick = closeLibrary;
     back.onclick = (e) => { if (e.target === back) closeLibrary(); };
     clear.onclick = () => gated(clearLibrary);
@@ -438,6 +495,7 @@
   function renderLibrary() {
     ensureLibraryModal();
     const items = getLibrary();
+
     els.libList.innerHTML = "";
     els.libHint.textContent = items.length
       ? `${items.length} saved item(s).`
@@ -453,6 +511,7 @@
       row.style.alignItems = "center";
       row.style.justifyContent = "space-between";
       row.style.gap = "10px";
+      row.style.color = "#eaf0ff";
 
       const left = document.createElement("div");
 
@@ -528,27 +587,31 @@
   }
 
   // -------------------------
-  // Composer send
+  // Composer
   // -------------------------
   function initComposer() {
     els.send.onclick = onSend;
     els.input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSend(); }
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
     });
   }
 
   async function onSend() {
-    const text = (els.input.value || "").trim();
+    const text = normalize(els.input.value);
     if (!text || state.busy) return;
 
     els.input.value = "";
     addMsg("user", text);
+
     state.conversation.push({ role: "user", content: text });
     saveJson(LS.conversation, state.conversation);
 
-    // local commands
-    if (isUndoCommand(text)) return handleUndo();
-    if (isRedoCommand(text)) return handleRedo();
+    // Local commands
+    if (isUndoCmd(text)) return handleUndo();
+    if (isRedoCmd(text)) return handleRedo();
 
     const saveAsName = parseSaveAs(text);
     if (saveAsName) {
@@ -579,7 +642,7 @@
         return;
       }
 
-      const reply = (j.text || j.reply || "").trim();
+      const reply = normalize(j.text || j.reply);
       if (reply) {
         addMsg("assistant", reply);
         state.conversation.push({ role: "assistant", content: reply });
@@ -589,7 +652,6 @@
       if (j.preview && typeof j.preview.html === "string" && j.preview.html.trim()) {
         renderPreview(j.preview);
       }
-
     } catch (err) {
       addMsg("assistant", `Error: ${err?.message || "Request failed"}`);
     } finally {
@@ -598,7 +660,7 @@
   }
 
   // -------------------------
-  // Actions
+  // Actions (buttons)
   // -------------------------
   function initActions() {
     els.btnReset.onclick = () => {
@@ -609,9 +671,8 @@
       setStatus("Ready");
     };
 
-    // Save auto-versions (Pro)
+    // Pro-gated
     els.btnSave.onclick = () => gated(() => saveToLibraryAuto());
-
     els.btnDownload.onclick = () => gated(downloadPreview);
     els.btnLibrary.onclick = () => gated(openLibrary);
   }
@@ -629,7 +690,7 @@
   }
 
   // -------------------------
-  // History render
+  // History restore
   // -------------------------
   function renderHistory() {
     for (const turn of state.conversation) {
