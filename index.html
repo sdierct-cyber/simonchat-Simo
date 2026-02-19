@@ -11,6 +11,7 @@
       --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39ff7a;
+      --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
       --panel: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.14));
     }
@@ -193,6 +194,8 @@
       padding:8px 10px;
       font-size:12px;
     }
+    .ok{color:var(--good); font-weight:950}
+    .err{color:var(--bad); font-weight:950}
   </style>
 </head>
 <body>
@@ -262,11 +265,11 @@
   </div>
 
   <!-- Library Modal -->
-  <div id="modal" class="modalBackdrop" aria-hidden="true">
+  <div id="libModal" class="modalBackdrop" aria-hidden="true">
     <div class="modal" role="dialog" aria-modal="true" aria-label="Library">
       <div class="modalTop">
         <div class="t">Library</div>
-        <button id="closeModal" class="x" aria-label="Close">✕</button>
+        <button id="closeLibModal" class="x" aria-label="Close">✕</button>
       </div>
       <div class="modalBody">
         <div class="row">
@@ -282,10 +285,33 @@
     </div>
   </div>
 
+  <!-- Pro Key Modal -->
+  <div id="proModal" class="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Unlock Pro">
+      <div class="modalTop">
+        <div class="t">Unlock Pro</div>
+        <button id="closeProModal" class="x" aria-label="Close">✕</button>
+      </div>
+      <div class="modalBody">
+        <div class="muted small" style="margin-bottom:10px">
+          Enter your Pro license key. Pro unlocks only after server verification.
+        </div>
+        <div class="row">
+          <input id="proKey" class="input" placeholder="e.g. SIMO-TEST-123" />
+          <button id="verifyProBtn" class="btn">Verify</button>
+          <button id="logoutProBtn" class="btn danger">Log out Pro</button>
+        </div>
+        <div id="proStatus" class="muted small"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
 
     const STORAGE_KEY = "simo.library.v1";
+    const PRO_FLAG_KEY = "simo.pro.verified.v1"; // boolean "1" or ""
+    const PRO_KEY_CACHE = "simo.pro.keyhint.v1"; // optional key hint (not required)
 
     const state = {
       tier: "free",
@@ -293,6 +319,7 @@
       lastPreview: null,
       lastSavedHtml: null,
       isBusy: false,
+      proVerified: false
     };
 
     function nowStamp() { return new Date().toISOString(); }
@@ -331,7 +358,7 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
       $("freePill").classList.toggle("on", state.tier === "free");
       $("proPill").classList.toggle("on", state.tier === "pro");
 
-      const proOn = state.tier === "pro";
+      const proOn = (state.tier === "pro") && state.proVerified;
       ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
         const b = $(id);
         b.classList.toggle("locked", !proOn);
@@ -339,6 +366,14 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
           ? b.textContent.replace("🔒","").trim()
           : (b.textContent.replace("🔒","").trim() + ' <span class="badgeLock">🔒</span>');
       });
+
+      // Visual: if user clicked Pro but not verified, show modal instead
+      if (state.tier === "pro" && !state.proVerified) {
+        // keep UI in Free mode until verified
+        state.tier = "free";
+        $("freePill").classList.add("on");
+        $("proPill").classList.remove("on");
+      }
     }
 
     function addMsg(role, text) {
@@ -496,7 +531,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 </body>
 </html>`;
     }
-    // ------------------------------------------------------
 
     // -------- Local edit commands (works even if server times out) --------
     function norm(s){ return String(s||"").trim(); }
@@ -597,7 +631,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 
       return { html: out, note: "No edit applied." };
     }
-    // --------------------------------------------------------------------
 
     // -------- Local best-friend fallback (NO dead-ends) --------
     function localBestFriendFallback(userText) {
@@ -616,12 +649,11 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       }
       return "I’m here. Tell me what you want right now — venting, solving, or building.";
     }
-    // ---------------------------------------------------------
 
     async function callBackend(text, timeoutMs) {
       const payload = {
         text,
-        tier: state.tier,
+        tier: (state.proVerified ? "pro" : "free"),
         conversation: state.conversation,
         lastPreview: state.lastPreview
       };
@@ -645,8 +677,9 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 
     // ---------------- Pro features ----------------
     function requirePro(actionName) {
-      if (state.tier !== "pro") {
-        addMsg("assistant", `${actionName} is a Pro feature 🔒 (toggle Pro top-right).`);
+      if (!state.proVerified) {
+        addMsg("assistant", `${actionName} is a Pro feature 🔒. Click Pro and verify your license key.`);
+        openProModal();
         return false;
       }
       return true;
@@ -664,15 +697,98 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       URL.revokeObjectURL(url);
     }
 
-    function openModal() {
-      $("modal").classList.add("show");
-      $("modal").setAttribute("aria-hidden", "false");
+    function openLibModal() {
+      $("libModal").classList.add("show");
+      $("libModal").setAttribute("aria-hidden", "false");
       renderLibrary();
       setTimeout(() => $("saveName").focus(), 50);
     }
-    function closeModal() {
-      $("modal").classList.remove("show");
-      $("modal").setAttribute("aria-hidden", "true");
+    function closeLibModal() {
+      $("libModal").classList.remove("show");
+      $("libModal").setAttribute("aria-hidden", "true");
+    }
+
+    function openProModal() {
+      $("proModal").classList.add("show");
+      $("proModal").setAttribute("aria-hidden", "false");
+      const hint = localStorage.getItem(PRO_KEY_CACHE) || "";
+      $("proKey").value = hint;
+      updateProStatus();
+      setTimeout(() => $("proKey").focus(), 50);
+    }
+    function closeProModal() {
+      $("proModal").classList.remove("show");
+      $("proModal").setAttribute("aria-hidden", "true");
+    }
+
+    function updateProStatus(msg, ok) {
+      const el = $("proStatus");
+      if (typeof msg === "string") {
+        el.textContent = msg;
+        el.className = (ok === true) ? "ok" : (ok === false) ? "err" : "muted small";
+        return;
+      }
+      if (state.proVerified) {
+        el.textContent = "Pro is verified ✅";
+        el.className = "ok";
+      } else {
+        el.textContent = "Pro is locked until verified.";
+        el.className = "muted small";
+      }
+    }
+
+    function setProVerified(on) {
+      state.proVerified = !!on;
+      if (state.proVerified) localStorage.setItem(PRO_FLAG_KEY, "1");
+      else localStorage.removeItem(PRO_FLAG_KEY);
+
+      // reflect UI
+      $("freePill").classList.toggle("on", !state.proVerified);
+      $("proPill").classList.toggle("on", state.proVerified);
+
+      const proOn = state.proVerified;
+      ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
+        const b = $(id);
+        b.classList.toggle("locked", !proOn);
+        b.innerHTML = proOn
+          ? b.textContent.replace("🔒","").trim()
+          : (b.textContent.replace("🔒","").trim() + ' <span class="badgeLock">🔒</span>');
+      });
+      updateProStatus();
+    }
+
+    async function verifyProKey(key) {
+      const k = String(key || "").trim();
+      if (!k) {
+        updateProStatus("Enter a key first.", false);
+        return false;
+      }
+
+      updateProStatus("Verifying…", null);
+
+      try {
+        const r = await fetch("/.netlify/functions/pro", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ key: k })
+        });
+        const j = await r.json().catch(() => ({}));
+        if (j && j.ok && j.pro === true) {
+          localStorage.setItem(PRO_KEY_CACHE, k);
+          setProVerified(true);
+          updateProStatus("Verified ✅ Pro unlocked.", true);
+          closeProModal();
+          addMsg("assistant", "Pro verified ✅ Save / Download / Library unlocked.");
+          return true;
+        }
+        setProVerified(false);
+        updateProStatus("Invalid key. Double-check it matches PRO_LICENSE_KEYS.", false);
+        return false;
+      } catch (e) {
+        setProVerified(false);
+        updateProStatus("Server error verifying Pro. Try again.", false);
+        return false;
+      }
     }
 
     function currentHtmlOrNull() {
@@ -718,7 +834,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           if (!it.html) return;
           setPreview({ kind:"html", title: it.name || "Saved build", meta:"Loaded from Library", html: it.html });
           addMsg("assistant", `Loaded “${it.name || "Untitled"}” into preview.`);
-          closeModal();
+          closeLibModal();
         });
 
         const dlBtn = document.createElement("button");
@@ -781,7 +897,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       saveLibrary(arr);
       addMsg("assistant", `Saved: “${name}”.`);
     }
-    // ------------------------------------------------------
 
     async function send() {
       const text = $("input").value.trim();
@@ -790,14 +905,14 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("user", text);
       $("input").value = "";
 
-      // 1) Instant preview for landing pages (local)
+      // 1) Instant preview (local)
       if (looksLikePreviewAsk(text)) {
         const topic = extractTopic(text);
         setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
         addMsg("assistant", "Done. I updated the preview on the right.");
       }
 
-      // 2) Local edits ALWAYS apply immediately (if we have HTML)
+      // 2) Local edits apply immediately
       if (isEditCommand(text)) {
         const html = currentHtmlOrNull();
         if (html) {
@@ -807,14 +922,12 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
         } else {
           addMsg("assistant", "No preview yet to edit. First: “build a landing page for a fitness coach”.");
         }
-        // We still try the backend too (so it stays in sync when it responds),
-        // but the user already sees the edit even if it times out.
       }
 
       setBusy(true);
 
       try {
-        const timeoutMs = 25000; // work-safe
+        const timeoutMs = 25000;
         const data = await callBackend(text, timeoutMs);
 
         if (data && typeof data.text === "string" && data.text.trim()) {
@@ -827,7 +940,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           setPreview(data.preview);
         }
       } catch (err) {
-        // If it’s not preview/edit, give friendly fallback
         if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
           addMsg("assistant", localBestFriendFallback(text));
         }
@@ -847,12 +959,9 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       $("previewFrame").srcdoc = idlePreviewDoc();
     }
 
-    // ----- Wire buttons -----
+    // ----- Button wiring -----
     $("sendBtn").addEventListener("click", send);
     $("resetBtn").addEventListener("click", reset);
-
-    $("freePill").addEventListener("click", () => setTier("free"));
-    $("proPill").addEventListener("click", () => setTier("pro"));
 
     $("input").addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -861,14 +970,36 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       }
     });
 
-    // Pro: Save
+    // Pro/Free pills:
+    $("freePill").addEventListener("click", () => {
+      setProVerified(false);
+      addMsg("assistant", "Switched to Free.");
+    });
+
+    $("proPill").addEventListener("click", () => {
+      openProModal();
+    });
+
+    // Pro modal buttons
+    $("closeProModal").addEventListener("click", closeProModal);
+    $("verifyProBtn").addEventListener("click", () => verifyProKey($("proKey").value));
+    $("logoutProBtn").addEventListener("click", () => {
+      setProVerified(false);
+      addMsg("assistant", "Pro logged out. Back to Free.");
+      updateProStatus("Pro logged out.", false);
+    });
+
+    $("proModal").addEventListener("click", (e) => {
+      if (e.target === $("proModal")) closeProModal();
+    });
+
+    // Pro: Save / Download / Library
     $("saveBtn").addEventListener("click", () => {
       if (!requirePro("Save")) return;
       const auto = $("previewTitle").textContent || "Build";
       saveCurrentToLibrary(auto + " " + new Date().toLocaleString());
     });
 
-    // Pro: Download
     $("downloadBtn").addEventListener("click", () => {
       if (!requirePro("Download")) return;
       const html = currentHtmlOrNull();
@@ -884,20 +1015,22 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("assistant", "Downloaded the current build.");
     });
 
-    // Pro: Library
     $("libraryBtn").addEventListener("click", () => {
       if (!requirePro("Library")) return;
-      openModal();
+      openLibModal();
     });
 
-    // Modal buttons
-    $("closeModal").addEventListener("click", closeModal);
-    $("modal").addEventListener("click", (e) => {
-      if (e.target === $("modal")) closeModal();
+    // Library modal close wiring
+    $("closeLibModal").addEventListener("click", closeLibModal);
+    $("libModal").addEventListener("click", (e) => {
+      if (e.target === $("libModal")) closeLibModal();
     });
 
     window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && $("modal").classList.contains("show")) closeModal();
+      if (e.key === "Escape") {
+        if ($("libModal").classList.contains("show")) closeLibModal();
+        if ($("proModal").classList.contains("show")) closeProModal();
+      }
     });
 
     $("saveNow").addEventListener("click", () => {
@@ -915,8 +1048,11 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     });
 
     // init
-    setTier("free");
     $("previewFrame").srcdoc = idlePreviewDoc();
+
+    // restore pro verified flag (optional)
+    state.proVerified = localStorage.getItem(PRO_FLAG_KEY) === "1";
+    setProVerified(state.proVerified);
   </script>
 </body>
 </html>
