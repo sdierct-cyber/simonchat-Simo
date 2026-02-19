@@ -353,29 +353,6 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
       $("statusDot").textContent = state.isBusy ? "Thinking…" : "Ready";
     }
 
-    function setTier(tier) {
-      state.tier = tier === "pro" ? "pro" : "free";
-      $("freePill").classList.toggle("on", state.tier === "free");
-      $("proPill").classList.toggle("on", state.tier === "pro");
-
-      const proOn = (state.tier === "pro") && state.proVerified;
-      ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
-        const b = $(id);
-        b.classList.toggle("locked", !proOn);
-        b.innerHTML = proOn
-          ? b.textContent.replace("🔒","").trim()
-          : (b.textContent.replace("🔒","").trim() + ' <span class="badgeLock">🔒</span>');
-      });
-
-      // Visual: if user clicked Pro but not verified, show modal instead
-      if (state.tier === "pro" && !state.proVerified) {
-        // keep UI in Free mode until verified
-        state.tier = "free";
-        $("freePill").classList.add("on");
-        $("proPill").classList.remove("on");
-      }
-    }
-
     function addMsg(role, text) {
       const p = document.createElement("p");
       p.className = "msg " + (role === "user" ? "user" : "simo");
@@ -742,7 +719,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       if (state.proVerified) localStorage.setItem(PRO_FLAG_KEY, "1");
       else localStorage.removeItem(PRO_FLAG_KEY);
 
-      // reflect UI
       $("freePill").classList.toggle("on", !state.proVerified);
       $("proPill").classList.toggle("on", state.proVerified);
 
@@ -754,6 +730,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           ? b.textContent.replace("🔒","").trim()
           : (b.textContent.replace("🔒","").trim() + ' <span class="badgeLock">🔒</span>');
       });
+
       updateProStatus();
     }
 
@@ -905,15 +882,18 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("user", text);
       $("input").value = "";
 
+      const didLocalPreview = looksLikePreviewAsk(text);
+      const didLocalEdit = isEditCommand(text);
+
       // 1) Instant preview (local)
-      if (looksLikePreviewAsk(text)) {
+      if (didLocalPreview) {
         const topic = extractTopic(text);
         setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
         addMsg("assistant", "Done. I updated the preview on the right.");
       }
 
       // 2) Local edits apply immediately
-      if (isEditCommand(text)) {
+      if (didLocalEdit) {
         const html = currentHtmlOrNull();
         if (html) {
           const edited = applyLocalEdits(text, html);
@@ -927,12 +907,13 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       setBusy(true);
 
       try {
-        const timeoutMs = 25000;
+        // IMPORTANT: longer timeout to avoid AbortController canceling cold starts
+        const timeoutMs = 45000;
         const data = await callBackend(text, timeoutMs);
 
         if (data && typeof data.text === "string" && data.text.trim()) {
           addMsg("assistant", data.text.trim());
-        } else if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
+        } else if (!didLocalPreview && !didLocalEdit) {
           addMsg("assistant", localBestFriendFallback(text));
         }
 
@@ -940,8 +921,16 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           setPreview(data.preview);
         }
       } catch (err) {
-        if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
-          addMsg("assistant", localBestFriendFallback(text));
+        const msg = (err && err.name) ? err.name : "";
+        const isAbort = msg === "AbortError";
+
+        // If we already handled the request locally (preview/edit), don't spam a timeout message.
+        if (!didLocalPreview && !didLocalEdit) {
+          if (isAbort) {
+            addMsg("assistant", "Server took too long (timeout). Try again — first call after deploy can be slow.");
+          } else {
+            addMsg("assistant", localBestFriendFallback(text));
+          }
         }
       } finally {
         setBusy(false);
@@ -1050,7 +1039,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     // init
     $("previewFrame").srcdoc = idlePreviewDoc();
 
-    // restore pro verified flag (optional)
+    // restore pro verified flag
     state.proVerified = localStorage.getItem(PRO_FLAG_KEY) === "1";
     setProVerified(state.proVerified);
   </script>
