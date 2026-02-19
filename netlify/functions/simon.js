@@ -2,6 +2,9 @@
 // Simo backend: stable JSON, supports GET/POST/OPTIONS,
 // deterministic landing-page preview + simple edit commands,
 // optional OpenAI chat for non-preview conversations.
+//
+// Update: adds "mode awareness" (venting/solving/building) to stop repetition loops
+// and follow topic switches more reliably, without changing preview logic.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"; // safe default if you have access
@@ -72,6 +75,50 @@ function isEditCommand(t) {
     x === "add benefits" ||
     x === "remove benefits"
   );
+}
+
+// NEW: mode detection to stop "brainfart" loops and hold the user's intent.
+function detectMode(text, conversation) {
+  const t = lower(text);
+
+  // Explicit user mode words
+  if (t.includes("venting")) return "venting";
+  if (t.includes("solving")) return "solving";
+  if (t.includes("building")) return "building";
+  if (t.includes("switch topics") || t.includes("switch topic")) return "neutral";
+
+  // Heuristic intent detection
+  const ventHits = [
+    "stressed", "anxious", "depressed", "sad", "tired", "overwhelmed",
+    "argument", "fighting", "wife", "husband", "relationship", "ann",
+    "mad", "upset", "hurt", "lonely"
+  ];
+  const solveHits = [
+    "error", "bug", "fix", "debug", "issue", "not working", "broken",
+    "deploy", "netlify", "function", "500", "403", "cors", "console"
+  ];
+  const buildHits = [
+    "build", "make", "create", "design", "landing page", "website",
+    "app", "mockup", "preview", "ui", "layout"
+  ];
+
+  const hasAny = (arr) => arr.some((k) => t.includes(k));
+  if (hasAny(ventHits)) return "venting";
+  if (hasAny(solveHits)) return "solving";
+  if (hasAny(buildHits)) return "building";
+
+  // Fall back: look for a mode marker in recent conversation
+  if (Array.isArray(conversation)) {
+    for (let i = conversation.length - 1; i >= 0; i--) {
+      const c = lower(conversation[i]?.content || "");
+      if (!c) continue;
+      if (c.includes("mode: venting")) return "venting";
+      if (c.includes("mode: solving")) return "solving";
+      if (c.includes("mode: building")) return "building";
+    }
+  }
+
+  return "neutral";
 }
 
 function extractTopic(text) {
@@ -384,11 +431,20 @@ async function openAIChat({ text, tier, conversation }) {
     };
   }
 
+  const mode = detectMode(text, conversation);
+
   const sys =
-    "You are Simo: a best-friend voice that is practical and helpful, minimal therapy-speak. " +
-    "Be concise, actionable, and friendly. If the user asks to build a landing page or preview, " +
-    "tell them the preview will appear on the right and suggest 1-2 next edits like headline/cta/faq/pricing. " +
-    "Do not output code fences unless asked. Keep answers short.";
+    "You are Simo. You must stay aligned to the user's CURRENT MODE: " + mode + ".\n\n" +
+    "MODE RULES:\n" +
+    "- venting: respond like a private best friend. Validate briefly, ask at most 1 clarifying question, no therapy-speak. Do NOT push previews/building unless asked.\n" +
+    "- solving: be crisp and technical. Give step-by-step checks. Ask for only the missing detail if needed.\n" +
+    "- building: be a builder. Offer a plan + next action. If user asks for preview/mockup, say it will appear on the right.\n" +
+    "- neutral: match what the user is doing; if unclear, ask one short question.\n\n" +
+    "CONTEXT HANDLING:\n" +
+    "- If user switches topics, immediately follow the new topic. Do NOT repeat old instructions.\n" +
+    "- Keep answers concise, actionable, and friendly.\n" +
+    "- Avoid code fences unless asked.\n\n" +
+    "INTERNAL NOTE (do not mention to user): Start your response with a hidden marker like '[mode: " + mode + "]' on the first line.";
 
   const msgs = [];
   msgs.push({ role: "system", content: sys });
@@ -433,7 +489,8 @@ async function openAIChat({ text, tier, conversation }) {
     return { ok: false, error: msg, details: j || null };
   }
 
-  const out = j?.choices?.[0]?.message?.content || "";
+  let out = j?.choices?.[0]?.message?.content || "";
+  out = out.replace(/^\[mode:\s*(venting|solving|building|neutral)\]\s*/i, "");
   return { ok: true, text: out };
 }
 
