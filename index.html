@@ -88,7 +88,6 @@
     .msg .who{font-weight:1000}
     .msg .txt{color:var(--text);font-weight:800}
     .msg.user .txt{color:#fff}
-    .msg.simo .txt{color:var(--text)}
     .composer{
       display:flex;gap:10px;margin-top:12px;
       border-top:1px solid var(--line);padding-top:12px;
@@ -129,7 +128,7 @@
       background:rgba(255,255,255,.04);
       height:540px;
     }
-    iframe{width:100%;height:100%;border:0;background:#fff}
+    iframe{width:100%;height:100%;border:0;background:#0b1020}
     .muted{color:var(--muted);font-weight:850}
     .small{font-size:12px}
     .badgeLock{margin-left:6px;opacity:.85}
@@ -207,8 +206,6 @@
   </div>
 
   <script>
-    // Single-file UI controller (no external chat.js = no “script not loading” failures)
-
     const $ = (id) => document.getElementById(id);
 
     const state = {
@@ -218,6 +215,33 @@
       lastSavedHtml: null,
       isBusy: false,
     };
+
+    function idlePreviewDoc() {
+      return `<!doctype html>
+<html><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<style>
+  html,body{height:100%;margin:0}
+  body{
+    display:grid;place-items:center;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:#0b1020;color:#a9b6d3;
+  }
+  .box{
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:16px;
+    padding:18px 16px;
+    background:rgba(255,255,255,.04);
+    text-align:center;
+    max-width:360px
+  }
+  b{color:#eaf0ff}
+</style></head>
+<body><div class="box">
+  <b>No preview yet</b><div style="height:6px"></div>
+  Ask: “build a landing page for a fitness coach”
+</div></body></html>`;
+    }
 
     function setBusy(on) {
       state.isBusy = !!on;
@@ -230,7 +254,6 @@
       $("freePill").classList.toggle("on", state.tier === "free");
       $("proPill").classList.toggle("on", state.tier === "pro");
 
-      // Pro gating (visual only; actual Pro features can be enforced later)
       const proOn = state.tier === "pro";
       const lockButtons = ["saveBtn","downloadBtn","libraryBtn"];
       lockButtons.forEach((id) => {
@@ -253,7 +276,6 @@
       $("log").scrollTop = $("log").scrollHeight;
 
       state.conversation.push({ role, content: String(text || "") });
-      // keep it trimmed so payload stays small
       if (state.conversation.length > 30) state.conversation = state.conversation.slice(-30);
     }
 
@@ -262,7 +284,6 @@
       state.lastPreview = preview;
       $("previewTitle").textContent = preview.title || "Preview";
       $("previewMeta").textContent = preview.meta || "Updated";
-      // Always use srcdoc (no extra network, avoids white “loading” flashes)
       $("previewFrame").srcdoc = preview.html;
       state.lastSavedHtml = preview.html;
     }
@@ -275,15 +296,22 @@
         lastPreview: state.lastPreview
       };
 
-      const res = await fetch("/.netlify/functions/simon", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 12000);
 
-      // If the function is down, this will throw in res.json()
-      const data = await res.json();
-      return data;
+      try {
+        const res = await fetch("/.netlify/functions/simon", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        const data = await res.json().catch(() => ({}));
+        return data;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
     async function send() {
@@ -297,7 +325,6 @@
       try {
         const data = await callBackend(text);
 
-        // UI-safe: even if backend returns weird stuff, we never “crash”
         const reply = (data && typeof data.text === "string" && data.text.trim())
           ? data.text
           : "I’m here. What do you want right now — venting, solving, or building?";
@@ -308,7 +335,7 @@
           setPreview(data.preview);
         }
       } catch (err) {
-        addMsg("assistant", "Something failed calling the server. Open DevTools → Console for the error.");
+        addMsg("assistant", "Server didn’t respond (or timed out). Try again.");
       } finally {
         setBusy(false);
       }
@@ -322,10 +349,9 @@
       addMsg("assistant", "Reset. I’m here.");
       $("previewTitle").textContent = "Idle";
       $("previewMeta").textContent = "No preview yet";
-      $("previewFrame").srcdoc = "";
+      $("previewFrame").srcdoc = idlePreviewDoc();
     }
 
-    // Wire up listeners (guaranteed)
     $("sendBtn").addEventListener("click", send);
     $("resetBtn").addEventListener("click", reset);
 
@@ -339,7 +365,6 @@
       }
     });
 
-    // Pro-locked buttons (no-op for now)
     ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
       $(id).addEventListener("click", () => {
         if (state.tier !== "pro") {
@@ -352,6 +377,7 @@
 
     // Initialize
     setTier("free");
+    $("previewFrame").srcdoc = idlePreviewDoc();
   </script>
 </body>
 </html>
