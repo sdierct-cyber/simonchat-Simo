@@ -40,7 +40,6 @@
     buildHistory: []
   };
 
-  // ✅ Harden localStorage reads (prevents your exact crash)
   let state = asObject(safeJSONParse(localStorage.getItem(STATE_KEY), null), defaultState);
   state = Object.assign({}, defaultState, state);
 
@@ -48,7 +47,6 @@
   if (typeof pro.pro !== "boolean") pro.pro = false;
   if (typeof pro.key !== "string") pro.key = "";
 
-  // Elements (if any are missing, fail gracefully)
   const el = {
     logEl: $("log"),
     inputEl: $("input"),
@@ -60,6 +58,8 @@
     frameEl: $("frame"),
     statusText: $("statusText"),
     previewLabel: $("previewLabel"),
+
+    resetBtn: $("resetBtn"),
 
     proChip: $("proChip"),
     proText: $("proText"),
@@ -81,13 +81,16 @@
     draftTag: $("draftTag"),
   };
 
-  // If the DOM isn't what we expect, stop (prevents silent failure)
-  const required = ["logEl","inputEl","sendBtn","frameEl","statusText","modeChip","modeText","proChip","proText","proBtn"];
+  const required = ["logEl","inputEl","sendBtn","frameEl","statusText","modeChip","modeText","proChip","proText","proBtn","resetBtn"];
   for (const k of required){
     if(!el[k]){
       console.error("Simo boot failed: missing element", k);
       return;
     }
+  }
+
+  function placeholderPreview(){
+    return "<!doctype html><html><head><meta charset='utf-8'><style>body{margin:0;font-family:system-ui;background:#0b1020;color:#a9b6d3;display:grid;place-items:center;height:100vh}.box{border:1px solid rgba(255,255,255,.12);padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.05)}</style></head><body><div class='box'>No preview yet.</div></body></html>";
   }
 
   function saveState(){ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
@@ -119,14 +122,10 @@
     el.proBtn.textContent = isPro ? "Pro Enabled" : "Unlock Pro";
     el.proBtn.classList.toggle("locked", isPro);
 
-    if(el.saveBtn){
-      el.saveBtn.classList.toggle("locked", !isPro);
-      el.saveBtn.title = isPro ? "" : "Pro required";
-    }
-    if(el.libraryBtn){
-      el.libraryBtn.classList.toggle("locked", !isPro);
-      el.libraryBtn.title = isPro ? "" : "Pro required";
-    }
+    el.saveBtn?.classList.toggle("locked", !isPro);
+    el.libraryBtn?.classList.toggle("locked", !isPro);
+    if(el.saveBtn) el.saveBtn.title = isPro ? "" : "Pro required";
+    if(el.libraryBtn) el.libraryBtn.title = isPro ? "" : "Pro required";
   }
 
   function addMsg(who, text){
@@ -155,7 +154,7 @@
     return true;
   }
 
-  // Intent inference
+  // -------- Intent inference ----------
   function inferMode(text){
     const t = (text || "").toLowerCase().trim();
     if(!t) return state.mode;
@@ -205,12 +204,13 @@
       t.includes("add faq") || t.includes("remove faq") ||
       t.includes("add pricing") || t.includes("remove pricing") ||
       t.includes("add testimonials") || t.includes("remove testimonials") ||
-      t.includes("continue") || t.includes("update") || t.includes("revise");
+      t.includes("continue") || t.includes("update") || t.includes("revise") ||
+      t.includes("build me") || t.includes("build a") || t.includes("create a") || t.includes("design a");
 
     return editCmd;
   }
 
-  // Library
+  // -------- Library ----------
   function getLibrary(){ return safeJSONParse(localStorage.getItem(LIB_KEY), []) || []; }
   function setLibrary(items){ localStorage.setItem(LIB_KEY, JSON.stringify(items || [])); }
 
@@ -272,7 +272,7 @@
   }
   function closeLib(){ el.libModal.style.display = "none"; }
 
-  // Pro modal
+  // -------- Pro ----------
   function openProModal(){
     el.proMsg.textContent = "";
     el.proKey.value = "";
@@ -292,7 +292,7 @@
     return data;
   }
 
-  // Backend
+  // -------- Backend ----------
   async function sendToBackend(userText){
     const payload = {
       message: userText,
@@ -332,55 +332,29 @@
     return null;
   }
 
-  let sending = false;
-  async function onSend(){
-    if(sending) return;
-    const userText = (el.inputEl.value || "").trim();
-    if(!userText) return;
+  // -------- Reset ----------
+  function hardReset(){
+    // Keep Pro + Library intact. Clear session state + chat + preview.
+    state = Object.assign({}, defaultState, { mode: "building" });
+    saveState();
 
-    setMode(inferMode(userText));
-    const nextTopic = inferTopic(userText);
-    if(nextTopic !== state.topic) setTopic(nextTopic);
+    el.logEl.innerHTML = "";
+    el.frameEl.srcdoc = placeholderPreview();
 
-    addMsg("me", userText);
-    el.inputEl.value = "";
-    setStatus("Thinking…");
-    sending = true;
-    el.sendBtn.classList.add("locked");
-    el.sendBtn.textContent = "…";
+    setMode("building");
+    setTopic("");
+    state.draftHtml = "";
+    state.draftName = "";
+    state.draftUpdatedAt = "";
+    saveState();
+    setDraftMeta();
+    setStatus("Ready");
 
-    try{
-      const data = await sendToBackend(userText);
-      const assistantText = normalizeAssistantText(data) || "(no response)";
-      addMsg("simo", assistantText);
-
-      state.lastUser = userText;
-      state.lastAssistant = assistantText;
-      state.buildHistory = (state.buildHistory || []).slice(-8);
-      state.buildHistory.push({ t: nowISO(), mode: state.mode, topic: state.topic });
-      saveState();
-
-      const doPreview = shouldAutoPreview(userText);
-      const html = extractHtmlFromResponse(assistantText);
-      if(html && doPreview){
-        if(!state.draftName) state.draftName = state.topic ? `${state.topic}` : "untitled";
-        setPreview(html);
-      }
-      if(data && typeof data.html === "string" && looksLikeHTML(data.html)){
-        if(doPreview) setPreview(data.html);
-      }
-
-      setStatus("Ready");
-    }catch(err){
-      addMsg("simo", `⚠️ ${err?.message || "Error"}`);
-      setStatus("Ready");
-    }finally{
-      sending = false;
-      el.sendBtn.classList.remove("locked");
-      el.sendBtn.textContent = "Send";
-    }
+    addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
+    el.inputEl.focus();
   }
 
+  // -------- Actions ----------
   function manualPreview(){
     if(state.draftHtml && looksLikeHTML(state.draftHtml)){
       setPreview(state.draftHtml);
@@ -419,10 +393,80 @@
     addMsg("simo", `Saved “${name}” to your Library.`);
   }
 
-  function boot(){
-    // ✅ Make sure pro is always an object (even if storage was "null")
-    pro = asObject(pro, { pro:false, key:"" });
+  // -------- Send ----------
+  let sending = false;
 
+  async function attemptPreviewFollowupOnce(){
+    // Ask the backend explicitly for HTML once (no loops).
+    const data2 = await sendToBackend("show me a preview");
+    const assistant2 = normalizeAssistantText(data2) || "";
+    const html2 = (data2 && typeof data2.html === "string" && looksLikeHTML(data2.html)) ? data2.html : extractHtmlFromResponse(assistant2);
+
+    if(html2){
+      if(!state.draftName) state.draftName = state.topic ? `${state.topic}` : "untitled";
+      setPreview(html2);
+      return true;
+    }
+    return false;
+  }
+
+  async function onSend(){
+    if(sending) return;
+    const userText = (el.inputEl.value || "").trim();
+    if(!userText) return;
+
+    setMode(inferMode(userText));
+    const nextTopic = inferTopic(userText);
+    if(nextTopic !== state.topic) setTopic(nextTopic);
+
+    addMsg("me", userText);
+    el.inputEl.value = "";
+    setStatus("Thinking…");
+    sending = true;
+    el.sendBtn.classList.add("locked");
+    el.sendBtn.textContent = "…";
+
+    try{
+      const data = await sendToBackend(userText);
+      const assistantText = normalizeAssistantText(data) || "(no response)";
+      addMsg("simo", assistantText);
+
+      state.lastUser = userText;
+      state.lastAssistant = assistantText;
+      state.buildHistory = (state.buildHistory || []).slice(-8);
+      state.buildHistory.push({ t: nowISO(), mode: state.mode, topic: state.topic });
+      saveState();
+
+      const doPreview = shouldAutoPreview(userText);
+      let html = null;
+
+      if(data && typeof data.html === "string" && looksLikeHTML(data.html)) html = data.html;
+      if(!html) html = extractHtmlFromResponse(assistantText);
+
+      if(html && doPreview){
+        if(!state.draftName) state.draftName = state.topic ? `${state.topic}` : "untitled";
+        setPreview(html);
+      } else if (doPreview) {
+        // ✅ KEY FIX: auto-follow-up once for HTML if assistant didn't return it
+        const ok = await attemptPreviewFollowupOnce();
+        if(!ok){
+          addMsg("simo", "I didn’t receive HTML to render. Try: “show me a preview” (or I can regenerate the HTML).");
+        }
+      }
+
+      setStatus("Ready");
+    }catch(err){
+      addMsg("simo", `⚠️ ${err?.message || "Error"}`);
+      setStatus("Ready");
+    }finally{
+      sending = false;
+      el.sendBtn.classList.remove("locked");
+      el.sendBtn.textContent = "Send";
+    }
+  }
+
+  // -------- Boot ----------
+  function boot(){
     setMode(state.mode || "building");
     setTopic(state.topic || "");
     setDraftMeta();
@@ -432,10 +476,11 @@
       el.frameEl.srcdoc = state.draftHtml;
     }
 
-    // ✅ This is your “JS is alive” proof
+    // Seed message (proof JS is alive)
     addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
 
-    // Listeners
+    el.resetBtn.addEventListener("click", hardReset);
+
     el.sendBtn.addEventListener("click", onSend);
     el.inputEl.addEventListener("keydown", (e) => {
       if(e.key === "Enter" && !e.shiftKey){
@@ -466,7 +511,7 @@
           localStorage.setItem(PRO_KEY, JSON.stringify(pro));
           setProUI();
           el.proMsg.textContent = "✅ Pro enabled.";
-          await sleep(300);
+          await sleep(250);
           closeProModal();
           addMsg("simo", "Pro is ON. Save + Library unlocked.");
         }else{
@@ -482,7 +527,6 @@
     el.libClear?.addEventListener("click", () => { setLibrary([]); renderLibrary(); });
   }
 
-  // Boot safely
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", boot);
   } else {
