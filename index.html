@@ -7,12 +7,11 @@
   <meta name="color-scheme" content="dark" />
   <style>
     :root{
-      --bg:#0b1020; --panel:#0f1730; --panel2:#0c1328;
-      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a; --bad:#ff4d4d;
+      --good:#39ff7a;
       --shadow:0 14px 34px rgba(0,0,0,.35);
-      --r:18px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -43,6 +42,7 @@
       box-shadow:0 0 0 2px rgba(57,255,122,.08) inset, 0 10px 26px rgba(0,0,0,.28);
     }
     .pill.on .pDot{background:var(--good); box-shadow:0 0 14px rgba(57,255,122,.65)}
+
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .panel{
@@ -59,6 +59,7 @@
     }
     .panelTop .title{font-weight:1000}
     .panelTop .rightNote{color:var(--muted);font-weight:900;font-size:12px}
+
     .chatBody{padding:14px 16px;display:flex;flex-direction:column;height:calc(100% - 58px)}
     .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
     .btn{
@@ -69,11 +70,6 @@
       padding:9px 12px;
       font-weight:950;font-size:12px;
       cursor:pointer;
-    }
-    .btn:active{transform:translateY(1px)}
-    .btn.primary{
-      background:linear-gradient(180deg, var(--btn), var(--btn2));
-      border-color:rgba(255,255,255,.16);
     }
     .btn.locked{opacity:.55; cursor:not-allowed}
     .log{
@@ -86,8 +82,7 @@
     }
     .msg{margin:0 0 10px;line-height:1.45}
     .msg .who{font-weight:1000}
-    .msg .txt{color:var(--text);font-weight:800}
-    .msg.user .txt{color:#fff}
+    .msg .txt{font-weight:800}
     .composer{
       display:flex;gap:10px;margin-top:12px;
       border-top:1px solid var(--line);padding-top:12px;
@@ -112,6 +107,7 @@
       cursor:pointer;
     }
     .send:disabled{opacity:.65; cursor:not-allowed}
+
     .previewBody{padding:12px 12px 16px}
     .previewHeader{
       display:flex;align-items:center;justify-content:space-between;
@@ -156,8 +152,7 @@
     </div>
 
     <div class="grid">
-      <!-- CHAT -->
-      <section class="panel" aria-label="Chat panel">
+      <section class="panel">
         <div class="panelTop">
           <div class="title">Chat</div>
           <div class="rightNote" id="statusDot">Ready</div>
@@ -172,10 +167,7 @@
           </div>
 
           <div id="log" class="log" aria-live="polite">
-            <p class="msg simo">
-              <span class="who">Simo:</span>
-              <span class="txt">Reset. I’m here.</span>
-            </p>
+            <p class="msg simo"><span class="who">Simo:</span> <span class="txt">Reset. I’m here.</span></p>
           </div>
 
           <div class="composer">
@@ -185,8 +177,7 @@
         </div>
       </section>
 
-      <!-- PREVIEW -->
-      <section class="panel" aria-label="Preview panel">
+      <section class="panel">
         <div class="panelTop">
           <div class="title">Preview</div>
           <div class="rightNote">HTML / cover / updates render here</div>
@@ -217,30 +208,16 @@
     };
 
     function idlePreviewDoc() {
-      return `<!doctype html>
-<html><head><meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+      return `<!doctype html><html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <style>
   html,body{height:100%;margin:0}
-  body{
-    display:grid;place-items:center;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    background:#0b1020;color:#a9b6d3;
-  }
-  .box{
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:16px;
-    padding:18px 16px;
-    background:rgba(255,255,255,.04);
-    text-align:center;
-    max-width:360px
-  }
+  body{display:grid;place-items:center;font-family:system-ui;background:#0b1020;color:#a9b6d3}
+  .box{border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px 16px;background:rgba(255,255,255,.04);text-align:center;max-width:360px}
   b{color:#eaf0ff}
 </style></head>
-<body><div class="box">
-  <b>No preview yet</b><div style="height:6px"></div>
-  Ask: “build a landing page for a fitness coach”
-</div></body></html>`;
+<body><div class="box"><b>No preview yet</b><div style="height:6px"></div>
+Ask: “build a landing page for a fitness coach”</div></body></html>`;
     }
 
     function setBusy(on) {
@@ -255,8 +232,7 @@
       $("proPill").classList.toggle("on", state.tier === "pro");
 
       const proOn = state.tier === "pro";
-      const lockButtons = ["saveBtn","downloadBtn","libraryBtn"];
-      lockButtons.forEach((id) => {
+      ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
         const b = $(id);
         b.classList.toggle("locked", !proOn);
         b.innerHTML = proOn
@@ -268,9 +244,8 @@
     function addMsg(role, text) {
       const p = document.createElement("p");
       p.className = "msg " + (role === "user" ? "user" : "simo");
-      p.innerHTML =
-        '<span class="who">' + (role === "user" ? "You:" : "Simo:") + '</span> ' +
-        '<span class="txt"></span>';
+      p.innerHTML = '<span class="who">'+(role==="user"?"You:":"Simo:")+
+        '</span> <span class="txt"></span>';
       p.querySelector(".txt").textContent = text || "";
       $("log").appendChild(p);
       $("log").scrollTop = $("log").scrollHeight;
@@ -288,17 +263,82 @@
       state.lastSavedHtml = preview.html;
     }
 
-    async function callBackend(text) {
+    // ---------- Local deterministic preview fallback ----------
+    function looksLikePreviewAsk(text) {
+      const x = (text||"").toLowerCase().trim();
+      return (
+        x.includes("landing page") ||
+        x.includes("marketing page") ||
+        x.includes("show me a preview") ||
+        x.startsWith("preview") ||
+        x.startsWith("build a landing page") ||
+        x.includes("make a landing page") ||
+        x.includes("create a landing page")
+      );
+    }
+    function extractTopic(text) {
+      const t = (text||"").toLowerCase();
+      const m =
+        t.match(/landing page for (a|an)\s+(.+?)(\.|$)/i) ||
+        t.match(/page for (a|an)\s+(.+?)(\.|$)/i) ||
+        t.match(/for (a|an)\s+(.+?)(\.|$)/i);
+      if (m && m[2]) return (m[2]||"").trim().replace(/\.$/,"");
+      if ((text||"").trim().length <= 40) return (text||"").trim();
+      return "your offer";
+    }
+    function sanitize(s){
+      return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+    }
+    function localLandingHTML(topic){
+      const T = sanitize(topic);
+      const H = sanitize(`${topic} — made simple`);
+      return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta name="color-scheme" content="dark"/>
+<title>Simo — Landing Page</title>
+<style>
+:root{--bg:#0b1020;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--pro:#39ff7a;--shadow:0 12px 28px rgba(0,0,0,.35)}
+*{box-sizing:border-box}html,body{height:100%}
+body{margin:0;font-family:system-ui;background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);color:var(--text)}
+.wrap{max-width:980px;margin:0 auto;padding:22px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 18px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:900}
+.dot{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.6)}
+.tag{font-size:12px;color:var(--muted);font-weight:800}
+.hero{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18));box-shadow:var(--shadow);padding:22px}
+h1{margin:8px 0 10px;font-size:54px;line-height:1.02;letter-spacing:-.02em}
+p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
+.ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:14px;font-weight:950;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:var(--text);text-decoration:none}
+.btn.primary{border-color:rgba(57,255,122,.25);background:rgba(57,255,122,.14);box-shadow:0 10px 20px rgba(0,0,0,.25)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
+@media (max-width:860px){h1{font-size:44px}.grid{grid-template-columns:1fr}}
+.card{border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.18);padding:16px}
+.card h3{margin:0 0 6px;font-size:18px}.card p{margin:0}
+</style></head>
+<body><div class="wrap">
+<div class="top"><div class="brand"><span class="dot"></span> <span>Simo</span></div>
+<div class="tag">Local preview fallback • topic: ${T}</div></div>
+<div class="hero">
+<div class="tag">Simo Preview</div>
+<h1>${H}</h1>
+<p>A clean landing page you can export as HTML. Ask me to change sections, CTA, or copy.</p>
+<div class="ctaRow"><a class="btn primary" href="#">Get Started</a><a class="btn" href="#">Learn More</a></div>
+<div class="grid" style="margin-top:18px"><div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
+<div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div></div>
+</div></div></body></html>`;
+    }
+    // ---------------------------------------------------------
+
+    async function callBackend(text, timeoutMs = 12000) {
       const payload = {
         text,
         tier: state.tier,
         conversation: state.conversation,
         lastPreview: state.lastPreview
       };
-
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 12000);
-
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
         const res = await fetch("/.netlify/functions/simon", {
           method: "POST",
@@ -306,7 +346,6 @@
           body: JSON.stringify(payload),
           signal: controller.signal,
         });
-
         const data = await res.json().catch(() => ({}));
         return data;
       } finally {
@@ -320,22 +359,40 @@
 
       addMsg("user", text);
       $("input").value = "";
+
+      // If it's a preview request, render instantly on the client so it never feels broken.
+      if (looksLikePreviewAsk(text)) {
+        const topic = extractTopic(text);
+        setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
+        addMsg("assistant", "Done. I updated the preview on the right.");
+      }
+
       setBusy(true);
 
       try {
-        const data = await callBackend(text);
+        // For preview requests, give server more time (work networks can be slow)
+        const isPrev = looksLikePreviewAsk(text);
+        const data = await callBackend(text, isPrev ? 25000 : 12000);
 
         const reply = (data && typeof data.text === "string" && data.text.trim())
           ? data.text
           : "I’m here. What do you want right now — venting, solving, or building?";
 
-        addMsg("assistant", reply);
+        // Only add server reply if it’s not duplicating the local instant message
+        if (!looksLikePreviewAsk(text) || (reply && !reply.toLowerCase().includes("updated the preview"))) {
+          addMsg("assistant", reply);
+        }
 
         if (data && data.preview && data.preview.kind === "html") {
           setPreview(data.preview);
         }
       } catch (err) {
-        addMsg("assistant", "Server didn’t respond (or timed out). Try again.");
+        // If we already rendered local preview, don't scare the user
+        if (!looksLikePreviewAsk(text)) {
+          addMsg("assistant", "Server didn’t respond (or timed out). Try again.");
+        } else {
+          addMsg("assistant", "Preview is shown. Server is slow right now (work network). You can still keep editing locally.");
+        }
       } finally {
         setBusy(false);
       }
@@ -375,7 +432,6 @@
       });
     });
 
-    // Initialize
     setTier("free");
     $("previewFrame").srcdoc = idlePreviewDoc();
   </script>
