@@ -3,11 +3,12 @@
 // deterministic landing-page preview + simple edit commands,
 // optional OpenAI chat for non-preview conversations.
 //
-// Update: adds "mode awareness" (venting/solving/building) to stop repetition loops
-// and follow topic switches more reliably, without changing preview logic.
+// IMPORTANT UI SAFETY:
+// - For AI errors, we return ok:true with fallback text (NOT ok:false),
+//   so chat.js never "bails" and the UI/buttons keep working.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini"; // safe default if you have access
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
@@ -28,20 +29,10 @@ function json(statusCode, obj, extraHeaders = {}) {
 }
 
 function safeParseJSON(str) {
-  try {
-    return JSON.parse(str);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(str); } catch { return null; }
 }
-
-function norm(s) {
-  return String(s || "").trim();
-}
-
-function lower(s) {
-  return norm(s).toLowerCase();
-}
+function norm(s) { return String(s || "").trim(); }
+function lower(s) { return norm(s).toLowerCase(); }
 
 function isPreviewAsk(t) {
   const x = lower(t);
@@ -77,17 +68,15 @@ function isEditCommand(t) {
   );
 }
 
-// NEW: mode detection to stop "brainfart" loops and hold the user's intent.
+// Mode detection: keeps Simo from repeating preview instructions when venting/solving.
 function detectMode(text, conversation) {
   const t = lower(text);
 
-  // Explicit user mode words
   if (t.includes("venting")) return "venting";
   if (t.includes("solving")) return "solving";
   if (t.includes("building")) return "building";
   if (t.includes("switch topics") || t.includes("switch topic")) return "neutral";
 
-  // Heuristic intent detection
   const ventHits = [
     "stressed", "anxious", "depressed", "sad", "tired", "overwhelmed",
     "argument", "fighting", "wife", "husband", "relationship", "ann",
@@ -107,7 +96,7 @@ function detectMode(text, conversation) {
   if (hasAny(solveHits)) return "solving";
   if (hasAny(buildHits)) return "building";
 
-  // Fall back: look for a mode marker in recent conversation
+  // fallback to recent marker in history (if any)
   if (Array.isArray(conversation)) {
     for (let i = conversation.length - 1; i >= 0; i--) {
       const c = lower(conversation[i]?.content || "");
@@ -117,19 +106,16 @@ function detectMode(text, conversation) {
       if (c.includes("mode: building")) return "building";
     }
   }
-
   return "neutral";
 }
 
 function extractTopic(text) {
-  // Best-effort: "landing page for a fitness coach" => "fitness coach"
   const t = lower(text);
   const m =
     t.match(/landing page for (a|an)\s+(.+?)(\.|$)/i) ||
     t.match(/page for (a|an)\s+(.+?)(\.|$)/i) ||
     t.match(/for (a|an)\s+(.+?)(\.|$)/i);
   if (m && m[2]) return norm(m[2]).replace(/\.$/, "");
-  // If user typed just "Fitness coach"
   if (norm(text).length <= 40) return norm(text);
   return "your offer";
 }
@@ -141,13 +127,11 @@ function pickBrand(text, fallback = "Simo") {
 }
 
 function pickHeadline(topic, brand) {
-  // Keep it simple and “convert-y”
   if (!topic || topic.toLowerCase() === "your offer") return `${brand} — made simple`;
   return `${topic} — made simple`;
 }
 
 function sanitizeText(s) {
-  // Prevent HTML injection in fields we insert
   return String(s || "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -160,13 +144,8 @@ function moneyFromText(text, fallback = "$19") {
   if (!m) return fallback;
   let v = norm(m[1]);
   if (!v) return fallback;
-  // If they typed 29, make it $29
   if (/^\d+(\.\d+)?$/.test(v)) v = `$${v}`;
   return v;
-}
-
-function hasSection(html, id) {
-  return typeof html === "string" && html.includes(`data-section="${id}"`);
 }
 
 function toggleSection(html, id, wantOn) {
@@ -180,17 +159,12 @@ function toggleSection(html, id, wantOn) {
   const block = html.slice(si, ei + end.length);
   const isHidden = block.includes(`data-hidden="true"`);
 
-  if (wantOn && isHidden) {
-    return html.replace(block, block.replace(`data-hidden="true"`, `data-hidden="false"`));
-  }
-  if (!wantOn && !isHidden) {
-    return html.replace(block, block.replace(`data-hidden="false"`, `data-hidden="true"`));
-  }
+  if (wantOn && isHidden) return html.replace(block, block.replace(`data-hidden="true"`, `data-hidden="false"`));
+  if (!wantOn && !isHidden) return html.replace(block, block.replace(`data-hidden="false"`, `data-hidden="true"`));
   return html;
 }
 
 function setTextInHtml(html, markerId, newText) {
-  // marker format: data-field="headline"
   const safe = sanitizeText(newText);
   const re = new RegExp(`(data-field="${markerId}"[^>]*>)([\\s\\S]*?)(</)`, "i");
   return html.replace(re, `$1${safe}$3`);
@@ -209,8 +183,6 @@ function setPriceInHtml(html, newPrice) {
 }
 
 function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
-  // Uses section markers + data-field hooks for reliable edits.
-  // Sections can be toggled by setting data-hidden true/false.
   const B = sanitizeText(brand);
   const T = sanitizeText(topic);
   const H = sanitizeText(headline);
@@ -232,7 +204,6 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
     --blue:#2a66ff; --blue2:#1f4dd6;
     --pro:#39ff7a;
     --shadow: 0 12px 28px rgba(0,0,0,.35);
-    --radius:18px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -292,9 +263,7 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
     padding:16px;border-radius:18px;border:1px solid rgba(57,255,122,.25);
     background:rgba(57,255,122,.10);
   }
-  .price{
-    font-size:34px;font-weight:1000;letter-spacing:-.02em;
-  }
+  .price{font-size:34px;font-weight:1000;letter-spacing:-.02em;}
   .small{font-size:12px;color:var(--muted);font-weight:850}
 </style>
 </head>
@@ -316,14 +285,8 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
       </div>
 
       <div class="grid" style="margin-top:18px">
-        <div class="card">
-          <h3>Fast</h3>
-          <p>Clean structure that converts.</p>
-        </div>
-        <div class="card">
-          <h3>Clear</h3>
-          <p>Headline → value → call-to-action.</p>
-        </div>
+        <div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
+        <div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div>
       </div>
     </div>
 
@@ -406,13 +369,10 @@ function applyEditsToHtml(text, lastHtml) {
 
   if (x === "add faq") return { html: toggleSection(html, "faq", true), note: "Added FAQ." };
   if (x === "remove faq") return { html: toggleSection(html, "faq", false), note: "Removed FAQ." };
-
   if (x === "add pricing") return { html: toggleSection(html, "pricing", true), note: "Added pricing." };
   if (x === "remove pricing") return { html: toggleSection(html, "pricing", false), note: "Removed pricing." };
-
   if (x === "add testimonials") return { html: toggleSection(html, "testimonials", true), note: "Added testimonials." };
   if (x === "remove testimonials") return { html: toggleSection(html, "testimonials", false), note: "Removed testimonials." };
-
   if (x === "add benefits") return { html: toggleSection(html, "benefits", true), note: "Added benefits." };
   if (x === "remove benefits") return { html: toggleSection(html, "benefits", false), note: "Removed benefits." };
 
@@ -420,12 +380,12 @@ function applyEditsToHtml(text, lastHtml) {
 }
 
 async function openAIChat({ text, tier, conversation }) {
-  // If no key, return a helpful fallback instead of failing.
+  // Offline fallback: still ok:true so UI stays stable
   if (!OPENAI_API_KEY) {
     return {
       ok: true,
       text:
-        "I’m running in offline mode (no OpenAI key on the server). " +
+        "I’m in offline mode right now (no OpenAI key on the server). " +
         "If you want a landing page preview, say: “build a landing page for a fitness coach”. " +
         "Or edit: “headline: …”, “cta: …”, “add faq”, “price: 29”.",
     };
@@ -444,12 +404,10 @@ async function openAIChat({ text, tier, conversation }) {
     "- If user switches topics, immediately follow the new topic. Do NOT repeat old instructions.\n" +
     "- Keep answers concise, actionable, and friendly.\n" +
     "- Avoid code fences unless asked.\n\n" +
-    "INTERNAL NOTE (do not mention to user): Start your response with a hidden marker like '[mode: " + mode + "]' on the first line.";
+    "INTERNAL NOTE (do not mention to user): Start your response with a hidden marker like '[mode: " + mode + "]'.";
 
-  const msgs = [];
-  msgs.push({ role: "system", content: sys });
+  const msgs = [{ role: "system", content: sys }];
 
-  // include last few conversation turns for context (safe)
   if (Array.isArray(conversation)) {
     const tail = conversation.slice(-12);
     for (const m of tail) {
@@ -458,11 +416,9 @@ async function openAIChat({ text, tier, conversation }) {
       if (!c) continue;
       if (m.role === "user" || m.role === "assistant") msgs.push({ role: m.role, content: c });
     }
-  } else {
-    msgs.push({ role: "user", content: text });
   }
 
-  // Ensure the latest user text is present
+  // Ensure latest user text included
   if (!msgs.length || msgs[msgs.length - 1].role !== "user") {
     msgs.push({ role: "user", content: text });
   }
@@ -473,35 +429,53 @@ async function openAIChat({ text, tier, conversation }) {
     temperature: tier === "pro" ? 0.7 : 0.5,
   };
 
-  const r = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${OPENAI_API_KEY}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(body),
-  });
+  try {
+    const r = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${OPENAI_API_KEY}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
 
-  const j = await r.json().catch(() => null);
+    const j = await r.json().catch(() => null);
 
-  if (!r.ok) {
-    const msg = j?.error?.message || `OpenAI error (${r.status})`;
-    return { ok: false, error: msg, details: j || null };
+    if (!r.ok) {
+      const msg = j?.error?.message || `OpenAI error (${r.status})`;
+      // UI-safe fallback
+      return {
+        ok: true,
+        text:
+          "I hit an API hiccup on my side. Try again in a second. " +
+          "If you’re building, say: “build a landing page for …”. " +
+          "If you’re venting, tell me what’s happening — I’m here.",
+        error: msg,
+        details: j || null,
+      };
+    }
+
+    let out = j?.choices?.[0]?.message?.content || "";
+    out = out.replace(/^\[mode:\s*(venting|solving|building|neutral)\]\s*/i, "");
+    return { ok: true, text: out };
+  } catch (err) {
+    // UI-safe fallback
+    return {
+      ok: true,
+      text:
+        "Network glitch talking to the AI service. Try again in a moment. " +
+        "If you want a preview, say: “build a landing page for …”.",
+      error: String(err?.message || err),
+    };
   }
-
-  let out = j?.choices?.[0]?.message?.content || "";
-  out = out.replace(/^\[mode:\s*(venting|solving|building|neutral)\]\s*/i, "");
-  return { ok: true, text: out };
 }
 
 exports.handler = async (event) => {
   try {
-    // CORS preflight
     if (event.httpMethod === "OPTIONS") {
       return json(204, { ok: true });
     }
 
-    // Health check + avoid “Method not allowed”
     if (event.httpMethod === "GET") {
       return json(200, {
         ok: true,
@@ -512,8 +486,7 @@ exports.handler = async (event) => {
     }
 
     if (event.httpMethod !== "POST") {
-      // Instead of hard failing, return JSON so the UI won’t explode
-      return json(405, { ok: false, error: "Method not allowed" });
+      return json(405, { ok: true, text: "Method not allowed." });
     }
 
     const body = safeParseJSON(event.body || "{}") || {};
@@ -523,10 +496,10 @@ exports.handler = async (event) => {
     const lastPreview = body.lastPreview && typeof body.lastPreview === "object" ? body.lastPreview : null;
 
     if (!text) {
-      return json(400, { ok: false, error: "Missing message" });
+      return json(400, { ok: true, text: "Missing message." });
     }
 
-    // 1) EDIT COMMANDS (require lastPreview.html)
+    // 1) EDIT COMMANDS
     if (isEditCommand(text) && lastPreview?.html) {
       const edited = applyEditsToHtml(text, lastPreview.html);
       return json(200, {
@@ -572,23 +545,22 @@ exports.handler = async (event) => {
       });
     }
 
-    // 3) NORMAL CHAT (OpenAI optional)
+    // 3) NORMAL CHAT
     const ai = await openAIChat({ text, tier, conversation });
-    if (!ai.ok) {
-      return json(200, {
-        ok: false,
-        error: ai.error || "OpenAI error",
-        details: ai.details || null,
-      });
-    }
 
-    return json(200, { ok: true, text: ai.text });
+    // Always return ok:true so the UI never freezes due to an unexpected shape
+    return json(200, {
+      ok: true,
+      text: ai.text || "I’m here. What do you want right now — venting, solving, or building?",
+      ...(ai.error ? { error: ai.error } : {}),
+      ...(ai.details ? { details: ai.details } : {}),
+    });
 
   } catch (err) {
     return json(500, {
-      ok: false,
-      error: "Server error",
-      details: String(err?.message || err),
+      ok: true,
+      text: "Server error on my side. Try again in a moment.",
+      error: String(err?.message || err),
     });
   }
 };
