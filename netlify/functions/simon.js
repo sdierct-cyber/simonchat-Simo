@@ -1,16 +1,11 @@
 // netlify/functions/simon.js
 // Simo backend: stable JSON, supports GET/POST/OPTIONS,
 // deterministic landing-page preview + simple edit commands,
-// optional OpenAI chat for non-preview conversations.
-//
-// IMPORTANT UI SAFETY:
-// - For AI errors, we return ok:true with fallback text (NOT ok:false),
-//   so chat.js never "bails" and the UI/buttons keep working.
+// OpenAI chat with server-side timeout + offline best-friend fallback.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY || "";
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
-
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
 
 function json(statusCode, obj, extraHeaders = {}) {
@@ -31,8 +26,8 @@ function json(statusCode, obj, extraHeaders = {}) {
 function safeParseJSON(str) {
   try { return JSON.parse(str); } catch { return null; }
 }
-function norm(s) { return String(s || "").trim(); }
-function lower(s) { return norm(s).toLowerCase(); }
+const norm = (s) => String(s || "").trim();
+const lower = (s) => norm(s).toLowerCase();
 
 function isPreviewAsk(t) {
   const x = lower(t);
@@ -43,7 +38,7 @@ function isPreviewAsk(t) {
     x.includes("show a preview") ||
     x.startsWith("preview") ||
     x.startsWith("build a landing page") ||
-    x.startsWith("generate the simo marketing page") ||
+    x.startsWith("build me a landing page") ||
     x.includes("make a landing page") ||
     x.includes("create a landing page")
   );
@@ -66,47 +61,6 @@ function isEditCommand(t) {
     x === "add benefits" ||
     x === "remove benefits"
   );
-}
-
-// Mode detection: keeps Simo from repeating preview instructions when venting/solving.
-function detectMode(text, conversation) {
-  const t = lower(text);
-
-  if (t.includes("venting")) return "venting";
-  if (t.includes("solving")) return "solving";
-  if (t.includes("building")) return "building";
-  if (t.includes("switch topics") || t.includes("switch topic")) return "neutral";
-
-  const ventHits = [
-    "stressed", "anxious", "depressed", "sad", "tired", "overwhelmed",
-    "argument", "fighting", "wife", "husband", "relationship", "ann",
-    "mad", "upset", "hurt", "lonely"
-  ];
-  const solveHits = [
-    "error", "bug", "fix", "debug", "issue", "not working", "broken",
-    "deploy", "netlify", "function", "500", "403", "cors", "console"
-  ];
-  const buildHits = [
-    "build", "make", "create", "design", "landing page", "website",
-    "app", "mockup", "preview", "ui", "layout"
-  ];
-
-  const hasAny = (arr) => arr.some((k) => t.includes(k));
-  if (hasAny(ventHits)) return "venting";
-  if (hasAny(solveHits)) return "solving";
-  if (hasAny(buildHits)) return "building";
-
-  // fallback to recent marker in history (if any)
-  if (Array.isArray(conversation)) {
-    for (let i = conversation.length - 1; i >= 0; i--) {
-      const c = lower(conversation[i]?.content || "");
-      if (!c) continue;
-      if (c.includes("mode: venting")) return "venting";
-      if (c.includes("mode: solving")) return "solving";
-      if (c.includes("mode: building")) return "building";
-    }
-  }
-  return "neutral";
 }
 
 function extractTopic(text) {
@@ -204,6 +158,7 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
     --blue:#2a66ff; --blue2:#1f4dd6;
     --pro:#39ff7a;
     --shadow: 0 12px 28px rgba(0,0,0,.35);
+    --radius:18px;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -263,7 +218,9 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
     padding:16px;border-radius:18px;border:1px solid rgba(57,255,122,.25);
     background:rgba(57,255,122,.10);
   }
-  .price{font-size:34px;font-weight:1000;letter-spacing:-.02em;}
+  .price{
+    font-size:34px;font-weight:1000;letter-spacing:-.02em;
+  }
   .small{font-size:12px;color:var(--muted);font-weight:850}
 </style>
 </head>
@@ -285,8 +242,14 @@ function baseLandingTemplate({ brand, topic, headline, cta1, cta2, price }) {
       </div>
 
       <div class="grid" style="margin-top:18px">
-        <div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
-        <div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div>
+        <div class="card">
+          <h3>Fast</h3>
+          <p>Clean structure that converts.</p>
+        </div>
+        <div class="card">
+          <h3>Clear</h3>
+          <p>Headline → value → call-to-action.</p>
+        </div>
       </div>
     </div>
 
@@ -342,25 +305,21 @@ function applyEditsToHtml(text, lastHtml) {
     if (v) html = setTextInHtml(html, "headline", v);
     return { html, note: "Updated headline." };
   }
-
   if (x.startsWith("title:")) {
     const v = norm(t.split(":").slice(1).join(":"));
     if (v) html = setTextInHtml(html, "headline", v);
     return { html, note: "Updated title/headline." };
   }
-
   if (x.startsWith("brand:")) {
     const v = norm(t.split(":").slice(1).join(":"));
     if (v) html = setTextInHtml(html, "brand", v);
     return { html, note: "Updated brand." };
   }
-
   if (x.startsWith("cta:")) {
     const v = norm(t.split(":").slice(1).join(":"));
     if (v) html = setCtaInHtml(html, "primary", v);
     return { html, note: "Updated CTA." };
   }
-
   if (x.startsWith("price:")) {
     const v = moneyFromText(t, "$19");
     html = setPriceInHtml(html, v);
@@ -379,36 +338,47 @@ function applyEditsToHtml(text, lastHtml) {
   return { html, note: "No edit applied." };
 }
 
-async function openAIChat({ text, tier, conversation }) {
-  // Offline fallback: still ok:true so UI stays stable
-  if (!OPENAI_API_KEY) {
-    return {
-      ok: true,
-      text:
-        "I’m in offline mode right now (no OpenAI key on the server). " +
-        "If you want a landing page preview, say: “build a landing page for a fitness coach”. " +
-        "Or edit: “headline: …”, “cta: …”, “add faq”, “price: 29”.",
-    };
+// -------- Best-friend fallback (fast, no OpenAI) --------
+function bestFriendFallback(userText) {
+  const x = lower(userText);
+
+  if (x.includes("i'm stressed") || x.includes("im stressed") || x.includes("stressed out")) {
+    return "I got you. Quick question: what’s stressing you the most — work, money, relationship, or just everything piling up? Give me the headline, then we’ll break it down.";
+  }
+  if (x.includes("anxious") || x.includes("panic")) {
+    return "Okay. First: breathe with me — in 4, hold 2, out 6. Now tell me what triggered it in the last 10 minutes.";
+  }
+  if (x.includes("sad") || x.includes("depressed")) {
+    return "I’m here. What happened today that hit you the hardest? One sentence is enough.";
+  }
+  if (x.includes("angry") || x.includes("pissed") || x.includes("mad")) {
+    return "Alright — what’s got you heated? Give me the one thing that crossed the line.";
+  }
+  if (x.includes("help") || x.includes("what should i do")) {
+    return "Tell me your goal in one line, and what’s blocking you right now. I’ll give you the next 3 moves.";
   }
 
-  const mode = detectMode(text, conversation);
+  return "I’m here. Tell me what you want right now — venting, solving, or building.";
+}
+// --------------------------------------------------------
+
+// -------- OpenAI chat w/ SERVER TIMEOUT so it never hangs --------
+async function openAIChat({ text, tier, conversation }) {
+  // If no key, return fallback.
+  if (!OPENAI_API_KEY) {
+    return { ok: true, text: bestFriendFallback(text), usedFallback: true };
+  }
 
   const sys =
-    "You are Simo. You must stay aligned to the user's CURRENT MODE: " + mode + ".\n\n" +
-    "MODE RULES:\n" +
-    "- venting: respond like a private best friend. Validate briefly, ask at most 1 clarifying question, no therapy-speak. Do NOT push previews/building unless asked.\n" +
-    "- solving: be crisp and technical. Give step-by-step checks. Ask for only the missing detail if needed.\n" +
-    "- building: be a builder. Offer a plan + next action. If user asks for preview/mockup, say it will appear on the right.\n" +
-    "- neutral: match what the user is doing; if unclear, ask one short question.\n\n" +
-    "CONTEXT HANDLING:\n" +
-    "- If user switches topics, immediately follow the new topic. Do NOT repeat old instructions.\n" +
-    "- Keep answers concise, actionable, and friendly.\n" +
-    "- Avoid code fences unless asked.\n\n" +
-    "INTERNAL NOTE (do not mention to user): Start your response with a hidden marker like '[mode: " + mode + "]'.";
+    "You are Simo: a best-friend voice that is practical and helpful, minimal therapy-speak. " +
+    "Be concise, actionable, and friendly. " +
+    "If the user is venting: validate briefly, ask 1 sharp question, offer 1 next step. " +
+    "If solving/building: propose a short plan and ask 1 clarifying question only if needed. " +
+    "Never stall. Keep it human and direct.";
 
   const msgs = [{ role: "system", content: sys }];
 
-  if (Array.isArray(conversation)) {
+  if (Array.isArray(conversation) && conversation.length) {
     const tail = conversation.slice(-12);
     for (const m of tail) {
       if (!m || !m.role) continue;
@@ -417,19 +387,22 @@ async function openAIChat({ text, tier, conversation }) {
       if (m.role === "user" || m.role === "assistant") msgs.push({ role: m.role, content: c });
     }
   }
-
-  // Ensure latest user text included
   if (!msgs.length || msgs[msgs.length - 1].role !== "user") {
     msgs.push({ role: "user", content: text });
   }
 
-  const body = {
-    model: OPENAI_MODEL,
-    messages: msgs,
-    temperature: tier === "pro" ? 0.7 : 0.5,
-  };
+  // IMPORTANT: server-side timeout
+  const controller = new AbortController();
+  const timeoutMs = tier === "pro" ? 14000 : 10000; // keep it snappy
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
+    const body = {
+      model: OPENAI_MODEL,
+      messages: msgs,
+      temperature: tier === "pro" ? 0.7 : 0.5,
+    };
+
     const r = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
       method: "POST",
       headers: {
@@ -437,44 +410,34 @@ async function openAIChat({ text, tier, conversation }) {
         "content-type": "application/json",
       },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
 
     const j = await r.json().catch(() => null);
 
     if (!r.ok) {
       const msg = j?.error?.message || `OpenAI error (${r.status})`;
-      // UI-safe fallback
-      return {
-        ok: true,
-        text:
-          "I hit an API hiccup on my side. Try again in a second. " +
-          "If you’re building, say: “build a landing page for …”. " +
-          "If you’re venting, tell me what’s happening — I’m here.",
-        error: msg,
-        details: j || null,
-      };
+      return { ok: true, text: bestFriendFallback(text), usedFallback: true, error: msg };
     }
 
-    let out = j?.choices?.[0]?.message?.content || "";
-    out = out.replace(/^\[mode:\s*(venting|solving|building|neutral)\]\s*/i, "");
+    const out = j?.choices?.[0]?.message?.content || "";
+    if (!out.trim()) {
+      return { ok: true, text: bestFriendFallback(text), usedFallback: true };
+    }
     return { ok: true, text: out };
-  } catch (err) {
-    // UI-safe fallback
-    return {
-      ok: true,
-      text:
-        "Network glitch talking to the AI service. Try again in a moment. " +
-        "If you want a preview, say: “build a landing page for …”.",
-      error: String(err?.message || err),
-    };
+
+  } catch (e) {
+    // Abort or network error -> fallback
+    return { ok: true, text: bestFriendFallback(text), usedFallback: true, error: String(e?.message || e) };
+  } finally {
+    clearTimeout(timer);
   }
 }
+// ----------------------------------------------------------------
 
 exports.handler = async (event) => {
   try {
-    if (event.httpMethod === "OPTIONS") {
-      return json(204, { ok: true });
-    }
+    if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
 
     if (event.httpMethod === "GET") {
       return json(200, {
@@ -486,7 +449,7 @@ exports.handler = async (event) => {
     }
 
     if (event.httpMethod !== "POST") {
-      return json(405, { ok: true, text: "Method not allowed." });
+      return json(405, { ok: false, error: "Method not allowed" });
     }
 
     const body = safeParseJSON(event.body || "{}") || {};
@@ -495,9 +458,7 @@ exports.handler = async (event) => {
     const conversation = Array.isArray(body.conversation) ? body.conversation : [];
     const lastPreview = body.lastPreview && typeof body.lastPreview === "object" ? body.lastPreview : null;
 
-    if (!text) {
-      return json(400, { ok: true, text: "Missing message." });
-    }
+    if (!text) return json(400, { ok: false, error: "Missing message" });
 
     // 1) EDIT COMMANDS
     if (isEditCommand(text) && lastPreview?.html) {
@@ -505,25 +466,24 @@ exports.handler = async (event) => {
       return json(200, {
         ok: true,
         text: `Done. ${edited.note} If you want more changes, try:\n- headline: …\n- cta: …\n- add/remove faq\n- add/remove pricing\n- price: 29`,
-        preview: {
-          kind: "html",
-          title: "Landing page",
-          meta: "Edited deterministically",
-          html: edited.html,
-        },
+        preview: { kind: "html", title: "Landing page", meta: "Edited deterministically", html: edited.html },
       });
     }
 
-    // 2) PREVIEW REQUESTS (deterministic)
+    // 2) PREVIEW REQUESTS
     if (isPreviewAsk(text)) {
       const brand = pickBrand(text, "Simo");
       const topic = extractTopic(text);
       const headline = pickHeadline(topic, brand);
-      const cta1 = "Get Started";
-      const cta2 = "Learn More";
-      const price = "$19";
 
-      const html = baseLandingTemplate({ brand, topic, headline, cta1, cta2, price });
+      const html = baseLandingTemplate({
+        brand,
+        topic,
+        headline,
+        cta1: "Get Started",
+        cta2: "Learn More",
+        price: "$19",
+      });
 
       return json(200, {
         ok: true,
@@ -536,31 +496,19 @@ exports.handler = async (event) => {
           "- add faq / remove faq\n" +
           "- add pricing / remove pricing\n" +
           "- add testimonials / remove testimonials",
-        preview: {
-          kind: "html",
-          title: "Landing page",
-          meta: "Updated",
-          html,
-        },
+        preview: { kind: "html", title: "Landing page", meta: "Updated", html },
       });
     }
 
-    // 3) NORMAL CHAT
+    // 3) NORMAL CHAT (NEVER HANGS — ALWAYS RETURNS TEXT)
     const ai = await openAIChat({ text, tier, conversation });
-
-    // Always return ok:true so the UI never freezes due to an unexpected shape
     return json(200, {
       ok: true,
-      text: ai.text || "I’m here. What do you want right now — venting, solving, or building?",
-      ...(ai.error ? { error: ai.error } : {}),
-      ...(ai.details ? { details: ai.details } : {}),
+      text: ai.text,
+      meta: ai.usedFallback ? "fallback" : "openai",
     });
 
   } catch (err) {
-    return json(500, {
-      ok: true,
-      text: "Server error on my side. Try again in a moment.",
-      error: String(err?.message || err),
-    });
+    return json(500, { ok: false, error: "Server error", details: String(err?.message || err) });
   }
 };
