@@ -295,25 +295,17 @@
       isBusy: false,
     };
 
-    function nowStamp() {
-      return new Date().toISOString();
-    }
-    function niceDate(iso) {
-      try { return new Date(iso).toLocaleString(); } catch { return iso; }
-    }
+    function nowStamp() { return new Date().toISOString(); }
+    function niceDate(iso) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
 
     function loadLibrary() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const arr = raw ? JSON.parse(raw) : [];
         return Array.isArray(arr) ? arr : [];
-      } catch {
-        return [];
-      }
+      } catch { return []; }
     }
-    function saveLibrary(arr) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || []));
-    }
+    function saveLibrary(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || [])); }
 
     function idlePreviewDoc() {
       return `<!doctype html><html><head><meta charset="utf-8"/>
@@ -396,12 +388,19 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
       return "your offer";
     }
     function sanitize(s){
-      return String(s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+      return String(s||"")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;");
     }
     function localLandingHTML(topic){
       const T = sanitize(topic);
       const H = sanitize(`${topic} — made simple`);
-      return `<!doctype html><html lang="en"><head><meta charset="utf-8"/>
+      return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta name="color-scheme" content="dark"/>
 <title>Simo — Landing Page</title>
@@ -424,20 +423,181 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 @media (max-width:860px){h1{font-size:44px}.grid{grid-template-columns:1fr}}
 .card{border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.18);padding:16px}
 .card h3{margin:0 0 6px;font-size:18px}.card p{margin:0}
-</style></head>
-<body><div class="wrap">
-<div class="top"><div class="brand"><span class="dot"></span> <span>Simo</span></div>
-<div class="tag">Local preview • topic: ${T}</div></div>
-<div class="hero">
-<div class="tag">Simo Preview</div>
-<h1>${H}</h1>
-<p>A clean landing page you can export as HTML. Ask me to change sections, CTA, or copy.</p>
-<div class="ctaRow"><a class="btn primary" href="#">Get Started</a><a class="btn" href="#">Learn More</a></div>
-<div class="grid" style="margin-top:18px"><div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
-<div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div></div>
-</div></div></body></html>`;
+[data-hidden="true"]{display:none !important;}
+.sectionTitle{font-size:18px;font-weight:950;margin:22px 0 10px}
+.list{display:grid;gap:10px}
+.pill{border:1px solid var(--line); border-radius:14px;padding:12px;background:rgba(255,255,255,.04);font-weight:800;color:var(--text);}
+.priceBox{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:16px;border-radius:18px;border:1px solid rgba(57,255,122,.25);background:rgba(57,255,122,.10);}
+.price{font-size:34px;font-weight:1000;letter-spacing:-.02em;}
+.small{font-size:12px;color:var(--muted);font-weight:850}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand"><span class="dot"></span> <span data-field="brand">Simo</span></div>
+      <div class="tag">Local preview • topic: <span data-field="topic">${T}</span></div>
+    </div>
+
+    <div class="hero">
+      <div class="tag">Simo Preview</div>
+      <h1 data-field="headline">${H}</h1>
+      <p data-field="subhead">A clean landing page you can export as HTML. Ask me to change sections, CTA, or copy.</p>
+
+      <div class="ctaRow">
+        <a class="btn primary" href="#" data-cta="primary">Get Started</a>
+        <a class="btn" href="#" data-cta="secondary">Learn More</a>
+      </div>
+
+      <div class="grid" style="margin-top:18px">
+        <div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
+        <div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div>
+      </div>
+    </div>
+
+    <!--section:benefits:start--><div data-section="benefits" data-hidden="false">
+      <div class="sectionTitle">Benefits</div>
+      <div class="list">
+        <div class="pill">Get a simple plan for <strong>${T}</strong> that people understand fast.</div>
+        <div class="pill">Show what you do, who it’s for, and how to start.</div>
+        <div class="pill">Turn visitors into leads with a clear CTA.</div>
+      </div>
+    </div><!--section:benefits:end-->
+
+    <!--section:testimonials:start--><div data-section="testimonials" data-hidden="false">
+      <div class="sectionTitle">Testimonials</div>
+      <div class="list">
+        <div class="pill">“This was exactly what I needed — clean and professional.”</div>
+        <div class="pill">“The layout made it easy to explain my offer.”</div>
+      </div>
+    </div><!--section:testimonials:end-->
+
+    <!--section:pricing:start--><div data-section="pricing" data-hidden="false">
+      <div class="sectionTitle">Pricing</div>
+      <div class="priceBox">
+        <div>
+          <div class="small">Starter package</div>
+          <div class="price" data-field="price">$19</div>
+        </div>
+        <a class="btn primary" href="#" data-cta="pricing">Get Started</a>
+      </div>
+    </div><!--section:pricing:end-->
+
+    <!--section:faq:start--><div data-section="faq" data-hidden="false">
+      <div class="sectionTitle">FAQ</div>
+      <div class="list">
+        <div class="pill"><strong>How do I start?</strong><br><span class="small">Click Get Started and send your details.</span></div>
+        <div class="pill"><strong>Can I customize this?</strong><br><span class="small">Yes — tell me “headline:” “cta:” or “add/remove sections”.</span></div>
+      </div>
+    </div><!--section:faq:end-->
+
+    <div style="height:28px"></div>
+  </div>
+</body>
+</html>`;
     }
     // ------------------------------------------------------
+
+    // -------- Local edit commands (works even if server times out) --------
+    function norm(s){ return String(s||"").trim(); }
+    function lower(s){ return norm(s).toLowerCase(); }
+
+    function isEditCommand(t) {
+      const x = lower(t);
+      return (
+        x.startsWith("headline:") ||
+        x.startsWith("title:") ||
+        x.startsWith("cta:") ||
+        x.startsWith("price:") ||
+        x === "add faq" || x === "remove faq" ||
+        x === "add pricing" || x === "remove pricing" ||
+        x === "add testimonials" || x === "remove testimonials" ||
+        x === "add benefits" || x === "remove benefits"
+      );
+    }
+
+    function moneyFromText(text, fallback="$19"){
+      const m = norm(text).match(/^price:\s*(.+)$/i);
+      if (!m) return fallback;
+      let v = norm(m[1]);
+      if (!v) return fallback;
+      if (/^\d+(\.\d+)?$/.test(v)) v = `$${v}`;
+      return v;
+    }
+
+    function toggleSection(html, id, wantOn) {
+      if (typeof html !== "string") return html;
+      const start = `<!--section:${id}:start-->`;
+      const end = `<!--section:${id}:end-->`;
+      const si = html.indexOf(start);
+      const ei = html.indexOf(end);
+      if (si === -1 || ei === -1 || ei <= si) return html;
+      const block = html.slice(si, ei + end.length);
+      const isHidden = block.includes(`data-hidden="true"`);
+      if (wantOn && isHidden) return html.replace(block, block.replace(`data-hidden="true"`, `data-hidden="false"`));
+      if (!wantOn && !isHidden) return html.replace(block, block.replace(`data-hidden="false"`, `data-hidden="true"`));
+      return html;
+    }
+
+    function setTextInHtml(html, field, newText){
+      const safe = sanitize(newText);
+      const re = new RegExp(`(data-field="${field}"[^>]*>)([\\s\\S]*?)(</)`, "i");
+      return html.replace(re, `$1${safe}$3`);
+    }
+
+    function setCtaInHtml(html, which, newText){
+      const safe = sanitize(newText);
+      const re = new RegExp(`(data-cta="${which}"[^>]*>)([\\s\\S]*?)(</)`, "i");
+      return html.replace(re, `$1${safe}$3`);
+    }
+
+    function setPriceInHtml(html, newPrice){
+      const safe = sanitize(newPrice);
+      const re = new RegExp(`(data-field="price"[^>]*>)([\\s\\S]*?)(</)`, "i");
+      return html.replace(re, `$1${safe}$3`);
+    }
+
+    function applyLocalEdits(text, html){
+      let out = String(html||"");
+      const t = norm(text);
+      const x = lower(t);
+
+      if (x.startsWith("headline:")) {
+        const v = norm(t.split(":").slice(1).join(":"));
+        if (v) out = setTextInHtml(out, "headline", v);
+        return { html: out, note: "Updated headline." };
+      }
+      if (x.startsWith("title:")) {
+        const v = norm(t.split(":").slice(1).join(":"));
+        if (v) out = setTextInHtml(out, "headline", v);
+        return { html: out, note: "Updated title/headline." };
+      }
+      if (x.startsWith("cta:")) {
+        const v = norm(t.split(":").slice(1).join(":"));
+        if (v) out = setCtaInHtml(out, "primary", v);
+        return { html: out, note: "Updated CTA." };
+      }
+      if (x.startsWith("price:")) {
+        const v = moneyFromText(t, "$19");
+        out = setPriceInHtml(out, v);
+        return { html: out, note: "Updated price." };
+      }
+
+      if (x === "add faq") return { html: toggleSection(out, "faq", true), note: "Added FAQ." };
+      if (x === "remove faq") return { html: toggleSection(out, "faq", false), note: "Removed FAQ." };
+
+      if (x === "add pricing") return { html: toggleSection(out, "pricing", true), note: "Added pricing." };
+      if (x === "remove pricing") return { html: toggleSection(out, "pricing", false), note: "Removed pricing." };
+
+      if (x === "add testimonials") return { html: toggleSection(out, "testimonials", true), note: "Added testimonials." };
+      if (x === "remove testimonials") return { html: toggleSection(out, "testimonials", false), note: "Removed testimonials." };
+
+      if (x === "add benefits") return { html: toggleSection(out, "benefits", true), note: "Added benefits." };
+      if (x === "remove benefits") return { html: toggleSection(out, "benefits", false), note: "Removed benefits." };
+
+      return { html: out, note: "No edit applied." };
+    }
+    // --------------------------------------------------------------------
 
     // -------- Local best-friend fallback (NO dead-ends) --------
     function localBestFriendFallback(userText) {
@@ -476,7 +636,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           body: JSON.stringify(payload),
           signal: controller.signal,
         });
-
         const data = await res.json().catch(() => ({}));
         return data;
       } finally {
@@ -602,7 +761,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       const name = (customName || "").trim() || (state.lastPreview?.title ? `${state.lastPreview.title} ${new Date().toLocaleTimeString()}` : "Untitled");
       const arr = loadLibrary();
 
-      // If same name exists, update it (simple behavior)
       const existing = arr.find(x => (x.name || "").toLowerCase() === name.toLowerCase());
       if (existing) {
         existing.html = html;
@@ -632,11 +790,25 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("user", text);
       $("input").value = "";
 
-      // Instant preview for landing pages
+      // 1) Instant preview for landing pages (local)
       if (looksLikePreviewAsk(text)) {
         const topic = extractTopic(text);
         setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
         addMsg("assistant", "Done. I updated the preview on the right.");
+      }
+
+      // 2) Local edits ALWAYS apply immediately (if we have HTML)
+      if (isEditCommand(text)) {
+        const html = currentHtmlOrNull();
+        if (html) {
+          const edited = applyLocalEdits(text, html);
+          setPreview({ kind:"html", title: $("previewTitle").textContent || "Landing page", meta:"Edited (local)", html: edited.html });
+          addMsg("assistant", `Done. ${edited.note}`);
+        } else {
+          addMsg("assistant", "No preview yet to edit. First: “build a landing page for a fitness coach”.");
+        }
+        // We still try the backend too (so it stays in sync when it responds),
+        // but the user already sees the edit even if it times out.
       }
 
       setBusy(true);
@@ -647,7 +819,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 
         if (data && typeof data.text === "string" && data.text.trim()) {
           addMsg("assistant", data.text.trim());
-        } else {
+        } else if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
           addMsg("assistant", localBestFriendFallback(text));
         }
 
@@ -655,7 +827,10 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           setPreview(data.preview);
         }
       } catch (err) {
-        addMsg("assistant", localBestFriendFallback(text));
+        // If it’s not preview/edit, give friendly fallback
+        if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
+          addMsg("assistant", localBestFriendFallback(text));
+        }
       } finally {
         setBusy(false);
       }
@@ -689,7 +864,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     // Pro: Save
     $("saveBtn").addEventListener("click", () => {
       if (!requirePro("Save")) return;
-      // Save using an auto-name
       const auto = $("previewTitle").textContent || "Build";
       saveCurrentToLibrary(auto + " " + new Date().toLocaleString());
     });
@@ -702,7 +876,10 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
         addMsg("assistant", "Nothing to download yet. Generate a preview first.");
         return;
       }
-      const base = ($("previewTitle").textContent || "simo-build").replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g,"-").toLowerCase();
+      const base = ($("previewTitle").textContent || "simo-build")
+        .replace(/[^a-z0-9-_]+/gi, "-")
+        .replace(/-+/g,"-")
+        .toLowerCase();
       downloadHtml(`${base}.html`, html);
       addMsg("assistant", "Downloaded the current build.");
     });
