@@ -45,6 +45,30 @@
     }
     .pill.on .pDot{background:var(--good); box-shadow:0 0 14px rgba(57,255,122,.65)}
 
+    /* NEW: small pro status indicator */
+    .proIndicator{
+      display:flex;align-items:center;gap:8px;
+      padding:8px 12px;border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      color:var(--muted);
+      font-weight:900;font-size:12px;
+      user-select:none;
+      white-space:nowrap;
+    }
+    .proIndicator .dotMini{
+      width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.35);
+    }
+    .proIndicator.on{
+      border-color:rgba(57,255,122,.25);
+      color:var(--text);
+      background:rgba(57,255,122,.10);
+    }
+    .proIndicator.on .dotMini{
+      background:var(--good);
+      box-shadow:0 0 12px rgba(57,255,122,.6);
+    }
+
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
     @media (max-width:980px){.grid{grid-template-columns:1fr}}
     .panel{
@@ -210,6 +234,12 @@
       </div>
 
       <div class="toggles">
+        <!-- NEW: Pro status indicator -->
+        <div id="proIndicator" class="proIndicator" aria-label="Pro status">
+          <span class="dotMini"></span>
+          <span id="proIndicatorText">Free mode</span>
+        </div>
+
         <div id="freePill" class="pill on" role="button" aria-label="Free">
           <span class="pDot"></span> Free <span class="muted">$0</span>
         </div>
@@ -698,6 +728,12 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       $("proModal").setAttribute("aria-hidden", "true");
     }
 
+    function updateProIndicator() {
+      const on = !!state.proVerified;
+      $("proIndicator").classList.toggle("on", on);
+      $("proIndicatorText").textContent = on ? "Pro active" : "Free mode";
+    }
+
     function updateProStatus(msg, ok) {
       const el = $("proStatus");
       if (typeof msg === "string") {
@@ -719,6 +755,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       if (state.proVerified) localStorage.setItem(PRO_FLAG_KEY, "1");
       else localStorage.removeItem(PRO_FLAG_KEY);
 
+      // reflect UI
       $("freePill").classList.toggle("on", !state.proVerified);
       $("proPill").classList.toggle("on", state.proVerified);
 
@@ -732,6 +769,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       });
 
       updateProStatus();
+      updateProIndicator();
     }
 
     async function verifyProKey(key) {
@@ -755,7 +793,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           setProVerified(true);
           updateProStatus("Verified ✅ Pro unlocked.", true);
           closeProModal();
-          addMsg("assistant", "Pro verified ✅ Save / Download / Library unlocked.");
+          // NOTE: removed chat spam here on purpose
           return true;
         }
         setProVerified(false);
@@ -882,18 +920,15 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("user", text);
       $("input").value = "";
 
-      const didLocalPreview = looksLikePreviewAsk(text);
-      const didLocalEdit = isEditCommand(text);
-
       // 1) Instant preview (local)
-      if (didLocalPreview) {
+      if (looksLikePreviewAsk(text)) {
         const topic = extractTopic(text);
         setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
         addMsg("assistant", "Done. I updated the preview on the right.");
       }
 
       // 2) Local edits apply immediately
-      if (didLocalEdit) {
+      if (isEditCommand(text)) {
         const html = currentHtmlOrNull();
         if (html) {
           const edited = applyLocalEdits(text, html);
@@ -907,13 +942,12 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       setBusy(true);
 
       try {
-        // IMPORTANT: longer timeout to avoid AbortController canceling cold starts
-        const timeoutMs = 45000;
+        const timeoutMs = 25000;
         const data = await callBackend(text, timeoutMs);
 
         if (data && typeof data.text === "string" && data.text.trim()) {
           addMsg("assistant", data.text.trim());
-        } else if (!didLocalPreview && !didLocalEdit) {
+        } else if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
           addMsg("assistant", localBestFriendFallback(text));
         }
 
@@ -921,16 +955,8 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           setPreview(data.preview);
         }
       } catch (err) {
-        const msg = (err && err.name) ? err.name : "";
-        const isAbort = msg === "AbortError";
-
-        // If we already handled the request locally (preview/edit), don't spam a timeout message.
-        if (!didLocalPreview && !didLocalEdit) {
-          if (isAbort) {
-            addMsg("assistant", "Server took too long (timeout). Try again — first call after deploy can be slow.");
-          } else {
-            addMsg("assistant", localBestFriendFallback(text));
-          }
+        if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
+          addMsg("assistant", localBestFriendFallback(text));
         }
       } finally {
         setBusy(false);
@@ -962,7 +988,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     // Pro/Free pills:
     $("freePill").addEventListener("click", () => {
       setProVerified(false);
-      addMsg("assistant", "Switched to Free.");
+      // NOTE: removed chat spam on toggle
     });
 
     $("proPill").addEventListener("click", () => {
@@ -974,8 +1000,8 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     $("verifyProBtn").addEventListener("click", () => verifyProKey($("proKey").value));
     $("logoutProBtn").addEventListener("click", () => {
       setProVerified(false);
-      addMsg("assistant", "Pro logged out. Back to Free.");
       updateProStatus("Pro logged out.", false);
+      // NOTE: removed chat spam here on purpose
     });
 
     $("proModal").addEventListener("click", (e) => {
@@ -1039,7 +1065,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     // init
     $("previewFrame").srcdoc = idlePreviewDoc();
 
-    // restore pro verified flag
+    // restore pro verified flag (optional)
     state.proVerified = localStorage.getItem(PRO_FLAG_KEY) === "1";
     setProVerified(state.proVerified);
   </script>
