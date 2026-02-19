@@ -14,7 +14,6 @@
       --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
       --card:rgba(255,255,255,.06);
-      --card2:rgba(255,255,255,.08);
       --chip:rgba(255,255,255,.08);
       --chip2:rgba(57,255,122,.12);
       --radius:18px;
@@ -81,6 +80,7 @@
       background:rgba(255,255,255,.06);
       box-shadow:none;
     }
+
     .grid{
       display:grid;
       grid-template-columns: 1.05fr .95fr;
@@ -89,6 +89,7 @@
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
     }
+
     .card{
       background:linear-gradient(180deg,var(--card),rgba(255,255,255,.03));
       border:1px solid var(--line);
@@ -108,18 +109,12 @@
       display:flex; align-items:center; gap:8px;
     }
     .subtle{color:var(--muted); font-size:13px}
-    .chat{
-      display:flex; flex-direction:column; height:600px;
-    }
-    .log{
-      padding:14px;
-      overflow:auto;
-      flex:1;
-    }
-    .msg{
-      display:flex; gap:10px; margin:10px 0;
-      align-items:flex-start;
-    }
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+
+    /* Chat */
+    .chat{display:flex; flex-direction:column; height:600px;}
+    .log{padding:14px; overflow:auto; flex:1;}
+    .msg{display:flex; gap:10px; margin:10px 0; align-items:flex-start;}
     .bubble{
       max-width:88%;
       padding:12px 12px;
@@ -130,10 +125,7 @@
       white-space:pre-wrap;
       word-break:break-word;
     }
-    .me .bubble{
-      background:rgba(42,102,255,.18);
-      border-color:rgba(42,102,255,.35);
-    }
+    .me .bubble{background:rgba(42,102,255,.18); border-color:rgba(42,102,255,.35);}
     .who{
       width:34px;height:34px;border-radius:12px;
       display:grid; place-items:center;
@@ -143,10 +135,7 @@
       font-weight:900;
       flex:0 0 auto;
     }
-    .me .who{
-      background:rgba(42,102,255,.16);
-      border-color:rgba(42,102,255,.35);
-    }
+    .me .who{background:rgba(42,102,255,.16); border-color:rgba(42,102,255,.35);}
     .composer{
       border-top:1px solid var(--line);
       padding:12px;
@@ -174,20 +163,10 @@
       justify-content:flex-end;
     }
 
-    .preview{
-      height:600px;
-      display:flex; flex-direction:column;
-    }
-    .frameWrap{
-      flex:1;
-      background:rgba(0,0,0,.2);
-    }
-    iframe{
-      width:100%;
-      height:100%;
-      border:0;
-      background:white;
-    }
+    /* Preview */
+    .preview{height:600px; display:flex; flex-direction:column;}
+    .frameWrap{flex:1; background:rgba(0,0,0,.2);}
+    iframe{width:100%; height:100%; border:0; background:transparent;}
     .hint{
       padding:10px 12px;
       border-top:1px solid var(--line);
@@ -197,7 +176,6 @@
       gap:10px;
       background:rgba(0,0,0,.10);
     }
-    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
     .tag{
       padding:6px 10px; border-radius:999px;
       border:1px solid var(--line);
@@ -211,7 +189,7 @@
       color:rgba(234,240,255,.92);
     }
 
-    /* Modal */
+    /* Modals */
     .modalOverlay{
       position:fixed; inset:0;
       background:rgba(0,0,0,.55);
@@ -248,11 +226,7 @@
     }
     input[type="text"]:focus{border-color:rgba(42,102,255,.55); box-shadow:0 0 0 4px rgba(42,102,255,.16)}
     .note{color:var(--muted); font-size:13px; margin-top:10px; line-height:1.35}
-    .list{
-      margin:10px 0 0;
-      padding:0;
-      list-style:none;
-    }
+    .list{margin:10px 0 0; padding:0; list-style:none;}
     .list li{
       display:flex; justify-content:space-between; align-items:center;
       gap:10px;
@@ -320,7 +294,12 @@
         </div>
 
         <div class="frameWrap">
-          <iframe id="frame" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+          <!-- IMPORTANT: srcdoc prevents white block even if JS fails -->
+          <iframe
+            id="frame"
+            sandbox="allow-scripts allow-forms allow-same-origin"
+            srcdoc="<!doctype html><html><head><meta charset='utf-8'><style>body{margin:0;font-family:system-ui;background:#0b1020;color:#a9b6d3;display:grid;place-items:center;height:100vh} .box{border:1px solid rgba(255,255,255,.12);padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.05)}</style></head><body><div class='box'>No preview yet.</div></body></html>"
+          ></iframe>
         </div>
 
         <div class="hint">
@@ -382,8 +361,6 @@
       }
 
       function stripCodeFences(text){
-        // Pull the FIRST html-ish code block if present
-        // Supports ```html ... ``` or ``` ... ```
         const fence = /```(?:html)?\s*([\s\S]*?)```/i.exec(text || "");
         if (fence && fence[1]) return fence[1].trim();
         return null;
@@ -416,7 +393,7 @@
         draftHtml: "",           // current working HTML
         draftName: "",
         draftUpdatedAt: "",
-        buildHistory: []         // light breadcrumbs
+        buildHistory: []
       };
 
       let state = Object.assign({}, defaultState, safeJSONParse(localStorage.getItem(STATE_KEY), {}));
@@ -454,6 +431,9 @@
       const topicTag = $("topicTag");
       const draftTag = $("draftTag");
 
+      // Prevent double-boot (Netlify can sometimes rehydrate fast)
+      let booted = false;
+
       // -------------------------
       // Render functions
       // -------------------------
@@ -469,7 +449,6 @@
         state.mode = mode;
         saveState();
         modeText.textContent = mode;
-        // light styling
         if(mode === "building"){
           modeChip.classList.add("good");
         }else{
@@ -495,7 +474,6 @@
         proBtn.textContent = isPro ? "Pro Enabled" : "Unlock Pro";
         proBtn.classList.toggle("locked", isPro);
 
-        // gating
         saveBtn.classList.toggle("locked", !isPro);
         libraryBtn.classList.toggle("locked", !isPro);
         saveBtn.title = isPro ? "" : "Pro required";
@@ -535,12 +513,10 @@
         const t = (text || "").toLowerCase().trim();
         if(!t) return state.mode;
 
-        // explicit commands
         if(/\bvent(ing)?\b/.test(t)) return "venting";
         if(/\bsolv(ing|e)?\b/.test(t)) return "solving";
         if(/\bbuild(ing)?\b/.test(t)) return "building";
 
-        // strong signals
         if(/\b(stressed|anxious|sad|tired|overwhelmed|hurt|upset|mad|angry|depressed|lonely)\b/.test(t)) return "venting";
         if(/\b(help me|what should i do|how do i|steps|fix|debug|error|issue|problem|troubleshoot|why)\b/.test(t)) return "solving";
         if(/\b(build|make|create|design|landing page|website|app|ui|mockup|preview|html|css|pricing|testimonials|faq)\b/.test(t)) return "building";
@@ -549,16 +525,13 @@
       }
 
       function inferTopic(text){
-        // lightweight: set topic when user asks to build something specific
         const t = (text || "").trim();
         if(!t) return state.topic;
 
         const low = t.toLowerCase();
-        // If user explicitly says switch topics, treat next words as topic
         if(low.startsWith("switch topics")){
           return t.replace(/switch topics[:,]?\s*/i, "").trim() || "";
         }
-        // Common build targets
         if(/landing page/i.test(t)) return "landing page";
         if(/\bfitness\b/i.test(t)) return "fitness site";
         if(/\bspace renting\b/i.test(t)) return "space renting app";
@@ -574,12 +547,9 @@
       }
 
       function shouldAutoPreview(text){
-        // Only auto-preview in Build mode.
-        // In other modes, only preview if they asked for it.
         const wants = userWantsPreview(text);
         if(state.mode !== "building") return wants;
 
-        // In building mode: auto preview if they did any common edit command, OR they asked for preview
         const t = (text || "").toLowerCase();
         if(wants) return true;
 
@@ -670,9 +640,7 @@
         proModal.style.display = "flex";
         setTimeout(()=>proKey.focus(), 50);
       }
-      function closeProModal(){
-        proModal.style.display = "none";
-      }
+      function closeProModal(){ proModal.style.display = "none"; }
 
       async function verifyProKey(key){
         const res = await fetch("/.netlify/functions/pro", {
@@ -691,15 +659,12 @@
       async function sendToBackend(userText){
         const payload = {
           message: userText,
-          // intent stability context
           mode: state.mode,
           topic: state.topic,
           draft_html: state.draftHtml || "",
           draft_name: state.draftName || "",
-          // last turns (light)
           last_user: state.lastUser || "",
           last_assistant: state.lastAssistant || "",
-          // pro flag (optional)
           pro: !!pro.pro
         };
 
@@ -718,7 +683,6 @@
       }
 
       function normalizeAssistantText(data){
-        // accept multiple common shapes
         if(!data) return "";
         if(typeof data === "string") return data;
         return data.reply || data.text || data.message || data.output || "";
@@ -727,10 +691,7 @@
       function extractHtmlFromResponse(text){
         const fenced = stripCodeFences(text);
         if(fenced && looksLikeHTML(fenced)) return fenced;
-
-        // Sometimes backend returns raw HTML as the whole message
         if(looksLikeHTML(text)) return text.trim();
-
         return null;
       }
 
@@ -744,11 +705,9 @@
         const userText = (inputEl.value || "").trim();
         if(!userText) return;
 
-        // update inferred mode + topic before sending
         const nextMode = inferMode(userText);
         setMode(nextMode);
 
-        // update topic anchor lightly
         const nextTopic = inferTopic(userText);
         if(nextTopic !== state.topic) setTopic(nextTopic);
 
@@ -764,26 +723,22 @@
           const assistantText = normalizeAssistantText(data) || "(no response)";
           addMsg("simo", assistantText);
 
-          // update last turn memory
           state.lastUser = userText;
           state.lastAssistant = assistantText;
           state.buildHistory = (state.buildHistory || []).slice(-8);
           state.buildHistory.push({ t: nowISO(), mode: state.mode, topic: state.topic });
           saveState();
 
-          // Auto-preview rules
           const html = extractHtmlFromResponse(assistantText);
           const doPreview = shouldAutoPreview(userText);
 
           if(html && doPreview){
-            // if we don't have a draft name, infer something
             if(!state.draftName){
               state.draftName = state.topic ? `${state.topic}` : "untitled";
             }
             setPreview(html);
           }
 
-          // If backend separately returned html field, respect it
           if(data && typeof data.html === "string" && looksLikeHTML(data.html)){
             const doPrev2 = shouldAutoPreview(userText);
             if(doPrev2) setPreview(data.html);
@@ -791,8 +746,7 @@
 
           setStatus("Ready");
         }catch(err){
-          const msg = err?.message || "Error";
-          addMsg("simo", `⚠️ ${msg}`);
+          addMsg("simo", `⚠️ ${err?.message || "Error"}`);
           setStatus("Ready");
         }finally{
           sending = false;
@@ -802,7 +756,7 @@
       }
 
       // -------------------------
-      // Button actions
+      // Other actions
       // -------------------------
       function manualPreview(){
         if(state.draftHtml && looksLikeHTML(state.draftHtml)){
@@ -835,12 +789,7 @@
           return;
         }
         const name = (state.draftName || state.topic || "untitled").trim();
-        const item = {
-          name,
-          topic: state.topic || "",
-          savedAt: new Date().toLocaleString(),
-          html: state.draftHtml
-        };
+        const item = { name, topic: state.topic || "", savedAt: new Date().toLocaleString(), html: state.draftHtml };
         const items = getLibrary();
         items.unshift(item);
         setLibrary(items.slice(0, 25));
@@ -848,29 +797,26 @@
       }
 
       // -------------------------
-      // Init
+      // Boot
       // -------------------------
       function boot(){
-        // seed UI
+        if(booted) return;
+        booted = true;
+
         setMode(state.mode || "building");
         setTopic(state.topic || "");
         setDraftMeta();
         setProUI();
 
-        // first message
-        if(!logEl.children.length){
-          addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
-        }
-
-        // load existing draft into iframe (no white block glitch — only set if valid)
+        // If you have a valid saved draft, render it (otherwise iframe already has dark srcdoc)
         if(state.draftHtml && looksLikeHTML(state.draftHtml)){
           frameEl.srcdoc = state.draftHtml;
-        }else{
-          // keep it blank, not white block overlays
-          frameEl.srcdoc = "<!doctype html><html><head><meta charset='utf-8'><style>body{margin:0;font-family:system-ui;background:#0b1020;color:#a9b6d3;display:grid;place-items:center;height:100vh} .box{border:1px solid rgba(255,255,255,.12);padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.05)}</style></head><body><div class='box'>No preview yet.</div></body></html>";
         }
 
-        // listeners
+        // Seed initial message
+        addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
+
+        // Listeners (these are what were missing when DOMContentLoaded didn’t fire)
         sendBtn.addEventListener("click", onSend);
 
         inputEl.addEventListener("keydown", (e) => {
@@ -905,10 +851,7 @@
 
         proVerify.addEventListener("click", async () => {
           const key = (proKey.value || "").trim();
-          if(!key){
-            proMsg.textContent = "Enter a key.";
-            return;
-          }
+          if(!key){ proMsg.textContent = "Enter a key."; return; }
           proMsg.textContent = "Verifying…";
           try{
             const data = await verifyProKey(key);
@@ -918,7 +861,7 @@
               localStorage.setItem(PRO_KEY, JSON.stringify(pro));
               setProUI();
               proMsg.textContent = "✅ Pro enabled.";
-              await sleep(400);
+              await sleep(300);
               closeProModal();
               addMsg("simo", "Pro is ON. Save + Library unlocked.");
             }else{
@@ -929,7 +872,6 @@
           }
         });
 
-        // Library modal
         libClose.addEventListener("click", closeLib);
         libModal.addEventListener("click", (e) => {
           if(e.target === libModal) closeLib();
@@ -939,12 +881,17 @@
           renderLibrary();
         });
 
-        // Reflect tags
+        // Final tag reflect
         topicTag.textContent = `topic: ${state.topic || "none"}`;
         draftTag.textContent = `draft: ${state.draftName || "none"}`;
       }
 
-      document.addEventListener("DOMContentLoaded", boot);
+      // ✅ THIS IS THE KEY FIX: boot even if DOMContentLoaded already fired
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", boot);
+      } else {
+        boot();
+      }
     })();
   </script>
 </body>
