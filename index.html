@@ -12,6 +12,7 @@
       --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39ff7a;
       --shadow:0 14px 34px rgba(0,0,0,.35);
+      --panel: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.14));
     }
     *{box-sizing:border-box}
     html,body{height:100%}
@@ -48,7 +49,7 @@
     .panel{
       border:1px solid var(--line);
       border-radius:22px;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.14));
+      background:var(--panel);
       box-shadow:var(--shadow);
       overflow:hidden;
       min-height:620px;
@@ -72,6 +73,7 @@
       cursor:pointer;
     }
     .btn.locked{opacity:.55; cursor:not-allowed}
+    .btn.danger{border-color:rgba(255,77,77,.35); background:rgba(255,77,77,.10)}
     .log{
       flex:1;
       border:1px dashed rgba(255,255,255,.12);
@@ -128,6 +130,69 @@
     .muted{color:var(--muted);font-weight:850}
     .small{font-size:12px}
     .badgeLock{margin-left:6px;opacity:.85}
+
+    /* Modal */
+    .modalBackdrop{
+      position:fixed; inset:0; display:none;
+      background:rgba(0,0,0,.55);
+      align-items:center; justify-content:center;
+      padding:18px;
+      z-index:9999;
+    }
+    .modalBackdrop.show{display:flex}
+    .modal{
+      width:min(820px, 96vw);
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.14);
+      background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.35));
+      box-shadow:0 24px 70px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+    .modalTop{
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.10);
+    }
+    .modalTop .t{font-weight:1000}
+    .modalTop .x{
+      width:38px;height:38px;border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:var(--text); font-weight:1000;
+      cursor:pointer;
+    }
+    .modalBody{padding:14px 16px}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+    .input{
+      flex:1; min-width:220px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      color:var(--text);
+      padding:10px 12px;
+      font-weight:850;
+      outline:none;
+    }
+    .list{
+      display:grid; gap:10px;
+      max-height:52vh; overflow:auto;
+      padding-right:4px;
+    }
+    .item{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.18);
+      border-radius:16px;
+      padding:12px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .meta{display:flex; flex-direction:column; gap:4px}
+    .name{font-weight:1000}
+    .date{color:var(--muted); font-weight:850; font-size:12px}
+    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
+    .tiny{
+      border-radius:12px;
+      padding:8px 10px;
+      font-size:12px;
+    }
   </style>
 </head>
 <body>
@@ -196,8 +261,31 @@
     </div>
   </div>
 
+  <!-- Library Modal -->
+  <div id="modal" class="modalBackdrop" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-label="Library">
+      <div class="modalTop">
+        <div class="t">Library</div>
+        <button id="closeModal" class="x" aria-label="Close">✕</button>
+      </div>
+      <div class="modalBody">
+        <div class="row">
+          <input id="saveName" class="input" placeholder="Name this build (e.g., Fitness Coach V1)" />
+          <button id="saveNow" class="btn">Save current</button>
+          <button id="clearAll" class="btn danger">Clear all</button>
+        </div>
+        <div class="muted small" style="margin-bottom:10px">
+          Saved builds are stored in this browser (localStorage).
+        </div>
+        <div id="libList" class="list"></div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const $ = (id) => document.getElementById(id);
+
+    const STORAGE_KEY = "simo.library.v1";
 
     const state = {
       tier: "free",
@@ -206,6 +294,26 @@
       lastSavedHtml: null,
       isBusy: false,
     };
+
+    function nowStamp() {
+      return new Date().toISOString();
+    }
+    function niceDate(iso) {
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    function loadLibrary() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
+    function saveLibrary(arr) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || []));
+    }
 
     function idlePreviewDoc() {
       return `<!doctype html><html><head><meta charset="utf-8"/>
@@ -331,14 +439,14 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
     }
     // ------------------------------------------------------
 
-    // -------- Local best-friend fallback (NO "try again") --------
+    // -------- Local best-friend fallback (NO dead-ends) --------
     function localBestFriendFallback(userText) {
       const x = (userText||"").toLowerCase();
       if (x.includes("im stressed") || x.includes("i'm stressed") || x.includes("stressed out")) {
-        return "I got you. What’s the main source — work, money, relationship, or just everything stacking? Give me the headline and I’ll help you cut it down.";
+        return "I got you. What’s the main source — work, money, relationship, or just everything stacking?";
       }
       if (x.includes("anxious") || x.includes("panic")) {
-        return "Okay. In 4… hold 2… out 6. Do that twice. Now: what triggered it in the last 10 minutes?";
+        return "Okay. In 4… hold 2… out 6 (twice). Now: what triggered it in the last 10 minutes?";
       }
       if (x.includes("sad") || x.includes("depressed")) {
         return "I’m here. What happened today that hit you the hardest? One sentence.";
@@ -348,7 +456,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       }
       return "I’m here. Tell me what you want right now — venting, solving, or building.";
     }
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------
 
     async function callBackend(text, timeoutMs) {
       const payload = {
@@ -376,6 +484,147 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       }
     }
 
+    // ---------------- Pro features ----------------
+    function requirePro(actionName) {
+      if (state.tier !== "pro") {
+        addMsg("assistant", `${actionName} is a Pro feature 🔒 (toggle Pro top-right).`);
+        return false;
+      }
+      return true;
+    }
+
+    function downloadHtml(filename, html) {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function openModal() {
+      $("modal").classList.add("show");
+      $("modal").setAttribute("aria-hidden", "false");
+      renderLibrary();
+      setTimeout(() => $("saveName").focus(), 50);
+    }
+    function closeModal() {
+      $("modal").classList.remove("show");
+      $("modal").setAttribute("aria-hidden", "true");
+    }
+
+    function currentHtmlOrNull() {
+      const html = state.lastSavedHtml || state.lastPreview?.html || "";
+      return html && html.trim().length > 50 ? html : "";
+    }
+
+    function renderLibrary() {
+      const list = $("libList");
+      list.innerHTML = "";
+      const items = loadLibrary().sort((a,b) => (b.updatedAt||"").localeCompare(a.updatedAt||""));
+
+      if (!items.length) {
+        const empty = document.createElement("div");
+        empty.className = "muted small";
+        empty.textContent = "No saved builds yet. Generate a preview, then click Save.";
+        list.appendChild(empty);
+        return;
+      }
+
+      for (const it of items) {
+        const row = document.createElement("div");
+        row.className = "item";
+
+        const left = document.createElement("div");
+        left.className = "meta";
+        const name = document.createElement("div");
+        name.className = "name";
+        name.textContent = it.name || "Untitled";
+        const date = document.createElement("div");
+        date.className = "date";
+        date.textContent = `Updated: ${niceDate(it.updatedAt || it.createdAt || "")}`;
+        left.appendChild(name);
+        left.appendChild(date);
+
+        const right = document.createElement("div");
+        right.className = "actions";
+
+        const loadBtn = document.createElement("button");
+        loadBtn.className = "btn tiny";
+        loadBtn.textContent = "Load";
+        loadBtn.addEventListener("click", () => {
+          if (!it.html) return;
+          setPreview({ kind:"html", title: it.name || "Saved build", meta:"Loaded from Library", html: it.html });
+          addMsg("assistant", `Loaded “${it.name || "Untitled"}” into preview.`);
+          closeModal();
+        });
+
+        const dlBtn = document.createElement("button");
+        dlBtn.className = "btn tiny";
+        dlBtn.textContent = "Download";
+        dlBtn.addEventListener("click", () => {
+          if (!it.html) return;
+          const safe = (it.name || "simo-build").replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g,"-").toLowerCase();
+          downloadHtml(`${safe}.html`, it.html);
+          addMsg("assistant", `Downloaded “${it.name || "Untitled"}”.`);
+        });
+
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn tiny danger";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", () => {
+          const arr = loadLibrary().filter(x => x.id !== it.id);
+          saveLibrary(arr);
+          renderLibrary();
+          addMsg("assistant", `Deleted “${it.name || "Untitled"}”.`);
+        });
+
+        right.appendChild(loadBtn);
+        right.appendChild(dlBtn);
+        right.appendChild(delBtn);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        list.appendChild(row);
+      }
+    }
+
+    function saveCurrentToLibrary(customName) {
+      const html = currentHtmlOrNull();
+      if (!html) {
+        addMsg("assistant", "Nothing to save yet. Generate a preview first (e.g., “build a landing page for a fitness coach”).");
+        return;
+      }
+
+      const name = (customName || "").trim() || (state.lastPreview?.title ? `${state.lastPreview.title} ${new Date().toLocaleTimeString()}` : "Untitled");
+      const arr = loadLibrary();
+
+      // If same name exists, update it (simple behavior)
+      const existing = arr.find(x => (x.name || "").toLowerCase() === name.toLowerCase());
+      if (existing) {
+        existing.html = html;
+        existing.updatedAt = nowStamp();
+        saveLibrary(arr);
+        addMsg("assistant", `Updated saved build: “${name}”.`);
+        return;
+      }
+
+      const item = {
+        id: "b_" + Math.random().toString(16).slice(2) + "_" + Date.now(),
+        name,
+        html,
+        createdAt: nowStamp(),
+        updatedAt: nowStamp()
+      };
+      arr.push(item);
+      saveLibrary(arr);
+      addMsg("assistant", `Saved: “${name}”.`);
+    }
+    // ------------------------------------------------------
+
     async function send() {
       const text = $("input").value.trim();
       if (!text || state.isBusy) return;
@@ -393,27 +642,19 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       setBusy(true);
 
       try {
-        const isPrev = looksLikePreviewAsk(text);
-
-        // IMPORTANT: longer timeout for chat at work
-        const timeoutMs = isPrev ? 25000 : 25000;
-
+        const timeoutMs = 25000; // work-safe
         const data = await callBackend(text, timeoutMs);
 
-        // If server gives a reply, use it
         if (data && typeof data.text === "string" && data.text.trim()) {
           addMsg("assistant", data.text.trim());
         } else {
-          // If server returns but empty, still don't dead-end
           addMsg("assistant", localBestFriendFallback(text));
         }
 
-        // If server returns preview, it overwrites local (fine)
         if (data && data.preview && data.preview.kind === "html") {
           setPreview(data.preview);
         }
       } catch (err) {
-        // THIS is the fix: never show "try again" for venting
         addMsg("assistant", localBestFriendFallback(text));
       } finally {
         setBusy(false);
@@ -431,8 +672,10 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       $("previewFrame").srcdoc = idlePreviewDoc();
     }
 
+    // ----- Wire buttons -----
     $("sendBtn").addEventListener("click", send);
     $("resetBtn").addEventListener("click", reset);
+
     $("freePill").addEventListener("click", () => setTier("free"));
     $("proPill").addEventListener("click", () => setTier("pro"));
 
@@ -443,16 +686,58 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       }
     });
 
-    ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
-      $(id).addEventListener("click", () => {
-        if (state.tier !== "pro") {
-          addMsg("assistant", "That’s a Pro feature 🔒 (toggle Pro top-right).");
-          return;
-        }
-        addMsg("assistant", "Pro feature placeholder — we’ll wire this next.");
-      });
+    // Pro: Save
+    $("saveBtn").addEventListener("click", () => {
+      if (!requirePro("Save")) return;
+      // Save using an auto-name
+      const auto = $("previewTitle").textContent || "Build";
+      saveCurrentToLibrary(auto + " " + new Date().toLocaleString());
     });
 
+    // Pro: Download
+    $("downloadBtn").addEventListener("click", () => {
+      if (!requirePro("Download")) return;
+      const html = currentHtmlOrNull();
+      if (!html) {
+        addMsg("assistant", "Nothing to download yet. Generate a preview first.");
+        return;
+      }
+      const base = ($("previewTitle").textContent || "simo-build").replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g,"-").toLowerCase();
+      downloadHtml(`${base}.html`, html);
+      addMsg("assistant", "Downloaded the current build.");
+    });
+
+    // Pro: Library
+    $("libraryBtn").addEventListener("click", () => {
+      if (!requirePro("Library")) return;
+      openModal();
+    });
+
+    // Modal buttons
+    $("closeModal").addEventListener("click", closeModal);
+    $("modal").addEventListener("click", (e) => {
+      if (e.target === $("modal")) closeModal();
+    });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("modal").classList.contains("show")) closeModal();
+    });
+
+    $("saveNow").addEventListener("click", () => {
+      if (!requirePro("Save")) return;
+      saveCurrentToLibrary($("saveName").value);
+      $("saveName").value = "";
+      renderLibrary();
+    });
+
+    $("clearAll").addEventListener("click", () => {
+      if (!requirePro("Library")) return;
+      saveLibrary([]);
+      renderLibrary();
+      addMsg("assistant", "Cleared all saved builds.");
+    });
+
+    // init
     setTier("free");
     $("previewFrame").srcdoc = idlePreviewDoc();
   </script>
