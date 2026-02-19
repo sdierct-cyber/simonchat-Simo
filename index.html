@@ -13,1061 +13,939 @@
       --good:#39ff7a;
       --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
-      --panel: linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.14));
+      --card:rgba(255,255,255,.06);
+      --card2:rgba(255,255,255,.08);
+      --chip:rgba(255,255,255,.08);
+      --chip2:rgba(57,255,122,.12);
+      --radius:18px;
     }
     *{box-sizing:border-box}
-    html,body{height:100%}
     body{
-      margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+      margin:0;
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
     }
-    .wrap{max-width:1200px;margin:0 auto;padding:18px}
-    .header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;margin-bottom:14px}
-    .brand{display:flex;gap:10px;align-items:center}
-    .dot{width:10px;height:10px;border-radius:999px;background:var(--good);box-shadow:0 0 16px rgba(57,255,122,.55)}
-    .brand h1{margin:0;font-size:20px;line-height:1.1}
-    .sub{color:var(--muted);font-weight:800;font-size:12px;margin-top:2px}
-    .toggles{display:flex;gap:10px;align-items:center}
-    .pill{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:8px 12px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.05);
-      color:var(--text); font-weight:950; font-size:12px;
-      cursor:pointer; user-select:none;
+    .wrap{max-width:1120px;margin:0 auto;padding:18px}
+    .top{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; margin-bottom:14px;
     }
-    .pill .pDot{width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.35)}
-    .pill.on{
-      border-color:rgba(57,255,122,.35);
-      background:rgba(57,255,122,.12);
-      box-shadow:0 0 0 2px rgba(57,255,122,.08) inset, 0 10px 26px rgba(0,0,0,.28);
+    .brand{
+      display:flex; align-items:center; gap:10px;
+      font-weight:800; letter-spacing:.3px;
     }
-    .pill.on .pDot{background:var(--good); box-shadow:0 0 14px rgba(57,255,122,.65)}
-
-    /* NEW: small pro status indicator */
-    .proIndicator{
-      display:flex;align-items:center;gap:8px;
-      padding:8px 12px;border-radius:999px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:var(--muted);
-      font-weight:900;font-size:12px;
-      user-select:none;
-      white-space:nowrap;
+    .dot{
+      width:12px;height:12px;border-radius:99px;
+      background:linear-gradient(180deg,var(--btn),#7aa2ff);
+      box-shadow:0 0 0 5px rgba(42,102,255,.15);
     }
-    .proIndicator .dotMini{
-      width:8px;height:8px;border-radius:999px;background:rgba(255,255,255,.35);
+    .statusRow{
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      justify-content:flex-end;
     }
-    .proIndicator.on{
-      border-color:rgba(57,255,122,.25);
-      color:var(--text);
-      background:rgba(57,255,122,.10);
-    }
-    .proIndicator.on .dotMini{
-      background:var(--good);
-      box-shadow:0 0 12px rgba(57,255,122,.6);
-    }
-
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    @media (max-width:980px){.grid{grid-template-columns:1fr}}
-    .panel{
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border-radius:999px;
+      background:var(--chip);
       border:1px solid var(--line);
-      border-radius:22px;
-      background:var(--panel);
+      color:var(--muted);
+      font-size:13px;
+      user-select:none;
+    }
+    .chip strong{color:var(--text); font-weight:700}
+    .chip.good{background:var(--chip2); border-color:rgba(57,255,122,.25); color:rgba(234,240,255,.95)}
+    .chip .pill{
+      width:8px;height:8px;border-radius:99px;background:rgba(255,255,255,.35);
+    }
+    .chip.good .pill{background:var(--good); box-shadow:0 0 12px rgba(57,255,122,.55)}
+    .btn{
+      border:1px solid var(--line);
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      color:white;
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:700;
+      cursor:pointer;
+      box-shadow:0 10px 24px rgba(42,102,255,.25);
+    }
+    .btn:active{transform:translateY(1px)}
+    .btn.ghost{
+      background:transparent;
+      box-shadow:none;
+      color:var(--text);
+    }
+    .btn.small{padding:8px 10px; border-radius:12px; font-size:13px}
+    .btn.locked{
+      opacity:.55; cursor:not-allowed;
+      background:rgba(255,255,255,.06);
+      box-shadow:none;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1.05fr .95fr;
+      gap:14px;
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr}
+    }
+    .card{
+      background:linear-gradient(180deg,var(--card),rgba(255,255,255,.03));
+      border:1px solid var(--line);
+      border-radius:var(--radius);
       box-shadow:var(--shadow);
       overflow:hidden;
-      min-height:620px;
     }
-    .panelTop{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:14px 16px;border-bottom:1px solid var(--line);
-    }
-    .panelTop .title{font-weight:1000}
-    .panelTop .rightNote{color:var(--muted);font-weight:900;font-size:12px}
-
-    .chatBody{padding:14px 16px;display:flex;flex-direction:column;height:calc(100% - 58px)}
-    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-    .btn{
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.05);
-      color:var(--text);
-      border-radius:999px;
-      padding:9px 12px;
-      font-weight:950;font-size:12px;
-      cursor:pointer;
-    }
-    .btn.locked{opacity:.55; cursor:not-allowed}
-    .btn.danger{border-color:rgba(255,77,77,.35); background:rgba(255,77,77,.10)}
-    .log{
-      flex:1;
-      border:1px dashed rgba(255,255,255,.12);
-      border-radius:16px;
-      padding:12px;
-      overflow:auto;
+    .cardHead{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      padding:12px 12px;
+      border-bottom:1px solid var(--line);
       background:rgba(0,0,0,.10);
     }
-    .msg{margin:0 0 10px;line-height:1.45}
-    .msg .who{font-weight:1000}
-    .msg .txt{font-weight:800}
+    .cardHead .title{
+      font-weight:800; letter-spacing:.2px;
+      display:flex; align-items:center; gap:8px;
+    }
+    .subtle{color:var(--muted); font-size:13px}
+    .chat{
+      display:flex; flex-direction:column; height:600px;
+    }
+    .log{
+      padding:14px;
+      overflow:auto;
+      flex:1;
+    }
+    .msg{
+      display:flex; gap:10px; margin:10px 0;
+      align-items:flex-start;
+    }
+    .bubble{
+      max-width:88%;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.06);
+      line-height:1.35;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+    .me .bubble{
+      background:rgba(42,102,255,.18);
+      border-color:rgba(42,102,255,.35);
+    }
+    .who{
+      width:34px;height:34px;border-radius:12px;
+      display:grid; place-items:center;
+      background:rgba(255,255,255,.07);
+      border:1px solid var(--line);
+      color:rgba(234,240,255,.9);
+      font-weight:900;
+      flex:0 0 auto;
+    }
+    .me .who{
+      background:rgba(42,102,255,.16);
+      border-color:rgba(42,102,255,.35);
+    }
     .composer{
-      display:flex;gap:10px;margin-top:12px;
-      border-top:1px solid var(--line);padding-top:12px;
+      border-top:1px solid var(--line);
+      padding:12px;
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      background:rgba(0,0,0,.12);
     }
     textarea{
-      flex:1; resize:none;
-      height:56px;
-      border-radius:16px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      padding:12px;
-      font-weight:850;
-      outline:none;
-    }
-    .send{
-      width:120px;
-      border-radius:16px;
-      border:2px solid rgba(255,255,255,.18);
-      background:linear-gradient(180deg, var(--btn), var(--btn2));
-      color:#fff;font-weight:1000;
-      cursor:pointer;
-    }
-    .send:disabled{opacity:.65; cursor:not-allowed}
-
-    .previewBody{padding:12px 12px 16px}
-    .previewHeader{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:10px 12px;border:1px solid var(--line);
-      border-radius:16px 16px 0 0;
-      background:rgba(0,0,0,.20);
-      font-weight:950;
-    }
-    .frameWrap{
-      border:1px solid var(--line);
-      border-top:none;
-      border-radius:0 0 16px 16px;
-      overflow:hidden;
-      background:rgba(255,255,255,.04);
-      height:540px;
-    }
-    iframe{width:100%;height:100%;border:0;background:#0b1020}
-    .muted{color:var(--muted);font-weight:850}
-    .small{font-size:12px}
-    .badgeLock{margin-left:6px;opacity:.85}
-
-    /* Modal */
-    .modalBackdrop{
-      position:fixed; inset:0; display:none;
-      background:rgba(0,0,0,.55);
-      align-items:center; justify-content:center;
-      padding:18px;
-      z-index:9999;
-    }
-    .modalBackdrop.show{display:flex}
-    .modal{
-      width:min(820px, 96vw);
-      border-radius:22px;
-      border:1px solid rgba(255,255,255,.14);
-      background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(0,0,0,.35));
-      box-shadow:0 24px 70px rgba(0,0,0,.55);
-      overflow:hidden;
-    }
-    .modalTop{
-      display:flex;align-items:center;justify-content:space-between;
-      padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.10);
-    }
-    .modalTop .t{font-weight:1000}
-    .modalTop .x{
-      width:38px;height:38px;border-radius:12px;
-      border:1px solid rgba(255,255,255,.14);
-      background:rgba(255,255,255,.06);
-      color:var(--text); font-weight:1000;
-      cursor:pointer;
-    }
-    .modalBody{padding:14px 16px}
-    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
-    .input{
-      flex:1; min-width:220px;
+      width:100%;
+      min-height:44px;
+      max-height:140px;
+      resize:vertical;
       border-radius:14px;
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
       color:var(--text);
       padding:10px 12px;
-      font-weight:850;
       outline:none;
+      font:inherit;
     }
-    .list{
-      display:grid; gap:10px;
-      max-height:52vh; overflow:auto;
-      padding-right:4px;
+    textarea:focus{border-color:rgba(42,102,255,.55); box-shadow:0 0 0 4px rgba(42,102,255,.16)}
+    .actions{
+      display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap;
+      justify-content:flex-end;
     }
-    .item{
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.18);
-      border-radius:16px;
-      padding:12px;
-      display:flex; gap:10px; align-items:center; justify-content:space-between;
+
+    .preview{
+      height:600px;
+      display:flex; flex-direction:column;
     }
-    .meta{display:flex; flex-direction:column; gap:4px}
-    .name{font-weight:1000}
-    .date{color:var(--muted); font-weight:850; font-size:12px}
-    .actions{display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end}
-    .tiny{
-      border-radius:12px;
-      padding:8px 10px;
+    .frameWrap{
+      flex:1;
+      background:rgba(0,0,0,.2);
+    }
+    iframe{
+      width:100%;
+      height:100%;
+      border:0;
+      background:white;
+    }
+    .hint{
+      padding:10px 12px;
+      border-top:1px solid var(--line);
+      color:var(--muted);
+      font-size:13px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+      background:rgba(0,0,0,.10);
+    }
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .tag{
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      color:var(--muted);
       font-size:12px;
     }
-    .ok{color:var(--good); font-weight:950}
-    .err{color:var(--bad); font-weight:950}
+    .tag.good{
+      border-color:rgba(57,255,122,.28);
+      background:rgba(57,255,122,.10);
+      color:rgba(234,240,255,.92);
+    }
+
+    /* Modal */
+    .modalOverlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      padding:18px;
+      z-index:50;
+    }
+    .modal{
+      width:min(520px, 100%);
+      background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+      border:1px solid var(--line);
+      border-radius:20px;
+      box-shadow:0 20px 60px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+    .modalHead{
+      padding:14px 14px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--line);
+      background:rgba(0,0,0,.10);
+    }
+    .modalBody{padding:14px}
+    .row{display:flex; gap:10px; align-items:center}
+    input[type="text"]{
+      width:100%;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      padding:10px 12px;
+      outline:none;
+      font:inherit;
+    }
+    input[type="text"]:focus{border-color:rgba(42,102,255,.55); box-shadow:0 0 0 4px rgba(42,102,255,.16)}
+    .note{color:var(--muted); font-size:13px; margin-top:10px; line-height:1.35}
+    .list{
+      margin:10px 0 0;
+      padding:0;
+      list-style:none;
+    }
+    .list li{
+      display:flex; justify-content:space-between; align-items:center;
+      gap:10px;
+      padding:10px 10px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      border-radius:14px;
+      margin-bottom:10px;
+    }
+    .list .name{font-weight:800}
+    .list .meta{color:var(--muted); font-size:12px}
+    .danger{
+      background:rgba(255,77,77,.12);
+      border-color:rgba(255,77,77,.28);
+      color:rgba(234,240,255,.95);
+    }
   </style>
 </head>
+
 <body>
   <div class="wrap">
-    <div class="header">
+    <div class="top">
       <div class="brand">
-        <div class="dot"></div>
+        <span class="dot"></span>
         <div>
-          <h1>Simo</h1>
-          <div class="sub">Checkpoint V1 — stable chat + preview + Pro gating</div>
+          <div style="font-size:18px; line-height:1; font-weight:900;">Simo</div>
+          <div class="subtle" style="margin-top:3px;">Checkpoint V1.1 — intent stability</div>
         </div>
       </div>
 
-      <div class="toggles">
-        <!-- NEW: Pro status indicator -->
-        <div id="proIndicator" class="proIndicator" aria-label="Pro status">
-          <span class="dotMini"></span>
-          <span id="proIndicatorText">Free mode</span>
-        </div>
-
-        <div id="freePill" class="pill on" role="button" aria-label="Free">
-          <span class="pDot"></span> Free <span class="muted">$0</span>
-        </div>
-        <div id="proPill" class="pill" role="button" aria-label="Pro">
-          <span class="pDot"></span> Pro <span class="muted">$19</span>
-        </div>
+      <div class="statusRow">
+        <div id="modeChip" class="chip"><span class="pill"></span> Mode: <strong id="modeText">building</strong></div>
+        <div id="proChip" class="chip"><span class="pill"></span> Pro: <strong id="proText">OFF</strong></div>
+        <button id="proBtn" class="btn small">Unlock Pro</button>
       </div>
     </div>
 
     <div class="grid">
-      <section class="panel">
-        <div class="panelTop">
+      <!-- Chat -->
+      <div class="card chat">
+        <div class="cardHead">
           <div class="title">Chat</div>
-          <div class="rightNote" id="statusDot">Ready</div>
+          <div class="subtle" id="statusText">Ready</div>
         </div>
 
-        <div class="chatBody">
-          <div class="controls">
-            <button id="resetBtn" class="btn">Reset</button>
-            <button id="saveBtn" class="btn locked">Save <span class="badgeLock">🔒</span></button>
-            <button id="downloadBtn" class="btn locked">Download <span class="badgeLock">🔒</span></button>
-            <button id="libraryBtn" class="btn locked">Library <span class="badgeLock">🔒</span></button>
-          </div>
+        <div id="log" class="log"></div>
 
-          <div id="log" class="log" aria-live="polite">
-            <p class="msg simo"><span class="who">Simo:</span> <span class="txt">Reset. I’m here.</span></p>
-          </div>
-
-          <div class="composer">
-            <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
-            <button id="sendBtn" class="send">Send</button>
+        <div class="composer">
+          <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
+          <div class="actions">
+            <button id="previewBtn" class="btn ghost small">Preview</button>
+            <button id="downloadBtn" class="btn ghost small">Download</button>
+            <button id="saveBtn" class="btn ghost small locked" title="Pro required">Save</button>
+            <button id="libraryBtn" class="btn ghost small locked" title="Pro required">Library</button>
+            <button id="sendBtn" class="btn">Send</button>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="panel">
-        <div class="panelTop">
+      <!-- Preview -->
+      <div class="card preview">
+        <div class="cardHead">
           <div class="title">Preview</div>
-          <div class="rightNote">HTML / cover / updates render here</div>
+          <div class="subtle mono" id="previewLabel">No preview yet</div>
         </div>
 
-        <div class="previewBody">
-          <div class="previewHeader">
-            <div id="previewTitle">Idle</div>
-            <div class="muted small" id="previewMeta">No preview yet</div>
-          </div>
-          <div class="frameWrap">
-            <iframe id="previewFrame" title="Preview frame"></iframe>
-          </div>
+        <div class="frameWrap">
+          <iframe id="frame" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
         </div>
-      </section>
+
+        <div class="hint">
+          <div>
+            <span class="tag" id="topicTag">topic: none</span>
+            <span class="tag" id="draftTag">draft: none</span>
+          </div>
+          <div class="subtle">Tip: say “show me a preview” in Build mode</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pro Modal -->
+  <div id="proModal" class="modalOverlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modalHead">
+        <div style="font-weight:900;">Unlock Pro</div>
+        <button id="proClose" class="btn ghost small">Close</button>
+      </div>
+      <div class="modalBody">
+        <div class="subtle">Enter your license key to enable Pro features (Save / Library).</div>
+        <div class="row" style="margin-top:10px;">
+          <input id="proKey" type="text" placeholder="SIMO-XXXX-XXXX" autocomplete="off" />
+          <button id="proVerify" class="btn small">Verify</button>
+        </div>
+        <div id="proMsg" class="note"></div>
+        <div class="note">Pro status is saved in this browser.</div>
+      </div>
     </div>
   </div>
 
   <!-- Library Modal -->
-  <div id="libModal" class="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Library">
-      <div class="modalTop">
-        <div class="t">Library</div>
-        <button id="closeLibModal" class="x" aria-label="Close">✕</button>
+  <div id="libModal" class="modalOverlay" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modalHead">
+        <div style="font-weight:900;">Library</div>
+        <button id="libClose" class="btn ghost small">Close</button>
       </div>
       <div class="modalBody">
-        <div class="row">
-          <input id="saveName" class="input" placeholder="Name this build (e.g., Fitness Coach V1)" />
-          <button id="saveNow" class="btn">Save current</button>
-          <button id="clearAll" class="btn danger">Clear all</button>
-        </div>
-        <div class="muted small" style="margin-bottom:10px">
-          Saved builds are stored in this browser (localStorage).
-        </div>
-        <div id="libList" class="list"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Pro Key Modal -->
-  <div id="proModal" class="modalBackdrop" aria-hidden="true">
-    <div class="modal" role="dialog" aria-modal="true" aria-label="Unlock Pro">
-      <div class="modalTop">
-        <div class="t">Unlock Pro</div>
-        <button id="closeProModal" class="x" aria-label="Close">✕</button>
-      </div>
-      <div class="modalBody">
-        <div class="muted small" style="margin-bottom:10px">
-          Enter your Pro license key. Pro unlocks only after server verification.
-        </div>
-        <div class="row">
-          <input id="proKey" class="input" placeholder="e.g. SIMO-TEST-123" />
-          <button id="verifyProBtn" class="btn">Verify</button>
-          <button id="logoutProBtn" class="btn danger">Log out Pro</button>
-        </div>
-        <div id="proStatus" class="muted small"></div>
+        <div class="subtle">Saved builds (Pro)</div>
+        <ul id="libList" class="list"></ul>
+        <button id="libClear" class="btn ghost small danger">Clear Library</button>
       </div>
     </div>
   </div>
 
   <script>
-    const $ = (id) => document.getElementById(id);
+    (() => {
+      // -------------------------
+      // Helpers
+      // -------------------------
+      const $ = (id) => document.getElementById(id);
+      const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+      const nowISO = () => new Date().toISOString();
 
-    const STORAGE_KEY = "simo.library.v1";
-    const PRO_FLAG_KEY = "simo.pro.verified.v1"; // boolean "1" or ""
-    const PRO_KEY_CACHE = "simo.pro.keyhint.v1"; // optional key hint (not required)
-
-    const state = {
-      tier: "free",
-      conversation: [],
-      lastPreview: null,
-      lastSavedHtml: null,
-      isBusy: false,
-      proVerified: false
-    };
-
-    function nowStamp() { return new Date().toISOString(); }
-    function niceDate(iso) { try { return new Date(iso).toLocaleString(); } catch { return iso; } }
-
-    function loadLibrary() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        const arr = raw ? JSON.parse(raw) : [];
-        return Array.isArray(arr) ? arr : [];
-      } catch { return []; }
-    }
-    function saveLibrary(arr) { localStorage.setItem(STORAGE_KEY, JSON.stringify(arr || [])); }
-
-    function idlePreviewDoc() {
-      return `<!doctype html><html><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<style>
-  html,body{height:100%;margin:0}
-  body{display:grid;place-items:center;font-family:system-ui;background:#0b1020;color:#a9b6d3}
-  .box{border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:18px 16px;background:rgba(255,255,255,.04);text-align:center;max-width:360px}
-  b{color:#eaf0ff}
-</style></head>
-<body><div class="box"><b>No preview yet</b><div style="height:6px"></div>
-Ask: “build a landing page for a fitness coach”</div></body></html>`;
-    }
-
-    function setBusy(on) {
-      state.isBusy = !!on;
-      $("sendBtn").disabled = state.isBusy;
-      $("statusDot").textContent = state.isBusy ? "Thinking…" : "Ready";
-    }
-
-    function addMsg(role, text) {
-      const p = document.createElement("p");
-      p.className = "msg " + (role === "user" ? "user" : "simo");
-      p.innerHTML = '<span class="who">'+(role==="user"?"You:":"Simo:")+
-        '</span> <span class="txt"></span>';
-      p.querySelector(".txt").textContent = text || "";
-      $("log").appendChild(p);
-      $("log").scrollTop = $("log").scrollHeight;
-
-      state.conversation.push({ role, content: String(text || "") });
-      if (state.conversation.length > 30) state.conversation = state.conversation.slice(-30);
-    }
-
-    function setPreview(preview) {
-      if (!preview || !preview.html) return;
-      state.lastPreview = preview;
-      $("previewTitle").textContent = preview.title || "Preview";
-      $("previewMeta").textContent = preview.meta || "Updated";
-      $("previewFrame").srcdoc = preview.html;
-      state.lastSavedHtml = preview.html;
-    }
-
-    // -------- Local deterministic landing preview ----------
-    function looksLikePreviewAsk(text) {
-      const x = (text||"").toLowerCase().trim();
-      return (
-        x.includes("landing page") ||
-        x.includes("marketing page") ||
-        x.includes("show me a preview") ||
-        x.startsWith("preview") ||
-        x.startsWith("build a landing page") ||
-        x.startsWith("build me a landing page") ||
-        x.includes("make a landing page") ||
-        x.includes("create a landing page")
-      );
-    }
-    function extractTopic(text) {
-      const t = (text||"").toLowerCase();
-      const m =
-        t.match(/landing page for (a|an)\s+(.+?)(\.|$)/i) ||
-        t.match(/page for (a|an)\s+(.+?)(\.|$)/i) ||
-        t.match(/for (a|an)\s+(.+?)(\.|$)/i);
-      if (m && m[2]) return (m[2]||"").trim().replace(/\.$/,"");
-      if ((text||"").trim().length <= 40) return (text||"").trim();
-      return "your offer";
-    }
-    function sanitize(s){
-      return String(s||"")
-        .replace(/&/g,"&amp;")
-        .replace(/</g,"&lt;")
-        .replace(/>/g,"&gt;")
-        .replace(/"/g,"&quot;");
-    }
-    function localLandingHTML(topic){
-      const T = sanitize(topic);
-      const H = sanitize(`${topic} — made simple`);
-      return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta name="color-scheme" content="dark"/>
-<title>Simo — Landing Page</title>
-<style>
-:root{--bg:#0b1020;--text:#eaf0ff;--muted:#a9b6d3;--line:rgba(255,255,255,.12);--pro:#39ff7a;--shadow:0 12px 28px rgba(0,0,0,.35)}
-*{box-sizing:border-box}html,body{height:100%}
-body{margin:0;font-family:system-ui;background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);color:var(--text)}
-.wrap{max-width:980px;margin:0 auto;padding:22px}
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:6px 0 18px}
-.brand{display:flex;align-items:center;gap:10px;font-weight:900}
-.dot{width:10px;height:10px;border-radius:99px;background:var(--pro);box-shadow:0 0 18px rgba(57,255,122,.6)}
-.tag{font-size:12px;color:var(--muted);font-weight:800}
-.hero{border:1px solid var(--line);border-radius:22px;background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(0,0,0,.18));box-shadow:var(--shadow);padding:22px}
-h1{margin:8px 0 10px;font-size:54px;line-height:1.02;letter-spacing:-.02em}
-p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
-.ctaRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
-.btn{display:inline-flex;align-items:center;justify-content:center;padding:12px 14px;border-radius:14px;font-weight:950;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.06);color:var(--text);text-decoration:none}
-.btn.primary{border-color:rgba(57,255,122,.25);background:rgba(57,255,122,.14);box-shadow:0 10px 20px rgba(0,0,0,.25)}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:14px}
-@media (max-width:860px){h1{font-size:44px}.grid{grid-template-columns:1fr}}
-.card{border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.18);padding:16px}
-.card h3{margin:0 0 6px;font-size:18px}.card p{margin:0}
-[data-hidden="true"]{display:none !important;}
-.sectionTitle{font-size:18px;font-weight:950;margin:22px 0 10px}
-.list{display:grid;gap:10px}
-.pill{border:1px solid var(--line); border-radius:14px;padding:12px;background:rgba(255,255,255,.04);font-weight:800;color:var(--text);}
-.priceBox{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;padding:16px;border-radius:18px;border:1px solid rgba(57,255,122,.25);background:rgba(57,255,122,.10);}
-.price{font-size:34px;font-weight:1000;letter-spacing:-.02em;}
-.small{font-size:12px;color:var(--muted);font-weight:850}
-</style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="top">
-      <div class="brand"><span class="dot"></span> <span data-field="brand">Simo</span></div>
-      <div class="tag">Local preview • topic: <span data-field="topic">${T}</span></div>
-    </div>
-
-    <div class="hero">
-      <div class="tag">Simo Preview</div>
-      <h1 data-field="headline">${H}</h1>
-      <p data-field="subhead">A clean landing page you can export as HTML. Ask me to change sections, CTA, or copy.</p>
-
-      <div class="ctaRow">
-        <a class="btn primary" href="#" data-cta="primary">Get Started</a>
-        <a class="btn" href="#" data-cta="secondary">Learn More</a>
-      </div>
-
-      <div class="grid" style="margin-top:18px">
-        <div class="card"><h3>Fast</h3><p>Clean structure that converts.</p></div>
-        <div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div>
-      </div>
-    </div>
-
-    <!--section:benefits:start--><div data-section="benefits" data-hidden="false">
-      <div class="sectionTitle">Benefits</div>
-      <div class="list">
-        <div class="pill">Get a simple plan for <strong>${T}</strong> that people understand fast.</div>
-        <div class="pill">Show what you do, who it’s for, and how to start.</div>
-        <div class="pill">Turn visitors into leads with a clear CTA.</div>
-      </div>
-    </div><!--section:benefits:end-->
-
-    <!--section:testimonials:start--><div data-section="testimonials" data-hidden="false">
-      <div class="sectionTitle">Testimonials</div>
-      <div class="list">
-        <div class="pill">“This was exactly what I needed — clean and professional.”</div>
-        <div class="pill">“The layout made it easy to explain my offer.”</div>
-      </div>
-    </div><!--section:testimonials:end-->
-
-    <!--section:pricing:start--><div data-section="pricing" data-hidden="false">
-      <div class="sectionTitle">Pricing</div>
-      <div class="priceBox">
-        <div>
-          <div class="small">Starter package</div>
-          <div class="price" data-field="price">$19</div>
-        </div>
-        <a class="btn primary" href="#" data-cta="pricing">Get Started</a>
-      </div>
-    </div><!--section:pricing:end-->
-
-    <!--section:faq:start--><div data-section="faq" data-hidden="false">
-      <div class="sectionTitle">FAQ</div>
-      <div class="list">
-        <div class="pill"><strong>How do I start?</strong><br><span class="small">Click Get Started and send your details.</span></div>
-        <div class="pill"><strong>Can I customize this?</strong><br><span class="small">Yes — tell me “headline:” “cta:” or “add/remove sections”.</span></div>
-      </div>
-    </div><!--section:faq:end-->
-
-    <div style="height:28px"></div>
-  </div>
-</body>
-</html>`;
-    }
-
-    // -------- Local edit commands (works even if server times out) --------
-    function norm(s){ return String(s||"").trim(); }
-    function lower(s){ return norm(s).toLowerCase(); }
-
-    function isEditCommand(t) {
-      const x = lower(t);
-      return (
-        x.startsWith("headline:") ||
-        x.startsWith("title:") ||
-        x.startsWith("cta:") ||
-        x.startsWith("price:") ||
-        x === "add faq" || x === "remove faq" ||
-        x === "add pricing" || x === "remove pricing" ||
-        x === "add testimonials" || x === "remove testimonials" ||
-        x === "add benefits" || x === "remove benefits"
-      );
-    }
-
-    function moneyFromText(text, fallback="$19"){
-      const m = norm(text).match(/^price:\s*(.+)$/i);
-      if (!m) return fallback;
-      let v = norm(m[1]);
-      if (!v) return fallback;
-      if (/^\d+(\.\d+)?$/.test(v)) v = `$${v}`;
-      return v;
-    }
-
-    function toggleSection(html, id, wantOn) {
-      if (typeof html !== "string") return html;
-      const start = `<!--section:${id}:start-->`;
-      const end = `<!--section:${id}:end-->`;
-      const si = html.indexOf(start);
-      const ei = html.indexOf(end);
-      if (si === -1 || ei === -1 || ei <= si) return html;
-      const block = html.slice(si, ei + end.length);
-      const isHidden = block.includes(`data-hidden="true"`);
-      if (wantOn && isHidden) return html.replace(block, block.replace(`data-hidden="true"`, `data-hidden="false"`));
-      if (!wantOn && !isHidden) return html.replace(block, block.replace(`data-hidden="false"`, `data-hidden="true"`));
-      return html;
-    }
-
-    function setTextInHtml(html, field, newText){
-      const safe = sanitize(newText);
-      const re = new RegExp(`(data-field="${field}"[^>]*>)([\\s\\S]*?)(</)`, "i");
-      return html.replace(re, `$1${safe}$3`);
-    }
-
-    function setCtaInHtml(html, which, newText){
-      const safe = sanitize(newText);
-      const re = new RegExp(`(data-cta="${which}"[^>]*>)([\\s\\S]*?)(</)`, "i");
-      return html.replace(re, `$1${safe}$3`);
-    }
-
-    function setPriceInHtml(html, newPrice){
-      const safe = sanitize(newPrice);
-      const re = new RegExp(`(data-field="price"[^>]*>)([\\s\\S]*?)(</)`, "i");
-      return html.replace(re, `$1${safe}$3`);
-    }
-
-    function applyLocalEdits(text, html){
-      let out = String(html||"");
-      const t = norm(text);
-      const x = lower(t);
-
-      if (x.startsWith("headline:")) {
-        const v = norm(t.split(":").slice(1).join(":"));
-        if (v) out = setTextInHtml(out, "headline", v);
-        return { html: out, note: "Updated headline." };
-      }
-      if (x.startsWith("title:")) {
-        const v = norm(t.split(":").slice(1).join(":"));
-        if (v) out = setTextInHtml(out, "headline", v);
-        return { html: out, note: "Updated title/headline." };
-      }
-      if (x.startsWith("cta:")) {
-        const v = norm(t.split(":").slice(1).join(":"));
-        if (v) out = setCtaInHtml(out, "primary", v);
-        return { html: out, note: "Updated CTA." };
-      }
-      if (x.startsWith("price:")) {
-        const v = moneyFromText(t, "$19");
-        out = setPriceInHtml(out, v);
-        return { html: out, note: "Updated price." };
+      function safeJSONParse(s, fallback) {
+        try { return JSON.parse(s); } catch { return fallback; }
       }
 
-      if (x === "add faq") return { html: toggleSection(out, "faq", true), note: "Added FAQ." };
-      if (x === "remove faq") return { html: toggleSection(out, "faq", false), note: "Removed FAQ." };
-
-      if (x === "add pricing") return { html: toggleSection(out, "pricing", true), note: "Added pricing." };
-      if (x === "remove pricing") return { html: toggleSection(out, "pricing", false), note: "Removed pricing." };
-
-      if (x === "add testimonials") return { html: toggleSection(out, "testimonials", true), note: "Added testimonials." };
-      if (x === "remove testimonials") return { html: toggleSection(out, "testimonials", false), note: "Removed testimonials." };
-
-      if (x === "add benefits") return { html: toggleSection(out, "benefits", true), note: "Added benefits." };
-      if (x === "remove benefits") return { html: toggleSection(out, "benefits", false), note: "Removed benefits." };
-
-      return { html: out, note: "No edit applied." };
-    }
-
-    // -------- Local best-friend fallback (NO dead-ends) --------
-    function localBestFriendFallback(userText) {
-      const x = (userText||"").toLowerCase();
-      if (x.includes("im stressed") || x.includes("i'm stressed") || x.includes("stressed out")) {
-        return "I got you. What’s the main source — work, money, relationship, or just everything stacking?";
+      function stripCodeFences(text){
+        // Pull the FIRST html-ish code block if present
+        // Supports ```html ... ``` or ``` ... ```
+        const fence = /```(?:html)?\s*([\s\S]*?)```/i.exec(text || "");
+        if (fence && fence[1]) return fence[1].trim();
+        return null;
       }
-      if (x.includes("anxious") || x.includes("panic")) {
-        return "Okay. In 4… hold 2… out 6 (twice). Now: what triggered it in the last 10 minutes?";
-      }
-      if (x.includes("sad") || x.includes("depressed")) {
-        return "I’m here. What happened today that hit you the hardest? One sentence.";
-      }
-      if (x.includes("angry") || x.includes("pissed") || x.includes("mad")) {
-        return "Alright. What crossed the line? Tell me the one thing that set you off.";
-      }
-      return "I’m here. Tell me what you want right now — venting, solving, or building.";
-    }
 
-    async function callBackend(text, timeoutMs) {
-      const payload = {
-        text,
-        tier: (state.proVerified ? "pro" : "free"),
-        conversation: state.conversation,
-        lastPreview: state.lastPreview
+      function looksLikeHTML(s){
+        if(!s) return false;
+        const t = s.trim().toLowerCase();
+        return t.startsWith("<!doctype html") || t.startsWith("<html") || t.includes("<head") || t.includes("<body");
+      }
+
+      function makeFilename(){
+        const d = new Date();
+        const pad = (n)=>String(n).padStart(2,"0");
+        return `simo_build_${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}.html`;
+      }
+
+      // -------------------------
+      // State (Intent Stability Layer)
+      // -------------------------
+      const STATE_KEY = "simo_state_v11";
+      const PRO_KEY   = "simo_pro_v1";
+      const LIB_KEY   = "simo_library_v1";
+
+      const defaultState = {
+        mode: "building",        // "venting" | "solving" | "building"
+        topic: "",               // short anchor
+        lastUser: "",
+        lastAssistant: "",
+        draftHtml: "",           // current working HTML
+        draftName: "",
+        draftUpdatedAt: "",
+        buildHistory: []         // light breadcrumbs
       };
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      let state = Object.assign({}, defaultState, safeJSONParse(localStorage.getItem(STATE_KEY), {}));
+      let pro   = safeJSONParse(localStorage.getItem(PRO_KEY), { pro:false, key:"" });
 
-      try {
+      // -------------------------
+      // Elements
+      // -------------------------
+      const logEl = $("log");
+      const inputEl = $("input");
+      const sendBtn = $("sendBtn");
+      const previewBtn = $("previewBtn");
+      const downloadBtn = $("downloadBtn");
+      const saveBtn = $("saveBtn");
+      const libraryBtn = $("libraryBtn");
+      const frameEl = $("frame");
+      const statusText = $("statusText");
+      const previewLabel = $("previewLabel");
+      const proChip = $("proChip");
+      const proText = $("proText");
+      const proBtn = $("proBtn");
+      const proModal = $("proModal");
+      const proClose = $("proClose");
+      const proKey = $("proKey");
+      const proVerify = $("proVerify");
+      const proMsg = $("proMsg");
+
+      const libModal = $("libModal");
+      const libClose = $("libClose");
+      const libList = $("libList");
+      const libClear = $("libClear");
+
+      const modeChip = $("modeChip");
+      const modeText = $("modeText");
+      const topicTag = $("topicTag");
+      const draftTag = $("draftTag");
+
+      // -------------------------
+      // Render functions
+      // -------------------------
+      function saveState(){
+        localStorage.setItem(STATE_KEY, JSON.stringify(state));
+      }
+
+      function setStatus(s){
+        statusText.textContent = s;
+      }
+
+      function setMode(mode){
+        state.mode = mode;
+        saveState();
+        modeText.textContent = mode;
+        // light styling
+        if(mode === "building"){
+          modeChip.classList.add("good");
+        }else{
+          modeChip.classList.remove("good");
+        }
+      }
+
+      function setTopic(t){
+        state.topic = (t || "").trim();
+        saveState();
+        topicTag.textContent = `topic: ${state.topic || "none"}`;
+      }
+
+      function setDraftMeta(){
+        draftTag.textContent = `draft: ${state.draftName || "none"}`;
+        previewLabel.textContent = state.draftUpdatedAt ? `Updated ${state.draftUpdatedAt}` : "No preview yet";
+      }
+
+      function setProUI(){
+        const isPro = !!pro.pro;
+        proText.textContent = isPro ? "ON" : "OFF";
+        proChip.classList.toggle("good", isPro);
+        proBtn.textContent = isPro ? "Pro Enabled" : "Unlock Pro";
+        proBtn.classList.toggle("locked", isPro);
+
+        // gating
+        saveBtn.classList.toggle("locked", !isPro);
+        libraryBtn.classList.toggle("locked", !isPro);
+        saveBtn.title = isPro ? "" : "Pro required";
+        libraryBtn.title = isPro ? "" : "Pro required";
+      }
+
+      function addMsg(who, text){
+        const row = document.createElement("div");
+        row.className = "msg " + (who === "me" ? "me" : "simo");
+        const whoEl = document.createElement("div");
+        whoEl.className = "who";
+        whoEl.textContent = who === "me" ? "You" : "S";
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.textContent = text;
+        row.appendChild(whoEl);
+        row.appendChild(bubble);
+        logEl.appendChild(row);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+
+      function setPreview(html){
+        if(!html || !looksLikeHTML(html)) return false;
+        frameEl.srcdoc = html;
+        state.draftHtml = html;
+        state.draftUpdatedAt = new Date().toLocaleString();
+        if(!state.draftName) state.draftName = "untitled";
+        saveState();
+        setDraftMeta();
+        return true;
+      }
+
+      // -------------------------
+      // Intent inference
+      // -------------------------
+      function inferMode(text){
+        const t = (text || "").toLowerCase().trim();
+        if(!t) return state.mode;
+
+        // explicit commands
+        if(/\bvent(ing)?\b/.test(t)) return "venting";
+        if(/\bsolv(ing|e)?\b/.test(t)) return "solving";
+        if(/\bbuild(ing)?\b/.test(t)) return "building";
+
+        // strong signals
+        if(/\b(stressed|anxious|sad|tired|overwhelmed|hurt|upset|mad|angry|depressed|lonely)\b/.test(t)) return "venting";
+        if(/\b(help me|what should i do|how do i|steps|fix|debug|error|issue|problem|troubleshoot|why)\b/.test(t)) return "solving";
+        if(/\b(build|make|create|design|landing page|website|app|ui|mockup|preview|html|css|pricing|testimonials|faq)\b/.test(t)) return "building";
+
+        return state.mode;
+      }
+
+      function inferTopic(text){
+        // lightweight: set topic when user asks to build something specific
+        const t = (text || "").trim();
+        if(!t) return state.topic;
+
+        const low = t.toLowerCase();
+        // If user explicitly says switch topics, treat next words as topic
+        if(low.startsWith("switch topics")){
+          return t.replace(/switch topics[:,]?\s*/i, "").trim() || "";
+        }
+        // Common build targets
+        if(/landing page/i.test(t)) return "landing page";
+        if(/\bfitness\b/i.test(t)) return "fitness site";
+        if(/\bspace renting\b/i.test(t)) return "space renting app";
+        if(/\bresume\b/i.test(t)) return "resume";
+        if(/\b2 story\b|\bfloor plan\b|\bhome layout\b/i.test(t)) return "home layout";
+        if(/\bbook cover\b/i.test(t)) return "book cover";
+        return state.topic;
+      }
+
+      function userWantsPreview(text){
+        const t = (text || "").toLowerCase();
+        return /\b(show|open|render|update)\b.*\bpreview\b/.test(t) || /\bpreview\b/.test(t);
+      }
+
+      function shouldAutoPreview(text){
+        // Only auto-preview in Build mode.
+        // In other modes, only preview if they asked for it.
+        const wants = userWantsPreview(text);
+        if(state.mode !== "building") return wants;
+
+        // In building mode: auto preview if they did any common edit command, OR they asked for preview
+        const t = (text || "").toLowerCase();
+        if(wants) return true;
+
+        const editCmd =
+          t.startsWith("headline:") ||
+          t.startsWith("cta:") ||
+          t.startsWith("price:") ||
+          t.includes("add faq") || t.includes("remove faq") ||
+          t.includes("add pricing") || t.includes("remove pricing") ||
+          t.includes("add testimonials") || t.includes("remove testimonials") ||
+          t.includes("continue") || t.includes("update") || t.includes("revise");
+
+        return editCmd;
+      }
+
+      // -------------------------
+      // Library (Pro)
+      // -------------------------
+      function getLibrary(){
+        return safeJSONParse(localStorage.getItem(LIB_KEY), []);
+      }
+      function setLibrary(items){
+        localStorage.setItem(LIB_KEY, JSON.stringify(items || []));
+      }
+
+      function renderLibrary(){
+        const items = getLibrary();
+        libList.innerHTML = "";
+        if(!items.length){
+          const li = document.createElement("li");
+          li.innerHTML = `<div><div class="name">No saved builds</div><div class="meta">Save something first.</div></div>`;
+          libList.appendChild(li);
+          return;
+        }
+        items.forEach((it, idx) => {
+          const li = document.createElement("li");
+          const left = document.createElement("div");
+          left.innerHTML = `<div class="name">${it.name || "untitled"}</div><div class="meta">${it.savedAt || ""}</div>`;
+          const right = document.createElement("div");
+          right.style.display = "flex";
+          right.style.gap = "8px";
+
+          const loadBtn = document.createElement("button");
+          loadBtn.className = "btn ghost small";
+          loadBtn.textContent = "Load";
+          loadBtn.onclick = () => {
+            state.draftHtml = it.html || "";
+            state.draftName = it.name || "untitled";
+            state.draftUpdatedAt = new Date().toLocaleString();
+            setTopic(it.topic || state.topic);
+            saveState();
+            if(state.draftHtml) setPreview(state.draftHtml);
+            closeLib();
+            addMsg("simo", `Loaded “${state.draftName}”. What do you want to change?`);
+          };
+
+          const delBtn = document.createElement("button");
+          delBtn.className = "btn ghost small danger";
+          delBtn.textContent = "Delete";
+          delBtn.onclick = () => {
+            const next = getLibrary().filter((_, i) => i !== idx);
+            setLibrary(next);
+            renderLibrary();
+          };
+
+          right.appendChild(loadBtn);
+          right.appendChild(delBtn);
+
+          li.appendChild(left);
+          li.appendChild(right);
+          libList.appendChild(li);
+        });
+      }
+
+      function openLib(){
+        if(!pro.pro) return;
+        renderLibrary();
+        libModal.style.display = "flex";
+      }
+      function closeLib(){ libModal.style.display = "none"; }
+
+      // -------------------------
+      // Pro verification
+      // -------------------------
+      function openProModal(){
+        proMsg.textContent = "";
+        proKey.value = "";
+        proModal.style.display = "flex";
+        setTimeout(()=>proKey.focus(), 50);
+      }
+      function closeProModal(){
+        proModal.style.display = "none";
+      }
+
+      async function verifyProKey(key){
+        const res = await fetch("/.netlify/functions/pro", {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify({ key })
+        });
+        const data = await res.json().catch(()=> ({}));
+        if(!res.ok) throw new Error(data?.error || "Verification failed");
+        return data;
+      }
+
+      // -------------------------
+      // Backend chat
+      // -------------------------
+      async function sendToBackend(userText){
+        const payload = {
+          message: userText,
+          // intent stability context
+          mode: state.mode,
+          topic: state.topic,
+          draft_html: state.draftHtml || "",
+          draft_name: state.draftName || "",
+          // last turns (light)
+          last_user: state.lastUser || "",
+          last_assistant: state.lastAssistant || "",
+          // pro flag (optional)
+          pro: !!pro.pro
+        };
+
         const res = await fetch("/.netlify/functions/simon", {
           method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(payload)
         });
-        const data = await res.json().catch(() => ({}));
+
+        const data = await res.json().catch(()=> ({}));
+        if(!res.ok){
+          const msg = data?.error || data?.details || "OpenAI error";
+          throw new Error(typeof msg === "string" ? msg : "OpenAI error");
+        }
         return data;
-      } finally {
-        clearTimeout(timeout);
-      }
-    }
-
-    // ---------------- Pro features ----------------
-    function requirePro(actionName) {
-      if (!state.proVerified) {
-        addMsg("assistant", `${actionName} is a Pro feature 🔒. Click Pro and verify your license key.`);
-        openProModal();
-        return false;
-      }
-      return true;
-    }
-
-    function downloadHtml(filename, html) {
-      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    function openLibModal() {
-      $("libModal").classList.add("show");
-      $("libModal").setAttribute("aria-hidden", "false");
-      renderLibrary();
-      setTimeout(() => $("saveName").focus(), 50);
-    }
-    function closeLibModal() {
-      $("libModal").classList.remove("show");
-      $("libModal").setAttribute("aria-hidden", "true");
-    }
-
-    function openProModal() {
-      $("proModal").classList.add("show");
-      $("proModal").setAttribute("aria-hidden", "false");
-      const hint = localStorage.getItem(PRO_KEY_CACHE) || "";
-      $("proKey").value = hint;
-      updateProStatus();
-      setTimeout(() => $("proKey").focus(), 50);
-    }
-    function closeProModal() {
-      $("proModal").classList.remove("show");
-      $("proModal").setAttribute("aria-hidden", "true");
-    }
-
-    function updateProIndicator() {
-      const on = !!state.proVerified;
-      $("proIndicator").classList.toggle("on", on);
-      $("proIndicatorText").textContent = on ? "Pro active" : "Free mode";
-    }
-
-    function updateProStatus(msg, ok) {
-      const el = $("proStatus");
-      if (typeof msg === "string") {
-        el.textContent = msg;
-        el.className = (ok === true) ? "ok" : (ok === false) ? "err" : "muted small";
-        return;
-      }
-      if (state.proVerified) {
-        el.textContent = "Pro is verified ✅";
-        el.className = "ok";
-      } else {
-        el.textContent = "Pro is locked until verified.";
-        el.className = "muted small";
-      }
-    }
-
-    function setProVerified(on) {
-      state.proVerified = !!on;
-      if (state.proVerified) localStorage.setItem(PRO_FLAG_KEY, "1");
-      else localStorage.removeItem(PRO_FLAG_KEY);
-
-      // reflect UI
-      $("freePill").classList.toggle("on", !state.proVerified);
-      $("proPill").classList.toggle("on", state.proVerified);
-
-      const proOn = state.proVerified;
-      ["saveBtn","downloadBtn","libraryBtn"].forEach((id) => {
-        const b = $(id);
-        b.classList.toggle("locked", !proOn);
-        b.innerHTML = proOn
-          ? b.textContent.replace("🔒","").trim()
-          : (b.textContent.replace("🔒","").trim() + ' <span class="badgeLock">🔒</span>');
-      });
-
-      updateProStatus();
-      updateProIndicator();
-    }
-
-    async function verifyProKey(key) {
-      const k = String(key || "").trim();
-      if (!k) {
-        updateProStatus("Enter a key first.", false);
-        return false;
       }
 
-      updateProStatus("Verifying…", null);
+      function normalizeAssistantText(data){
+        // accept multiple common shapes
+        if(!data) return "";
+        if(typeof data === "string") return data;
+        return data.reply || data.text || data.message || data.output || "";
+      }
 
-      try {
-        const r = await fetch("/.netlify/functions/pro", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ key: k })
-        });
-        const j = await r.json().catch(() => ({}));
-        if (j && j.ok && j.pro === true) {
-          localStorage.setItem(PRO_KEY_CACHE, k);
-          setProVerified(true);
-          updateProStatus("Verified ✅ Pro unlocked.", true);
-          closeProModal();
-          // NOTE: removed chat spam here on purpose
-          return true;
+      function extractHtmlFromResponse(text){
+        const fenced = stripCodeFences(text);
+        if(fenced && looksLikeHTML(fenced)) return fenced;
+
+        // Sometimes backend returns raw HTML as the whole message
+        if(looksLikeHTML(text)) return text.trim();
+
+        return null;
+      }
+
+      // -------------------------
+      // Main send
+      // -------------------------
+      let sending = false;
+
+      async function onSend(){
+        if(sending) return;
+        const userText = (inputEl.value || "").trim();
+        if(!userText) return;
+
+        // update inferred mode + topic before sending
+        const nextMode = inferMode(userText);
+        setMode(nextMode);
+
+        // update topic anchor lightly
+        const nextTopic = inferTopic(userText);
+        if(nextTopic !== state.topic) setTopic(nextTopic);
+
+        addMsg("me", userText);
+        inputEl.value = "";
+        setStatus("Thinking…");
+        sending = true;
+        sendBtn.classList.add("locked");
+        sendBtn.textContent = "…";
+
+        try{
+          const data = await sendToBackend(userText);
+          const assistantText = normalizeAssistantText(data) || "(no response)";
+          addMsg("simo", assistantText);
+
+          // update last turn memory
+          state.lastUser = userText;
+          state.lastAssistant = assistantText;
+          state.buildHistory = (state.buildHistory || []).slice(-8);
+          state.buildHistory.push({ t: nowISO(), mode: state.mode, topic: state.topic });
+          saveState();
+
+          // Auto-preview rules
+          const html = extractHtmlFromResponse(assistantText);
+          const doPreview = shouldAutoPreview(userText);
+
+          if(html && doPreview){
+            // if we don't have a draft name, infer something
+            if(!state.draftName){
+              state.draftName = state.topic ? `${state.topic}` : "untitled";
+            }
+            setPreview(html);
+          }
+
+          // If backend separately returned html field, respect it
+          if(data && typeof data.html === "string" && looksLikeHTML(data.html)){
+            const doPrev2 = shouldAutoPreview(userText);
+            if(doPrev2) setPreview(data.html);
+          }
+
+          setStatus("Ready");
+        }catch(err){
+          const msg = err?.message || "Error";
+          addMsg("simo", `⚠️ ${msg}`);
+          setStatus("Ready");
+        }finally{
+          sending = false;
+          sendBtn.classList.remove("locked");
+          sendBtn.textContent = "Send";
         }
-        setProVerified(false);
-        updateProStatus("Invalid key. Double-check it matches PRO_LICENSE_KEYS.", false);
-        return false;
-      } catch (e) {
-        setProVerified(false);
-        updateProStatus("Server error verifying Pro. Try again.", false);
-        return false;
-      }
-    }
-
-    function currentHtmlOrNull() {
-      const html = state.lastSavedHtml || state.lastPreview?.html || "";
-      return html && html.trim().length > 50 ? html : "";
-    }
-
-    function renderLibrary() {
-      const list = $("libList");
-      list.innerHTML = "";
-      const items = loadLibrary().sort((a,b) => (b.updatedAt||"").localeCompare(a.updatedAt||""));
-
-      if (!items.length) {
-        const empty = document.createElement("div");
-        empty.className = "muted small";
-        empty.textContent = "No saved builds yet. Generate a preview, then click Save.";
-        list.appendChild(empty);
-        return;
       }
 
-      for (const it of items) {
-        const row = document.createElement("div");
-        row.className = "item";
+      // -------------------------
+      // Button actions
+      // -------------------------
+      function manualPreview(){
+        if(state.draftHtml && looksLikeHTML(state.draftHtml)){
+          setPreview(state.draftHtml);
+          addMsg("simo", "Preview refreshed.");
+        }else{
+          addMsg("simo", "No draft HTML yet. Ask me to build something (or say: show me a preview).");
+        }
+      }
 
-        const left = document.createElement("div");
-        left.className = "meta";
-        const name = document.createElement("div");
-        name.className = "name";
-        name.textContent = it.name || "Untitled";
-        const date = document.createElement("div");
-        date.className = "date";
-        date.textContent = `Updated: ${niceDate(it.updatedAt || it.createdAt || "")}`;
-        left.appendChild(name);
-        left.appendChild(date);
+      function downloadHTML(){
+        if(!state.draftHtml || !looksLikeHTML(state.draftHtml)){
+          addMsg("simo", "Nothing to download yet. Build a page/app first.");
+          return;
+        }
+        const blob = new Blob([state.draftHtml], {type:"text/html;charset=utf-8"});
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = makeFilename();
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(a.href);
+      }
 
-        const right = document.createElement("div");
-        right.className = "actions";
+      function saveBuild(){
+        if(!pro.pro) return;
+        if(!state.draftHtml || !looksLikeHTML(state.draftHtml)){
+          addMsg("simo", "Nothing to save yet. Build something first.");
+          return;
+        }
+        const name = (state.draftName || state.topic || "untitled").trim();
+        const item = {
+          name,
+          topic: state.topic || "",
+          savedAt: new Date().toLocaleString(),
+          html: state.draftHtml
+        };
+        const items = getLibrary();
+        items.unshift(item);
+        setLibrary(items.slice(0, 25));
+        addMsg("simo", `Saved “${name}” to your Library.`);
+      }
 
-        const loadBtn = document.createElement("button");
-        loadBtn.className = "btn tiny";
-        loadBtn.textContent = "Load";
-        loadBtn.addEventListener("click", () => {
-          if (!it.html) return;
-          setPreview({ kind:"html", title: it.name || "Saved build", meta:"Loaded from Library", html: it.html });
-          addMsg("assistant", `Loaded “${it.name || "Untitled"}” into preview.`);
-          closeLibModal();
+      // -------------------------
+      // Init
+      // -------------------------
+      function boot(){
+        // seed UI
+        setMode(state.mode || "building");
+        setTopic(state.topic || "");
+        setDraftMeta();
+        setProUI();
+
+        // first message
+        if(!logEl.children.length){
+          addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
+        }
+
+        // load existing draft into iframe (no white block glitch — only set if valid)
+        if(state.draftHtml && looksLikeHTML(state.draftHtml)){
+          frameEl.srcdoc = state.draftHtml;
+        }else{
+          // keep it blank, not white block overlays
+          frameEl.srcdoc = "<!doctype html><html><head><meta charset='utf-8'><style>body{margin:0;font-family:system-ui;background:#0b1020;color:#a9b6d3;display:grid;place-items:center;height:100vh} .box{border:1px solid rgba(255,255,255,.12);padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.05)}</style></head><body><div class='box'>No preview yet.</div></body></html>";
+        }
+
+        // listeners
+        sendBtn.addEventListener("click", onSend);
+
+        inputEl.addEventListener("keydown", (e) => {
+          if(e.key === "Enter" && !e.shiftKey){
+            e.preventDefault();
+            onSend();
+          }
         });
 
-        const dlBtn = document.createElement("button");
-        dlBtn.className = "btn tiny";
-        dlBtn.textContent = "Download";
-        dlBtn.addEventListener("click", () => {
-          if (!it.html) return;
-          const safe = (it.name || "simo-build").replace(/[^a-z0-9-_]+/gi, "-").replace(/-+/g,"-").toLowerCase();
-          downloadHtml(`${safe}.html`, it.html);
-          addMsg("assistant", `Downloaded “${it.name || "Untitled"}”.`);
+        previewBtn.addEventListener("click", manualPreview);
+        downloadBtn.addEventListener("click", downloadHTML);
+
+        saveBtn.addEventListener("click", () => {
+          if(!pro.pro) return;
+          saveBuild();
         });
 
-        const delBtn = document.createElement("button");
-        delBtn.className = "btn tiny danger";
-        delBtn.textContent = "Delete";
-        delBtn.addEventListener("click", () => {
-          const arr = loadLibrary().filter(x => x.id !== it.id);
-          saveLibrary(arr);
+        libraryBtn.addEventListener("click", () => {
+          if(!pro.pro) return;
+          openLib();
+        });
+
+        proBtn.addEventListener("click", () => {
+          if(pro.pro) return;
+          openProModal();
+        });
+
+        proClose.addEventListener("click", closeProModal);
+        proModal.addEventListener("click", (e) => {
+          if(e.target === proModal) closeProModal();
+        });
+
+        proVerify.addEventListener("click", async () => {
+          const key = (proKey.value || "").trim();
+          if(!key){
+            proMsg.textContent = "Enter a key.";
+            return;
+          }
+          proMsg.textContent = "Verifying…";
+          try{
+            const data = await verifyProKey(key);
+            const ok = !!data?.ok && !!data?.pro;
+            if(ok){
+              pro = { pro:true, key };
+              localStorage.setItem(PRO_KEY, JSON.stringify(pro));
+              setProUI();
+              proMsg.textContent = "✅ Pro enabled.";
+              await sleep(400);
+              closeProModal();
+              addMsg("simo", "Pro is ON. Save + Library unlocked.");
+            }else{
+              proMsg.textContent = "❌ Invalid key.";
+            }
+          }catch(err){
+            proMsg.textContent = `⚠️ ${err?.message || "Verification failed"}`;
+          }
+        });
+
+        // Library modal
+        libClose.addEventListener("click", closeLib);
+        libModal.addEventListener("click", (e) => {
+          if(e.target === libModal) closeLib();
+        });
+        libClear.addEventListener("click", () => {
+          setLibrary([]);
           renderLibrary();
-          addMsg("assistant", `Deleted “${it.name || "Untitled"}”.`);
         });
 
-        right.appendChild(loadBtn);
-        right.appendChild(dlBtn);
-        right.appendChild(delBtn);
-
-        row.appendChild(left);
-        row.appendChild(right);
-        list.appendChild(row);
-      }
-    }
-
-    function saveCurrentToLibrary(customName) {
-      const html = currentHtmlOrNull();
-      if (!html) {
-        addMsg("assistant", "Nothing to save yet. Generate a preview first (e.g., “build a landing page for a fitness coach”).");
-        return;
+        // Reflect tags
+        topicTag.textContent = `topic: ${state.topic || "none"}`;
+        draftTag.textContent = `draft: ${state.draftName || "none"}`;
       }
 
-      const name = (customName || "").trim() || (state.lastPreview?.title ? `${state.lastPreview.title} ${new Date().toLocaleTimeString()}` : "Untitled");
-      const arr = loadLibrary();
-
-      const existing = arr.find(x => (x.name || "").toLowerCase() === name.toLowerCase());
-      if (existing) {
-        existing.html = html;
-        existing.updatedAt = nowStamp();
-        saveLibrary(arr);
-        addMsg("assistant", `Updated saved build: “${name}”.`);
-        return;
-      }
-
-      const item = {
-        id: "b_" + Math.random().toString(16).slice(2) + "_" + Date.now(),
-        name,
-        html,
-        createdAt: nowStamp(),
-        updatedAt: nowStamp()
-      };
-      arr.push(item);
-      saveLibrary(arr);
-      addMsg("assistant", `Saved: “${name}”.`);
-    }
-
-    async function send() {
-      const text = $("input").value.trim();
-      if (!text || state.isBusy) return;
-
-      addMsg("user", text);
-      $("input").value = "";
-
-      // 1) Instant preview (local)
-      if (looksLikePreviewAsk(text)) {
-        const topic = extractTopic(text);
-        setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
-        addMsg("assistant", "Done. I updated the preview on the right.");
-      }
-
-      // 2) Local edits apply immediately
-      if (isEditCommand(text)) {
-        const html = currentHtmlOrNull();
-        if (html) {
-          const edited = applyLocalEdits(text, html);
-          setPreview({ kind:"html", title: $("previewTitle").textContent || "Landing page", meta:"Edited (local)", html: edited.html });
-          addMsg("assistant", `Done. ${edited.note}`);
-        } else {
-          addMsg("assistant", "No preview yet to edit. First: “build a landing page for a fitness coach”.");
-        }
-      }
-
-      setBusy(true);
-
-      try {
-        const timeoutMs = 25000;
-        const data = await callBackend(text, timeoutMs);
-
-        if (data && typeof data.text === "string" && data.text.trim()) {
-          addMsg("assistant", data.text.trim());
-        } else if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
-          addMsg("assistant", localBestFriendFallback(text));
-        }
-
-        if (data && data.preview && data.preview.kind === "html") {
-          setPreview(data.preview);
-        }
-      } catch (err) {
-        if (!looksLikePreviewAsk(text) && !isEditCommand(text)) {
-          addMsg("assistant", localBestFriendFallback(text));
-        }
-      } finally {
-        setBusy(false);
-      }
-    }
-
-    function reset() {
-      state.conversation = [];
-      state.lastPreview = null;
-      state.lastSavedHtml = null;
-      $("log").innerHTML = "";
-      addMsg("assistant", "Reset. I’m here.");
-      $("previewTitle").textContent = "Idle";
-      $("previewMeta").textContent = "No preview yet";
-      $("previewFrame").srcdoc = idlePreviewDoc();
-    }
-
-    // ----- Button wiring -----
-    $("sendBtn").addEventListener("click", send);
-    $("resetBtn").addEventListener("click", reset);
-
-    $("input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
-      }
-    });
-
-    // Pro/Free pills:
-    $("freePill").addEventListener("click", () => {
-      setProVerified(false);
-      // NOTE: removed chat spam on toggle
-    });
-
-    $("proPill").addEventListener("click", () => {
-      openProModal();
-    });
-
-    // Pro modal buttons
-    $("closeProModal").addEventListener("click", closeProModal);
-    $("verifyProBtn").addEventListener("click", () => verifyProKey($("proKey").value));
-    $("logoutProBtn").addEventListener("click", () => {
-      setProVerified(false);
-      updateProStatus("Pro logged out.", false);
-      // NOTE: removed chat spam here on purpose
-    });
-
-    $("proModal").addEventListener("click", (e) => {
-      if (e.target === $("proModal")) closeProModal();
-    });
-
-    // Pro: Save / Download / Library
-    $("saveBtn").addEventListener("click", () => {
-      if (!requirePro("Save")) return;
-      const auto = $("previewTitle").textContent || "Build";
-      saveCurrentToLibrary(auto + " " + new Date().toLocaleString());
-    });
-
-    $("downloadBtn").addEventListener("click", () => {
-      if (!requirePro("Download")) return;
-      const html = currentHtmlOrNull();
-      if (!html) {
-        addMsg("assistant", "Nothing to download yet. Generate a preview first.");
-        return;
-      }
-      const base = ($("previewTitle").textContent || "simo-build")
-        .replace(/[^a-z0-9-_]+/gi, "-")
-        .replace(/-+/g,"-")
-        .toLowerCase();
-      downloadHtml(`${base}.html`, html);
-      addMsg("assistant", "Downloaded the current build.");
-    });
-
-    $("libraryBtn").addEventListener("click", () => {
-      if (!requirePro("Library")) return;
-      openLibModal();
-    });
-
-    // Library modal close wiring
-    $("closeLibModal").addEventListener("click", closeLibModal);
-    $("libModal").addEventListener("click", (e) => {
-      if (e.target === $("libModal")) closeLibModal();
-    });
-
-    window.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        if ($("libModal").classList.contains("show")) closeLibModal();
-        if ($("proModal").classList.contains("show")) closeProModal();
-      }
-    });
-
-    $("saveNow").addEventListener("click", () => {
-      if (!requirePro("Save")) return;
-      saveCurrentToLibrary($("saveName").value);
-      $("saveName").value = "";
-      renderLibrary();
-    });
-
-    $("clearAll").addEventListener("click", () => {
-      if (!requirePro("Library")) return;
-      saveLibrary([]);
-      renderLibrary();
-      addMsg("assistant", "Cleared all saved builds.");
-    });
-
-    // init
-    $("previewFrame").srcdoc = idlePreviewDoc();
-
-    // restore pro verified flag (optional)
-    state.proVerified = localStorage.getItem(PRO_FLAG_KEY) === "1";
-    setProVerified(state.proVerified);
+      document.addEventListener("DOMContentLoaded", boot);
+    })();
   </script>
 </body>
 </html>
