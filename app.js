@@ -6,6 +6,9 @@
   function safeJSONParse(s, fallback) {
     try { return JSON.parse(s); } catch { return fallback; }
   }
+  function asObject(v, fallback){
+    return (v && typeof v === "object") ? v : fallback;
+  }
   function stripCodeFences(text){
     const fence = /```(?:html)?\s*([\s\S]*?)```/i.exec(text || "");
     if (fence && fence[1]) return fence[1].trim();
@@ -37,73 +40,93 @@
     buildHistory: []
   };
 
-  let state = Object.assign({}, defaultState, safeJSONParse(localStorage.getItem(STATE_KEY), {}));
-  let pro   = safeJSONParse(localStorage.getItem(PRO_KEY), { pro:false, key:"" });
+  // ✅ Harden localStorage reads (prevents your exact crash)
+  let state = asObject(safeJSONParse(localStorage.getItem(STATE_KEY), null), defaultState);
+  state = Object.assign({}, defaultState, state);
 
-  // Elements
-  const logEl = $("log");
-  const inputEl = $("input");
-  const sendBtn = $("sendBtn");
-  const previewBtn = $("previewBtn");
-  const downloadBtn = $("downloadBtn");
-  const saveBtn = $("saveBtn");
-  const libraryBtn = $("libraryBtn");
-  const frameEl = $("frame");
-  const statusText = $("statusText");
-  const previewLabel = $("previewLabel");
+  let pro = asObject(safeJSONParse(localStorage.getItem(PRO_KEY), null), { pro:false, key:"" });
+  if (typeof pro.pro !== "boolean") pro.pro = false;
+  if (typeof pro.key !== "string") pro.key = "";
 
-  const proChip = $("proChip");
-  const proText = $("proText");
-  const proBtn = $("proBtn");
-  const proModal = $("proModal");
-  const proClose = $("proClose");
-  const proKey = $("proKey");
-  const proVerify = $("proVerify");
-  const proMsg = $("proMsg");
+  // Elements (if any are missing, fail gracefully)
+  const el = {
+    logEl: $("log"),
+    inputEl: $("input"),
+    sendBtn: $("sendBtn"),
+    previewBtn: $("previewBtn"),
+    downloadBtn: $("downloadBtn"),
+    saveBtn: $("saveBtn"),
+    libraryBtn: $("libraryBtn"),
+    frameEl: $("frame"),
+    statusText: $("statusText"),
+    previewLabel: $("previewLabel"),
 
-  const libModal = $("libModal");
-  const libClose = $("libClose");
-  const libList = $("libList");
-  const libClear = $("libClear");
+    proChip: $("proChip"),
+    proText: $("proText"),
+    proBtn: $("proBtn"),
+    proModal: $("proModal"),
+    proClose: $("proClose"),
+    proKey: $("proKey"),
+    proVerify: $("proVerify"),
+    proMsg: $("proMsg"),
 
-  const modeChip = $("modeChip");
-  const modeText = $("modeText");
-  const topicTag = $("topicTag");
-  const draftTag = $("draftTag");
+    libModal: $("libModal"),
+    libClose: $("libClose"),
+    libList: $("libList"),
+    libClear: $("libClear"),
+
+    modeChip: $("modeChip"),
+    modeText: $("modeText"),
+    topicTag: $("topicTag"),
+    draftTag: $("draftTag"),
+  };
+
+  // If the DOM isn't what we expect, stop (prevents silent failure)
+  const required = ["logEl","inputEl","sendBtn","frameEl","statusText","modeChip","modeText","proChip","proText","proBtn"];
+  for (const k of required){
+    if(!el[k]){
+      console.error("Simo boot failed: missing element", k);
+      return;
+    }
+  }
 
   function saveState(){ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
-  function setStatus(s){ statusText.textContent = s; }
+  function setStatus(s){ el.statusText.textContent = s; }
 
   function setMode(mode){
     state.mode = mode;
     saveState();
-    modeText.textContent = mode;
-    if(mode === "building") modeChip.classList.add("good");
-    else modeChip.classList.remove("good");
+    el.modeText.textContent = mode;
+    if(mode === "building") el.modeChip.classList.add("good");
+    else el.modeChip.classList.remove("good");
   }
 
   function setTopic(t){
     state.topic = (t || "").trim();
     saveState();
-    topicTag.textContent = `topic: ${state.topic || "none"}`;
+    if(el.topicTag) el.topicTag.textContent = `topic: ${state.topic || "none"}`;
   }
 
   function setDraftMeta(){
-    draftTag.textContent = `draft: ${state.draftName || "none"}`;
-    previewLabel.textContent = state.draftUpdatedAt ? `Updated ${state.draftUpdatedAt}` : "No preview yet";
+    if(el.draftTag) el.draftTag.textContent = `draft: ${state.draftName || "none"}`;
+    if(el.previewLabel) el.previewLabel.textContent = state.draftUpdatedAt ? `Updated ${state.draftUpdatedAt}` : "No preview yet";
   }
 
   function setProUI(){
     const isPro = !!pro.pro;
-    proText.textContent = isPro ? "ON" : "OFF";
-    proChip.classList.toggle("good", isPro);
-    proBtn.textContent = isPro ? "Pro Enabled" : "Unlock Pro";
-    proBtn.classList.toggle("locked", isPro);
+    el.proText.textContent = isPro ? "ON" : "OFF";
+    el.proChip.classList.toggle("good", isPro);
+    el.proBtn.textContent = isPro ? "Pro Enabled" : "Unlock Pro";
+    el.proBtn.classList.toggle("locked", isPro);
 
-    saveBtn.classList.toggle("locked", !isPro);
-    libraryBtn.classList.toggle("locked", !isPro);
-    saveBtn.title = isPro ? "" : "Pro required";
-    libraryBtn.title = isPro ? "" : "Pro required";
+    if(el.saveBtn){
+      el.saveBtn.classList.toggle("locked", !isPro);
+      el.saveBtn.title = isPro ? "" : "Pro required";
+    }
+    if(el.libraryBtn){
+      el.libraryBtn.classList.toggle("locked", !isPro);
+      el.libraryBtn.title = isPro ? "" : "Pro required";
+    }
   }
 
   function addMsg(who, text){
@@ -117,13 +140,13 @@
     bubble.textContent = text;
     row.appendChild(whoEl);
     row.appendChild(bubble);
-    logEl.appendChild(row);
-    logEl.scrollTop = logEl.scrollHeight;
+    el.logEl.appendChild(row);
+    el.logEl.scrollTop = el.logEl.scrollHeight;
   }
 
   function setPreview(html){
     if(!html || !looksLikeHTML(html)) return false;
-    frameEl.srcdoc = html;
+    el.frameEl.srcdoc = html;
     state.draftHtml = html;
     state.draftUpdatedAt = new Date().toLocaleString();
     if(!state.draftName) state.draftName = "untitled";
@@ -144,14 +167,12 @@
     if(/\b(stressed|anxious|sad|tired|overwhelmed|hurt|upset|mad|angry|depressed|lonely)\b/.test(t)) return "venting";
     if(/\b(help me|what should i do|how do i|steps|fix|debug|error|issue|problem|troubleshoot|why)\b/.test(t)) return "solving";
     if(/\b(build|make|create|design|landing page|website|app|ui|mockup|preview|html|css|pricing|testimonials|faq)\b/.test(t)) return "building";
-
     return state.mode;
   }
 
   function inferTopic(text){
     const t = (text || "").trim();
     if(!t) return state.topic;
-
     const low = t.toLowerCase();
     if(low.startsWith("switch topics")){
       return t.replace(/switch topics[:,]?\s*/i, "").trim() || "";
@@ -190,16 +211,16 @@
   }
 
   // Library
-  function getLibrary(){ return safeJSONParse(localStorage.getItem(LIB_KEY), []); }
+  function getLibrary(){ return safeJSONParse(localStorage.getItem(LIB_KEY), []) || []; }
   function setLibrary(items){ localStorage.setItem(LIB_KEY, JSON.stringify(items || [])); }
 
   function renderLibrary(){
     const items = getLibrary();
-    libList.innerHTML = "";
+    el.libList.innerHTML = "";
     if(!items.length){
       const li = document.createElement("li");
       li.innerHTML = `<div><div class="name">No saved builds</div><div class="meta">Save something first.</div></div>`;
-      libList.appendChild(li);
+      el.libList.appendChild(li);
       return;
     }
     items.forEach((it, idx) => {
@@ -240,25 +261,25 @@
 
       li.appendChild(left);
       li.appendChild(right);
-      libList.appendChild(li);
+      el.libList.appendChild(li);
     });
   }
 
   function openLib(){
     if(!pro.pro) return;
     renderLibrary();
-    libModal.style.display = "flex";
+    el.libModal.style.display = "flex";
   }
-  function closeLib(){ libModal.style.display = "none"; }
+  function closeLib(){ el.libModal.style.display = "none"; }
 
   // Pro modal
   function openProModal(){
-    proMsg.textContent = "";
-    proKey.value = "";
-    proModal.style.display = "flex";
-    setTimeout(()=>proKey.focus(), 50);
+    el.proMsg.textContent = "";
+    el.proKey.value = "";
+    el.proModal.style.display = "flex";
+    setTimeout(()=>el.proKey.focus(), 50);
   }
-  function closeProModal(){ proModal.style.display = "none"; }
+  function closeProModal(){ el.proModal.style.display = "none"; }
 
   async function verifyProKey(key){
     const res = await fetch("/.netlify/functions/pro", {
@@ -314,7 +335,7 @@
   let sending = false;
   async function onSend(){
     if(sending) return;
-    const userText = (inputEl.value || "").trim();
+    const userText = (el.inputEl.value || "").trim();
     if(!userText) return;
 
     setMode(inferMode(userText));
@@ -322,11 +343,11 @@
     if(nextTopic !== state.topic) setTopic(nextTopic);
 
     addMsg("me", userText);
-    inputEl.value = "";
+    el.inputEl.value = "";
     setStatus("Thinking…");
     sending = true;
-    sendBtn.classList.add("locked");
-    sendBtn.textContent = "…";
+    el.sendBtn.classList.add("locked");
+    el.sendBtn.textContent = "…";
 
     try{
       const data = await sendToBackend(userText);
@@ -355,8 +376,8 @@
       setStatus("Ready");
     }finally{
       sending = false;
-      sendBtn.classList.remove("locked");
-      sendBtn.textContent = "Send";
+      el.sendBtn.classList.remove("locked");
+      el.sendBtn.textContent = "Send";
     }
   }
 
@@ -399,42 +420,44 @@
   }
 
   function boot(){
+    // ✅ Make sure pro is always an object (even if storage was "null")
+    pro = asObject(pro, { pro:false, key:"" });
+
     setMode(state.mode || "building");
     setTopic(state.topic || "");
     setDraftMeta();
     setProUI();
 
-    // If draft exists, render it (otherwise iframe already has placeholder)
     if(state.draftHtml && looksLikeHTML(state.draftHtml)){
-      frameEl.srcdoc = state.draftHtml;
+      el.frameEl.srcdoc = state.draftHtml;
     }
 
-    // Seed message (confirms JS is alive)
+    // ✅ This is your “JS is alive” proof
     addMsg("simo", "Reset. I’m here.\n\nTell me what you want right now — venting, solving, or building.");
 
     // Listeners
-    sendBtn.addEventListener("click", onSend);
-    inputEl.addEventListener("keydown", (e) => {
+    el.sendBtn.addEventListener("click", onSend);
+    el.inputEl.addEventListener("keydown", (e) => {
       if(e.key === "Enter" && !e.shiftKey){
         e.preventDefault();
         onSend();
       }
     });
 
-    previewBtn.addEventListener("click", manualPreview);
-    downloadBtn.addEventListener("click", downloadHTML);
+    el.previewBtn?.addEventListener("click", manualPreview);
+    el.downloadBtn?.addEventListener("click", downloadHTML);
 
-    saveBtn.addEventListener("click", () => { if(pro.pro) saveBuild(); });
-    libraryBtn.addEventListener("click", () => { if(pro.pro) openLib(); });
+    el.saveBtn?.addEventListener("click", () => { if(pro.pro) saveBuild(); });
+    el.libraryBtn?.addEventListener("click", () => { if(pro.pro) openLib(); });
 
-    proBtn.addEventListener("click", () => { if(!pro.pro) openProModal(); });
-    proClose.addEventListener("click", closeProModal);
-    proModal.addEventListener("click", (e) => { if(e.target === proModal) closeProModal(); });
+    el.proBtn.addEventListener("click", () => { if(!pro.pro) openProModal(); });
+    el.proClose?.addEventListener("click", closeProModal);
+    el.proModal?.addEventListener("click", (e) => { if(e.target === el.proModal) closeProModal(); });
 
-    proVerify.addEventListener("click", async () => {
-      const key = (proKey.value || "").trim();
-      if(!key){ proMsg.textContent = "Enter a key."; return; }
-      proMsg.textContent = "Verifying…";
+    el.proVerify?.addEventListener("click", async () => {
+      const key = (el.proKey?.value || "").trim();
+      if(!key){ el.proMsg.textContent = "Enter a key."; return; }
+      el.proMsg.textContent = "Verifying…";
       try{
         const data = await verifyProKey(key);
         const ok = !!data?.ok && !!data?.pro;
@@ -442,24 +465,21 @@
           pro = { pro:true, key };
           localStorage.setItem(PRO_KEY, JSON.stringify(pro));
           setProUI();
-          proMsg.textContent = "✅ Pro enabled.";
+          el.proMsg.textContent = "✅ Pro enabled.";
           await sleep(300);
           closeProModal();
           addMsg("simo", "Pro is ON. Save + Library unlocked.");
         }else{
-          proMsg.textContent = "❌ Invalid key.";
+          el.proMsg.textContent = "❌ Invalid key.";
         }
       }catch(err){
-        proMsg.textContent = `⚠️ ${err?.message || "Verification failed"}`;
+        el.proMsg.textContent = `⚠️ ${err?.message || "Verification failed"}`;
       }
     });
 
-    libClose.addEventListener("click", closeLib);
-    libModal.addEventListener("click", (e) => { if(e.target === libModal) closeLib(); });
-    libClear.addEventListener("click", () => { setLibrary([]); renderLibrary(); });
-
-    topicTag.textContent = `topic: ${state.topic || "none"}`;
-    draftTag.textContent = `draft: ${state.draftName || "none"}`;
+    el.libClose?.addEventListener("click", closeLib);
+    el.libModal?.addEventListener("click", (e) => { if(e.target === el.libModal) closeLib(); });
+    el.libClear?.addEventListener("click", () => { setLibrary([]); renderLibrary(); });
   }
 
   // Boot safely
