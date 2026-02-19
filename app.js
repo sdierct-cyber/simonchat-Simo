@@ -1,17 +1,14 @@
-/* app.js — Simo UI controller (stable)
+/* app.js — Simo UI controller (V1.1 hotfix)
    Fixes:
-   - Buttons + Enter key always work
-   - Input box not crunched (CSS + auto-grow)
-   - Preview renders even if backend doesn't return data.html
-   - Extracts HTML from:
-       data.html | data.preview_html | data.output_text with ```html``` | raw <html>...
-   - Stores lastHTML for Preview/Download
+   - NO white preview panel when empty (iframe hidden until HTML exists)
+   - Preview renders only when HTML exists
+   - Extracts HTML if present
+   - Auto-retry ONCE if assistant claims preview updated but we got no HTML
 */
 
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // ---- Elements
   const chatEl = $("chat");
   const inputEl = $("input");
   const sendBtn = $("sendBtn");
@@ -33,7 +30,6 @@
   const proText = $("proText");
   const unlockProBtn = $("unlockProBtn");
 
-  // ---- State
   const state = {
     mode: "building",
     topic: "—",
@@ -44,7 +40,6 @@
     proUrl: "/.netlify/functions/pro",
   };
 
-  // ---- Helpers
   function setBusy(isBusy) {
     chatStatus.textContent = isBusy ? "Thinking…" : "Ready";
     sendBtn.disabled = isBusy;
@@ -72,7 +67,6 @@
   }
 
   function autoGrowTextarea() {
-    // keeps it comfy without breaking layout
     inputEl.style.height = "auto";
     const h = Math.min(inputEl.scrollHeight, 160);
     inputEl.style.height = Math.max(h, 56) + "px";
@@ -95,41 +89,11 @@
     libraryBtn.disabled = !state.pro;
   }
 
-  function escapeHtmlFilename(s) {
+  function escapeFilename(s) {
     return (s || "simo-build")
       .toLowerCase()
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/(^-|-$)/g, "");
-  }
-
-  // --- HTML extraction (THIS is what fixes your screenshot problem)
-  function extractHTML(anyText) {
-    const t = (anyText || "").trim();
-    if (!t) return "";
-
-    // 1) fenced ```html ... ```
-    const fenced = t.match(/```html\s*([\s\S]*?)```/i);
-    if (fenced && fenced[1]) return fenced[1].trim();
-
-    // 2) any fenced block ``` ... ``` (sometimes model uses no language tag)
-    const anyFence = t.match(/```\s*([\s\S]*?)```/);
-    if (anyFence && anyFence[1] && /<\/(html|body)>/i.test(anyFence[1])) {
-      return anyFence[1].trim();
-    }
-
-    // 3) raw html document
-    if (/<html[\s\S]*<\/html>/i.test(t)) {
-      const raw = t.match(/<html[\s\S]*<\/html>/i);
-      return raw ? raw[0].trim() : "";
-    }
-
-    // 4) fallback: if it looks like HTML fragment
-    if (/<(section|div|main|header|footer)[\s>]/i.test(t) && /<\/(section|div|main|header|footer)>/i.test(t)) {
-      // wrap it
-      return wrapHtmlDoc(t);
-    }
-
-    return "";
   }
 
   function wrapHtmlDoc(fragment) {
@@ -139,7 +103,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Simo Preview</title>
-<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;margin:0;padding:24px}</style>
+<style>body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;margin:0;padding:24px;background:#0b1020;color:#eaf0ff}</style>
 </head>
 <body>
 ${fragment}
@@ -147,17 +111,40 @@ ${fragment}
 </html>`;
   }
 
+  function extractHTML(anyText) {
+    const t = (anyText || "").trim();
+    if (!t) return "";
+
+    const fenced = t.match(/```html\s*([\s\S]*?)```/i);
+    if (fenced && fenced[1]) return fenced[1].trim();
+
+    const rawDoc = t.match(/<html[\s\S]*<\/html>/i);
+    if (rawDoc && rawDoc[0]) return rawDoc[0].trim();
+
+    // fragment fallback
+    const looksLikeFragment =
+      /<(section|div|main|header|footer|nav|article)\b/i.test(t) &&
+      /<\/(section|div|main|header|footer|nav|article)>/i.test(t);
+
+    if (looksLikeFragment) return wrapHtmlDoc(t);
+
+    return "";
+  }
+
+  // IMPORTANT: hide iframe when no html so no white panel
   function renderPreview(html) {
     const clean = (html || "").trim();
     if (!clean) {
       previewStatus.textContent = "No preview yet";
       previewPlaceholder.style.display = "flex";
+      previewFrame.style.display = "none";
       previewFrame.removeAttribute("srcdoc");
       return;
     }
     state.lastHTML = clean;
     previewStatus.textContent = "Updated";
     previewPlaceholder.style.display = "none";
+    previewFrame.style.display = "block";
     previewFrame.srcdoc = clean;
   }
 
@@ -169,7 +156,7 @@ ${fragment}
     const blob = new Blob([state.lastHTML], { type: "text/html;charset=utf-8" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${escapeHtmlFilename(state.lastTitle || "simo-build")}.html`;
+    a.download = `${escapeFilename(state.lastTitle || "simo-build")}.html`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -186,13 +173,12 @@ ${fragment}
     addMsg("ai", "Tell me what you want right now — venting, solving, or building.");
   }
 
-  // ---- Backend call
   async function callSimo(userText) {
     const payload = {
       mode: state.mode,
       text: userText,
       topic: state.topic,
-      // you can pass more fields if your backend uses them
+      want_html: true, // harmless if backend ignores; helpful if it supports it
     };
 
     const res = await fetch(state.apiUrl, {
@@ -203,19 +189,13 @@ ${fragment}
 
     let data;
     const ct = res.headers.get("content-type") || "";
-    if (ct.includes("application/json")) {
-      data = await res.json();
-    } else {
-      // sometimes functions return text on errors
-      const raw = await res.text();
-      data = { ok: res.ok, output_text: raw };
-    }
+    if (ct.includes("application/json")) data = await res.json();
+    else data = { ok: res.ok, output_text: await res.text() };
 
     if (!res.ok) {
       const msg = data?.error || data?.message || "Request failed.";
       throw new Error(msg);
     }
-
     return data;
   }
 
@@ -225,11 +205,25 @@ ${fragment}
     if (t.includes("website")) return "website";
     if (t.includes("app")) return "app";
     if (t.includes("resume")) return "resume";
-    if (t.includes("stressed") || t.includes("argument") || t.includes("wife") || t.includes("vent")) return "venting";
     return state.topic === "—" ? "general" : state.topic;
   }
 
-  // ---- Events
+  // If the assistant claims preview updated but we got no HTML, retry ONCE.
+  async function maybeRetryForHTML(assistantText) {
+    const claimUpdated =
+      /updated the preview|preview on the right|render/i.test((assistantText || "").toLowerCase());
+
+    if (!claimUpdated) return "";
+
+    // ONE retry: force html-only
+    const retry = await callSimo("Return ONLY the complete HTML for the current draft. No commentary. No markdown.");
+    const retryText =
+      retry.output_text || retry.text || retry.message || (retry.response && (retry.response.output_text || retry.response.text)) || "";
+
+    const directHtml = retry.html || retry.preview_html || (retry.response && (retry.response.html || retry.response.preview_html)) || "";
+    return (directHtml || "").trim() || extractHTML(retryText);
+  }
+
   function wireEvents() {
     inputEl.addEventListener("input", autoGrowTextarea);
 
@@ -247,15 +241,12 @@ ${fragment}
       addMsg("me", text);
       inputEl.value = "";
       autoGrowTextarea();
-
-      // update topic tag fast for UX
       setTopic(inferTopicFromUser(text));
 
       setBusy(true);
       try {
         const data = await callSimo(text);
 
-        // Most backends return text in one of these:
         const assistantText =
           data.output_text ||
           data.text ||
@@ -263,23 +254,21 @@ ${fragment}
           (data.response && (data.response.output_text || data.response.text)) ||
           "";
 
-        if (assistantText) addMsg("ai", assistantText);
-        else addMsg("ai", "Got it.");
+        addMsg("ai", assistantText || "Got it.");
 
-        // Pull HTML from multiple possible locations
         const directHtml =
           data.html ||
           data.preview_html ||
           (data.response && (data.response.html || data.response.preview_html)) ||
           "";
 
-        let html = (directHtml || "").trim();
+        let html = (directHtml || "").trim() || extractHTML(assistantText);
+
         if (!html) {
-          // extract from assistant text
-          html = extractHTML(assistantText);
+          // Auto-retry ONLY if it *claimed* it updated preview
+          html = await maybeRetryForHTML(assistantText);
         }
 
-        // If user asked for preview, force render whatever we have
         const wantsPreview = /show me a preview|preview/i.test(text);
 
         if (html) {
@@ -287,9 +276,8 @@ ${fragment}
           setDraftLabel("ready");
           renderPreview(html);
         } else if (wantsPreview) {
-          // If they asked for preview but we still have no HTML, show a helpful message
           renderPreview("");
-          addMsg("ai", "I didn’t receive HTML to render. I can regenerate it — say: “regenerate the HTML”.");
+          addMsg("ai", "I still didn’t receive HTML to render. That means the backend isn’t sending HTML back yet.");
         }
       } catch (err) {
         addMsg("ai", `Error: ${err.message || err}`);
@@ -301,17 +289,13 @@ ${fragment}
     resetBtn.addEventListener("click", resetAll);
 
     previewBtn.addEventListener("click", () => {
-      if (state.lastHTML) {
-        renderPreview(state.lastHTML);
-        return;
-      }
+      if (state.lastHTML) return renderPreview(state.lastHTML);
       addMsg("ai", "No HTML cached yet. Ask for a build, or say: “show me a preview”.");
     });
 
     downloadBtn.addEventListener("click", downloadHTML);
 
     unlockProBtn.addEventListener("click", async () => {
-      // Minimal “unlock” flow: ask for key via prompt (keeps it simple + stable)
       const key = prompt("Enter your Pro key:");
       if (!key) return;
 
@@ -330,24 +314,18 @@ ${fragment}
           setPro(false);
           addMsg("ai", "Invalid key.");
         }
-      } catch (e) {
+      } catch {
         addMsg("ai", "Could not verify Pro right now.");
       } finally {
         setBusy(false);
       }
     });
 
-    // Save/Library placeholders (Pro gated) — won’t break UI
+    // Safe placeholders
     saveBtn.addEventListener("click", () => {
       if (!state.pro) return;
-      if (!state.lastHTML) { addMsg("ai", "Nothing to save yet."); return; }
-      const item = {
-        id: String(Date.now()),
-        title: state.lastTitle || "simo-build",
-        html: state.lastHTML,
-        topic: state.topic,
-        ts: new Date().toISOString(),
-      };
+      if (!state.lastHTML) return addMsg("ai", "Nothing to save yet.");
+      const item = { id: String(Date.now()), title: state.lastTitle, html: state.lastHTML, topic: state.topic, ts: new Date().toISOString() };
       const key = "simo_library_v1";
       const list = JSON.parse(localStorage.getItem(key) || "[]");
       list.unshift(item);
@@ -359,8 +337,7 @@ ${fragment}
       if (!state.pro) return;
       const key = "simo_library_v1";
       const list = JSON.parse(localStorage.getItem(key) || "[]");
-      if (!list.length) { addMsg("ai", "Library is empty."); return; }
-
+      if (!list.length) return addMsg("ai", "Library is empty.");
       const first = list[0];
       state.lastTitle = first.title || "simo-build";
       state.lastHTML = first.html || "";
@@ -371,18 +348,11 @@ ${fragment}
     });
   }
 
-  // ---- Boot
   window.addEventListener("DOMContentLoaded", () => {
-    // default pro off until unlocked
     setPro(false);
-
-    // stable seed message
     resetAll();
-
-    // Wire events last (prevents null + “buttons don’t work”)
     wireEvents();
-
-    // initialize textarea height
     autoGrowTextarea();
+    renderPreview(""); // ensure iframe hidden on load
   });
 })();
