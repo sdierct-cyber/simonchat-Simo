@@ -1,18 +1,8 @@
 // netlify/functions/pro.js
-// Minimal Pro verification (server-verified).
-// Later you can swap the check to Stripe, Supabase, Firebase, etc.
+// Verifies Pro license keys stored in env var PRO_LICENSE_KEYS
+// Supports comma OR newline separated keys. Trims whitespace.
 
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
-
-// Set this in Netlify env vars:
-// PRO_LICENSE_KEYS = "KEY1,KEY2,KEY3"
-function parseKeys() {
-  const raw = process.env.PRO_LICENSE_KEYS || "";
-  return raw
-    .split(",")
-    .map(s => s.trim())
-    .filter(Boolean);
-}
 
 function json(statusCode, obj) {
   return {
@@ -28,6 +18,17 @@ function json(statusCode, obj) {
   };
 }
 
+function safeParseJSON(str) {
+  try { return JSON.parse(str); } catch { return null; }
+}
+
+function parseKeys(raw) {
+  return String(raw || "")
+    .split(/[,\n]/g)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
 exports.handler = async (event) => {
   try {
     if (event.httpMethod === "OPTIONS") return json(204, { ok: true });
@@ -40,21 +41,25 @@ exports.handler = async (event) => {
       return json(405, { ok: false, error: "Method not allowed" });
     }
 
-    const body = (() => { try { return JSON.parse(event.body || "{}"); } catch { return {}; } })();
+    const body = safeParseJSON(event.body || "{}") || {};
     const key = String(body.key || "").trim();
 
-    if (!key) return json(200, { ok: true, pro: false, reason: "missing_key" });
+    const raw = process.env.PRO_LICENSE_KEYS || "";
+    const keys = parseKeys(raw);
 
-    const keys = parseKeys();
-    const isValid = keys.includes(key);
+    // If no keys configured, always invalid (safe default)
+    if (!keys.length) {
+      return json(200, { ok: true, pro: false, reason: "no_keys_configured" });
+    }
+
+    const valid = !!key && keys.includes(key);
 
     return json(200, {
       ok: true,
-      pro: isValid,
-      reason: isValid ? "valid" : "invalid",
+      pro: valid,
+      reason: valid ? "valid" : "invalid",
     });
-
-  } catch (e) {
-    return json(500, { ok: false, error: "server_error", details: String(e?.message || e) });
+  } catch (err) {
+    return json(500, { ok: false, error: "Server error", details: String(err?.message || err) });
   }
 };
