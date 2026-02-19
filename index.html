@@ -58,7 +58,19 @@
     .who{width:34px;height:34px;border-radius:12px;display:grid;place-items:center;background:rgba(255,255,255,.07);border:1px solid var(--line);color:rgba(234,240,255,.9);font-weight:900;flex:0 0 auto}
     .me .who{background:rgba(42,102,255,.16);border-color:rgba(42,102,255,.35)}
     .composer{border-top:1px solid var(--line);padding:12px;display:grid;grid-template-columns:1fr auto;gap:10px;background:rgba(0,0,0,.12)}
-    textarea{width:100%;min-height:44px;max-height:140px;resize:vertical;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:10px 12px;outline:none;font:inherit}
+    textarea{
+      width:100%;
+      min-height:78px;   /* ✅ bigger input area */
+      max-height:180px;
+      resize:vertical;
+      border-radius:14px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      color:var(--text);
+      padding:10px 12px;
+      outline:none;
+      font:inherit
+    }
     textarea:focus{border-color:rgba(42,102,255,.55);box-shadow:0 0 0 4px rgba(42,102,255,.16)}
     .actions{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;justify-content:flex-end}
 
@@ -67,7 +79,6 @@
     iframe{width:100%;height:100%;border:0;background:transparent}
     .hint{padding:10px 12px;border-top:1px solid var(--line);color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(0,0,0,.10)}
     .tag{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--muted);font-size:12px}
-    .tag.good{border-color:rgba(57,255,122,.28);background:rgba(57,255,122,.10);color:rgba(234,240,255,.92)}
 
     .modalOverlay{position:fixed;inset:0;background:rgba(0,0,0,.55);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
     .modal{width:min(520px, 100%);background:linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));border:1px solid var(--line);border-radius:20px;box-shadow:0 20px 60px rgba(0,0,0,.55);overflow:hidden}
@@ -75,12 +86,9 @@
     .modalBody{padding:14px}
     .row{display:flex;gap:10px;align-items:center}
     input[type="text"]{width:100%;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.05);color:var(--text);padding:10px 12px;outline:none;font:inherit}
-    input[type="text"]:focus{border-color:rgba(42,102,255,.55);box-shadow:0 0 0 4px rgba(42,102,255,.16)}
     .note{color:var(--muted);font-size:13px;margin-top:10px;line-height:1.35}
     .list{margin:10px 0 0;padding:0;list-style:none}
     .list li{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);background:rgba(255,255,255,.05);border-radius:14px;margin-bottom:10px}
-    .list .name{font-weight:800}
-    .list .meta{color:var(--muted);font-size:12px}
     .danger{background:rgba(255,77,77,.12);border-color:rgba(255,77,77,.28);color:rgba(234,240,255,.95)}
   </style>
 </head>
@@ -104,7 +112,6 @@
     </div>
 
     <div class="grid">
-      <!-- Chat -->
       <div class="card chat">
         <div class="cardHead">
           <div class="title">Chat</div>
@@ -125,7 +132,6 @@
         </div>
       </div>
 
-      <!-- Preview -->
       <div class="card preview">
         <div class="cardHead">
           <div class="title">Preview</div>
@@ -133,9 +139,10 @@
         </div>
 
         <div class="frameWrap">
+          <!-- ✅ safer sandbox to remove that warning (no allow-same-origin) -->
           <iframe
             id="frame"
-            sandbox="allow-scripts allow-forms allow-same-origin"
+            sandbox="allow-scripts allow-forms"
             srcdoc="<!doctype html><html><head><meta charset='utf-8'><style>body{margin:0;font-family:system-ui;background:#0b1020;color:#a9b6d3;display:grid;place-items:center;height:100vh} .box{border:1px solid rgba(255,255,255,.12);padding:14px 16px;border-radius:14px;background:rgba(255,255,255,.05)}</style></head><body><div class='box'>No preview yet.</div></body></html>"
           ></iframe>
         </div>
@@ -151,7 +158,6 @@
     </div>
   </div>
 
-  <!-- Pro Modal -->
   <div id="proModal" class="modalOverlay" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modalHead">
@@ -170,7 +176,6 @@
     </div>
   </div>
 
-  <!-- Library Modal -->
   <div id="libModal" class="modalOverlay" role="dialog" aria-modal="true">
     <div class="modal">
       <div class="modalHead">
@@ -185,7 +190,6 @@
     </div>
   </div>
 
-  <!-- IMPORTANT: external JS (CSP-safe) -->
   <script src="./app.js"></script>
 </body>
 </html>
