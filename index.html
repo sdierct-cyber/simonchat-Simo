@@ -9,12 +9,10 @@
     :root{
       --bg:#0b1020;
       --panel:#0f1a34;
-      --panel2:#0b142b;
       --text:#eaf0ff;
       --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
-      --btn:#2a66ff;
-      --btn2:#1f4dd6;
+      --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39ff7a;
       --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
@@ -31,25 +29,10 @@
     }
 
     .wrap{max-width:1400px;margin:0 auto;padding:16px;height:100%;}
-    .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      gap:12px;margin-bottom:12px;
-    }
-    .brand{
-      display:flex;align-items:center;gap:10px;
-      font-weight:800;font-size:28px;letter-spacing:.2px;
-    }
-    .brand .dot{
-      width:14px;height:14px;border-radius:999px;
-      background:rgba(42,102,255,.85);
-      box-shadow:0 0 0 6px rgba(42,102,255,.18);
-    }
-    .sub{
-      margin-top:-6px;
-      font-size:14px;
-      color:var(--muted);
-      font-weight:700;
-    }
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px;}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:28px;letter-spacing:.2px;}
+    .brand .dot{width:14px;height:14px;border-radius:999px;background:rgba(42,102,255,.85);box-shadow:0 0 0 6px rgba(42,102,255,.18);}
+    .sub{margin-top:-6px;font-size:14px;color:var(--muted);font-weight:700;}
     .brandcol{display:flex;flex-direction:column;line-height:1.05}
 
     .controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -62,10 +45,7 @@
       font-weight:800;
       user-select:none;
     }
-    .pill .led{
-      width:10px;height:10px;border-radius:999px;
-      background:rgba(255,255,255,.22);
-    }
+    .pill .led{width:10px;height:10px;border-radius:999px;background:rgba(255,255,255,.22);}
     .pill.on .led{background:var(--good); box-shadow:0 0 16px rgba(57,255,122,.5)}
     .btn{
       appearance:none;border:1px solid var(--line);
@@ -95,7 +75,7 @@
       overflow:hidden;
       display:flex;
       flex-direction:column;
-      min-height:0; /* IMPORTANT for flex scroll areas */
+      min-height:0;
     }
 
     .panelhead{
@@ -104,24 +84,12 @@
       display:flex;align-items:center;justify-content:space-between;
       background:rgba(0,0,0,.12);
       font-weight:900;
-      letter-spacing:.2px;
     }
-    .panelhead .right{
-      font-weight:800;
-      color:var(--muted);
-      font-size:13px;
-    }
+    .panelhead .right{font-weight:800;color:var(--muted);font-size:13px;}
 
-    /* Chat layout */
-    .chatBody{
-      padding:12px;
-      overflow:auto;
-      flex:1;
-      min-height:0;
-    }
-    .msg{
-      display:flex;gap:10px;margin:10px 0;
-    }
+    /* Chat */
+    .chatBody{padding:12px;overflow:auto;flex:1;min-height:0;}
+    .msg{display:flex;gap:10px;margin:10px 0;}
     .avatar{
       width:32px;height:32px;border-radius:12px;
       background:rgba(255,255,255,.06);
@@ -131,7 +99,7 @@
       flex:0 0 auto;
     }
     .bubble{
-      max-width: 86%;
+      max-width:86%;
       padding:12px 14px;
       border-radius:14px;
       border:1px solid var(--line);
@@ -139,22 +107,15 @@
       white-space:pre-wrap;
       line-height:1.35;
     }
-    .me .bubble{
-      background:rgba(42,102,255,.16);
-      border-color:rgba(42,102,255,.28);
-    }
+    .me .bubble{background:rgba(42,102,255,.16);border-color:rgba(42,102,255,.28);}
 
     .composer{
       border-top:1px solid var(--line);
       padding:10px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
+      display:flex;flex-direction:column;gap:10px;
       background:rgba(0,0,0,.10);
     }
-    .row{
-      display:flex;gap:10px;align-items:flex-end;
-    }
+    .row{display:flex;gap:10px;align-items:flex-end;}
     textarea{
       width:100%;
       background:rgba(255,255,255,.05);
@@ -165,21 +126,13 @@
       font-size:15px;
       line-height:1.2;
       outline:none;
-
-      /* FIX: keep it usable and not crunched */
       min-height:56px;
       max-height:160px;
       resize:none;
       overflow:auto;
-      flex: 1;
+      flex:1;
     }
-    .actions{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-      align-items:center;
-      justify-content:flex-start;
-    }
+    .actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
     .mini{
       padding:8px 12px;
       border-radius:999px;
@@ -201,18 +154,14 @@
       font-weight:800;
       font-size:12px;
     }
-    .tag{
-      padding:6px 10px;border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.04);
-    }
+    .tag{padding:6px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.04);}
 
-    /* Preview */
+    /* Preview — FIXES THE “WHITE PANEL” */
     .previewBody{
       position:relative;
       flex:1;
       min-height:0;
-      background:rgba(0,0,0,.10);
+      background:rgba(0,0,0,.18); /* dark when empty */
     }
     .placeholder{
       position:absolute;inset:0;
@@ -225,8 +174,8 @@
       width:100%;
       height:100%;
       border:0;
-      background:#fff;
-      display:block;
+      display:none;              /* HIDDEN until we have HTML */
+      background:transparent;    /* avoid white flashes */
     }
 
     @media (max-width: 1050px){
@@ -252,12 +201,12 @@
       <div class="controls">
         <button class="btn danger" id="resetBtn">Reset</button>
 
-        <div class="pill on" id="modePill" title="Mode">
+        <div class="pill on" id="modePill">
           <span class="led" aria-hidden="true"></span>
           <span id="modeText">Mode: building</span>
         </div>
 
-        <div class="pill" id="proPill" title="Pro status">
+        <div class="pill" id="proPill">
           <span class="led" aria-hidden="true"></span>
           <span id="proText">Pro: OFF</span>
         </div>
@@ -268,7 +217,7 @@
 
     <div class="grid">
       <!-- CHAT -->
-      <section class="panel" aria-label="Chat panel">
+      <section class="panel">
         <div class="panelhead">
           <div>Chat</div>
           <div class="right" id="chatStatus">Ready</div>
@@ -298,7 +247,7 @@
       </section>
 
       <!-- PREVIEW -->
-      <section class="panel" aria-label="Preview panel">
+      <section class="panel">
         <div class="panelhead">
           <div>Preview</div>
           <div class="right" id="previewStatus">No preview yet</div>
