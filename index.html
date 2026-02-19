@@ -263,7 +263,7 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
       state.lastSavedHtml = preview.html;
     }
 
-    // ---------- Local deterministic preview fallback ----------
+    // -------- Local deterministic landing preview ----------
     function looksLikePreviewAsk(text) {
       const x = (text||"").toLowerCase().trim();
       return (
@@ -272,6 +272,7 @@ Ask: “build a landing page for a fitness coach”</div></body></html>`;
         x.includes("show me a preview") ||
         x.startsWith("preview") ||
         x.startsWith("build a landing page") ||
+        x.startsWith("build me a landing page") ||
         x.includes("make a landing page") ||
         x.includes("create a landing page")
       );
@@ -318,7 +319,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 </style></head>
 <body><div class="wrap">
 <div class="top"><div class="brand"><span class="dot"></span> <span>Simo</span></div>
-<div class="tag">Local preview fallback • topic: ${T}</div></div>
+<div class="tag">Local preview • topic: ${T}</div></div>
 <div class="hero">
 <div class="tag">Simo Preview</div>
 <h1>${H}</h1>
@@ -328,17 +329,38 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 <div class="card"><h3>Clear</h3><p>Headline → value → call-to-action.</p></div></div>
 </div></div></body></html>`;
     }
-    // ---------------------------------------------------------
+    // ------------------------------------------------------
 
-    async function callBackend(text, timeoutMs = 12000) {
+    // -------- Local best-friend fallback (NO "try again") --------
+    function localBestFriendFallback(userText) {
+      const x = (userText||"").toLowerCase();
+      if (x.includes("im stressed") || x.includes("i'm stressed") || x.includes("stressed out")) {
+        return "I got you. What’s the main source — work, money, relationship, or just everything stacking? Give me the headline and I’ll help you cut it down.";
+      }
+      if (x.includes("anxious") || x.includes("panic")) {
+        return "Okay. In 4… hold 2… out 6. Do that twice. Now: what triggered it in the last 10 minutes?";
+      }
+      if (x.includes("sad") || x.includes("depressed")) {
+        return "I’m here. What happened today that hit you the hardest? One sentence.";
+      }
+      if (x.includes("angry") || x.includes("pissed") || x.includes("mad")) {
+        return "Alright. What crossed the line? Tell me the one thing that set you off.";
+      }
+      return "I’m here. Tell me what you want right now — venting, solving, or building.";
+    }
+    // ------------------------------------------------------------
+
+    async function callBackend(text, timeoutMs) {
       const payload = {
         text,
         tier: state.tier,
         conversation: state.conversation,
         lastPreview: state.lastPreview
       };
+
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
       try {
         const res = await fetch("/.netlify/functions/simon", {
           method: "POST",
@@ -346,6 +368,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
           body: JSON.stringify(payload),
           signal: controller.signal,
         });
+
         const data = await res.json().catch(() => ({}));
         return data;
       } finally {
@@ -360,7 +383,7 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       addMsg("user", text);
       $("input").value = "";
 
-      // If it's a preview request, render instantly on the client so it never feels broken.
+      // Instant preview for landing pages
       if (looksLikePreviewAsk(text)) {
         const topic = extractTopic(text);
         setPreview({ kind:"html", title:"Landing page", meta:"Instant (local)", html: localLandingHTML(topic) });
@@ -370,29 +393,28 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
       setBusy(true);
 
       try {
-        // For preview requests, give server more time (work networks can be slow)
         const isPrev = looksLikePreviewAsk(text);
-        const data = await callBackend(text, isPrev ? 25000 : 12000);
 
-        const reply = (data && typeof data.text === "string" && data.text.trim())
-          ? data.text
-          : "I’m here. What do you want right now — venting, solving, or building?";
+        // IMPORTANT: longer timeout for chat at work
+        const timeoutMs = isPrev ? 25000 : 25000;
 
-        // Only add server reply if it’s not duplicating the local instant message
-        if (!looksLikePreviewAsk(text) || (reply && !reply.toLowerCase().includes("updated the preview"))) {
-          addMsg("assistant", reply);
+        const data = await callBackend(text, timeoutMs);
+
+        // If server gives a reply, use it
+        if (data && typeof data.text === "string" && data.text.trim()) {
+          addMsg("assistant", data.text.trim());
+        } else {
+          // If server returns but empty, still don't dead-end
+          addMsg("assistant", localBestFriendFallback(text));
         }
 
+        // If server returns preview, it overwrites local (fine)
         if (data && data.preview && data.preview.kind === "html") {
           setPreview(data.preview);
         }
       } catch (err) {
-        // If we already rendered local preview, don't scare the user
-        if (!looksLikePreviewAsk(text)) {
-          addMsg("assistant", "Server didn’t respond (or timed out). Try again.");
-        } else {
-          addMsg("assistant", "Preview is shown. Server is slow right now (work network). You can still keep editing locally.");
-        }
+        // THIS is the fix: never show "try again" for venting
+        addMsg("assistant", localBestFriendFallback(text));
       } finally {
         setBusy(false);
       }
@@ -411,7 +433,6 @@ p{color:var(--muted);font-weight:700;line-height:1.5;font-size:16px}
 
     $("sendBtn").addEventListener("click", send);
     $("resetBtn").addEventListener("click", reset);
-
     $("freePill").addEventListener("click", () => setTier("free"));
     $("proPill").addEventListener("click", () => setTier("pro"));
 
