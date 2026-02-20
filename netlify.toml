@@ -2,21 +2,5 @@
   publish = "."
   functions = "netlify/functions"
 
-# Prevent app.js from being cached (fixes stale UI issues)
-[[headers]]
-  for = "/app.js"
-  [headers.values]
-    Cache-Control = "no-store"
-
-# (Optional but safe) prevent index.html caching too
-[[headers]]
-  for = "/index.html"
-  [headers.values]
-    Cache-Control = "no-store"
-
-# SPA routing (MUST stay last, no force)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-  force = false
+[functions]
+  node_bundler = "esbuild"
