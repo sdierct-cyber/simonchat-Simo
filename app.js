@@ -1,7 +1,7 @@
-/* app.js — Simo UI controller (V1.2.2)
+/* app.js — Simo UI controller (V1.2.3)
    Fixes:
-   - Preview "Updated" only when real HTML exists (no fake-updated state)
-   - Empty preview stays dark (iframe bg set in CSS; overlay shows)
+   - White preview pane never shows (even on reset) by using a dark blank srcdoc
+   - Preview "Updated" only when real HTML exists
 */
 
 (() => {
@@ -50,6 +50,17 @@
   const LS_MODE = "simo_mode";
   const LS_LIB = "simo_library_v1";
   const LS_LASTHTML = "simo_last_html";
+
+  // ✅ Dark blank page for iframe (prevents white pane in every browser)
+  const DARK_BLANK = `<!doctype html>
+<html><head><meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<style>
+  html,body{margin:0;height:100%;background:#0b1020;color:#a9b6d3;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;}
+  .wrap{height:100%;display:grid;place-items:center}
+</style></head>
+<body><div class="wrap"></div></body></html>`;
 
   function nowTime() {
     const d = new Date();
@@ -131,14 +142,15 @@
 
   function looksLikeHtml(html) {
     const h = (html || "").trim();
-    if (h.length < 200) return false;                 // prevent tiny/empty srcdoc
+    if (h.length < 200) return false;
     const low = h.toLowerCase();
     return low.includes("<!doctype") || low.includes("<html");
   }
 
   function renderPreview(html) {
+    // ✅ Always keep iframe dark by using DARK_BLANK when empty/invalid
     if (!looksLikeHtml(html)) {
-      iframe.srcdoc = "";
+      iframe.srcdoc = DARK_BLANK;
       previewEmpty.classList.remove("hidden");
       previewMeta.textContent = "No preview yet";
       return false;
@@ -258,15 +270,12 @@
         localStorage.setItem(LS_LASTHTML, state.lastHtml);
         setDraftLabel("updated");
       } else {
-        // strict truth: if user asked for preview/build and we have no HTML, say it
         if (/build|landing page|website|show me a preview|preview\b/i.test(text)) {
           addMsg("ai", "I didn’t receive valid HTML to render. (Backend returned text but no usable HTML.)");
         }
-        // do NOT claim updated
       }
     } catch {
       addMsg("ai", "Network error talking to backend.");
-      // keep preview truthful
       previewMeta.textContent = state.lastHtml ? "Updated" : "No preview yet";
     } finally {
       setBusy(false);
@@ -289,7 +298,7 @@
     localStorage.removeItem(LS_LASTHTML);
     setDraftLabel("none");
     setTopic("none");
-    renderPreview("");
+    renderPreview(""); // ✅ will load DARK_BLANK, so no white panel
     addMsg("ai", "Reset. I’m here.");
   });
 
@@ -336,7 +345,7 @@
       renderPreview(state.lastHtml);
       addMsg("ai", "Preview updated on the right.");
     } else {
-      renderPreview("");
+      renderPreview(""); // ✅ loads DARK_BLANK, stays dark
       addMsg("ai", "No HTML cached yet. Ask for a build first (example: “build a landing page for a fitness coach”).");
     }
   });
@@ -385,7 +394,7 @@
       renderPreview(state.lastHtml);
       setDraftLabel("cached");
     } else {
-      renderPreview("");
+      renderPreview(""); // ✅ DARK_BLANK on boot too
     }
 
     addMsg("ai", "Tell me what you want right now — venting, solving, or building.");
