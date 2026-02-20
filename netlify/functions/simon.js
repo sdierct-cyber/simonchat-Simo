@@ -1,187 +1,164 @@
-// netlify/functions/simon.js
-// "ChatGPT-capability" backend:
-// - Build intents ALWAYS return valid HTML (never blank)
-// - Returns html + preview_html + output_html to match any frontend
-// - GET self-test endpoint for preview sanity check
-// - Venting overrides (wife/stress) even if mode is wrong
-// - Solving never loops a generic fallback endlessly
+// netlify/functions/simon.js  (CommonJS - stable on Netlify)
+// Contract: { ok, mode, routed_mode, intent, topic, text, html }
+// - intent: "html" when html should render, otherwise "text"
+// - Always returns quickly (timeouts) to avoid 504/502.
+// - OpenAI optional; if slow/down, still works with templates.
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+};
 
 exports.handler = async (event) => {
-  const cors = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  };
+  if (event.httpMethod === "OPTIONS") return json(200, { ok: true }, cors);
 
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers: cors, body: "" };
-  }
-
-  // ✅ GET self-test: proves your preview pipeline works (no OpenAI involved)
+  // Quick GET self-test so you can verify preview rendering instantly
   if (event.httpMethod === "GET") {
-    const html = childcareLandingHtml("Neighborhood Child Care Clinic");
-    return json(cors, 200, {
+    const html = landingTemplate("Neighborhood Child Care Clinic", "Safe, warm care — right here in your neighborhood");
+    return json(200, {
       ok: true,
       mode: "building",
       routed_mode: "building",
       intent: "html",
+      topic: "general",
       text: "GET self-test: preview should show a child care landing page.",
       html,
-      preview_html: html,
-      output_html: html,
-    });
+    }, cors);
   }
 
-  try {
-    if (event.httpMethod !== "POST") {
-      return json(cors, 405, { ok: false, error: "Use POST" });
-    }
+  if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Use POST" }, cors);
 
-    const body = safeJson(event.body) || {};
-    const mode = cleanMode(body.mode) || "solving";
+  try {
+    const body = safeJson(event.body);
+    const mode = cleanMode(body.mode) || "building";
     const topic = clean(body.topic) || "general";
     const input = clean(body.input) || "";
 
     if (!input.trim()) {
-      return json(cors, 200, {
+      return json(200, {
         ok: true,
         mode,
         routed_mode: mode,
-        topic,
         intent: "text",
+        topic,
         text: "Tell me what you want right now — venting, solving, or building.",
         html: "",
-        preview_html: "",
-        output_html: "",
-      });
+      }, cors);
     }
 
+    // Route like ChatGPT: decide what user is actually asking for
     const routed = routeMode(mode, input);
-    const intent = detectIntent(routed, input);
+    const intent = routeIntent(input, routed);
 
-    // -------- BUILDING: ALWAYS RETURN HTML --------
-    if (routed === "building") {
-      const html = buildHtmlFromPrompt(input);
+    // BUILD (HTML)
+    if (intent === "html") {
+      const kind = detectBuildKind(input);
+      const fallbackHtml = buildTemplate(kind, input);
 
-      // Optional AI: time-boxed upgrade (never blocks HTML)
+      // Try OpenAI fast. If it returns good HTML, use it. If not, keep template.
       const ai = await tryOpenAIQuick({
         mode: "building",
         topic,
-        input,
+        input: buildSystemPrompt(topic) + "\n\nUSER:\n" + input,
         timeoutMs: 6500,
         maxTokens: 900,
       });
 
-      // If AI returns HTML, use it; otherwise keep stable template
-      const useHtml =
-        (ai.ok && looksLikeHtml(extractHtml(ai.text))) ? normalizeHtml(extractHtml(ai.text)) : html;
+      if (ai.ok && ai.text) {
+        const maybe = extractHtml(ai.text);
+        if (looksLikeHtml(maybe)) {
+          return json(200, {
+            ok: true,
+            mode,
+            routed_mode: "building",
+            intent: "html",
+            topic,
+            text: "Done. Preview updated.",
+            html: normalizeHtml(maybe),
+          }, cors);
+        }
+        // AI gave text only — still return template preview + AI chat
+        return json(200, {
+          ok: true,
+          mode,
+          routed_mode: "building",
+          intent: "html",
+          topic,
+          text: ai.text.trim(),
+          html: fallbackHtml,
+        }, cors);
+      }
 
-      return json(cors, 200, {
+      return json(200, {
         ok: true,
         mode,
         routed_mode: "building",
-        topic,
         intent: "html",
+        topic,
         text: "Done. Preview updated.",
-        html: useHtml,
-        preview_html: useHtml,
-        output_html: useHtml,
-      });
+        html: fallbackHtml,
+      }, cors);
     }
 
-    // -------- VENTING: NEVER GIVE “GOAL/TOOLS” --------
-    if (routed === "venting") {
-      const base = ventingReply(input);
-      const ai = await tryOpenAIQuick({
-        mode: "venting",
-        topic,
-        input,
-        timeoutMs: 6500,
-        maxTokens: 240,
-      });
-
-      return json(cors, 200, {
-        ok: true,
-        mode,
-        routed_mode: "venting",
-        topic,
-        intent: "text",
-        text: (ai.ok && ai.text) ? ai.text.trim() : base,
-        html: "",
-        preview_html: "",
-        output_html: "",
-      });
-    }
-
-    // -------- SOLVING: ANSWER DIRECTLY + FALLBACK THAT DOESN’T LOOP --------
-    if (intent === "marketing_plan") {
-      return json(cors, 200, {
-        ok: true,
-        mode,
-        routed_mode: "solving",
-        topic,
-        intent: "text",
-        text: marketingPlan10(),
-        html: "",
-        preview_html: "",
-        output_html: "",
-      });
-    }
-
+    // TEXT (venting/solving/general)
     const ai = await tryOpenAIQuick({
-      mode: "solving",
+      mode: routed,
       topic,
-      input,
+      input: textSystemPrompt(routed, topic) + "\n\nUSER:\n" + input,
       timeoutMs: 6500,
-      maxTokens: 550,
+      maxTokens: routed === "solving" ? 650 : 450,
     });
 
     if (ai.ok && ai.text) {
-      return json(cors, 200, {
+      return json(200, {
         ok: true,
         mode,
-        routed_mode: "solving",
-        topic,
+        routed_mode: routed,
         intent: "text",
+        topic,
         text: ai.text.trim(),
         html: "",
-        preview_html: "",
-        output_html: "",
-      });
+      }, cors);
     }
 
-    return json(cors, 200, {
+    // Fallback (no OpenAI or timeout)
+    const fallback =
+      routed === "venting"
+        ? "I’m here. What happened — and what part is hitting you the hardest?"
+        : routed === "solving"
+          ? "Tell me the goal, what you tried, and the one constraint (time/money/tools)."
+          : "Got you. What do you want to do next — vent, solve, or build?";
+    return json(200, {
       ok: true,
       mode,
-      routed_mode: "solving",
-      topic,
+      routed_mode: routed,
       intent: "text",
-      text: "I’ve got you. What’s the goal, what have you tried, and what’s the one constraint (time/money/tools)?",
+      topic,
+      text: fallback,
       html: "",
-      preview_html: "",
-      output_html: "",
-    });
+    }, cors);
 
   } catch (e) {
-    return json(cors, 500, { ok: false, error: e?.message || String(e) });
+    return json(500, { ok: false, error: e?.message || String(e) }, cors);
   }
 };
 
-// ---------------- OpenAI (time-boxed) ----------------
+// ---------- OpenAI (fast + optional) ----------
 async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "missing_key" };
 
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
   const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
-    const sys = systemPrompt(mode, topic);
+    // Responses API: send input as a string, read output_text
     const payload = {
       model,
-      input: `${sys}\n\nUSER:\n${input}\n`,
-      temperature: mode === "building" ? 0.35 : 0.7,
+      input: String(input || ""),
+      temperature: mode === "building" ? 0.4 : 0.7,
       max_output_tokens: maxTokens,
     };
 
@@ -196,86 +173,123 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
     });
 
     const raw = await r.text();
-    if (!r.ok) return { ok: false, error: `openai_${r.status}` };
+    if (!r.ok) return { ok: false, error: `openai_${r.status}`, raw };
+
     const data = JSON.parse(raw);
-    return { ok: true, text: (data.output_text || "").trim() };
+    const out = (data.output_text || "").trim();
+    if (!out) return { ok: false, error: "no_output" };
+    return { ok: true, text: out };
 
   } catch (e) {
     return { ok: false, error: e?.name === "AbortError" ? "timeout" : "network" };
   } finally {
-    clearTimeout(t);
+    clearTimeout(timer);
   }
 }
 
-function systemPrompt(mode, topic) {
-  if (mode === "building") {
-    return `You are Simo, a product-grade builder.
-If you output HTML: it MUST be a full document starting with <!doctype html>.
-No markdown fences unless the entire output is HTML.
-Make it polished, modern, dark-friendly.
-Topic: ${topic}`.trim();
-  }
-  if (mode === "venting") {
-    return `You are Simo, the user's private best friend.
-Be direct and real. No therapy clichés. One question max.
-Topic: ${topic}`.trim();
-  }
-  return `You are Simo, a practical problem solver. Answer directly first.
-Topic: ${topic}`.trim();
-}
-
-// ---------------- Routing & intents ----------------
-function routeMode(mode, input) {
+// ---------- Routing ----------
+function routeMode(currentMode, input) {
   const t = input.toLowerCase();
 
-  // venting override
-  if (
-    t.includes("i'm stressed") || t.includes("im stressed") ||
-    t.includes("anxious") || t.includes("panic") ||
-    (t.includes("wife") && (t.includes("fighting") || t.includes("arguing")))
-  ) return "venting";
+  // Hard venting signals
+  if (/(i'?m\s+stressed|anxious|depressed|overwhelmed|panic|i\s+can'?t|my\s+wife|argu|fight|relationship)/i.test(t)) {
+    return "venting";
+  }
+  // Hard solving signals
+  if (/(plan|steps|checklist|bullet|strategy|how do i|how to|fix|debug|error|marketing plan|write a \d+-bullet)/i.test(t)) {
+    return "solving";
+  }
+  // Hard building signals
+  if (/(show me|build|make|create).*(landing page|website|mockup|dashboard|book cover|preview|html)/i.test(t)) {
+    return "building";
+  }
 
-  // build override
-  if (
-    t.includes("show me") ||
-    t.includes("build ") ||
-    t.includes("landing page") ||
-    t.includes("book cover") ||
-    t.includes("mockup") ||
-    t.includes("html") ||
-    t.includes("preview")
-  ) return "building";
-
-  return cleanMode(mode) || "solving";
+  return currentMode || "solving";
 }
 
-function detectIntent(routed, input) {
+function routeIntent(input, routedMode) {
   const t = input.toLowerCase();
-  if (routed === "building") return "html";
-  if (t.includes("marketing") && (t.includes("plan") || t.includes("strategy"))) return "marketing_plan";
-  if (t.includes("10-bullet marketing plan") || t.includes("10 bullet marketing plan")) return "marketing_plan";
+
+  // If user is asking for a preview/build/html, we return HTML
+  if (/(landing page|website|mockup|dashboard|book cover|preview|html)/i.test(t) && /(show me|build|make|create|generate)/i.test(t)) {
+    return "html";
+  }
+
+  // If they're in building mode and ask to "add pricing/testimonials" etc, also HTML
+  if (routedMode === "building" && /(add|remove|update|change).*(pricing|testimonials|faq|cta|headline|hero|section)/i.test(t)) {
+    return "html";
+  }
+
   return "text";
 }
 
-// ---------------- “ChatGPT-style” stable HTML builder ----------------
-function buildHtmlFromPrompt(input) {
-  const t = input.toLowerCase();
-  if (t.includes("child care") || t.includes("childcare")) return childcareLandingHtml("Neighborhood Child Care Clinic");
-  if (t.includes("landing page")) return childcareLandingHtml("Neighborhood Clinic");
-  if (t.includes("book cover")) return bookCoverHtml(input);
-  return genericHtml(input);
+// ---------- Prompts ----------
+function buildSystemPrompt(topic) {
+  return `
+You are Simo, a product-grade builder.
+If you output HTML, it MUST be a full document starting with <!doctype html>.
+No markdown fences.
+Style: clean, modern, dark-friendly.
+`.trim();
 }
 
-function childcareLandingHtml(name) {
+function textSystemPrompt(mode, topic) {
+  if (mode === "venting") {
+    return `
+You are Simo, the user's private best friend.
+Be real, direct, supportive. Avoid therapy clichés.
+Ask at most ONE question.
+`.trim();
+  }
+  if (mode === "solving") {
+    return `
+You are Simo, a practical problem solver.
+Give an answer that is actionable. Use bullets or steps.
+If you need info, ask only what’s necessary.
+`.trim();
+  }
+  return `
+You are Simo. Keep it helpful and concise.
+`.trim();
+}
+
+// ---------- Templates ----------
+function detectBuildKind(input) {
+  const t = input.toLowerCase();
+  if (t.includes("book cover")) return "book_cover";
+  if (t.includes("landing page") || t.includes("website")) return "landing";
+  if (t.includes("dashboard")) return "dashboard";
+  return "generic";
+}
+
+function buildTemplate(kind, input) {
+  if (kind === "book_cover") return bookCoverTemplate(input);
+  if (kind === "landing") return landingFromPrompt(input);
+  return genericTemplate(input);
+}
+
+function landingFromPrompt(input) {
+  const t = input.toLowerCase();
+  if (/(child care|childcare|pediatric|kids|clinic)/i.test(t)) {
+    return landingTemplate("Neighborhood Child Care Clinic", "Safe, warm care — right here in your neighborhood", true);
+  }
+  if (/(fitness|coach|trainer|gym)/i.test(t)) {
+    return landingTemplate("Neighborhood Fitness Coach", "Get fit without guesswork — a simple plan that sticks", true);
+  }
+  return landingTemplate("New Local Business", "A clean landing page you can customize in seconds", true);
+}
+
+function landingTemplate(brand, headline, includeTip = false) {
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${esc(name)}</title>
+<title>${esc(brand)}</title>
 <style>
   :root{--bg:#0b1020;--txt:#eaf0ff;--mut:rgba(234,240,255,.75);--line:rgba(255,255,255,.12);--card:rgba(255,255,255,.06);--btn:#2a66ff}
-  *{box-sizing:border-box} body{margin:0;font-family:system-ui;background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);color:var(--txt)}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui;background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);color:var(--txt)}
   .wrap{max-width:980px;margin:0 auto;padding:28px}
   .nav{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border:1px solid var(--line);border-radius:16px;background:var(--card)}
   .brand{display:flex;gap:10px;align-items:center;font-weight:800}
@@ -296,24 +310,24 @@ function childcareLandingHtml(name) {
 <body>
   <div class="wrap">
     <div class="nav">
-      <div class="brand"><span class="dot"></span>${esc(name)}</div>
+      <div class="brand"><span class="dot"></span>${esc(brand)}</div>
       <div class="links"><span>Services</span><span>Hours</span><span>Contact</span></div>
     </div>
 
     <div class="hero">
-      <h1>Safe, warm care — right here in your neighborhood</h1>
+      <h1>${esc(headline)}</h1>
       <p>Same-day availability • trusted staff • simple scheduling</p>
       <div class="btns">
         <a class="btn" href="#">Book an appointment</a>
-        <a class="btn alt" href="#">Call the clinic</a>
+        <a class="btn alt" href="#">Call</a>
       </div>
-      <p style="opacity:.8;margin-top:12px">Tip: say “add testimonials and pricing” to expand this page.</p>
+      ${includeTip ? `<p style="opacity:.85;margin-top:12px">Tip: say “add testimonials and pricing” to expand this page.</p>` : ``}
     </div>
 
     <div class="grid">
       <div class="card">
         <h2>Services</h2>
-        <p>Well visits • urgent concerns • developmental guidance • parent Q&A</p>
+        <p>Well visits • urgent concerns • guidance • parent Q&A</p>
       </div>
       <div class="card">
         <h2>Hours</h2>
@@ -325,79 +339,115 @@ function childcareLandingHtml(name) {
 </html>`;
 }
 
-function bookCoverHtml(prompt) {
-  return `<!doctype html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Book Cover</title>
+function bookCoverTemplate(input) {
+  const t = String(input || "").toLowerCase();
+
+  const isFitness = /(fitness|workout|coach|gym|training|nutrition|health)/i.test(t);
+  const isSpace = /(space|outer space|galaxy|astronaut|stars|planet|nebula|sci-fi|scifi|rocket|orbit|moon|mars)/i.test(t);
+  const isImmigrant = /(immigrant|factory|migration|new country|american dream)/i.test(t);
+
+  let title = "A New Chapter";
+  let subtitle = "A story shaped by grit and growth";
+  let kicker = "Book cover concept";
+  let blurb = "Tell me the vibe (minimal, gritty, cinematic) and I’ll tune the design + copy.";
+
+  if (isFitness) {
+    title = "The Coach’s Playbook";
+    subtitle = "A practical manual for health & fitness";
+    kicker = "Fitness manual";
+    blurb = "Training templates, habit rules, nutrition basics, and progress checkpoints — all in one place.";
+  } else if (isSpace) {
+    title = "Beyond the Stars";
+    subtitle = "A journey through the silence of space";
+    kicker = "Space / Sci-Fi";
+    blurb = "Dark matter. Distant worlds. One signal that can rewrite what humanity believes.";
+  } else if (isImmigrant) {
+    title = "New Roots";
+    subtitle = "A factory worker’s American journey";
+    kicker = "A modern immigrant story";
+    blurb = "Early mornings. Factory floors. Quiet pride — a life built one shift at a time.";
+  }
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Book Cover Mockup</title>
 <style>
-  body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh;padding:28px}
-  .cover{width:420px;aspect-ratio:2/3;border-radius:18px;overflow:hidden;border:1px solid rgba(255,255,255,.12);
-    background:radial-gradient(900px 600px at 30% 0%, rgba(255,255,255,.14), transparent 60%),
-    linear-gradient(180deg,#1a2b7a,#070a16);
-    box-shadow:0 30px 80px rgba(0,0,0,.55);position:relative}
-  .top{position:absolute;left:18px;right:18px;top:18px;padding:16px;border-radius:14px;
-    background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.18);backdrop-filter:blur(10px)}
-  h1{margin:0;font-size:36px;line-height:1.05}
-  h2{margin:10px 0 0;font-size:14px;color:rgba(234,240,255,.8);font-weight:600}
-  .badge{position:absolute;left:18px;right:18px;bottom:18px;padding:14px;border-radius:14px;
-    background:rgba(242,239,232,.92);color:#101426}
-  .badge .k{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:#3a4460}
+  :root{--bg:#0b1020;--ink:#0e1220;--cream:#f2efe8;--muted:#b9c3dd}
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:system-ui;
+    background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);
+    color:#eaf0ff; display:grid; place-items:center; min-height:100vh; padding:28px;
+  }
+  .cover{
+    width:min(420px, 92vw); aspect-ratio:2/3;
+    border-radius:18px; overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.55);
+    position:relative; border:1px solid rgba(255,255,255,.14);
+    background:
+      radial-gradient(900px 700px at 30% 0%, rgba(255,255,255,.12), transparent 60%),
+      linear-gradient(160deg, rgba(255,255,255,.06), rgba(0,0,0,.32)),
+      repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 10px),
+      linear-gradient(180deg, #1b2a5a, #0d1224);
+  }
+  .stripe{
+    position:absolute; inset:22px 22px auto 22px;
+    padding:16px 14px; border-radius:14px;
+    background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(10px);
+  }
+  h1{margin:0; font-size:34px; letter-spacing:.4px; line-height:1.05}
+  h2{margin:10px 0 0; font-size:14px; color:rgba(234,240,255,.82); font-weight:600}
+  .art{position:absolute; inset:0; display:grid; place-items:center; padding-top:105px;}
+  .badge{
+    width:76%; border-radius:18px;
+    background:rgba(242,239,232,.92);
+    color:var(--ink);
+    padding:18px;
+    box-shadow:0 12px 30px rgba(0,0,0,.25);
+  }
+  .badge .k{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:#3a4460}
+  .badge .line{height:1px; background:rgba(0,0,0,.12); margin:10px 0}
+  .badge p{margin:0; color:#26304a; line-height:1.45}
 </style>
-</head><body>
-<div class="cover">
-  <div class="top">
-    <h1>Beyond the Stars</h1><h2>A journey through the silence of space</h2>
+</head>
+<body>
+  <div class="cover">
+    <div class="stripe">
+      <h1>${esc(title)}</h1>
+      <h2>${esc(subtitle)}</h2>
+    </div>
+    <div class="art">
+      <div class="badge">
+        <div class="k">${esc(kicker)}</div>
+        <div class="line"></div>
+        <p>${esc(blurb)}</p>
+      </div>
+    </div>
   </div>
-  <div class="badge">
-    <div class="k">Book cover concept</div>
-    <div style="margin-top:8px;opacity:.85">${esc(prompt)}</div>
-  </div>
-</div>
-</body></html>`;
+</body>
+</html>`;
 }
 
-function genericHtml(prompt) {
-  return `<!doctype html><html lang="en"><head>
-<meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Simo Build</title>
-<style>
+function genericTemplate(input) {
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Simo Build</title><style>
 body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
 .card{max-width:900px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
 p{color:rgba(234,240,255,.75);line-height:1.5}
-</style></head><body>
-<div class="card"><h1 style="margin:0">Simo Build</h1><p>${esc(prompt)}</p></div>
-</body></html>`;
+</style></head><body><div class="card"><h1>Simo Build</h1><p>${esc(input)}</p></div></body></html>`;
 }
 
-function marketingPlan10() {
-  return [
-    "Here’s a clean 10-bullet marketing plan for your neighborhood child care clinic:",
-    "1) Clear offer: what you treat + ages + same-day availability.",
-    "2) Google Business Profile: photos, services, hours, weekly posts, Q&A filled.",
-    "3) Local SEO: “Child Care Clinic in [Neighborhood]” + service pages.",
-    "4) Conversion: booking + call buttons above the fold, short intake form.",
-    "5) Reviews: 1-tap review link after every visit.",
-    "6) Partnerships: daycares, schools, pediatric dentists, family photographers.",
-    "7) Local flyers + QR: libraries, coffee shops, gyms, community boards.",
-    "8) Social: 3 posts/week (tips, staff trust, what-to-expect).",
-    "9) Ads: small Meta + Nextdoor budget, tight radius targeting.",
-    "10) Follow-up: missed call SMS + email nurture and reminders.",
-  ].join("\n");
+// ---------- Utils ----------
+function json(status, obj, headers) {
+  return { statusCode: status, headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(obj) };
 }
-
-function ventingReply(input) {
-  const t = input.toLowerCase();
-  if (t.includes("wife") && (t.includes("fighting") || t.includes("arguing"))) {
-    return "Damn. What was the trigger this time — and what do you wish she understood right now?";
-  }
-  return "I’m here. What’s the part that’s hitting you the hardest right now?";
+function safeJson(s) {
+  try { return JSON.parse(s || "{}"); } catch { return {}; }
 }
-
-// ---------------- helpers ----------------
-function json(cors, statusCode, obj) {
-  return { statusCode, headers: { "Content-Type": "application/json", ...cors }, body: JSON.stringify(obj) };
-}
-function safeJson(s) { try { return JSON.parse(s || "{}"); } catch { return null; } }
 function clean(x) { return typeof x === "string" ? x.replace(/\u0000/g, "").trim() : ""; }
 function cleanMode(m) {
   const s = String(m || "").toLowerCase().trim();
@@ -417,7 +467,5 @@ function normalizeHtml(s) {
   return /^<!doctype html/i.test(t) ? t : "<!doctype html>\n" + t;
 }
 function esc(s) {
-  return String(s || "").replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;"
-  }[m]));
+  return String(s || "").replace(/[&<>"']/g, (m) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m]));
 }
