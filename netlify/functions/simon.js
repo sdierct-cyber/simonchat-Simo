@@ -1,15 +1,15 @@
 // netlify/functions/simon.js
 // Simo V1.3.1 — ChatGPT-first routing + strong fallbacks + real templates
 // - Intent-first: acts like ChatGPT; HTML only when clearly requested.
-// - 504-proof: OpenAI time-boxed; solid local fallbacks.
-// - No "write" -> memoir bug. Marketing plan works even if OpenAI is down.
+// - 504/502-proof: OpenAI time-boxed; solid local fallbacks.
+// - Fixes "write" -> memoir loop bug (marketing plan works even if OpenAI is down).
 // Output: { ok, mode, routed_mode, topic, intent, text, html }
 
 export default async (req) => {
   const cors = {
-    ( "Access-Control-Allow-Origin" ): "*",
-    ( "Access-Control-Allow-Headers" ): "Content-Type, Authorization",
-    ( "Access-Control-Allow-Methods" ): "POST, OPTIONS",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
   };
 
   if (req.method === "OPTIONS") return new Response("", { status: 200, headers: cors });
@@ -40,8 +40,8 @@ export default async (req) => {
 
     // Intent-first routing
     const intent = detectIntent(input);
-    const routedMode = intent.mode;         // venting | solving | building
-    const wantsHtml = intent.wantsHtml;     // true => return HTML
+    const routedMode = intent.mode; // venting | solving | building
+    const wantsHtml = intent.wantsHtml;
 
     // =========================
     // BUILD PATH (HTML preview)
@@ -169,7 +169,6 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
 
   try {
     const sys = systemPrompt(mode, topic);
-
     const payload = {
       model,
       input: `${sys}\n\nUSER:\n${input}\n`,
@@ -230,28 +229,23 @@ Topic: ${topic}
 function detectIntent(input) {
   const t = String(input || "").toLowerCase();
 
-  // Build triggers (HTML preview)
   const explicitBuild =
     /\b(show me|build|create|design|generate|make|mockup|wireframe|preview)\b/.test(t) ||
     /\b(landing page|website|web page|homepage|book cover|cover mockup|ui)\b/.test(t);
 
-  // Writing longform triggers (TEXT, not HTML)
+  const marketingPlan =
+    /\b(marketing plan|10-bullet|ten-bullet|growth plan|launch plan|positioning|offer|ads|seo)\b/.test(t);
+
   const longformWriting =
     /\b(write|draft|outline|chapter)\b/.test(t) &&
     /\b(book|memoir|novel|story|script|essay)\b/.test(t) &&
     !/\b(book cover|cover)\b/.test(t);
 
-  // Marketing / business planning (TEXT)
-  const marketingPlan =
-    /\b(marketing plan|10-bullet|ten-bullet|growth plan|launch plan|positioning|offer|ads|seo)\b/.test(t);
-
-  // Venting
   const ventSignals =
     (/\b(i'm|im|i am)\b/.test(t) &&
       /\b(stressed|overwhelmed|tired|anxious|sad|angry|mad|upset|burnt out|frustrated)\b/.test(t)) ||
     /\b(fighting|argument|loop|relationship|wife|husband)\b/.test(t);
 
-  // Solving signals
   const solveSignals =
     /\b(how do i|how to|help me|steps|plan|fix|debug|why is|what should i do)\b/.test(t);
 
@@ -260,8 +254,6 @@ function detectIntent(input) {
   if (marketingPlan) return { wantsHtml: false, mode: "solving" };
   if (longformWriting) return { wantsHtml: false, mode: "solving" };
   if (solveSignals) return { wantsHtml: false, mode: "solving" };
-
-  // Default to helpful ChatGPT-like text
   return { wantsHtml: false, mode: "solving" };
 }
 
@@ -378,8 +370,7 @@ function landingHtml(prompt) {
   :root{
     --bg:#0b1020; --panel:rgba(255,255,255,.06); --line:rgba(255,255,255,.12);
     --text:#eaf0ff; --muted:#a9b6d3; --btn:#2a66ff; --btn2:#1f4dd6;
-    --ok:#39ff7a;
-    --shadow:0 18px 44px rgba(0,0,0,.35);
+    --ok:#39ff7a; --shadow:0 18px 44px rgba(0,0,0,.35);
   }
   *{box-sizing:border-box}
   body{
@@ -398,7 +389,8 @@ function landingHtml(prompt) {
   .brand b{letter-spacing:.2px}
   .nav a{color:var(--muted);text-decoration:none;margin-left:14px;font-size:14px}
   .hero{
-    margin-top:18px;border:1px solid var(--line);background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+    margin-top:18px;border:1px solid var(--line);
+    background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
     border-radius:24px;padding:26px; box-shadow:var(--shadow);
     display:grid;grid-template-columns:1.2fr .8fr;gap:18px;
   }
@@ -410,9 +402,7 @@ function landingHtml(prompt) {
     background:linear-gradient(180deg,var(--btn),var(--btn2));
     color:white;font-weight:700;cursor:pointer;
   }
-  .ghost{
-    background:transparent;border:1px solid var(--line); color:var(--text);
-  }
+  .ghost{background:transparent;border:1px solid var(--line); color:var(--text)}
   .card{
     border:1px solid var(--line);background:var(--panel);border-radius:18px;
     padding:16px; box-shadow:0 12px 30px rgba(0,0,0,.25);
@@ -458,7 +448,7 @@ function landingHtml(prompt) {
           <button>Book an appointment</button>
           <button class="ghost">Call the clinic</button>
         </div>
-        <p class="fine">Tip: say “change headline: …” or “add faq” to customize.</p>
+        <p class="fine">Tip: say “add testimonials and pricing” to expand this page.</p>
       </div>
 
       <div class="card" id="hours">
@@ -468,25 +458,17 @@ function landingHtml(prompt) {
           Sat: 9am–1pm<br/>
           Same-day slots available
         </div>
-        <div class="ctaRow" style="margin-top:12px">
-          <button class="ghost">Insurance info</button>
-          <button class="ghost">New patient form</button>
-        </div>
       </div>
     </div>
 
     <section class="section" id="services">
       <h2>Services</h2>
       <div class="grid2">
-        ${services
-          .map(
-            ([h, d]) => `
+        ${services.map(([h,d]) => `
           <div class="card svc">
             <h3>${esc(h)}</h3>
             <p>${esc(d)}</p>
-          </div>`
-          )
-          .join("")}
+          </div>`).join("")}
       </div>
     </section>
 
@@ -503,7 +485,7 @@ function landingHtml(prompt) {
         </div>
         <div class="card">
           <h3>Get started</h3>
-          <p class="sub">Tell me the clinic name + phone + services and I’ll personalize this page.</p>
+          <p class="sub">Tell me the clinic name + city + top 3 services and I’ll personalize this page.</p>
           <button style="margin-top:10px">Request a callback</button>
         </div>
       </div>
@@ -516,142 +498,7 @@ function landingHtml(prompt) {
 }
 
 function bookCoverHtml(prompt) {
-  const p = String(prompt || "");
-  const t = p.toLowerCase();
-
-  const isFitness =
-    t.includes("fitness") || t.includes("workout") || t.includes("coach") ||
-    t.includes("gym") || t.includes("training") || t.includes("nutrition") ||
-    t.includes("health") || t.includes("fat loss") || t.includes("strength");
-
-  const isImmigrant =
-    t.includes("immigrant") || t.includes("factory") || t.includes("migration") ||
-    t.includes("new country") || t.includes("american dream");
-
-  const isSpace =
-    t.includes("space") || t.includes("outer space") || t.includes("galaxy") ||
-    t.includes("cosmic") || t.includes("astronaut") || t.includes("stars") ||
-    t.includes("planet") || t.includes("universe") || t.includes("nebula") ||
-    t.includes("sci-fi") || t.includes("scifi") || t.includes("science fiction") ||
-    t.includes("rocket") || t.includes("orbit") || t.includes("moon") || t.includes("mars");
-
-  const titleFromPrompt = pick(p, /title\s*:\s*["“]?([^"\n”]+)["”]?/i);
-  const subtitleFromPrompt = pick(p, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
-  const authorFromPrompt = pick(p, /author\s*:\s*["“]?([^"\n”]+)["”]?/i);
-
-  let title = titleFromPrompt || "";
-  let subtitle = subtitleFromPrompt || "";
-  let author = authorFromPrompt || "Simo Studio";
-  let kicker = "Book cover concept";
-  let blurb = "Tell me the vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
-  let meta = "Concept • Custom • Clean";
-
-  if (isFitness) {
-    title = title || "The Coach’s Playbook";
-    subtitle = subtitle || "A practical manual for health & fitness";
-    kicker = "Fitness manual";
-    blurb = "A no-fluff system: training templates, habit rules, nutrition basics, and progress checkpoints — all in one place.";
-    meta = "Manual • Strength • Health";
-  } else if (isImmigrant) {
-    title = title || "New Roots";
-    subtitle = subtitle || "A factory worker’s American journey";
-    kicker = "A modern immigrant story";
-    blurb = "Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.";
-    meta = "Memoir • Contemporary • Hope";
-  } else if (isSpace) {
-    title = title || "Beyond the Stars";
-    subtitle = subtitle || "A journey through the silence of space";
-    kicker = "Space / Sci-Fi";
-    blurb = "Dark matter. Distant worlds. A mission that changes everything — where one signal can rewrite what humanity believes.";
-    meta = "Sci-Fi • Space • Adventure";
-  } else {
-    // prompt-driven default
-    const keywords = extractKeywords(t);
-    const kwTitle = keywords.length ? toTitleCase(keywords.slice(0, 2).join(" ")) : "";
-    title = title || (kwTitle || "A New Chapter");
-    subtitle = subtitle || (keywords.length ? `A story of ${keywords.slice(0, 3).join(", ")}` : "A story shaped by grit and growth");
-    kicker = "Book cover concept";
-    meta = "Concept • Custom • Clean";
-  }
-
-  const bgTop = isSpace ? "#1a2b7a" : "#1b2a5a";
-  const bgBottom = isSpace ? "#070a16" : "#0d1224";
-  const stripes = isSpace
-    ? "repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 2px, transparent 2px 14px)"
-    : "repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 10px)";
-
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Book Cover Mockup</title>
-<style>
-  :root{--bg:#0b1020;--ink:#0e1220;--cream:#f2efe8;--muted:#b9c3dd}
-  *{box-sizing:border-box}
-  body{
-    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-    background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);
-    color:#eaf0ff; display:grid; place-items:center; min-height:100vh; padding:28px;
-  }
-  .cover{
-    width:min(420px, 92vw); aspect-ratio: 2/3; border-radius:18px; overflow:hidden;
-    box-shadow:0 30px 80px rgba(0,0,0,.55);
-    position:relative; border:1px solid rgba(255,255,255,.14);
-    background:
-      radial-gradient(900px 700px at 30% 0%, rgba(255,255,255,.12), transparent 60%),
-      linear-gradient(160deg, rgba(255,255,255,.06), rgba(0,0,0,.32)),
-      ${stripes},
-      linear-gradient(180deg, ${bgTop}, ${bgBottom});
-  }
-  .stripe{
-    position:absolute; inset:22px 22px auto 22px;
-    padding:16px 14px; border-radius:14px;
-    background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.18);
-    backdrop-filter: blur(10px);
-  }
-  h1{margin:0; font-size:34px; letter-spacing:.4px; line-height:1.05}
-  h2{margin:10px 0 0; font-size:14px; color:rgba(234,240,255,.82); font-weight:600}
-  .badge{
-    position:absolute; left:22px; right:22px; bottom:74px;
-    border-radius:18px;
-    background:rgba(242,239,232,.92);
-    color:var(--ink);
-    padding:18px;
-    box-shadow:0 12px 30px rgba(0,0,0,.25);
-  }
-  .badge .k{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:#3a4460}
-  .badge .line{height:1px; background:rgba(0,0,0,.12); margin:10px 0}
-  .badge p{margin:0; color:#26304a; line-height:1.45}
-  .author{
-    position:absolute; left:22px; right:22px; bottom:22px;
-    display:flex; justify-content:space-between; align-items:center;
-    padding:12px 14px; border-radius:14px;
-    background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.18);
-    color:rgba(234,240,255,.9);
-  }
-  .author strong{letter-spacing:.12em; text-transform:uppercase; font-size:12px}
-  .meta{color:rgba(234,240,255,.65); font-size:12px}
-</style>
-</head>
-<body>
-  <div class="cover">
-    <div class="stripe">
-      <h1>${esc(title)}</h1>
-      <h2>${esc(subtitle)}</h2>
-    </div>
-    <div class="badge">
-      <div class="k">${esc(kicker)}</div>
-      <div class="line"></div>
-      <p>${esc(blurb)}</p>
-    </div>
-    <div class="author">
-      <strong>${esc(author)}</strong>
-      <div class="meta">${esc(meta)}</div>
-    </div>
-  </div>
-</body>
-</html>`;
+  return genericHtml(prompt); // keep it safe/minimal for now
 }
 
 function genericHtml(prompt) {
@@ -668,67 +515,27 @@ p{color:rgba(234,240,255,.75);line-height:1.5}
 // =====================
 function fallbackForTextIntent(mode, input) {
   const t = String(input || "").trim();
-  const low = t.toLowerCase();
 
-  // Marketing plan fallback (so it NEVER returns memoir junk again)
   if (/\b(marketing plan|10-bullet|ten-bullet)\b/i.test(t)) {
     return [
       "Here’s a clean 10-bullet marketing plan for your neighborhood child care clinic:",
-      "1) **Offer & hook:** “Same-day child care visits • friendly staff • transparent pricing.”",
-      "2) **Google Business Profile:** set up, add photos, services, hours, FAQs, and weekly posts.",
-      "3) **Local SEO page:** one page per service + one “Neighborhood” page (e.g., Child Care Clinic in [Area]).",
-      "4) **Flyers + QR code:** put them in coffee shops, daycare boards, gyms, libraries.",
-      "5) **Partnerships:** daycare centers, schools, pediatric dentists, family photographers.",
-      "6) **Intro promo:** first visit special / free consultation slot each week.",
-      "7) **Reviews system:** after each visit send a simple “Would you recommend us?” → request Google review.",
-      "8) **Social content:** 3 short posts/week: tips, staff spotlight, “what to expect” clips.",
-      "9) **Neighborhood ads:** small budget on Meta/Nextdoor targeting your zip codes.",
-      "10) **Conversion:** online booking + call button above the fold + SMS follow-up for missed calls.",
+      "1) Offer & hook: same-day child care visits, friendly staff, clear next steps.",
+      "2) Google Business Profile: photos, services, FAQs, hours, weekly posts.",
+      "3) Local SEO page: “Child Care Clinic in [Neighborhood]” + one page per service.",
+      "4) Flyers + QR code: libraries, coffee shops, gyms, daycare boards.",
+      "5) Partnerships: daycare centers, schools, pediatric dentists, family photographers.",
+      "6) Intro promo: new-patient offer + limited weekly consultation slots.",
+      "7) Review system: after each visit → ask for Google review with 1-tap link.",
+      "8) Social content: 3 posts/week (tips, staff, what-to-expect).",
+      "9) Neighborhood ads: small Meta/Nextdoor budget by zip code.",
+      "10) Conversion: booking button + call button above the fold, SMS follow-up for missed calls.",
       "",
-      "If you tell me the clinic name + city + top 3 services, I’ll tailor this to be sharper and more local."
+      "Tell me the clinic name + city + top 3 services and I’ll tailor this plan."
     ].join("\n");
   }
 
-  // Longform book writing fallback ONLY if they clearly asked for a BOOK/memoir/novel/chapter.
-  const askedBook =
-    /\b(book|memoir|novel|chapter|story)\b/i.test(t) && !/\b(book cover)\b/i.test(t);
-
-  if (askedBook) {
-    return [
-      "Alright — quick setup so I write this the way you want:",
-      "1) Memoir tone (real, grounded) or novel tone (more cinematic)?",
-      "2) Where is he from?",
-      "3) What kind of factory job (auto, food, warehouse, textile, etc.)?",
-      "",
-      "If you answer those 3, I’ll write Chapter 1."
-    ].join("\n");
-  }
-
-  if (mode === "venting") return "I’m here. What happened — and what’s the part that’s getting under your skin the most?";
-  return "Got you. What exactly do you want the outcome to be — and what constraints are you working with?";
-}
-
-// =====================
-// Helpers
-// =====================
-function extractKeywords(t) {
-  const stop = new Set(["show","me","a","an","the","book","cover","about","for","of","and","to","that","is","like","manual"]);
-  const words = String(t || "").replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter(Boolean);
-  const out = [];
-  for (const w of words) {
-    if (w.length < 3) continue;
-    if (stop.has(w)) continue;
-    if (!out.includes(w)) out.push(w);
-    if (out.length >= 6) break;
-  }
-  return out;
-}
-function toTitleCase(s) {
-  return String(s || "")
-    .split(" ")
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
+  if (mode === "venting") return "I’m here. What happened — and what’s the part that’s bothering you the most?";
+  return "Got you. What’s the outcome you want, and what’s the main constraint?";
 }
 
 // =====================
@@ -763,7 +570,32 @@ function normalizeHtml(s) {
 function esc(s) {
   return String(s || "").replace(/[&<>"']/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[m]));
 }
-function pick(s, re) {
-  const m = String(s || "").match(re);
-  return m ? m[1].trim() : "";
+function detectIntent(input) {
+  const t = String(input || "").toLowerCase();
+
+  const explicitBuild =
+    /\b(show me|build|create|design|generate|make|mockup|wireframe|preview)\b/.test(t) ||
+    /\b(landing page|website|web page|homepage|book cover|cover mockup|ui)\b/.test(t);
+
+  const marketingPlan =
+    /\b(marketing plan|10-bullet|ten-bullet|growth plan|launch plan|positioning|offer|ads|seo)\b/.test(t);
+
+  const ventSignals =
+    (/\b(i'm|im|i am)\b/.test(t) &&
+      /\b(stressed|overwhelmed|tired|anxious|sad|angry|mad|upset|burnt out|frustrated)\b/.test(t)) ||
+    /\b(fighting|argument|loop|relationship|wife|husband)\b/.test(t);
+
+  if (ventSignals) return { wantsHtml: false, mode: "venting" };
+  if (explicitBuild) return { wantsHtml: true, mode: "building" };
+  if (marketingPlan) return { wantsHtml: false, mode: "solving" };
+  return { wantsHtml: false, mode: "solving" };
+}
+function detectBuildKind(input) {
+  const t = input.toLowerCase();
+  if (t.includes("landing page") || t.includes("website") || t.includes("homepage")) return "landing";
+  return "generic";
+}
+function buildTemplate(kind, input) {
+  if (kind === "landing") return landingHtml(input);
+  return genericHtml(input);
 }
