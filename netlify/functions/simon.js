@@ -1,9 +1,10 @@
 // netlify/functions/simon.js
-// FAST + 504-proof + always-HTML builder.
-// - Always responds within ~7s (Netlify won't 504)
-// - Building returns an instant HTML template every time
-// - OpenAI is optional + time-boxed. If slow/down, you still get the template.
-// - Output contract: { ok, mode, topic, text, html }
+// Simo V2 — Intent-first (ChatGPT-like) + Stable Builder
+// Goals:
+// - Act like ChatGPT by default (text answers, best-friend, problem solving)
+// - ONLY return HTML when the user clearly asked for a build/preview/mockup/cover/page
+// - Never 504 (time-box OpenAI). Always has fast fallbacks.
+// - Output contract: { ok, mode, topic, text, html, routed_mode, intent }
 
 export default async (req) => {
   const cors = {
@@ -17,22 +18,37 @@ export default async (req) => {
     if (req.method !== "POST") return j({ ok: false, error: "Use POST" }, 405, cors);
 
     const body = await req.json().catch(() => ({}));
-    const mode = cleanMode(body.mode) || "building";
+    const requestedMode = cleanMode(body.mode) || "building"; // UI mode; we may override for routing
     const topic = clean(body.topic) || "general";
     const input = clean(body.input) || "";
 
     if (!input.trim()) {
-      return j({ ok: true, mode, topic, text: "Tell me what you want right now — venting, solving, or building.", html: "" }, 200, cors);
+      return j(
+        {
+          ok: true,
+          mode: requestedMode,
+          routed_mode: "solving",
+          topic,
+          intent: "idle",
+          text: "Tell me what you want right now — venting, solving, or building.",
+          html: "",
+        },
+        200,
+        cors
+      );
     }
 
-    const wantsBuild = mode === "building" || isBuildIntent(input);
+    // --- INTENT-FIRST ROUTING (this is the big change) ---
+    const intent = detectIntent(input);
+    const routedMode = intent.mode; // "building" | "solving" | "venting"
+    const wantsHtml = intent.wantsHtml;
 
-    // ===== BUILDING: instant template ALWAYS (never blank, never waits) =====
-    if (wantsBuild) {
-      const kind = detectKind(input);
+    // ===== BUILD PATH (HTML) =====
+    if (wantsHtml) {
+      const kind = detectBuildKind(input);
       const template = buildTemplate(kind, input);
 
-      // Optional AI upgrade (time-boxed). Never blocks preview.
+      // Optional AI HTML upgrade (time-boxed). Never blocks preview.
       const ai = await tryOpenAIQuick({
         mode: "building",
         topic,
@@ -45,42 +61,103 @@ export default async (req) => {
         const maybeHtml = extractHtml(ai.text);
         if (looksLikeHtml(maybeHtml)) {
           return j(
-            { ok: true, mode, topic, text: "Done. Preview updated.", html: normalizeHtml(maybeHtml) },
+            {
+              ok: true,
+              mode: requestedMode,
+              routed_mode: "building",
+              topic,
+              intent: "build",
+              text: "Done. Preview updated.",
+              html: normalizeHtml(maybeHtml),
+            },
             200,
             cors
           );
         }
-        // AI gave text only: keep template, use AI as chat copy
-        return j({ ok: true, mode, topic, text: ai.text.trim(), html: template }, 200, cors);
+        // AI gave text only: keep template for preview, use AI as chat copy
+        return j(
+          {
+            ok: true,
+            mode: requestedMode,
+            routed_mode: "building",
+            topic,
+            intent: "build",
+            text: ai.text.trim(),
+            html: template,
+          },
+          200,
+          cors
+        );
       }
 
-      // AI slow/down: still perfect preview via template
-      return j({ ok: true, mode, topic, text: "Done. Preview updated.", html: template }, 200, cors);
+      // AI slow/down: still perfect preview via template (no blank, no white pane)
+      return j(
+        {
+          ok: true,
+          mode: requestedMode,
+          routed_mode: "building",
+          topic,
+          intent: "build",
+          text: "Done. Preview updated.",
+          html: template,
+        },
+        200,
+        cors
+      );
     }
 
-    // ===== NON-BUILD: best friend / solving (time-boxed so no 504) =====
+    // ===== TEXT PATH (ChatGPT-like) =====
+    // When user asks to "write a book" or general questions, we do NOT force HTML.
+    // We time-box OpenAI; if it's slow, we return a helpful fallback response.
+
     const ai = await tryOpenAIQuick({
-      mode,
+      mode: routedMode,
       topic,
       input,
       timeoutMs: 6500,
-      maxTokens: 550,
+      maxTokens: routedMode === "venting" ? 420 : 650,
     });
 
-    if (ai.ok && ai.text) return j({ ok: true, mode, topic, text: ai.text.trim(), html: "" }, 200, cors);
+    if (ai.ok && ai.text) {
+      return j(
+        {
+          ok: true,
+          mode: requestedMode,
+          routed_mode: routedMode,
+          topic,
+          intent: routedMode === "venting" ? "vent" : "text",
+          text: ai.text.trim(),
+          html: "",
+        },
+        200,
+        cors
+      );
+    }
 
-    // Fallback if OpenAI slow/down
-    const fallback =
-      mode === "venting"
-        ? "I’m here. Say it straight — what happened?"
-        : "Got you. What’s the goal, and what’s blocking you right now?";
-    return j({ ok: true, mode, topic, text: fallback, html: "" }, 200, cors);
+    // ---- Fallbacks (fast, no 504) ----
+    // (Still "ChatGPT-like": helpful, not just "try again")
+    const fallbackText = fallbackForIntent(routedMode, input);
+    return j(
+      {
+        ok: true,
+        mode: requestedMode,
+        routed_mode: routedMode,
+        topic,
+        intent: routedMode === "venting" ? "vent" : "text",
+        text: fallbackText,
+        html: "",
+      },
+      200,
+      cors
+    );
   } catch (e) {
     return j({ ok: false, error: e?.message || String(e) }, 500, cors);
   }
 };
 
-// ---------- OpenAI (time-boxed) ----------
+// =====================
+// OpenAI (time-boxed)
+// =====================
 async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return { ok: false, error: "missing_key" };
@@ -92,11 +169,10 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
   try {
     const sys = systemPrompt(mode, topic);
 
-    // IMPORTANT: v1/responses uses "input" as a string or structured content.
     const payload = {
       model,
       input: `${sys}\n\nUSER:\n${input}\n`,
-      temperature: mode === "building" ? 0.35 : 0.7,
+      temperature: mode === "building" ? 0.35 : mode === "venting" ? 0.8 : 0.65,
       max_output_tokens: maxTokens,
     };
 
@@ -122,35 +198,87 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
 function systemPrompt(mode, topic) {
   if (mode === "building") {
     return `
-You are Simo, a product-grade builder.
-When building, you may output HTML.
+You are Simo, a product-grade builder who outputs usable results.
 If you output HTML: it MUST be a full document starting with <!doctype html>.
 No markdown fences unless the entire output is HTML.
-Style: clean, modern, dark-friendly, polished.
+Make it clean, modern, dark-friendly, and realistic for a real customer.
 Topic: ${topic}
 `.trim();
   }
+
   if (mode === "venting") {
     return `
 You are Simo, the user's private best friend.
-Be direct and real. No therapy clichés. One question max.
+Be real and grounded. Avoid therapy clichés. No lectures.
+Validate briefly, reflect the core emotion, then ask ONE good question.
+Keep it human and direct.
 Topic: ${topic}
 `.trim();
   }
+
+  // solving
   return `
 You are Simo, practical problem-solver.
-Give a short plan with numbered steps.
+Give a tight plan with clear steps and specifics.
+If they need instructions, be step-by-step.
 Topic: ${topic}
 `.trim();
 }
 
-// ---------- Templates (instant = never fails) ----------
-function detectKind(input) {
+// =====================
+// Intent detection
+// =====================
+function detectIntent(input) {
+  const t = String(input || "").toLowerCase();
+
+  // Explicit build triggers (HTML)
+  const explicitBuild =
+    /\b(build|create|design|generate|make|mockup|wireframe)\b/.test(t) ||
+    /\b(show me)\b/.test(t) ||
+    /\b(preview|landing page|website|web page|homepage|book cover|cover mockup|ui)\b/.test(t);
+
+  // If they explicitly ask for writing longform, DO NOT force HTML
+  const explicitWriting =
+    /\b(write|draft|outline|chapter|novel|storybook|memoir|script|essay)\b/.test(t) &&
+    !/\b(book cover|cover)\b/.test(t); // "book cover" stays build
+
+  // Venting signals
+  const ventSignals =
+    /\b(i'm|im|i am)\b/.test(t) &&
+    /\b(stressed|overwhelmed|tired|anxious|sad|angry|mad|upset|depressed|burnt out|frustrated)\b/.test(t);
+
+  const argumentSignals =
+    /\b(fighting|argument|she said|he said|we keep|loop|relationship|wife|husband)\b/.test(t);
+
+  // Solving signals
+  const solveSignals =
+    /\b(how do i|how to|help me|steps|plan|fix|debug|why is|what should i do)\b/.test(t);
+
+  // Decide
+  if (explicitWriting) {
+    return { wantsHtml: false, mode: solveSignals ? "solving" : "solving" }; // writing is a "text answer"
+  }
+  if (ventSignals || argumentSignals) {
+    return { wantsHtml: false, mode: "venting" };
+  }
+  if (explicitBuild) {
+    return { wantsHtml: true, mode: "building" };
+  }
+  if (solveSignals) {
+    return { wantsHtml: false, mode: "solving" };
+  }
+
+  // Default: ChatGPT-like helpful text
+  return { wantsHtml: false, mode: "solving" };
+}
+
+// =====================
+// Build templates (instant, never fails)
+// =====================
+function detectBuildKind(input) {
   const t = input.toLowerCase();
   if (t.includes("book cover")) return "book_cover";
-  if (t.includes("landing page")) return "landing";
-  if (t.includes("dashboard")) return "dashboard";
-  if (t.includes("app")) return "app";
+  if (t.includes("landing page") || t.includes("website") || t.includes("homepage")) return "landing";
   return "generic";
 }
 
@@ -164,7 +292,6 @@ function bookCoverHtml(prompt) {
   const p = String(prompt || "");
   const t = p.toLowerCase();
 
-  // Detect category
   const isFitness =
     t.includes("fitness") || t.includes("workout") || t.includes("coach") ||
     t.includes("gym") || t.includes("training") || t.includes("nutrition") ||
@@ -181,16 +308,13 @@ function bookCoverHtml(prompt) {
     t.includes("sci-fi") || t.includes("scifi") || t.includes("science fiction") ||
     t.includes("rocket") || t.includes("orbit") || t.includes("moon") || t.includes("mars");
 
-  // Pull explicit title/subtitle/author if user provided them
   const titleFromPrompt = pick(p, /title\s*:\s*["“]?([^"\n”]+)["”]?/i);
   const subtitleFromPrompt = pick(p, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
   const authorFromPrompt = pick(p, /author\s*:\s*["“]?([^"\n”]+)["”]?/i);
 
-  // Keyword fallback from prompt (so it never feels unrelated)
   const keywords = extractKeywords(t);
   const kwTitle = keywords.length ? toTitleCase(keywords.slice(0, 2).join(" ")) : "";
 
-  // Defaults
   let title = titleFromPrompt || "";
   let subtitle = subtitleFromPrompt || "";
   let author = authorFromPrompt || "Simo Studio";
@@ -222,7 +346,6 @@ function bookCoverHtml(prompt) {
       "Dark matter. Distant worlds. A mission that changes everything — where one signal can rewrite what humanity believes.";
     meta = "Sci-Fi • Space • Adventure";
   } else {
-    // Generic but prompt-driven so it never feels random
     title = title || (kwTitle ? kwTitle : "A New Chapter");
     subtitle = subtitle || (keywords.length ? `A story of ${keywords.slice(0, 3).join(", ")}` : "A story shaped by grit and growth");
     kicker = keywords.length ? ("About " + keywords.slice(0, 3).join(" • ")) : "Book cover concept";
@@ -231,7 +354,6 @@ function bookCoverHtml(prompt) {
     meta = "Concept • Custom • Clean";
   }
 
-  // Subtle space styling switch
   const bgTop = isSpace ? "#1a2b7a" : "#1b2a5a";
   const bgBottom = isSpace ? "#070a16" : "#0d1224";
   const stripes = isSpace
@@ -330,7 +452,7 @@ function bookCoverHtml(prompt) {
 
     <div class="right">
       <h3>Quick edits</h3>
-      <p>Say: <b>title:</b> …  <b>subtitle:</b> …  <b>author:</b> …  or “more minimal / more gritty / more bold”.</p>
+      <p>Say: <b>title:</b> … <b>subtitle:</b> … <b>author:</b> … or “more minimal / more gritty / more bold”.</p>
     </div>
   </div>
 </body>
@@ -338,6 +460,7 @@ function bookCoverHtml(prompt) {
 }
 
 function landingHtml(prompt) {
+  // Still simple + stable. OpenAI can replace with full real landing page when available.
   return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>Landing</title><style>
 body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
@@ -351,10 +474,50 @@ function genericHtml(prompt) {
 <title>Simo Build</title><style>
 body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
 .card{max-width:900px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
-</style></head><body><div class="card"><h1>Simo Build</h1><div>${esc(prompt)}</div></div></body></html>`;
+p{color:rgba(234,240,255,.75);line-height:1.5}
+</style></head><body><div class="card"><h1>Simo Build</h1><p>${esc(prompt)}</p></div></body></html>`;
 }
 
-// --- keyword helpers (used by bookCoverHtml) ---
+// =====================
+// Fast fallback text
+// =====================
+function fallbackForIntent(mode, input) {
+  const t = String(input || "").trim();
+
+  // If they asked to "write a book", give a real structured start (ChatGPT-like).
+  if (/\b(write|draft|outline|chapter|novel|memoir|book)\b/i.test(t) && !/\b(book cover)\b/i.test(t)) {
+    return [
+      "Alright. Here’s a strong start — tell me if you want this as a memoir tone or a novel tone:",
+      "",
+      "**Working title ideas**",
+      "1) New Roots",
+      "2) Shift by Shift",
+      "3) The Quiet Dream",
+      "",
+      "**Book structure (tight + readable)**",
+      "1) Arrival: why he left, what he hoped for",
+      "2) First job: learning the factory rhythm",
+      "3) Pride: sending money home, small wins",
+      "4) Setbacks: injuries, loneliness, doubt",
+      "5) Turning point: skill-up, promotion, side hustle",
+      "6) Home: building a life, gratitude without being naïve",
+      "",
+      "**Opening scene (first page)**",
+      "He learns the sound of the factory before he learns the names. The belts hum like a distant storm, steady enough to forget—until the whistle snaps the air and reminds him that time here is bought in minutes and muscle. He tightens his gloves, checks the badge clipped to his chest, and tells himself the same thing he told himself at the airport: *one shift at a time.*",
+      "",
+      "Say: **memoir** or **novel**, and what country he’s from — and I’ll write Chapter 1."
+    ].join("\n");
+  }
+
+  if (mode === "venting") {
+    return "I’m here. Say it straight — what set you off today?";
+  }
+  return "Got you. What’s the outcome you want, and what’s the one thing stopping it right now?";
+}
+
+// =====================
+// Keyword helpers
+// =====================
 function extractKeywords(t) {
   const stop = new Set(["show","me","a","an","the","book","cover","about","for","of","and","to","that","is","like","manual"]);
   const words = String(t || "").replace(/[^a-z0-9\s-]/g, " ").split(/\s+/).filter(Boolean);
@@ -375,7 +538,9 @@ function toTitleCase(s) {
     .join(" ");
 }
 
-// ---------- Utils ----------
+// =====================
+// Utils
+// =====================
 function j(obj, status = 200, headers = {}) {
   return new Response(JSON.stringify(obj), {
     status,
@@ -388,17 +553,6 @@ function clean(x) {
 function cleanMode(m) {
   const s = String(m || "").toLowerCase().trim();
   return ["venting", "solving", "building"].includes(s) ? s : "";
-}
-function isBuildIntent(input) {
-  const t = String(input || "").toLowerCase();
-  return (
-    t.includes("build ") ||
-    t.includes("preview") ||
-    t.includes("html") ||
-    t.includes("book cover") ||
-    t.includes("mockup") ||
-    t.includes("landing page")
-  );
 }
 function extractHtml(text) {
   const t = String(text || "").trim();
