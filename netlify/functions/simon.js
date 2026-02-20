@@ -170,21 +170,30 @@ function bookCoverHtml(prompt){
     t.includes("immigrant") || t.includes("factory") || t.includes("migration") ||
     t.includes("new country") || t.includes("american dream");
 
+  const isSpace =
+    t.includes("space") || t.includes("outer space") || t.includes("galaxy") ||
+    t.includes("cosmic") || t.includes("astronaut") || t.includes("stars") ||
+    t.includes("planet") || t.includes("universe") || t.includes("nebula") ||
+    t.includes("sci-fi") || t.includes("scifi") || t.includes("science fiction") ||
+    t.includes("rocket") || t.includes("orbit") || t.includes("moon") || t.includes("mars");
+
   // Pull explicit title/subtitle/author if user provided them
   const titleFromPrompt = pick(p, /title\s*:\s*["“]?([^"\n”]+)["”]?/i);
   const subtitleFromPrompt = pick(p, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
   const authorFromPrompt = pick(p, /author\s*:\s*["“]?([^"\n”]+)["”]?/i);
 
-  // Smart defaults based on what user asked
-  let title = titleFromPrompt;
-  let subtitle = subtitleFromPrompt;
+  // Keyword fallback from prompt (so it never feels unrelated)
+  const keywords = extractKeywords(t);
+  const kwTitle = keywords.length ? toTitleCase(keywords.slice(0, 2).join(" ")) : "";
+
+  // Defaults
+  let title = titleFromPrompt || "";
+  let subtitle = subtitleFromPrompt || "";
   let author = authorFromPrompt || "Simo Studio";
-
-  let kicker = "A modern guide";
+  let kicker = "Book cover concept";
   let blurb =
-    "Clear steps. Simple routines. Real results — built for busy people who want a plan that actually sticks.";
-
-  let meta = "Guide • Training • Nutrition";
+    "Tell me the vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
+  let meta = "Concept • Modern • Clean";
 
   if (isFitness){
     title = title || "The Coach’s Playbook";
@@ -201,15 +210,146 @@ function bookCoverHtml(prompt){
       "Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.";
     meta = "Memoir • Contemporary • Hope";
     author = authorFromPrompt || "Simon Gojcaj";
-  } else {
-    // Generic cover: use the prompt as inspiration without hardcoding a topic
-    title = title || "A New Chapter";
-    subtitle = subtitle || "A story shaped by grit and growth";
-    kicker = "Book cover concept";
+  } else if (isSpace){
+    title = title || "Beyond the Stars";
+    subtitle = subtitle || "A journey through the silence of space";
+    kicker = "Space / Sci-Fi";
     blurb =
-      "Tell me the exact vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
-    meta = "Concept • Modern • Clean";
+      "Dark matter. Distant worlds. A mission that changes everything — where one signal can rewrite what humanity believes.";
+    meta = "Sci-Fi • Space • Adventure";
+    // Optional: slightly more “space” feel in the cover
+  } else {
+    // Generic but prompt-driven so it never feels random
+    title = title || (kwTitle ? kwTitle : "A New Chapter");
+    subtitle = subtitle || (keywords.length ? `A story of ${keywords.slice(0,3).join(", ")}` : "A story shaped by grit and growth");
+    kicker = keywords.length ? ("About " + keywords.slice(0,3).join(" • ")) : "Book cover concept";
+    blurb =
+      "Give me: genre + vibe + 3 keywords and I’ll lock the title/subtitle and redesign the cover to match.";
+    meta = "Concept • Custom • Clean";
   }
+
+  // Subtle space styling switch
+  const bgTop = isSpace ? "#1a2b7a" : "#1b2a5a";
+  const bgBottom = isSpace ? "#070a16" : "#0d1224";
+  const stripes = isSpace
+    ? "repeating-linear-gradient(90deg, rgba(255,255,255,.035) 0 2px, transparent 2px 14px)"
+    : "repeating-linear-gradient(90deg, rgba(255,255,255,.05) 0 2px, transparent 2px 10px)";
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Book Cover Mockup</title>
+<style>
+  :root{--bg:#0b1020;--ink:#0e1220;--cream:#f2efe8;--muted:#b9c3dd}
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);
+    color:#eaf0ff; display:grid; place-items:center; min-height:100vh; padding:28px;
+  }
+  .stage{display:grid; gap:18px; max-width:980px; width:100%; grid-template-columns: 420px 1fr;}
+  .cover{
+    width:420px; aspect-ratio: 2/3; border-radius:18px; overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.55);
+    position:relative; border:1px solid rgba(255,255,255,.14);
+    background:
+      radial-gradient(900px 700px at 30% 0%, rgba(255,255,255,.12), transparent 60%),
+      linear-gradient(160deg, rgba(255,255,255,.06), rgba(0,0,0,.32)),
+      ${stripes},
+      linear-gradient(180deg, ${bgTop}, ${bgBottom});
+  }
+  .stripe{
+    position:absolute; inset:22px 22px auto 22px;
+    padding:16px 14px; border-radius:14px;
+    background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.18);
+    backdrop-filter: blur(10px);
+  }
+  h1{margin:0; font-size:34px; letter-spacing:.4px; line-height:1.05}
+  h2{margin:10px 0 0; font-size:14px; color:rgba(234,240,255,.82); font-weight:600}
+  .art{position:absolute; inset:0; display:grid; place-items:center; padding-top:105px;}
+  .badge{
+    width:76%; border-radius:18px;
+    background:rgba(242,239,232,.92);
+    color:var(--ink);
+    padding:18px;
+    box-shadow:0 12px 30px rgba(0,0,0,.25);
+  }
+  .badge .k{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:#3a4460}
+  .badge .line{height:1px; background:rgba(0,0,0,.12); margin:10px 0}
+  .badge p{margin:0; color:#26304a; line-height:1.45}
+  .author{
+    position:absolute; left:22px; right:22px; bottom:22px;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 14px; border-radius:14px;
+    background:rgba(0,0,0,.35); border:1px solid rgba(255,255,255,.18);
+    color:rgba(234,240,255,.9);
+  }
+  .author strong{letter-spacing:.12em; text-transform:uppercase; font-size:12px}
+  .meta{color:rgba(234,240,255,.65); font-size:12px}
+  .right{
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;
+    background:rgba(255,255,255,.06);
+    padding:18px;
+    box-shadow:0 18px 44px rgba(0,0,0,.35);
+  }
+  .right h3{margin:0 0 8px}
+  .right p{margin:0;color:var(--muted);line-height:1.5}
+  @media (max-width: 980px){
+    .stage{grid-template-columns:1fr}
+    .cover{width:min(420px, 100%)}
+  }
+</style>
+</head>
+<body>
+  <div class="stage">
+    <div class="cover">
+      <div class="stripe">
+        <h1>${esc(title)}</h1>
+        <h2>${esc(subtitle)}</h2>
+      </div>
+
+      <div class="art">
+        <div class="badge">
+          <div class="k">${esc(kicker)}</div>
+          <div class="line"></div>
+          <p>${esc(blurb)}</p>
+        </div>
+      </div>
+
+      <div class="author">
+        <strong>${esc(author)}</strong>
+        <div class="meta">${esc(meta)}</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <h3>Quick edits</h3>
+      <p>Say: <b>title:</b> …  <b>subtitle:</b> …  <b>author:</b> …  or “more minimal / more gritty / more bold”.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// --- helpers for keyword fallback ---
+function extractKeywords(t){
+  const stop = new Set(["show","me","a","an","the","book","cover","about","for","of","and","to","that","is","like","manual"]);
+  const words = t.replace(/[^a-z0-9\s-]/g," ").split(/\s+/).filter(Boolean);
+  const out = [];
+  for (const w of words){
+    if (w.length < 3) continue;
+    if (stop.has(w)) continue;
+    if (!out.includes(w)) out.push(w);
+    if (out.length >= 6) break;
+  }
+  return out;
+}
+function toTitleCase(s){
+  return s.split(" ").map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
 
   return `<!doctype html>
 <html lang="en">
