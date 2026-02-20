@@ -8,20 +8,40 @@ const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || "https://api.openai.com/v1";
 const ALLOW_ORIGIN = process.env.ALLOW_ORIGIN || "*";
 
-function json(statusCode, obj, extraHeaders = {}) {
-  return {
-    statusCode,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": ALLOW_ORIGIN,
-      "access-control-allow-methods": "GET,POST,OPTIONS",
-      "access-control-allow-headers": "content-type,authorization",
-      "cache-control": "no-store",
-      ...extraHeaders,
-    },
-    body: JSON.stringify(obj),
-  };
+// after you get assistant output:
+const assistantText = outputText || ""; // rename to your variable
+let html = "";
+
+// 1) If your model already returns a field for html, prefer it
+if (typeof modelHtml === "string" && modelHtml.trim()) {
+  html = modelHtml.trim();
 }
+
+// 2) Otherwise, extract from ```html fenced block
+if (!html) {
+  html = extractHtmlFromAssistantText(assistantText);
+}
+
+// 3) If it’s a “preview/build” intent and we STILL have no html,
+// stop lying in the message and be explicit:
+const wantsPreview =
+  /show me (a )?preview|preview\b/i.test(userText || "") ||
+  /landing page|website|page|build/i.test(userText || "");
+
+let safeText = assistantText;
+
+// If you were saying "Done. I updated the preview..." but html is empty, fix the message:
+if (wantsPreview && !html) {
+  safeText =
+    "I didn’t generate HTML yet, so I can’t render a preview. Try: “build a landing page for X” and I’ll return HTML.";
+}
+
+// ✅ Return BOTH text + html (even if html is "")
+return json(200, {
+  ok: true,
+  text: safeText,
+  html
+});
 
 function safeParseJSON(str) {
   try { return JSON.parse(str); } catch { return null; }
