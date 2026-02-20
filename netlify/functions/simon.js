@@ -157,9 +157,59 @@ function buildTemplate(kind, input){
 }
 
 function bookCoverHtml(prompt){
-  const title = pick(prompt, /title\s*:\s*["“]?([^"\n”]+)["”]?/i) || "New Roots";
-  const subtitle = pick(prompt, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i) || "A factory worker’s American journey";
-  const author = pick(prompt, /author\s*:\s*["“]?([^"\n”]+)["”]?/i) || "Simon Gojcaj";
+  const p = String(prompt || "");
+  const t = p.toLowerCase();
+
+  // Detect category
+  const isFitness =
+    t.includes("fitness") || t.includes("workout") || t.includes("coach") ||
+    t.includes("gym") || t.includes("training") || t.includes("nutrition") ||
+    t.includes("health") || t.includes("fat loss") || t.includes("strength");
+
+  const isImmigrant =
+    t.includes("immigrant") || t.includes("factory") || t.includes("migration") ||
+    t.includes("new country") || t.includes("american dream");
+
+  // Pull explicit title/subtitle/author if user provided them
+  const titleFromPrompt = pick(p, /title\s*:\s*["“]?([^"\n”]+)["”]?/i);
+  const subtitleFromPrompt = pick(p, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
+  const authorFromPrompt = pick(p, /author\s*:\s*["“]?([^"\n”]+)["”]?/i);
+
+  // Smart defaults based on what user asked
+  let title = titleFromPrompt;
+  let subtitle = subtitleFromPrompt;
+  let author = authorFromPrompt || "Simo Studio";
+
+  let kicker = "A modern guide";
+  let blurb =
+    "Clear steps. Simple routines. Real results — built for busy people who want a plan that actually sticks.";
+
+  let meta = "Guide • Training • Nutrition";
+
+  if (isFitness){
+    title = title || "The Coach’s Playbook";
+    subtitle = subtitle || "A practical manual for health & fitness";
+    kicker = "Fitness manual";
+    blurb =
+      "A no-fluff system: training templates, habit rules, nutrition basics, and progress checkpoints — all in one place.";
+    meta = "Manual • Strength • Health";
+  } else if (isImmigrant){
+    title = title || "New Roots";
+    subtitle = subtitle || "A factory worker’s American journey";
+    kicker = "A modern immigrant story";
+    blurb =
+      "Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.";
+    meta = "Memoir • Contemporary • Hope";
+    author = authorFromPrompt || "Simon Gojcaj";
+  } else {
+    // Generic cover: use the prompt as inspiration without hardcoding a topic
+    title = title || "A New Chapter";
+    subtitle = subtitle || "A story shaped by grit and growth";
+    kicker = "Book cover concept";
+    blurb =
+      "Tell me the exact vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
+    meta = "Concept • Modern • Clean";
+  }
 
   return `<!doctype html>
 <html lang="en">
@@ -236,21 +286,24 @@ function bookCoverHtml(prompt){
         <h1>${esc(title)}</h1>
         <h2>${esc(subtitle)}</h2>
       </div>
+
       <div class="art">
         <div class="badge">
-          <div class="k">A modern immigrant story</div>
+          <div class="k">${esc(kicker)}</div>
           <div class="line"></div>
-          <p>Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.</p>
+          <p>${esc(blurb)}</p>
         </div>
       </div>
+
       <div class="author">
         <strong>${esc(author)}</strong>
-        <div class="meta">Memoir • Contemporary • Hope</div>
+        <div class="meta">${esc(meta)}</div>
       </div>
     </div>
+
     <div class="right">
-      <h3>Cover ready</h3>
-      <p>Say: “title: …”, “subtitle: …”, “author: …”, or “make it more gritty / more hopeful / more minimal” and I’ll update it.</p>
+      <h3>Quick edits</h3>
+      <p>Say: <b>title:</b> …  <b>subtitle:</b> …  <b>author:</b> …  or “more minimal / more gritty / more bold”.</p>
     </div>
   </div>
 </body>
