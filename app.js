@@ -1,7 +1,7 @@
-/* app.js — Simo UI controller (V1.2.1)
+/* app.js — Simo UI controller (V1.2.2)
    Fixes:
-   - Textbox height stable (CSS in index.html)
-   - Empty preview no longer shows white iframe sheet (iframe hidden until HTML)
+   - Preview "Updated" only when real HTML exists (no fake-updated state)
+   - Empty preview stays dark (iframe bg set in CSS; overlay shows)
 */
 
 (() => {
@@ -129,18 +129,24 @@
     return m ? m[1].trim() : "";
   }
 
+  function looksLikeHtml(html) {
+    const h = (html || "").trim();
+    if (h.length < 200) return false;                 // prevent tiny/empty srcdoc
+    const low = h.toLowerCase();
+    return low.includes("<!doctype") || low.includes("<html");
+  }
+
   function renderPreview(html) {
-    if (!html || !html.trim()) {
+    if (!looksLikeHtml(html)) {
       iframe.srcdoc = "";
-      iframe.classList.remove("show");       // ✅ hide iframe when empty
       previewEmpty.classList.remove("hidden");
       previewMeta.textContent = "No preview yet";
-      return;
+      return false;
     }
     iframe.srcdoc = html;
-    iframe.classList.add("show");            // ✅ show only when real HTML
     previewEmpty.classList.add("hidden");
     previewMeta.textContent = "Updated";
+    return true;
   }
 
   function download(filename, content, mime="text/html") {
@@ -186,8 +192,8 @@
     localStorage.setItem(LS_LASTHTML, state.lastHtml);
     setTopic(item.topic || "none");
     setDraftLabel(item.title || "saved");
-    renderPreview(state.lastHtml);
-    addMsg("ai", `Loaded: ${item.title}`);
+    const ok = renderPreview(state.lastHtml);
+    addMsg("ai", ok ? `Loaded: ${item.title}` : "That library item has no valid HTML to render.");
   }
 
   async function callSimo(userText) {
@@ -197,6 +203,7 @@
       topic: state.topic,
       last_html: state.lastHtml || "",
       pro: state.pro,
+      want_html: true
     };
 
     const res = await fetch("/.netlify/functions/simon", {
@@ -244,26 +251,30 @@
         (typeof data.preview_html === "string" && data.preview_html.trim()) ||
         extractHtmlFromText(replyText);
 
-      if (htmlCandidate) {
+      const rendered = renderPreview(htmlCandidate);
+
+      if (rendered) {
         state.lastHtml = htmlCandidate;
         localStorage.setItem(LS_LASTHTML, state.lastHtml);
         setDraftLabel("updated");
-        renderPreview(state.lastHtml);
-      }
-
-      const askedPreview = /show me (a )?preview|preview\b/i.test(text);
-      if (askedPreview && !state.lastHtml) {
-        addMsg("ai", "I didn’t receive any HTML to render. That means the backend didn’t send HTML back yet.");
+      } else {
+        // strict truth: if user asked for preview/build and we have no HTML, say it
+        if (/build|landing page|website|show me a preview|preview\b/i.test(text)) {
+          addMsg("ai", "I didn’t receive valid HTML to render. (Backend returned text but no usable HTML.)");
+        }
+        // do NOT claim updated
       }
     } catch {
       addMsg("ai", "Network error talking to backend.");
+      // keep preview truthful
+      previewMeta.textContent = state.lastHtml ? "Updated" : "No preview yet";
     } finally {
       setBusy(false);
     }
   }
 
+  // Handlers
   sendBtn.addEventListener("click", onSend);
-
   inputEl.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
@@ -321,17 +332,18 @@
   });
 
   previewBtn.addEventListener("click", () => {
-    if (state.lastHtml) {
+    if (state.lastHtml && looksLikeHtml(state.lastHtml)) {
       renderPreview(state.lastHtml);
       addMsg("ai", "Preview updated on the right.");
     } else {
+      renderPreview("");
       addMsg("ai", "No HTML cached yet. Ask for a build first (example: “build a landing page for a fitness coach”).");
     }
   });
 
   downloadBtn.addEventListener("click", () => {
-    if (!state.lastHtml) {
-      addMsg("ai", "Nothing to download yet. Build something first.");
+    if (!state.lastHtml || !looksLikeHtml(state.lastHtml)) {
+      addMsg("ai", "Nothing valid to download yet. Build something first.");
       return;
     }
     download("simo-build.html", state.lastHtml, "text/html");
@@ -343,8 +355,8 @@
       addMsg("ai", "Save is a Pro feature. Tap “Unlock Pro”.");
       return;
     }
-    if (!state.lastHtml) {
-      addMsg("ai", "Nothing to save yet. Build something first.");
+    if (!state.lastHtml || !looksLikeHtml(state.lastHtml)) {
+      addMsg("ai", "Nothing valid to save yet. Build something first.");
       return;
     }
     const title = prompt("Name this save:", `Build — ${state.topic}`);
@@ -360,6 +372,7 @@
 
   libraryBtn.addEventListener("click", showLibraryPicker);
 
+  // Init
   (function init() {
     setMode(localStorage.getItem(LS_MODE) || "building");
     setPro(localStorage.getItem(LS_PRO) === "1");
@@ -367,7 +380,7 @@
     setDraftLabel("none");
 
     const cached = localStorage.getItem(LS_LASTHTML) || "";
-    if (cached.trim()) {
+    if (looksLikeHtml(cached)) {
       state.lastHtml = cached;
       renderPreview(state.lastHtml);
       setDraftLabel("cached");
