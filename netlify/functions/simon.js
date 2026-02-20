@@ -1,201 +1,278 @@
 // netlify/functions/simon.js
-// Simo backend (V1.2) — returns { ok, text, html }
-// - Uses OpenAI Responses API
-// - Always includes html when building
-// - CORS enabled
+// Simo backend — Hardened JSON output (V1.0 hardening)
+// Goal: reliability + consistent shape: { ok, text, html, mode, intent }
+// - Always returns HTTP 200 (prevents frontend "Something went wrong.")
+// - Detects build intent and requests HTML when needed.
+// - Robustly parses model output (JSON / codefences / raw html).
+//
+// Env required:
+// - OPENAI_API_KEY
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+const OPENAI_URL = "https://api.openai.com/v1/responses";
+const MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini"; // safe default; set OPENAI_MODEL if you want
 
-function json(statusCode, obj) {
+function json(statusCode, bodyObj) {
   return {
     statusCode,
     headers: {
-      "content-type": "application/json",
+      "content-type": "application/json; charset=utf-8",
       "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type, authorization",
       "access-control-allow-methods": "POST, OPTIONS",
-      "access-control-allow-headers": "content-type",
       "cache-control": "no-store",
     },
-    body: JSON.stringify(obj),
+    body: JSON.stringify(bodyObj),
   };
 }
 
-function extractOutputText(respJson) {
-  // Responses API typically returns output array with message content blocks of type "output_text". :contentReference[oaicite:1]{index=1}
-  const out = respJson && respJson.output;
-  if (!Array.isArray(out)) return "";
-  let text = "";
-  for (const item of out) {
-    if (item && item.type === "message" && Array.isArray(item.content)) {
-      for (const c of item.content) {
-        if (c && c.type === "output_text" && typeof c.text === "string") text += c.text;
-      }
-    }
-  }
-  return text.trim();
+function ok(bodyObj) {
+  // Always 200 to avoid frontend falling into res.ok false
+  return json(200, bodyObj);
 }
 
-function extractHtmlFromText(t = "") {
-  const m = t.match(/```html\s*([\s\S]*?)```/i);
-  return m ? m[1].trim() : "";
+function isBuildIntent(message = "") {
+  const m = message.toLowerCase();
+  return (
+    /build|make|create|generate|design/.test(m) &&
+    /(landing page|website|homepage|site|portfolio|app|dashboard|pricing page|sales page)/.test(m)
+  ) || /show me a preview|preview\b/.test(m);
 }
 
-function wantsBuild(message = "", mode = "building") {
-  const t = message.toLowerCase();
-  if (mode === "building") return true;
-  return /build|make|create|landing page|website|homepage|app|dashboard|page\b/.test(t);
-}
-
-function wantsPreview(message = "") {
-  return /show me (a )?preview|preview\b/i.test(message || "");
-}
-
-function safeModeLabel(mode) {
-  if (mode === "venting") return "venting";
-  if (mode === "solving") return "solving";
+function normalizeMode(mode) {
+  const m = String(mode || "").toLowerCase();
+  if (m === "venting" || m === "solving" || m === "building") return m;
   return "building";
 }
 
-function buildDeveloperPrompt({ mode }) {
-  const m = safeModeLabel(mode);
+function stripCodeFences(s = "") {
+  return s.replace(/^```[a-zA-Z0-9_-]*\s*/g, "").replace(/```$/g, "").trim();
+}
+
+function extractHtmlFromText(text = "") {
+  // 1) ```html ... ```
+  const m1 = text.match(/```html\s*([\s\S]*?)```/i);
+  if (m1 && m1[1]) return m1[1].trim();
+
+  // 2) Raw HTML
+  const lower = text.toLowerCase();
+  if (lower.includes("<!doctype") || lower.includes("<html")) {
+    // try to slice from first doctype/html
+    const idx = lower.indexOf("<!doctype");
+    if (idx >= 0) return text.slice(idx).trim();
+    const idx2 = lower.indexOf("<html");
+    if (idx2 >= 0) return text.slice(idx2).trim();
+  }
+  return "";
+}
+
+function looksLikeHtml(html = "") {
+  const h = String(html || "").trim();
+  if (h.length < 200) return false;
+  const low = h.toLowerCase();
+  return low.includes("<!doctype") || low.includes("<html");
+}
+
+function tryParseJsonFromText(text = "") {
+  // If model returns JSON wrapped in fences or plain
+  const t = stripCodeFences(text);
+
+  // Find first "{" and last "}" to avoid surrounding chatter
+  const start = t.indexOf("{");
+  const end = t.lastIndexOf("}");
+  if (start >= 0 && end > start) {
+    const slice = t.slice(start, end + 1);
+    try {
+      return JSON.parse(slice);
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+function safeText(x) {
+  return typeof x === "string" ? x : "";
+}
+
+function buildSystem(mode) {
+  // Keep it simple and stable.
+  // IMPORTANT: We ask for JSON with {text, html} when building.
   return `
-You are Simo: a best-friend + builder assistant.
-Tone rules:
-- If mode is venting: respond like a real best friend (not therapy-speak). Ask 1-2 sharp questions max.
-- If mode is solving: practical steps, concise.
-- If mode is building: produce usable output.
+You are Simo.
+You must follow the user's current mode: ${mode}.
 
-CRITICAL OUTPUT RULE:
-Return a JSON object ONLY with keys:
-- "text": the chat reply (string)
-- "html": full HTML page string OR "" if not building
+Rules:
+- If intent is BUILD (website/landing/app), produce BOTH:
+  1) "text": a short confirmation + how to customize
+  2) "html": a complete single-file HTML (<!doctype html>...), responsive, modern, inline CSS only.
+- If intent is NOT BUILD, produce:
+  1) "text": helpful response
+  2) "html": "" (empty string)
 
-If building (web/landing page/app mock):
-- html MUST be a complete HTML document starting with <!doctype html>
-- include simple modern CSS inline
-- keep it responsive
-- do not include external assets
-- no markdown in html field
-
-If not building:
-- html must be "".
+Return ONLY valid JSON with keys: ok, text, html, intent.
+"ok" must be true unless you truly cannot comply.
+"intent" must be "build" or "chat".
+No markdown fences. No extra keys.
 `.trim();
 }
 
-async function callOpenAI({ developerPrompt, userText }) {
-  if (!OPENAI_API_KEY) {
-    return { ok: false, error: "Missing OPENAI_API_KEY env var." };
-  }
+function buildUserMessage(message, mode, topic, lastHtml, wantHtml) {
+  // Provide context but avoid huge payloads.
+  const clippedLast = safeText(lastHtml).slice(0, 2500);
+  return `
+User mode: ${mode}
+Topic: ${topic || "none"}
+want_html: ${wantHtml ? "true" : "false"}
 
-  const payload = {
-    model: "gpt-4.1-mini",
-    input: [
-      {
-        role: "developer",
-        content: [{ type: "input_text", text: developerPrompt }],
-      },
-      {
-        role: "user",
-        content: [{ type: "input_text", text: userText }],
-      },
-    ],
-  };
+User message:
+${message}
 
-  const r = await fetch("https://api.openai.com/v1/responses", {
+Last HTML (may be empty, for context only):
+${clippedLast ? clippedLast : "[none]"}
+`.trim();
+}
+
+async function callOpenAI({ apiKey, system, user }) {
+  const res = await fetch(OPENAI_URL, {
     method: "POST",
     headers: {
-      "authorization": `Bearer ${OPENAI_API_KEY}`,
       "content-type": "application/json",
+      "authorization": `Bearer ${apiKey}`,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      model: MODEL,
+      input: [
+        { role: "system", content: [{ type: "output_text", text: system }] },
+        { role: "user", content: [{ type: "output_text", text: user }] }
+      ],
+      // Keep it deterministic-ish for UI
+      temperature: 0.4,
+      max_output_tokens: 2200,
+    }),
   });
 
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    return { ok: false, error: "OpenAI error", details: j };
+  const data = await res.json().catch(() => ({}));
+
+  // Extract text from Responses API shape
+  // Try common shapes:
+  // - data.output[0].content[0].text
+  // - data.output_text
+  let outText = "";
+  if (Array.isArray(data.output)) {
+    for (const item of data.output) {
+      if (item && Array.isArray(item.content)) {
+        for (const c of item.content) {
+          if (c && typeof c.text === "string") outText += c.text;
+        }
+      }
+    }
   }
-  return { ok: true, data: j };
+  if (!outText && typeof data.output_text === "string") outText = data.output_text;
+  if (!outText && typeof data.text === "string") outText = data.text;
+
+  return { ok: true, outText: outText || "", raw: data };
 }
 
 exports.handler = async (event) => {
-  if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+  if (event.httpMethod === "OPTIONS") {
+    return {
+      statusCode: 204,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-headers": "content-type, authorization",
+        "access-control-allow-methods": "POST, OPTIONS",
+      },
+      body: "",
+    };
+  }
 
-  if (event.httpMethod !== "POST") {
-    return json(405, { ok: false, error: "Use POST" });
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    return ok({
+      ok: false,
+      text: "Server missing OPENAI_API_KEY.",
+      html: "",
+      mode: "building",
+      intent: "chat",
+    });
   }
 
   let body = {};
   try { body = JSON.parse(event.body || "{}"); } catch { body = {}; }
 
-  const message = (body.message || "").toString();
-  const mode = (body.mode || "building").toString();
-  const lastHtml = (body.last_html || "").toString();
+  const message = safeText(body.message || body.input || body.prompt || "");
+  const mode = normalizeMode(body.mode);
+  const topic = safeText(body.topic || "");
+  const lastHtml = safeText(body.last_html || body.lastHtml || "");
+  const wantHtml = body.want_html !== false; // default true
 
-  // If user asks preview but we already have cached html from frontend, just echo it back.
-  // This keeps preview consistent even if model doesn't rebuild.
-  if (wantsPreview(message) && lastHtml.trim()) {
-    return json(200, {
+  if (!message.trim()) {
+    return ok({
       ok: true,
-      text: "Preview updated on the right.",
-      html: lastHtml,
-    });
-  }
-
-  // Build behavior
-  const shouldBuild = wantsBuild(message, mode);
-
-  const developerPrompt = buildDeveloperPrompt({ mode });
-
-  // If user only asks preview but no cached HTML exists, request a build
-  if (wantsPreview(message) && !lastHtml.trim() && !shouldBuild) {
-    return json(200, {
-      ok: true,
-      text: "I don’t have any HTML yet. Ask me to build something first (example: “build a landing page for a fitness coach”).",
+      text: "Say what you want — venting, solving, or building.",
       html: "",
+      mode,
+      intent: "chat",
     });
   }
 
-  // Call OpenAI
-  const userText = shouldBuild
-    ? `${message}\n\n(If this request implies a website/app, include html in the JSON.)`
-    : message;
+  // Decide intent
+  const intent = isBuildIntent(message) && wantHtml ? "build" : "chat";
 
-  const resp = await callOpenAI({ developerPrompt, userText });
-  if (!resp.ok) {
-    return json(500, resp);
+  const system = buildSystem(mode);
+  const user = buildUserMessage(message, mode, topic, lastHtml, wantHtml);
+
+  try {
+    const { outText } = await callOpenAI({ apiKey, system, user });
+
+    // Parse model output as JSON first
+    const parsed = tryParseJsonFromText(outText);
+
+    let finalText = "";
+    let finalHtml = "";
+    let finalIntent = intent;
+    let finalOk = true;
+
+    if (parsed && typeof parsed === "object") {
+      finalOk = parsed.ok !== false;
+      finalText = safeText(parsed.text) || "";
+      finalHtml = safeText(parsed.html) || "";
+      finalIntent = safeText(parsed.intent) || intent;
+    } else {
+      // Fallback: treat as normal assistant text and try to extract HTML if present
+      finalText = outText || "Done.";
+      finalHtml = extractHtmlFromText(outText);
+      finalIntent = looksLikeHtml(finalHtml) ? "build" : "chat";
+    }
+
+    // Hardening: if intent was build but html is missing, keep ok true but be explicit
+    if (intent === "build" && !looksLikeHtml(finalHtml)) {
+      // Keep any useful text, but ensure we don't fake html
+      if (!finalText) finalText = "I can build that, but I didn’t generate usable HTML. Try again with: “build a landing page for …”";
+      finalHtml = "";
+      finalIntent = "build";
+    }
+
+    return ok({
+      ok: finalOk,
+      text: finalText || "Done.",
+      // return both keys for frontend compatibility
+      html: finalHtml,
+      preview_html: finalHtml,
+      message: finalText || "Done.",
+      mode,
+      intent: finalIntent,
+    });
+  } catch (e) {
+    // Never throw a 500 to the frontend (keeps UI stable)
+    return ok({
+      ok: false,
+      text: "Backend error talking to OpenAI.",
+      html: "",
+      preview_html: "",
+      message: "Backend error talking to OpenAI.",
+      mode,
+      intent,
+    });
   }
-
-  const rawText = extractOutputText(resp.data);
-
-  // Expect JSON from the model; if parse fails, fall back safely
-  let parsed = null;
-  try { parsed = JSON.parse(rawText); } catch { parsed = null; }
-
-  let textOut = "";
-  let htmlOut = "";
-
-  if (parsed && typeof parsed === "object") {
-    textOut = (parsed.text || "").toString();
-    htmlOut = (parsed.html || "").toString();
-  } else {
-    // fallback: try extracting html from fenced block, else none
-    htmlOut = extractHtmlFromText(rawText);
-    textOut = rawText || "Done.";
-  }
-
-  // Safety: if we say preview updated but no html exists, correct it.
-  if ((/updated the preview/i.test(textOut) || wantsPreview(message)) && !htmlOut.trim()) {
-    textOut = "I didn’t generate HTML yet, so I can’t render a preview. Ask for a build like: “build a landing page for a fitness coach”.";
-  }
-
-  // If building and html is still empty, also say it plainly
-  if (shouldBuild && !htmlOut.trim()) {
-    textOut = textOut || "I didn’t return HTML this time. Try again with: “build a landing page for a fitness coach.”";
-  }
-
-  return json(200, {
-    ok: true,
-    text: textOut || "Done.",
-    html: htmlOut || "",
-  });
 };
