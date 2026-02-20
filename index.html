@@ -7,13 +7,12 @@
   <meta name="color-scheme" content="dark" />
   <style>
     :root{
-      --bg:#0b1020; --panel:#0f1730; --panel2:#0c1328;
-      --text:#eaf0ff; --muted:#a9b6d3;
+      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
       --good:#39ff7a; --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
-      --radius:18px;
+      --r:18px;
     }
     *{box-sizing:border-box}
     body{
@@ -23,206 +22,133 @@
       color:var(--text);
     }
     .wrap{max-width:1180px;margin:0 auto;padding:18px}
+
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
       border:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border-radius:22px;
       padding:14px 16px;
       box-shadow:var(--shadow);
-      gap:12px;
     }
-    .brand{
-      display:flex;align-items:center;gap:10px;min-width:240px;
-    }
-    .dot{
-      width:14px;height:14px;border-radius:50%;
-      background:#2a66ff; box-shadow:0 0 0 6px rgba(42,102,255,.14);
-    }
-    .brand h1{font-size:22px;line-height:1;margin:0}
-    .brand .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .brand{display:flex;align-items:center;gap:10px;min-width:240px}
+    .dot{width:14px;height:14px;border-radius:50%;background:#2a66ff;box-shadow:0 0 0 6px rgba(42,102,255,.14)}
+    h1{margin:0;font-size:22px;line-height:1}
+    .sub{font-size:12px;color:var(--muted);margin-top:2px}
+
+    .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
     .pill{
       display:flex;align-items:center;gap:10px;
-      padding:10px 12px;
-      border-radius:999px;
+      padding:10px 12px;border-radius:999px;
       background:rgba(255,255,255,.04);
       border:1px solid var(--line);
     }
     .led{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.35)}
-    .led.on{background:var(--good); box-shadow:0 0 0 6px rgba(57,255,122,.12)}
+    .led.on{background:var(--good);box-shadow:0 0 0 6px rgba(57,255,122,.12)}
+
     .btn{
-      border:none; cursor:pointer; color:white;
-      border-radius:14px;
-      padding:10px 14px;
+      border:none;cursor:pointer;color:white;
+      border-radius:14px;padding:10px 14px;
       background:linear-gradient(180deg,var(--btn),var(--btn2));
       box-shadow:0 10px 22px rgba(31,77,214,.22);
-      font-weight:700;
+      font-weight:800;
     }
     .btn.secondary{
       background:rgba(255,255,255,.06);
       border:1px solid var(--line);
-      box-shadow:none;
-      color:var(--text);
+      box-shadow:none;color:var(--text);
     }
     .btn.danger{
       background:rgba(255,77,77,.14);
       border:1px solid rgba(255,77,77,.35);
-      color:#ffd9d9;
-      box-shadow:none;
+      box-shadow:none;color:#ffd9d9;
     }
 
-    .grid{
-      margin-top:16px;
-      display:grid;
-      grid-template-columns: 1.02fr .98fr;
-      gap:14px;
-    }
+    .grid{margin-top:16px;display:grid;grid-template-columns:1.02fr .98fr;gap:14px}
     .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
-      border-radius:var(--radius);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border-radius:var(--r);
       box-shadow:var(--shadow);
       overflow:hidden;
       min-height:610px;
     }
-    .cardHead{
+    .head{
       display:flex;align-items:center;justify-content:space-between;
       padding:14px 16px;
       border-bottom:1px solid var(--line);
       background:rgba(0,0,0,.14);
     }
-    .cardHead h2{margin:0;font-size:18px}
+    .head h2{margin:0;font-size:18px}
     .status{color:var(--muted);font-size:13px}
 
-    /* Chat area */
-    .chatBody{
-      padding:14px 14px 10px;
-      display:flex; flex-direction:column;
-      height:calc(100% - 56px);
-      gap:10px;
-    }
-    .msgs{
-      flex:1; overflow:auto; padding-right:6px;
-    }
-    .row{
-      display:flex; gap:10px; margin:10px 0;
-      align-items:flex-start;
-    }
-    .avatar{
-      width:28px; height:28px; border-radius:10px;
+    /* Chat */
+    .chatBody{height:calc(100% - 56px);display:flex;flex-direction:column;gap:10px;padding:14px}
+    .msgs{flex:1;overflow:auto;padding-right:6px}
+    .row{display:flex;gap:10px;margin:10px 0;align-items:flex-start}
+    .av{
+      width:28px;height:28px;border-radius:10px;
       border:1px solid var(--line);
-      display:flex; align-items:center; justify-content:center;
-      font-weight:800; font-size:12px; color:var(--muted);
+      display:flex;align-items:center;justify-content:center;
+      font-weight:900;font-size:12px;color:var(--muted);
       background:rgba(255,255,255,.04);
       flex:0 0 auto;
     }
     .bubble{
       max-width:85%;
-      padding:12px 12px;
-      border-radius:16px;
+      padding:12px 12px;border-radius:16px;
       border:1px solid var(--line);
       background:rgba(255,255,255,.04);
-      white-space:pre-wrap;
-      line-height:1.35;
+      white-space:pre-wrap;line-height:1.35;
     }
-    .you .bubble{
-      background:rgba(42,102,255,.16);
-      border-color:rgba(42,102,255,.35);
-    }
+    .you .bubble{background:rgba(42,102,255,.16);border-color:rgba(42,102,255,.35)}
     .sys{
-      color:var(--muted);
-      font-size:12px;
-      padding:8px 10px;
+      color:var(--muted);font-size:12px;
+      padding:8px 10px;border-radius:14px;
       border:1px dashed rgba(255,255,255,.15);
-      border-radius:14px;
-      background:rgba(0,0,0,.08);
+      background:rgba(0,0,0,.10);
     }
-    .inputRow{
-      display:grid;
-      grid-template-columns: 1fr 120px;
-      gap:10px;
-      align-items:stretch;
-    }
+    .inputRow{display:grid;grid-template-columns:1fr 120px;gap:10px}
     textarea{
-      width:100%;
-      min-height:86px;
-      resize:vertical;
-      border-radius:16px;
-      padding:12px 12px;
+      width:100%;min-height:86px;resize:vertical;
+      border-radius:16px;padding:12px 12px;
       border:1px solid var(--line);
       background:rgba(0,0,0,.22);
-      color:var(--text);
-      outline:none;
+      color:var(--text);outline:none;
     }
     textarea:focus{border-color:rgba(42,102,255,.55)}
-    .footRow{
-      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    }
+
+    .btnStrip{display:flex;gap:10px;flex-wrap:wrap}
+    .btn.small{padding:9px 12px;font-weight:900}
+    .btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--line);box-shadow:none}
+    .disabled{opacity:.45;pointer-events:none;filter:grayscale(.25)}
+
+    .foot{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
     .mini{
-      padding:8px 12px;
-      border-radius:999px;
+      padding:8px 12px;border-radius:999px;
       border:1px solid var(--line);
       background:rgba(255,255,255,.03);
-      color:var(--muted);
-      font-size:12px;
-    }
-    .btnStrip{
-      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-    }
-    .btn.small{padding:9px 12px; font-weight:800}
-    .btn.ghost{
-      background:rgba(255,255,255,.04);
-      border:1px solid var(--line);
-      box-shadow:none;
-    }
-    .disabled{
-      opacity:.45; pointer-events:none; filter:grayscale(.25);
+      color:var(--muted);font-size:12px;
     }
 
-    /* Preview */
-    .previewWrap{
-      height:calc(100% - 56px);
-      background:rgba(0,0,0,.18);
-      position:relative;
+    /* Preview (NO WHITE PANEL EVER) */
+    .previewWrap{height:calc(100% - 56px);position:relative;background:rgba(0,0,0,.18)}
+    iframe{
+      width:100%;height:100%;border:0;display:block;
+      background:transparent; /* iframe itself transparent */
     }
-    .previewFrame{
-      width:100%; height:100%;
-      border:0;
-      display:block;
-      background:#0b1020;
-    }
-    .previewEmpty{
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      padding:20px;
-      color:var(--muted);
-      text-align:center;
-      pointer-events:none;
-    }
-    .previewEmpty strong{color:var(--text)}
-    .stamp{
-      position:absolute;
-      left:12px; bottom:12px;
-      padding:6px 10px;
-      border-radius:12px;
+    .badge{
+      position:absolute;left:12px;bottom:12px;
+      padding:6px 10px;border-radius:12px;
       background:rgba(0,0,0,.35);
       border:1px solid rgba(255,255,255,.12);
-      color:var(--muted);
-      font-size:12px;
+      color:rgba(234,240,255,.75);font-size:12px;
     }
 
     /* Modal */
-    .modalBack{
-      position:fixed; inset:0;
-      background:rgba(0,0,0,.6);
-      display:none;
-      align-items:center; justify-content:center;
-      padding:18px;
-      z-index:50;
-    }
+    .back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;padding:18px;z-index:50}
     .modal{
-      width:min(520px, 100%);
+      width:min(520px,100%);
       border-radius:18px;
       background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
       border:1px solid rgba(255,255,255,.14);
@@ -230,22 +156,13 @@
       padding:16px;
     }
     .modal h3{margin:0 0 8px}
-    .modal p{margin:0 0 12px; color:var(--muted); line-height:1.35}
+    .modal p{margin:0 0 12px;color:var(--muted);line-height:1.35}
     .modal input{
-      width:100%;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.22);
-      color:var(--text);
-      outline:none;
-      margin-bottom:12px;
+      width:100%;padding:12px 12px;border-radius:14px;border:1px solid var(--line);
+      background:rgba(0,0,0,.22);color:var(--text);outline:none;margin-bottom:12px;
     }
-    .modalActions{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap}
-    .proGlow{
-      box-shadow:0 0 0 6px rgba(57,255,122,.14), 0 14px 34px rgba(0,0,0,.35) !important;
-      border-color: rgba(57,255,122,.35) !important;
-    }
+    .modalActions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+    .proGlow{box-shadow:0 0 0 6px rgba(57,255,122,.14), var(--shadow)!important;border-color:rgba(57,255,122,.35)!important}
 
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
@@ -254,468 +171,394 @@
     }
   </style>
 </head>
-
 <body>
-  <div class="wrap">
-    <div class="topbar">
-      <div class="brand">
-        <div class="dot"></div>
-        <div>
-          <h1>Simo</h1>
-          <div class="sub" id="subline">Checkpoint V1.2.2 — strict preview truth + no white pane</div>
-        </div>
-      </div>
-
-      <div class="actions">
-        <button class="btn danger" id="btnReset">Reset</button>
-
-        <div class="pill" id="modePill" title="Mode">
-          <div class="led on" id="modeLed"></div>
-          <div><strong id="modeText">Mode: building</strong></div>
-        </div>
-
-        <div class="pill" id="proPill" title="Pro status">
-          <div class="led" id="proLed"></div>
-          <div><strong id="proText">Pro: OFF</strong></div>
-        </div>
-
-        <button class="btn" id="btnUnlock">Unlock Pro</button>
+<div class="wrap">
+  <div class="topbar">
+    <div class="brand">
+      <div class="dot"></div>
+      <div>
+        <h1>Simo</h1>
+        <div class="sub">Checkpoint V1.3.0 — no white preview • no 504 • stable</div>
       </div>
     </div>
 
-    <div class="grid">
-      <!-- Chat -->
-      <div class="card">
-        <div class="cardHead">
-          <h2>Chat</h2>
-          <div class="status" id="chatStatus">Ready</div>
-        </div>
+    <div class="actions">
+      <button class="btn danger" id="btnReset">Reset</button>
 
-        <div class="chatBody">
-          <div class="msgs" id="msgs"></div>
-
-          <div class="inputRow">
-            <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
-            <button class="btn" id="btnSend">Send</button>
-          </div>
-
-          <div class="btnStrip">
-            <button class="btn small ghost" id="btnPreview">Preview</button>
-            <button class="btn small" id="btnDownload">Download</button>
-            <button class="btn small ghost disabled" id="btnSave">Save</button>
-            <button class="btn small ghost disabled" id="btnLibrary">Library</button>
-          </div>
-
-          <div class="footRow">
-            <span class="mini" id="topicChip">topic: general</span>
-            <span class="mini" id="draftChip">draft: none</span>
-            <span class="mini" id="tipChip">Tip: “build a landing page…” then “show me a preview”</span>
-          </div>
-        </div>
+      <div class="pill">
+        <div class="led on" id="modeLed"></div>
+        <div><strong id="modeText">Mode: building</strong></div>
       </div>
 
-      <!-- Preview -->
-      <div class="card">
-        <div class="cardHead">
-          <h2>Preview</h2>
-          <div class="status" id="previewStatus">—</div>
-        </div>
-        <div class="previewWrap">
-          <!-- IMPORTANT: sandbox does NOT include allow-same-origin -->
-          <iframe
-            id="previewFrame"
-            class="previewFrame"
-            sandbox="allow-scripts allow-forms allow-modals"
-            referrerpolicy="no-referrer"
-            title="Simo Preview"
-          ></iframe>
-
-          <div class="previewEmpty" id="previewEmpty">
-            <div>
-              <strong>No preview yet.</strong><br/>
-              Ask for a build (example: “build a landing page for a fitness coach”).
-            </div>
-          </div>
-
-          <div class="stamp" id="previewStamp">Strict preview truth</div>
-        </div>
+      <div class="pill" id="proPill">
+        <div class="led" id="proLed"></div>
+        <div><strong id="proText">Pro: OFF</strong></div>
       </div>
+
+      <button class="btn" id="btnUnlock">Unlock Pro</button>
     </div>
   </div>
 
-  <!-- Pro Modal -->
-  <div class="modalBack" id="modalBack">
-    <div class="modal">
-      <h3>Unlock Pro</h3>
-      <p>Enter a Pro key. Pro unlocks Save + Library.</p>
-      <input id="proKey" placeholder="Enter your key (example: SIMO-TEST-123)" />
-      <div class="modalActions">
-        <button class="btn secondary" id="btnCancel">Cancel</button>
-        <button class="btn" id="btnVerify">Verify</button>
+  <div class="grid">
+    <!-- Chat -->
+    <div class="card">
+      <div class="head">
+        <h2>Chat</h2>
+        <div class="status" id="chatStatus">Ready</div>
       </div>
-      <p class="sys" id="verifyMsg" style="margin-top:12px; display:none;"></p>
+
+      <div class="chatBody">
+        <div class="msgs" id="msgs"></div>
+
+        <div class="inputRow">
+          <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
+          <button class="btn" id="btnSend">Send</button>
+        </div>
+
+        <div class="btnStrip">
+          <button class="btn small ghost" id="btnPreview">Preview</button>
+          <button class="btn small" id="btnDownload">Download</button>
+          <button class="btn small ghost disabled" id="btnSave">Save</button>
+          <button class="btn small ghost disabled" id="btnLibrary">Library</button>
+        </div>
+
+        <div class="foot">
+          <span class="mini" id="topicChip">topic: general</span>
+          <span class="mini" id="draftChip">draft: none</span>
+          <span class="mini" id="tipChip">Tip: “build a book cover …” or “build a landing page …”</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card">
+      <div class="head">
+        <h2>Preview</h2>
+        <div class="status" id="previewStatus">Ready</div>
+      </div>
+      <div class="previewWrap">
+        <!-- IMPORTANT: NO allow-same-origin; and we NEVER set srcdoc to "" -->
+        <iframe id="previewFrame"
+          sandbox="allow-scripts allow-forms allow-modals"
+          referrerpolicy="no-referrer"
+          title="Simo Preview"
+        ></iframe>
+        <div class="badge" id="badge">Preview locked dark • last-good stays</div>
+      </div>
     </div>
   </div>
+</div>
 
-  <script>
-    // ====== CONFIG ======
-    const FN_SIMON = "/.netlify/functions/simon"; // backend
-    const FN_PRO   = "/.netlify/functions/pro";   // pro verifier
-    const LS = {
-      pro: "simo_pro",
-      key: "simo_pro_key",
-      lib: "simo_library",
-      lastHtml: "simo_last_html",
-      mode: "simo_mode",
-      topic: "simo_topic"
-    };
+<!-- Pro Modal -->
+<div class="back" id="back">
+  <div class="modal">
+    <h3>Unlock Pro</h3>
+    <p>Enter a Pro key. Pro unlocks Save + Library.</p>
+    <input id="proKey" placeholder="Enter your key (example: SIMO-TEST-123)" />
+    <div class="modalActions">
+      <button class="btn secondary" id="btnCancel">Cancel</button>
+      <button class="btn" id="btnVerify">Verify</button>
+    </div>
+    <p class="sys" id="verifyMsg" style="margin-top:12px; display:none;"></p>
+  </div>
+</div>
 
-    // ====== HELPERS ======
-    const $ = (id) => document.getElementById(id);
-    const escapeHtml = (s) => (s||"").replace(/[&<>"']/g, m => ({
-      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-    }[m]));
+<script>
+  // ===== CONFIG =====
+  const FN_SIMON = "/.netlify/functions/simon";
+  const FN_PRO   = "/.netlify/functions/pro";
+  const LS = {
+    pro:"simo_pro",
+    key:"simo_pro_key",
+    lib:"simo_library",
+    lastHtml:"simo_last_html",
+    topic:"simo_topic",
+    mode:"simo_mode"
+  };
 
-    function nowStamp(){
-      const d = new Date();
-      return d.toLocaleString([], {month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit"});
-    }
+  // ===== HELPERS =====
+  const $ = (id) => document.getElementById(id);
+  const now = () => new Date().toLocaleString([], {month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+  const looksLikeHtml = (s) => {
+    const t = String(s||"").trim();
+    return /^<!doctype html/i.test(t) || /<html[\s>]/i.test(t) || /<body[\s>]/i.test(t);
+  };
 
-    function setStatus(text){ $("chatStatus").textContent = text; }
-    function setPreviewStatus(text){ $("previewStatus").textContent = text; }
+  // This is the entire “NO WHITE PANEL” trick:
+  // The iframe ALWAYS has a dark page, even when there is no preview.
+  const DARK_BLANK = `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Preview</title><style>
+  html,body{height:100%;margin:0}
+  body{background:#0b1020;color:#a9b6d3;font-family:system-ui;display:grid;place-items:center}
+  .t{opacity:.75;text-align:center;padding:24px}
+  </style></head><body><div class="t">No preview yet.<br/>Ask Simo to build something.</div></body></html>`;
 
-    function pushMsg(who, text){
-      const row = document.createElement("div");
-      row.className = "row " + (who === "you" ? "you" : "simo");
+  function setChatStatus(t){ $("chatStatus").textContent = t; }
+  function setPreviewStatus(t){ $("previewStatus").textContent = t; }
 
-      const av = document.createElement("div");
-      av.className = "avatar";
-      av.textContent = who === "you" ? "You" : "S";
+  function pushMsg(who, text){
+    const row = document.createElement("div");
+    row.className = "row " + (who === "you" ? "you" : "simo");
+    const av = document.createElement("div");
+    av.className = "av";
+    av.textContent = who === "you" ? "You" : "S";
+    const bub = document.createElement("div");
+    bub.className = "bubble";
+    bub.textContent = text;
+    row.appendChild(av); row.appendChild(bub);
+    $("msgs").appendChild(row);
+    $("msgs").scrollTop = $("msgs").scrollHeight;
+  }
+  function pushSys(text){
+    const d = document.createElement("div");
+    d.className = "sys";
+    d.textContent = text;
+    $("msgs").appendChild(d);
+    $("msgs").scrollTop = $("msgs").scrollHeight;
+  }
 
-      const bub = document.createElement("div");
-      bub.className = "bubble";
-      bub.textContent = text;
+  function setMode(mode){
+    localStorage.setItem(LS.mode, mode);
+    $("modeText").textContent = "Mode: " + mode;
+    $("modeLed").classList.add("on");
+  }
+  function setTopic(topic){
+    localStorage.setItem(LS.topic, topic);
+    $("topicChip").textContent = "topic: " + (topic || "general");
+  }
+  function setDraft(state){ $("draftChip").textContent = "draft: " + state; }
 
-      row.appendChild(av);
-      row.appendChild(bub);
-      $("msgs").appendChild(row);
-      $("msgs").scrollTop = $("msgs").scrollHeight;
-    }
-
-    function pushSys(text){
-      const div = document.createElement("div");
-      div.className = "sys";
-      div.textContent = text;
-      $("msgs").appendChild(div);
-      $("msgs").scrollTop = $("msgs").scrollHeight;
-    }
-
-    function setMode(mode){
-      localStorage.setItem(LS.mode, mode);
-      $("modeText").textContent = "Mode: " + mode;
-      // LED on for building/solving, still on for venting (just UI)
-      $("modeLed").classList.add("on");
-    }
-
-    function setTopic(topic){
-      localStorage.setItem(LS.topic, topic);
-      $("topicChip").textContent = "topic: " + (topic || "general");
-    }
-
-    function setDraft(state){
-      $("draftChip").textContent = "draft: " + state;
-    }
-
-    // Strict preview truth: only render if it really looks like HTML
-    function looksLikeHtml(s){
-      if(!s) return false;
-      const t = String(s).trim();
-      return /^<!doctype html/i.test(t) || /<html[\s>]/i.test(t) || /<body[\s>]/i.test(t);
-    }
-
-    function setPreviewHtml(html){
-      const frame = $("previewFrame");
-      const empty = $("previewEmpty");
-
-      if(looksLikeHtml(html)){
-        frame.srcdoc = html;
-        empty.style.display = "none";
-        setPreviewStatus("Updated • " + nowStamp());
-        localStorage.setItem(LS.lastHtml, html);
-        setDraft("updated");
-      }else{
-        // Don't show white/blank page as "preview"
-        frame.srcdoc = "";
-        empty.style.display = "flex";
-        setPreviewStatus("No valid HTML");
-        setDraft("none");
-      }
-    }
-
-    function downloadHtml(html){
-      const blob = new Blob([html || ""], {type:"text/html"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = "simo_preview.html";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    // ====== PRO ======
-    function setPro(on){
-      localStorage.setItem(LS.pro, on ? "1" : "0");
-      $("proLed").classList.toggle("on", !!on);
-      $("proText").textContent = "Pro: " + (on ? "ON" : "OFF");
-      $("proPill").classList.toggle("proGlow", !!on);
-
-      $("btnSave").classList.toggle("disabled", !on);
-      $("btnLibrary").classList.toggle("disabled", !on);
-    }
-
-    async function verifyProKey(key){
-      const r = await fetch(FN_PRO, {
-        method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify({ key })
-      });
-      const j = await r.json().catch(()=> ({}));
-      return !!(j && j.ok && j.pro);
-    }
-
-    function openModal(on){
-      $("modalBack").style.display = on ? "flex" : "none";
-      $("verifyMsg").style.display = "none";
-      $("verifyMsg").textContent = "";
-      if(on) $("proKey").focus();
-    }
-
-    // ====== BACKEND CALL ======
-    async function callSimo(input){
-      const mode = localStorage.getItem(LS.mode) || "building";
-      const topic = localStorage.getItem(LS.topic) || "general";
-
-      const payload = { mode, topic, input };
-
-      const r = await fetch(FN_SIMON, {
-        method:"POST",
-        headers: {"Content-Type":"application/json"},
-        body: JSON.stringify(payload)
-      });
-
-      const text = await r.text();
-
-      // Try parse JSON; fallback to plain text
-      let data = null;
-      try { data = JSON.parse(text); } catch(e){}
-
-      // We accept multiple backend shapes without breaking
-      const reply =
-        (data && (data.text || data.reply || data.output_text)) ||
-        (typeof text === "string" ? text : "");
-
-      const html =
-        (data && (data.html || data.preview_html || data.output_html)) ||
-        "";
-
-      return { ok: r.ok, status: r.status, reply, html, raw: text };
-    }
-
-    // ====== LIBRARY ======
-    function getLibrary(){
-      try { return JSON.parse(localStorage.getItem(LS.lib) || "[]"); }
-      catch(e){ return []; }
-    }
-    function setLibrary(arr){
-      localStorage.setItem(LS.lib, JSON.stringify(arr || []));
-    }
-
-    function saveToLibrary(html){
-      const lib = getLibrary();
-      const item = {
-        id: Math.random().toString(16).slice(2),
-        title: "Saved build",
-        ts: Date.now(),
-        html: html || ""
-      };
-      lib.unshift(item);
-      setLibrary(lib.slice(0, 20));
-      pushSys("Saved to Library.");
-    }
-
-    function openLibrary(){
-      const lib = getLibrary();
-      if(!lib.length){
-        pushSys("Library is empty.");
-        return;
-      }
-      const list = lib.map((x, i) => `${i+1}) ${new Date(x.ts).toLocaleString()} — ${x.title}`).join("\n");
-      pushSys("Library:\n" + list + "\n\nType: load 1  (or load 2, etc.)");
-    }
-
-    function tryHandleLoadCommand(input){
-      const m = String(input||"").trim().match(/^load\s+(\d+)$/i);
-      if(!m) return false;
-      const idx = Math.max(1, parseInt(m[1],10)) - 1;
-      const lib = getLibrary();
-      if(!lib[idx]){
-        pushSys("No saved item at that number.");
-        return true;
-      }
-      setPreviewHtml(lib[idx].html);
-      pushSys("Loaded item " + (idx+1) + " into Preview.");
+  function setPreviewHtml(html){
+    const frame = $("previewFrame");
+    // NEVER clear preview to empty. That’s what causes white pages.
+    if (looksLikeHtml(html)) {
+      frame.srcdoc = html;
+      localStorage.setItem(LS.lastHtml, html);
+      setPreviewStatus("Updated • " + now());
+      setDraft("updated");
       return true;
     }
+    // If invalid html: keep last-good preview (do NOT replace)
+    setPreviewStatus("Kept last-good • " + now());
+    setDraft("kept");
+    return false;
+  }
 
-    // ====== RESET ======
-    function hardReset(){
-      $("msgs").innerHTML = "";
-      $("input").value = "";
-      setPreviewHtml("");
-      setStatus("Ready");
-      setTopic("general");
-      setMode(localStorage.getItem(LS.mode) || "building");
+  function loadLastOrBlank(){
+    const last = localStorage.getItem(LS.lastHtml) || "";
+    $("previewFrame").srcdoc = looksLikeHtml(last) ? last : DARK_BLANK;
+    setPreviewStatus(looksLikeHtml(last) ? ("Loaded • " + now()) : "Ready");
+    setDraft(looksLikeHtml(last) ? "loaded" : "none");
+  }
 
+  function downloadHtml(html){
+    const blob = new Blob([html || ""], {type:"text/html"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "simo_preview.html";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ===== PRO =====
+  function setPro(on){
+    localStorage.setItem(LS.pro, on ? "1" : "0");
+    $("proLed").classList.toggle("on", !!on);
+    $("proText").textContent = "Pro: " + (on ? "ON" : "OFF");
+    $("proPill").classList.toggle("proGlow", !!on);
+    $("btnSave").classList.toggle("disabled", !on);
+    $("btnLibrary").classList.toggle("disabled", !on);
+  }
+
+  async function verifyProKey(key){
+    const r = await fetch(FN_PRO, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ key })
+    });
+    const j = await r.json().catch(()=> ({}));
+    return !!(j && j.ok && j.pro);
+  }
+
+  function openModal(on){
+    $("back").style.display = on ? "flex" : "none";
+    $("verifyMsg").style.display = "none";
+    $("verifyMsg").textContent = "";
+    if(on) $("proKey").focus();
+  }
+
+  // ===== BACKEND =====
+  async function callSimo(input){
+    const mode = localStorage.getItem(LS.mode) || "building";
+    const topic = localStorage.getItem(LS.topic) || "general";
+
+    const r = await fetch(FN_SIMON, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ mode, topic, input })
+    });
+
+    const text = await r.text();
+    let data = null;
+    try { data = JSON.parse(text); } catch(e){}
+
+    const reply = (data && (data.text || data.reply || data.output_text)) || "";
+    const html  = (data && (data.html || data.preview_html || data.output_html)) || "";
+    return { ok: r.ok, status: r.status, reply, html, raw: text };
+  }
+
+  // ===== LIBRARY =====
+  function getLib(){ try { return JSON.parse(localStorage.getItem(LS.lib) || "[]"); } catch { return []; } }
+  function setLib(arr){ localStorage.setItem(LS.lib, JSON.stringify(arr || [])); }
+  function saveToLib(html){
+    const lib = getLib();
+    lib.unshift({ id: Math.random().toString(16).slice(2), ts: Date.now(), title: "Saved build", html });
+    setLib(lib.slice(0, 30));
+    pushSys("Saved to Library.");
+  }
+  function openLib(){
+    const lib = getLib();
+    if(!lib.length){ pushSys("Library is empty."); return; }
+    const list = lib.map((x,i)=> `${i+1}) ${new Date(x.ts).toLocaleString()} — ${x.title}`).join("\n");
+    pushSys("Library:\n" + list + "\n\nType: load 1  (or load 2, etc.)");
+  }
+  function tryLoadCmd(input){
+    const m = String(input||"").trim().match(/^load\s+(\d+)$/i);
+    if(!m) return false;
+    const idx = Math.max(1, parseInt(m[1],10)) - 1;
+    const lib = getLib();
+    if(!lib[idx]) { pushSys("No saved item at that number."); return true; }
+    setPreviewHtml(lib[idx].html);
+    pushSys("Loaded item " + (idx+1) + " into Preview.");
+    return true;
+  }
+
+  // ===== RESET =====
+  function hardReset(){
+    $("msgs").innerHTML = "";
+    $("input").value = "";
+    // reset preview to DARK_BLANK (still no white)
+    localStorage.removeItem(LS.lastHtml);
+    $("previewFrame").srcdoc = DARK_BLANK;
+    setPreviewStatus("Ready");
+    setDraft("none");
+    setTopic("general");
+    setMode(localStorage.getItem(LS.mode) || "building");
+    setChatStatus("Ready");
+    pushMsg("simo", "Tell me what you want right now — venting, solving, or building.");
+  }
+
+  // ===== INIT =====
+  (function init(){
+    setPro(localStorage.getItem(LS.pro) === "1");
+    setMode(localStorage.getItem(LS.mode) || "building");
+    setTopic(localStorage.getItem(LS.topic) || "general");
+    loadLastOrBlank();
+    if(!$("msgs").children.length){
       pushMsg("simo", "Tell me what you want right now — venting, solving, or building.");
     }
 
-    // ====== INIT ======
-    (function init(){
-      // Restore
-      const proOn = localStorage.getItem(LS.pro) === "1";
-      setPro(proOn);
+    $("btnReset").addEventListener("click", hardReset);
 
-      setMode(localStorage.getItem(LS.mode) || "building");
-      setTopic(localStorage.getItem(LS.topic) || "general");
+    $("btnSend").addEventListener("click", async () => {
+      const val = $("input").value.trim();
+      if(!val) return;
 
-      const last = localStorage.getItem(LS.lastHtml) || "";
-      if(looksLikeHtml(last)){
-        setPreviewHtml(last);
-      }else{
-        setPreviewHtml("");
-      }
+      if(tryLoadCmd(val)){ $("input").value = ""; return; }
 
-      // Starter message
-      if(!$("msgs").children.length){
-        pushMsg("simo", "Tell me what you want right now — venting, solving, or building.");
-      }
+      pushMsg("you", val);
+      $("input").value = "";
+      setChatStatus("Thinking…");
 
-      // Events
-      $("btnReset").addEventListener("click", hardReset);
+      try{
+        const res = await callSimo(val);
 
-      $("btnSend").addEventListener("click", async () => {
-        const val = $("input").value.trim();
-        if(!val) return;
-
-        // Local commands
-        if(tryHandleLoadCommand(val)){ $("input").value = ""; return; }
-
-        pushMsg("you", val);
-        $("input").value = "";
-        setStatus("Thinking…");
-
-        try{
-          const res = await callSimo(val);
-          if(!res.ok){
-            pushSys("Backend error (" + res.status + ").");
-            // Still show text if any
-            const msg = (res.reply || "").trim();
-            if(msg) pushMsg("simo", msg);
-            setStatus("Ready");
-            return;
-          }
-
-          // Show assistant text
-          const msg = (res.reply || "").trim();
-          pushMsg("simo", msg || "Done.");
-
-          // If backend returned HTML, render it
-          if(res.html && looksLikeHtml(res.html)){
-            setPreviewHtml(res.html);
-            pushMsg("simo", "Preview updated on the right.");
-          }
-
-          setStatus("Ready");
-        }catch(e){
-          pushSys("Network or script error: " + e.message);
-          setStatus("Ready");
+        if(!res.ok){
+          pushSys("Backend error (" + res.status + "). Kept last-good preview.");
+          // keep last preview — do NOT clear
+          setChatStatus("Ready");
+          return;
         }
-      });
 
-      $("input").addEventListener("keydown", (e) => {
-        if(e.key === "Enter" && !e.shiftKey){
-          e.preventDefault();
-          $("btnSend").click();
+        // show assistant reply
+        pushMsg("simo", (res.reply || "Done.").trim());
+
+        // apply preview ONLY if valid HTML; otherwise keep last-good
+        if(res.html){
+          const ok = setPreviewHtml(res.html);
+          if(ok) pushMsg("simo", "Preview updated on the right.");
+          else pushSys("No valid HTML returned. Kept last-good preview.");
         }
-      });
 
-      $("btnPreview").addEventListener("click", () => {
-        const last = localStorage.getItem(LS.lastHtml) || "";
-        if(looksLikeHtml(last)){
-          setPreviewHtml(last);
-          pushSys("Preview refreshed.");
+        setChatStatus("Ready");
+      }catch(e){
+        pushSys("Network error. Kept last-good preview.");
+        setChatStatus("Ready");
+      }
+    });
+
+    $("input").addEventListener("keydown", (e) => {
+      if(e.key === "Enter" && !e.shiftKey){
+        e.preventDefault();
+        $("btnSend").click();
+      }
+    });
+
+    $("btnPreview").addEventListener("click", () => {
+      loadLastOrBlank();
+      pushSys("Preview refreshed.");
+    });
+
+    $("btnDownload").addEventListener("click", () => {
+      const html = localStorage.getItem(LS.lastHtml) || "";
+      if(!looksLikeHtml(html)){
+        pushSys("Nothing to download yet. Build something first.");
+        return;
+      }
+      downloadHtml(html);
+      pushSys("Downloaded preview HTML.");
+    });
+
+    $("btnSave").addEventListener("click", () => {
+      if(localStorage.getItem(LS.pro) !== "1") return;
+      const html = localStorage.getItem(LS.lastHtml) || "";
+      if(!looksLikeHtml(html)){ pushSys("Nothing to save yet."); return; }
+      saveToLib(html);
+    });
+
+    $("btnLibrary").addEventListener("click", () => {
+      if(localStorage.getItem(LS.pro) !== "1") return;
+      openLib();
+    });
+
+    $("btnUnlock").addEventListener("click", () => openModal(true));
+    $("btnCancel").addEventListener("click", () => openModal(false));
+    $("back").addEventListener("click", (e) => { if(e.target === $("back")) openModal(false); });
+
+    $("btnVerify").addEventListener("click", async () => {
+      const key = $("proKey").value.trim();
+      if(!key) return;
+      $("verifyMsg").style.display = "block";
+      $("verifyMsg").textContent = "Verifying…";
+      try{
+        const ok = await verifyProKey(key);
+        if(ok){
+          localStorage.setItem(LS.key, key);
+          setPro(true);
+          $("verifyMsg").textContent = "Verified. Pro is ON.";
+          setTimeout(()=>openModal(false), 500);
         }else{
-          pushSys("No HTML cached yet. Ask for a build first (example: “build a landing page…”).");
+          setPro(false);
+          $("verifyMsg").textContent = "Invalid key.";
         }
-      });
-
-      $("btnDownload").addEventListener("click", () => {
-        const html = localStorage.getItem(LS.lastHtml) || "";
-        if(!looksLikeHtml(html)){
-          pushSys("Nothing to download yet. Generate a preview first.");
-          return;
-        }
-        downloadHtml(html);
-        pushSys("Downloaded preview HTML.");
-      });
-
-      $("btnSave").addEventListener("click", () => {
-        if(localStorage.getItem(LS.pro) !== "1") return;
-        const html = localStorage.getItem(LS.lastHtml) || "";
-        if(!looksLikeHtml(html)){
-          pushSys("Nothing to save yet. Generate a preview first.");
-          return;
-        }
-        saveToLibrary(html);
-      });
-
-      $("btnLibrary").addEventListener("click", () => {
-        if(localStorage.getItem(LS.pro) !== "1") return;
-        openLibrary();
-      });
-
-      $("btnUnlock").addEventListener("click", () => openModal(true));
-      $("btnCancel").addEventListener("click", () => openModal(false));
-
-      $("btnVerify").addEventListener("click", async () => {
-        const key = $("proKey").value.trim();
-        if(!key) return;
-        $("verifyMsg").style.display = "block";
-        $("verifyMsg").textContent = "Verifying…";
-
-        try{
-          const ok = await verifyProKey(key);
-          if(ok){
-            localStorage.setItem(LS.key, key);
-            setPro(true);
-            $("verifyMsg").textContent = "Verified. Pro is ON.";
-            setTimeout(()=>openModal(false), 500);
-          }else{
-            setPro(false);
-            $("verifyMsg").textContent = "Invalid key.";
-          }
-        }catch(e){
-          $("verifyMsg").textContent = "Verify failed: " + e.message;
-        }
-      });
-
-      // Clicking outside modal closes it
-      $("modalBack").addEventListener("click", (e) => {
-        if(e.target === $("modalBack")) openModal(false);
-      });
-    })();
-  </script>
+      }catch(e){
+        $("verifyMsg").textContent = "Verify failed.";
+      }
+    });
+  })();
+</script>
 </body>
 </html>
