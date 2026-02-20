@@ -1,24 +1,24 @@
 // netlify/functions/simon.js
-// Simo V2 — Intent-first (ChatGPT-like) + Stable Builder
-// Goals:
-// - Act like ChatGPT by default (text answers, best-friend, problem solving)
-// - ONLY return HTML when the user clearly asked for a build/preview/mockup/cover/page
-// - Never 504 (time-box OpenAI). Always has fast fallbacks.
-// - Output contract: { ok, mode, topic, text, html, routed_mode, intent }
+// Simo V1.3.1 — ChatGPT-first routing + strong fallbacks + real templates
+// - Intent-first: acts like ChatGPT; HTML only when clearly requested.
+// - 504-proof: OpenAI time-boxed; solid local fallbacks.
+// - No "write" -> memoir bug. Marketing plan works even if OpenAI is down.
+// Output: { ok, mode, routed_mode, topic, intent, text, html }
 
 export default async (req) => {
   const cors = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    ( "Access-Control-Allow-Origin" ): "*",
+    ( "Access-Control-Allow-Headers" ): "Content-Type, Authorization",
+    ( "Access-Control-Allow-Methods" ): "POST, OPTIONS",
   };
+
   if (req.method === "OPTIONS") return new Response("", { status: 200, headers: cors });
 
   try {
     if (req.method !== "POST") return j({ ok: false, error: "Use POST" }, 405, cors);
 
     const body = await req.json().catch(() => ({}));
-    const requestedMode = cleanMode(body.mode) || "building"; // UI mode; we may override for routing
+    const requestedMode = cleanMode(body.mode) || "building"; // UI label only
     const topic = clean(body.topic) || "general";
     const input = clean(body.input) || "";
 
@@ -38,23 +38,25 @@ export default async (req) => {
       );
     }
 
-    // --- INTENT-FIRST ROUTING (this is the big change) ---
+    // Intent-first routing
     const intent = detectIntent(input);
-    const routedMode = intent.mode; // "building" | "solving" | "venting"
-    const wantsHtml = intent.wantsHtml;
+    const routedMode = intent.mode;         // venting | solving | building
+    const wantsHtml = intent.wantsHtml;     // true => return HTML
 
-    // ===== BUILD PATH (HTML) =====
+    // =========================
+    // BUILD PATH (HTML preview)
+    // =========================
     if (wantsHtml) {
       const kind = detectBuildKind(input);
       const template = buildTemplate(kind, input);
 
-      // Optional AI HTML upgrade (time-boxed). Never blocks preview.
+      // Optional OpenAI upgrade (time-boxed). Never blocks preview.
       const ai = await tryOpenAIQuick({
         mode: "building",
         topic,
         input,
         timeoutMs: 6500,
-        maxTokens: 900,
+        maxTokens: 1100,
       });
 
       if (ai.ok && ai.text) {
@@ -74,7 +76,8 @@ export default async (req) => {
             cors
           );
         }
-        // AI gave text only: keep template for preview, use AI as chat copy
+
+        // AI returned text only — keep template for preview, use AI text for chat
         return j(
           {
             ok: true,
@@ -90,7 +93,7 @@ export default async (req) => {
         );
       }
 
-      // AI slow/down: still perfect preview via template (no blank, no white pane)
+      // OpenAI slow/down — still return a real template
       return j(
         {
           ok: true,
@@ -106,16 +109,15 @@ export default async (req) => {
       );
     }
 
-    // ===== TEXT PATH (ChatGPT-like) =====
-    // When user asks to "write a book" or general questions, we do NOT force HTML.
-    // We time-box OpenAI; if it's slow, we return a helpful fallback response.
-
+    // =========================
+    // TEXT PATH (ChatGPT-like)
+    // =========================
     const ai = await tryOpenAIQuick({
       mode: routedMode,
       topic,
       input,
       timeoutMs: 6500,
-      maxTokens: routedMode === "venting" ? 420 : 650,
+      maxTokens: routedMode === "venting" ? 420 : 750,
     });
 
     if (ai.ok && ai.text) {
@@ -134,9 +136,8 @@ export default async (req) => {
       );
     }
 
-    // ---- Fallbacks (fast, no 504) ----
-    // (Still "ChatGPT-like": helpful, not just "try again")
-    const fallbackText = fallbackForIntent(routedMode, input);
+    // OpenAI slow/down — smart fallbacks based on intent
+    const fallbackText = fallbackForTextIntent(routedMode, input);
     return j(
       {
         ok: true,
@@ -201,7 +202,7 @@ function systemPrompt(mode, topic) {
 You are Simo, a product-grade builder who outputs usable results.
 If you output HTML: it MUST be a full document starting with <!doctype html>.
 No markdown fences unless the entire output is HTML.
-Make it clean, modern, dark-friendly, and realistic for a real customer.
+Make it clean, modern, and realistic for a real customer.
 Topic: ${topic}
 `.trim();
   }
@@ -211,16 +212,14 @@ Topic: ${topic}
 You are Simo, the user's private best friend.
 Be real and grounded. Avoid therapy clichés. No lectures.
 Validate briefly, reflect the core emotion, then ask ONE good question.
-Keep it human and direct.
 Topic: ${topic}
 `.trim();
   }
 
-  // solving
   return `
 You are Simo, practical problem-solver.
-Give a tight plan with clear steps and specifics.
-If they need instructions, be step-by-step.
+Give clear, step-by-step help when needed.
+If asked for a plan (marketing, business, etc.), deliver the plan directly.
 Topic: ${topic}
 `.trim();
 }
@@ -231,44 +230,38 @@ Topic: ${topic}
 function detectIntent(input) {
   const t = String(input || "").toLowerCase();
 
-  // Explicit build triggers (HTML)
+  // Build triggers (HTML preview)
   const explicitBuild =
-    /\b(build|create|design|generate|make|mockup|wireframe)\b/.test(t) ||
-    /\b(show me)\b/.test(t) ||
-    /\b(preview|landing page|website|web page|homepage|book cover|cover mockup|ui)\b/.test(t);
+    /\b(show me|build|create|design|generate|make|mockup|wireframe|preview)\b/.test(t) ||
+    /\b(landing page|website|web page|homepage|book cover|cover mockup|ui)\b/.test(t);
 
-  // If they explicitly ask for writing longform, DO NOT force HTML
-  const explicitWriting =
-    /\b(write|draft|outline|chapter|novel|storybook|memoir|script|essay)\b/.test(t) &&
-    !/\b(book cover|cover)\b/.test(t); // "book cover" stays build
+  // Writing longform triggers (TEXT, not HTML)
+  const longformWriting =
+    /\b(write|draft|outline|chapter)\b/.test(t) &&
+    /\b(book|memoir|novel|story|script|essay)\b/.test(t) &&
+    !/\b(book cover|cover)\b/.test(t);
 
-  // Venting signals
+  // Marketing / business planning (TEXT)
+  const marketingPlan =
+    /\b(marketing plan|10-bullet|ten-bullet|growth plan|launch plan|positioning|offer|ads|seo)\b/.test(t);
+
+  // Venting
   const ventSignals =
-    /\b(i'm|im|i am)\b/.test(t) &&
-    /\b(stressed|overwhelmed|tired|anxious|sad|angry|mad|upset|depressed|burnt out|frustrated)\b/.test(t);
-
-  const argumentSignals =
-    /\b(fighting|argument|she said|he said|we keep|loop|relationship|wife|husband)\b/.test(t);
+    (/\b(i'm|im|i am)\b/.test(t) &&
+      /\b(stressed|overwhelmed|tired|anxious|sad|angry|mad|upset|burnt out|frustrated)\b/.test(t)) ||
+    /\b(fighting|argument|loop|relationship|wife|husband)\b/.test(t);
 
   // Solving signals
   const solveSignals =
     /\b(how do i|how to|help me|steps|plan|fix|debug|why is|what should i do)\b/.test(t);
 
-  // Decide
-  if (explicitWriting) {
-    return { wantsHtml: false, mode: solveSignals ? "solving" : "solving" }; // writing is a "text answer"
-  }
-  if (ventSignals || argumentSignals) {
-    return { wantsHtml: false, mode: "venting" };
-  }
-  if (explicitBuild) {
-    return { wantsHtml: true, mode: "building" };
-  }
-  if (solveSignals) {
-    return { wantsHtml: false, mode: "solving" };
-  }
+  if (ventSignals) return { wantsHtml: false, mode: "venting" };
+  if (explicitBuild) return { wantsHtml: true, mode: "building" };
+  if (marketingPlan) return { wantsHtml: false, mode: "solving" };
+  if (longformWriting) return { wantsHtml: false, mode: "solving" };
+  if (solveSignals) return { wantsHtml: false, mode: "solving" };
 
-  // Default: ChatGPT-like helpful text
+  // Default to helpful ChatGPT-like text
   return { wantsHtml: false, mode: "solving" };
 }
 
@@ -286,6 +279,240 @@ function buildTemplate(kind, input) {
   if (kind === "book_cover") return bookCoverHtml(input);
   if (kind === "landing") return landingHtml(input);
   return genericHtml(input);
+}
+
+function landingHtml(prompt) {
+  const p = String(prompt || "");
+  const t = p.toLowerCase();
+
+  const isChildCare = t.includes("child care") || t.includes("childcare") || t.includes("pediatric") || t.includes("kids");
+  const wantsTestimonials = t.includes("testimonial") || t.includes("testimonials");
+  const wantsPricing = t.includes("pricing") || t.includes("prices") || t.includes("plans");
+
+  const brand = isChildCare ? "Neighborhood Child Care Clinic" : "Neighborhood Clinic";
+  const headline = isChildCare ? "Safe, warm care — right here in your neighborhood" : "Modern care, close to home";
+  const sub = isChildCare
+    ? "Same-day availability • trusted staff • simple scheduling"
+    : "Fast appointments • transparent pricing • friendly team";
+
+  const services = isChildCare
+    ? [
+        ["Well-child visits", "Checkups, milestones, and ongoing care."],
+        ["Sick visits", "Quick evaluation + treatment plans."],
+        ["Vaccinations", "Up-to-date immunizations and records."],
+        ["School forms", "Physicals, notes, and documentation."],
+      ]
+    : [
+        ["Primary care", "Preventative visits and routine care."],
+        ["Urgent visits", "Same-day appointments when needed."],
+        ["Labs & screening", "Simple, fast test coordination."],
+        ["Referrals", "Specialists when the situation calls for it."],
+      ];
+
+  const pricingBlocks = `
+    <section class="section">
+      <h2>Simple pricing</h2>
+      <div class="grid3">
+        <div class="card">
+          <h3>Starter</h3>
+          <div class="price">$49</div>
+          <ul>
+            <li>Basic visit</li>
+            <li>Follow-up message</li>
+            <li>Care notes</li>
+          </ul>
+          <button>Book Starter</button>
+        </div>
+        <div class="card highlight">
+          <h3>Care+</h3>
+          <div class="price">$99</div>
+          <ul>
+            <li>Extended visit</li>
+            <li>Priority scheduling</li>
+            <li>Care plan PDF</li>
+          </ul>
+          <button>Book Care+</button>
+        </div>
+        <div class="card">
+          <h3>Family</h3>
+          <div class="price">$149</div>
+          <ul>
+            <li>2 children</li>
+            <li>Shared plan</li>
+            <li>Priority follow-ups</li>
+          </ul>
+          <button>Book Family</button>
+        </div>
+      </div>
+      <p class="fine">*Example pricing — customize to match their real rates and insurance policies.</p>
+    </section>
+  `;
+
+  const testimonialBlocks = `
+    <section class="section">
+      <h2>What neighbors say</h2>
+      <div class="grid3">
+        <div class="quote">
+          <p>“Fast, kind, and actually listens. We finally found our go-to clinic.”</p>
+          <span>— Local parent</span>
+        </div>
+        <div class="quote">
+          <p>“Scheduling was simple and the staff made my child feel comfortable.”</p>
+          <span>— Neighborhood family</span>
+        </div>
+        <div class="quote">
+          <p>“Clear plan, no confusion. They explained everything in plain English.”</p>
+          <span>— Community member</span>
+        </div>
+      </div>
+    </section>
+  `;
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>${esc(brand)}</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:rgba(255,255,255,.06); --line:rgba(255,255,255,.12);
+    --text:#eaf0ff; --muted:#a9b6d3; --btn:#2a66ff; --btn2:#1f4dd6;
+    --ok:#39ff7a;
+    --shadow:0 18px 44px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+    color:var(--text);
+  }
+  .wrap{max-width:1100px;margin:0 auto;padding:28px}
+  .nav{
+    display:flex;justify-content:space-between;align-items:center;
+    border:1px solid var(--line);background:var(--panel);border-radius:18px;
+    padding:14px 16px; box-shadow:var(--shadow);
+  }
+  .brand{display:flex;gap:10px;align-items:center}
+  .dot{width:12px;height:12px;border-radius:99px;background:var(--ok);box-shadow:0 0 18px rgba(57,255,122,.35)}
+  .brand b{letter-spacing:.2px}
+  .nav a{color:var(--muted);text-decoration:none;margin-left:14px;font-size:14px}
+  .hero{
+    margin-top:18px;border:1px solid var(--line);background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+    border-radius:24px;padding:26px; box-shadow:var(--shadow);
+    display:grid;grid-template-columns:1.2fr .8fr;gap:18px;
+  }
+  h1{margin:0 0 8px;font-size:44px;line-height:1.05}
+  .sub{color:var(--muted);font-size:16px;line-height:1.45}
+  .ctaRow{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  button{
+    appearance:none;border:0;border-radius:14px;padding:12px 14px;
+    background:linear-gradient(180deg,var(--btn),var(--btn2));
+    color:white;font-weight:700;cursor:pointer;
+  }
+  .ghost{
+    background:transparent;border:1px solid var(--line); color:var(--text);
+  }
+  .card{
+    border:1px solid var(--line);background:var(--panel);border-radius:18px;
+    padding:16px; box-shadow:0 12px 30px rgba(0,0,0,.25);
+  }
+  .section{margin-top:18px;border:1px solid var(--line);background:var(--panel);border-radius:22px;padding:18px;box-shadow:var(--shadow)}
+  h2{margin:0 0 12px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .svc h3{margin:0 0 6px}
+  .svc p{margin:0;color:var(--muted);line-height:1.45}
+  .fine{color:rgba(234,240,255,.6);font-size:12px;margin:10px 0 0}
+  .price{font-size:30px;font-weight:800;margin:6px 0}
+  ul{margin:10px 0 0;padding-left:18px;color:var(--muted)}
+  li{margin:6px 0}
+  .highlight{outline:2px solid rgba(42,102,255,.45)}
+  .quote p{margin:0;color:rgba(234,240,255,.92);line-height:1.5}
+  .quote span{display:block;margin-top:10px;color:var(--muted);font-size:13px}
+  footer{margin:18px 0 0;color:rgba(234,240,255,.55);font-size:12px;text-align:center}
+  @media (max-width: 980px){
+    .hero{grid-template-columns:1fr}
+    .grid3{grid-template-columns:1fr}
+    .grid2{grid-template-columns:1fr}
+    h1{font-size:36px}
+  }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <div class="brand"><span class="dot"></span><b>${esc(brand)}</b></div>
+      <div>
+        <a href="#services">Services</a>
+        <a href="#hours">Hours</a>
+        <a href="#contact">Contact</a>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div>
+        <h1>${esc(headline)}</h1>
+        <div class="sub">${esc(sub)}</div>
+        <div class="ctaRow">
+          <button>Book an appointment</button>
+          <button class="ghost">Call the clinic</button>
+        </div>
+        <p class="fine">Tip: say “change headline: …” or “add faq” to customize.</p>
+      </div>
+
+      <div class="card" id="hours">
+        <h2>Hours</h2>
+        <div class="sub">
+          Mon–Fri: 8am–6pm<br/>
+          Sat: 9am–1pm<br/>
+          Same-day slots available
+        </div>
+        <div class="ctaRow" style="margin-top:12px">
+          <button class="ghost">Insurance info</button>
+          <button class="ghost">New patient form</button>
+        </div>
+      </div>
+    </div>
+
+    <section class="section" id="services">
+      <h2>Services</h2>
+      <div class="grid2">
+        ${services
+          .map(
+            ([h, d]) => `
+          <div class="card svc">
+            <h3>${esc(h)}</h3>
+            <p>${esc(d)}</p>
+          </div>`
+          )
+          .join("")}
+      </div>
+    </section>
+
+    ${wantsTestimonials ? testimonialBlocks : ""}
+    ${wantsPricing ? pricingBlocks : ""}
+
+    <section class="section" id="contact">
+      <h2>Contact</h2>
+      <div class="grid2">
+        <div class="card">
+          <h3>Location</h3>
+          <p class="sub">123 Main St, Your Neighborhood</p>
+          <p class="fine">Replace with their real address.</p>
+        </div>
+        <div class="card">
+          <h3>Get started</h3>
+          <p class="sub">Tell me the clinic name + phone + services and I’ll personalize this page.</p>
+          <button style="margin-top:10px">Request a callback</button>
+        </div>
+      </div>
+    </section>
+
+    <footer>© ${new Date().getFullYear()} ${esc(brand)} • Built with Simo</footer>
+  </div>
+</body>
+</html>`;
 }
 
 function bookCoverHtml(prompt) {
@@ -312,45 +539,38 @@ function bookCoverHtml(prompt) {
   const subtitleFromPrompt = pick(p, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
   const authorFromPrompt = pick(p, /author\s*:\s*["“]?([^"\n”]+)["”]?/i);
 
-  const keywords = extractKeywords(t);
-  const kwTitle = keywords.length ? toTitleCase(keywords.slice(0, 2).join(" ")) : "";
-
   let title = titleFromPrompt || "";
   let subtitle = subtitleFromPrompt || "";
   let author = authorFromPrompt || "Simo Studio";
   let kicker = "Book cover concept";
-  let blurb =
-    "Give me the vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
+  let blurb = "Tell me the vibe (minimal, gritty, cinematic) and I’ll tune the design + copy to match your book.";
   let meta = "Concept • Custom • Clean";
 
   if (isFitness) {
     title = title || "The Coach’s Playbook";
     subtitle = subtitle || "A practical manual for health & fitness";
     kicker = "Fitness manual";
-    blurb =
-      "A no-fluff system: training templates, habit rules, nutrition basics, and progress checkpoints — all in one place.";
+    blurb = "A no-fluff system: training templates, habit rules, nutrition basics, and progress checkpoints — all in one place.";
     meta = "Manual • Strength • Health";
   } else if (isImmigrant) {
     title = title || "New Roots";
     subtitle = subtitle || "A factory worker’s American journey";
     kicker = "A modern immigrant story";
-    blurb =
-      "Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.";
+    blurb = "Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.";
     meta = "Memoir • Contemporary • Hope";
-    author = authorFromPrompt || "Simon Gojcaj";
   } else if (isSpace) {
     title = title || "Beyond the Stars";
     subtitle = subtitle || "A journey through the silence of space";
     kicker = "Space / Sci-Fi";
-    blurb =
-      "Dark matter. Distant worlds. A mission that changes everything — where one signal can rewrite what humanity believes.";
+    blurb = "Dark matter. Distant worlds. A mission that changes everything — where one signal can rewrite what humanity believes.";
     meta = "Sci-Fi • Space • Adventure";
   } else {
-    title = title || (kwTitle ? kwTitle : "A New Chapter");
+    // prompt-driven default
+    const keywords = extractKeywords(t);
+    const kwTitle = keywords.length ? toTitleCase(keywords.slice(0, 2).join(" ")) : "";
+    title = title || (kwTitle || "A New Chapter");
     subtitle = subtitle || (keywords.length ? `A story of ${keywords.slice(0, 3).join(", ")}` : "A story shaped by grit and growth");
-    kicker = keywords.length ? ("About " + keywords.slice(0, 3).join(" • ")) : "Book cover concept";
-    blurb =
-      "Give me: genre + vibe + 3 keywords and I’ll lock the title/subtitle and redesign the cover to match.";
+    kicker = "Book cover concept";
     meta = "Concept • Custom • Clean";
   }
 
@@ -374,9 +594,8 @@ function bookCoverHtml(prompt) {
     background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);
     color:#eaf0ff; display:grid; place-items:center; min-height:100vh; padding:28px;
   }
-  .stage{display:grid; gap:18px; max-width:980px; width:100%; grid-template-columns: 420px 1fr;}
   .cover{
-    width:420px; aspect-ratio: 2/3; border-radius:18px; overflow:hidden;
+    width:min(420px, 92vw); aspect-ratio: 2/3; border-radius:18px; overflow:hidden;
     box-shadow:0 30px 80px rgba(0,0,0,.55);
     position:relative; border:1px solid rgba(255,255,255,.14);
     background:
@@ -393,9 +612,9 @@ function bookCoverHtml(prompt) {
   }
   h1{margin:0; font-size:34px; letter-spacing:.4px; line-height:1.05}
   h2{margin:10px 0 0; font-size:14px; color:rgba(234,240,255,.82); font-weight:600}
-  .art{position:absolute; inset:0; display:grid; place-items:center; padding-top:105px;}
   .badge{
-    width:76%; border-radius:18px;
+    position:absolute; left:22px; right:22px; bottom:74px;
+    border-radius:18px;
     background:rgba(242,239,232,.92);
     color:var(--ink);
     padding:18px;
@@ -413,60 +632,26 @@ function bookCoverHtml(prompt) {
   }
   .author strong{letter-spacing:.12em; text-transform:uppercase; font-size:12px}
   .meta{color:rgba(234,240,255,.65); font-size:12px}
-  .right{
-    border:1px solid rgba(255,255,255,.12);
-    border-radius:18px;
-    background:rgba(255,255,255,.06);
-    padding:18px;
-    box-shadow:0 18px 44px rgba(0,0,0,.35);
-  }
-  .right h3{margin:0 0 8px}
-  .right p{margin:0;color:var(--muted);line-height:1.5}
-  @media (max-width: 980px){
-    .stage{grid-template-columns:1fr}
-    .cover{width:min(420px, 100%)}
-  }
 </style>
 </head>
 <body>
-  <div class="stage">
-    <div class="cover">
-      <div class="stripe">
-        <h1>${esc(title)}</h1>
-        <h2>${esc(subtitle)}</h2>
-      </div>
-
-      <div class="art">
-        <div class="badge">
-          <div class="k">${esc(kicker)}</div>
-          <div class="line"></div>
-          <p>${esc(blurb)}</p>
-        </div>
-      </div>
-
-      <div class="author">
-        <strong>${esc(author)}</strong>
-        <div class="meta">${esc(meta)}</div>
-      </div>
+  <div class="cover">
+    <div class="stripe">
+      <h1>${esc(title)}</h1>
+      <h2>${esc(subtitle)}</h2>
     </div>
-
-    <div class="right">
-      <h3>Quick edits</h3>
-      <p>Say: <b>title:</b> … <b>subtitle:</b> … <b>author:</b> … or “more minimal / more gritty / more bold”.</p>
+    <div class="badge">
+      <div class="k">${esc(kicker)}</div>
+      <div class="line"></div>
+      <p>${esc(blurb)}</p>
+    </div>
+    <div class="author">
+      <strong>${esc(author)}</strong>
+      <div class="meta">${esc(meta)}</div>
     </div>
   </div>
 </body>
 </html>`;
-}
-
-function landingHtml(prompt) {
-  // Still simple + stable. OpenAI can replace with full real landing page when available.
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Landing</title><style>
-body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
-.card{max-width:900px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
-p{color:rgba(234,240,255,.75);line-height:1.5}
-</style></head><body><div class="card"><h1>Landing Page</h1><p>${esc(prompt)}</p></div></body></html>`;
 }
 
 function genericHtml(prompt) {
@@ -479,44 +664,52 @@ p{color:rgba(234,240,255,.75);line-height:1.5}
 }
 
 // =====================
-// Fast fallback text
+// Text fallbacks (fixes your loop)
 // =====================
-function fallbackForIntent(mode, input) {
+function fallbackForTextIntent(mode, input) {
   const t = String(input || "").trim();
+  const low = t.toLowerCase();
 
-  // If they asked to "write a book", give a real structured start (ChatGPT-like).
-  if (/\b(write|draft|outline|chapter|novel|memoir|book)\b/i.test(t) && !/\b(book cover)\b/i.test(t)) {
+  // Marketing plan fallback (so it NEVER returns memoir junk again)
+  if (/\b(marketing plan|10-bullet|ten-bullet)\b/i.test(t)) {
     return [
-      "Alright. Here’s a strong start — tell me if you want this as a memoir tone or a novel tone:",
+      "Here’s a clean 10-bullet marketing plan for your neighborhood child care clinic:",
+      "1) **Offer & hook:** “Same-day child care visits • friendly staff • transparent pricing.”",
+      "2) **Google Business Profile:** set up, add photos, services, hours, FAQs, and weekly posts.",
+      "3) **Local SEO page:** one page per service + one “Neighborhood” page (e.g., Child Care Clinic in [Area]).",
+      "4) **Flyers + QR code:** put them in coffee shops, daycare boards, gyms, libraries.",
+      "5) **Partnerships:** daycare centers, schools, pediatric dentists, family photographers.",
+      "6) **Intro promo:** first visit special / free consultation slot each week.",
+      "7) **Reviews system:** after each visit send a simple “Would you recommend us?” → request Google review.",
+      "8) **Social content:** 3 short posts/week: tips, staff spotlight, “what to expect” clips.",
+      "9) **Neighborhood ads:** small budget on Meta/Nextdoor targeting your zip codes.",
+      "10) **Conversion:** online booking + call button above the fold + SMS follow-up for missed calls.",
       "",
-      "**Working title ideas**",
-      "1) New Roots",
-      "2) Shift by Shift",
-      "3) The Quiet Dream",
-      "",
-      "**Book structure (tight + readable)**",
-      "1) Arrival: why he left, what he hoped for",
-      "2) First job: learning the factory rhythm",
-      "3) Pride: sending money home, small wins",
-      "4) Setbacks: injuries, loneliness, doubt",
-      "5) Turning point: skill-up, promotion, side hustle",
-      "6) Home: building a life, gratitude without being naïve",
-      "",
-      "**Opening scene (first page)**",
-      "He learns the sound of the factory before he learns the names. The belts hum like a distant storm, steady enough to forget—until the whistle snaps the air and reminds him that time here is bought in minutes and muscle. He tightens his gloves, checks the badge clipped to his chest, and tells himself the same thing he told himself at the airport: *one shift at a time.*",
-      "",
-      "Say: **memoir** or **novel**, and what country he’s from — and I’ll write Chapter 1."
+      "If you tell me the clinic name + city + top 3 services, I’ll tailor this to be sharper and more local."
     ].join("\n");
   }
 
-  if (mode === "venting") {
-    return "I’m here. Say it straight — what set you off today?";
+  // Longform book writing fallback ONLY if they clearly asked for a BOOK/memoir/novel/chapter.
+  const askedBook =
+    /\b(book|memoir|novel|chapter|story)\b/i.test(t) && !/\b(book cover)\b/i.test(t);
+
+  if (askedBook) {
+    return [
+      "Alright — quick setup so I write this the way you want:",
+      "1) Memoir tone (real, grounded) or novel tone (more cinematic)?",
+      "2) Where is he from?",
+      "3) What kind of factory job (auto, food, warehouse, textile, etc.)?",
+      "",
+      "If you answer those 3, I’ll write Chapter 1."
+    ].join("\n");
   }
-  return "Got you. What’s the outcome you want, and what’s the one thing stopping it right now?";
+
+  if (mode === "venting") return "I’m here. What happened — and what’s the part that’s getting under your skin the most?";
+  return "Got you. What exactly do you want the outcome to be — and what constraints are you working with?";
 }
 
 // =====================
-// Keyword helpers
+// Helpers
 // =====================
 function extractKeywords(t) {
   const stop = new Set(["show","me","a","an","the","book","cover","about","for","of","and","to","that","is","like","manual"]);
