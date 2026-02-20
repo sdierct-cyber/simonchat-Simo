@@ -1,19 +1,12 @@
-/* app.js — Simo UI controller (V1.2)
+/* app.js — Simo UI controller (V1.2.1)
    Fixes:
-   - Preview NEVER lies: only renders if HTML exists
-   - Caches HTML from: data.html, data.preview_html, or ```html blocks
-   - Enter key works (Shift+Enter new line)
-   - Reset works
-   - Download works
-   - Save/Library Pro-gated
-   - Uses backend: /.netlify/functions/simon
-   - Uses Pro verify: /.netlify/functions/pro
+   - Textbox height stable (CSS in index.html)
+   - Empty preview no longer shows white iframe sheet (iframe hidden until HTML)
 */
 
 (() => {
   const $ = (id) => document.getElementById(id);
 
-  // Elements
   const chatEl = $("chat");
   const inputEl = $("input");
   const sendBtn = $("sendBtn");
@@ -34,7 +27,6 @@
 
   const topicChip = $("topicChip");
   const draftChip = $("draftChip");
-  const tipChip = $("tipChip");
 
   const iframe = $("iframe");
   const previewEmpty = $("previewEmpty");
@@ -45,17 +37,15 @@
   const cancelPro = $("cancelPro");
   const verifyPro = $("verifyPro");
 
-  // State
   const state = {
     busy: false,
-    mode: "building",       // building | venting | solving
+    mode: "building",
     pro: false,
     topic: "none",
     lastHtml: "",
     messages: [],
   };
 
-  // Storage keys
   const LS_PRO = "simo_pro_enabled";
   const LS_MODE = "simo_mode";
   const LS_LIB = "simo_library_v1";
@@ -104,7 +94,6 @@
     state.mode = next;
     localStorage.setItem(LS_MODE, next);
     modeLabel.textContent = `Mode: ${next}`;
-    // Always show as "on" (green LED) — it’s just a status pill
     modePill.classList.add("on");
   }
 
@@ -113,8 +102,6 @@
     localStorage.setItem(LS_PRO, v ? "1" : "0");
     proLabel.textContent = v ? "Pro: ON" : "Pro: OFF";
     proPill.classList.toggle("on", v);
-
-    // gate buttons visually (they still exist)
     saveBtn.style.opacity = v ? "1" : ".45";
     libraryBtn.style.opacity = v ? "1" : ".45";
   }
@@ -145,11 +132,13 @@
   function renderPreview(html) {
     if (!html || !html.trim()) {
       iframe.srcdoc = "";
+      iframe.classList.remove("show");       // ✅ hide iframe when empty
       previewEmpty.classList.remove("hidden");
       previewMeta.textContent = "No preview yet";
       return;
     }
     iframe.srcdoc = html;
+    iframe.classList.add("show");            // ✅ show only when real HTML
     previewEmpty.classList.add("hidden");
     previewMeta.textContent = "Updated";
   }
@@ -174,7 +163,6 @@
   function saveToLibrary(item) {
     const lib = loadLibrary();
     lib.unshift(item);
-    // keep last 30
     localStorage.setItem(LS_LIB, JSON.stringify(lib.slice(0, 30)));
   }
 
@@ -188,8 +176,6 @@
       addMsg("ai", "Library is empty. Build something, then hit Save.");
       return;
     }
-
-    // Simple prompt picker (fast, reliable)
     const lines = lib.map((x, i) => `${i+1}) ${x.title} — ${x.when}`);
     const pick = prompt("Library:\n\n" + lines.join("\n") + "\n\nType a number to load:");
     const idx = Number(pick);
@@ -204,7 +190,6 @@
     addMsg("ai", `Loaded: ${item.title}`);
   }
 
-  // Backend call
   async function callSimo(userText) {
     const payload = {
       message: userText,
@@ -241,8 +226,6 @@
     inputEl.value = "";
     addMsg("you", text);
     setBusy(true);
-
-    // quick topic update
     setTopic(classifyTopic(text));
 
     try {
@@ -256,7 +239,6 @@
 
       addMsg("ai", replyText);
 
-      // ✅ Robust HTML capture
       const htmlCandidate =
         (typeof data.html === "string" && data.html.trim()) ||
         (typeof data.preview_html === "string" && data.preview_html.trim()) ||
@@ -269,19 +251,17 @@
         renderPreview(state.lastHtml);
       }
 
-      // If user asked preview but we still have no HTML cached, say the truth
       const askedPreview = /show me (a )?preview|preview\b/i.test(text);
       if (askedPreview && !state.lastHtml) {
         addMsg("ai", "I didn’t receive any HTML to render. That means the backend didn’t send HTML back yet.");
       }
-    } catch (e) {
+    } catch {
       addMsg("ai", "Network error talking to backend.");
     } finally {
       setBusy(false);
     }
   }
 
-  // Buttons
   sendBtn.addEventListener("click", onSend);
 
   inputEl.addEventListener("keydown", (e) => {
@@ -380,7 +360,6 @@
 
   libraryBtn.addEventListener("click", showLibraryPicker);
 
-  // Init
   (function init() {
     setMode(localStorage.getItem(LS_MODE) || "building");
     setPro(localStorage.getItem(LS_PRO) === "1");
