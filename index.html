@@ -7,221 +7,254 @@
   <meta name="color-scheme" content="dark" />
   <style>
     :root{
-      --bg:#0b1020;
+      --bg:#0b1020; --panel:#0f1730; --panel2:#0c1328;
       --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a;
+      --good:#39ff7a; --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
-      --r:18px;
+      --radius:18px;
     }
     *{box-sizing:border-box}
     body{
       margin:0;
       font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
-      background:radial-gradient(1200px 700px at 20% 0%, #162a66 0%, var(--bg) 55%);
+      background:radial-gradient(1100px 650px at 18% 0%, #162a66 0%, var(--bg) 55%);
       color:var(--text);
-      min-height:100vh;
     }
     .wrap{max-width:1180px;margin:0 auto;padding:18px}
     .topbar{
-      display:flex;align-items:center;justify-content:space-between;gap:12px;
-      padding:14px 14px;
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      display:flex;align-items:center;justify-content:space-between;
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
       border:1px solid var(--line);
-      border-radius:var(--r);
+      border-radius:22px;
+      padding:14px 16px;
       box-shadow:var(--shadow);
+      gap:12px;
     }
-    .brand{display:flex;align-items:center;gap:10px}
-    .dot{width:12px;height:12px;border-radius:999px;background:var(--btn); box-shadow:0 0 0 5px rgba(42,102,255,.18)}
+    .brand{
+      display:flex;align-items:center;gap:10px;min-width:240px;
+    }
+    .dot{
+      width:14px;height:14px;border-radius:50%;
+      background:#2a66ff; box-shadow:0 0 0 6px rgba(42,102,255,.14);
+    }
     .brand h1{font-size:22px;line-height:1;margin:0}
     .brand .sub{font-size:12px;color:var(--muted);margin-top:2px}
-    .right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}
     .pill{
-      display:inline-flex;align-items:center;gap:8px;
-      padding:10px 12px;border-radius:999px;
+      display:flex;align-items:center;gap:10px;
+      padding:10px 12px;
+      border-radius:999px;
+      background:rgba(255,255,255,.04);
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      font-weight:600;
-      user-select:none;
-      cursor:pointer;
     }
-    .pill .led{width:9px;height:9px;border-radius:999px;background:#7a8bb5}
-    .pill.on .led{background:var(--good); box-shadow:0 0 0 5px rgba(57,255,122,.14)}
+    .led{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.35)}
+    .led.on{background:var(--good); box-shadow:0 0 0 6px rgba(57,255,122,.12)}
     .btn{
-      appearance:none;border:0;cursor:pointer;
-      padding:10px 14px;border-radius:999px;
-      color:white;font-weight:700;
-      background:linear-gradient(180deg, var(--btn), var(--btn2));
-      box-shadow:0 10px 20px rgba(42,102,255,.25);
-    }
-    .btn.ghost{
-      background:rgba(0,0,0,.18);
-      border:1px solid var(--line);
-      color:var(--text);
-      box-shadow:none;
+      border:none; cursor:pointer; color:white;
+      border-radius:14px;
+      padding:10px 14px;
+      background:linear-gradient(180deg,var(--btn),var(--btn2));
+      box-shadow:0 10px 22px rgba(31,77,214,.22);
       font-weight:700;
     }
-    .btn.danger{
-      background:rgba(255,77,77,.12);
-      border:1px solid rgba(255,77,77,.35);
-      color:#ffdada;
+    .btn.secondary{
+      background:rgba(255,255,255,.06);
+      border:1px solid var(--line);
       box-shadow:none;
-      font-weight:900;
+      color:var(--text);
     }
+    .btn.danger{
+      background:rgba(255,77,77,.14);
+      border:1px solid rgba(255,77,77,.35);
+      color:#ffd9d9;
+      box-shadow:none;
+    }
+
     .grid{
-      margin-top:14px;
+      margin-top:16px;
       display:grid;
-      grid-template-columns: 1.05fr .95fr;
+      grid-template-columns: 1.02fr .98fr;
       gap:14px;
     }
-    .panel{
+    .card{
       background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
       border:1px solid var(--line);
-      border-radius:var(--r);
+      border-radius:var(--radius);
       box-shadow:var(--shadow);
       overflow:hidden;
-      min-height:72vh;
-      display:flex;flex-direction:column;
+      min-height:610px;
     }
-    .panel .head{
+    .cardHead{
       display:flex;align-items:center;justify-content:space-between;
       padding:14px 16px;
       border-bottom:1px solid var(--line);
-      background:rgba(0,0,0,.15);
-      font-weight:800;
-      letter-spacing:.2px;
+      background:rgba(0,0,0,.14);
     }
-    .panel .head small{color:var(--muted);font-weight:700}
+    .cardHead h2{margin:0;font-size:18px}
+    .status{color:var(--muted);font-size:13px}
 
-    .chat{padding:14px 16px;overflow:auto;flex:1}
-    .msg{display:flex;gap:10px;margin:10px 0}
+    /* Chat area */
+    .chatBody{
+      padding:14px 14px 10px;
+      display:flex; flex-direction:column;
+      height:calc(100% - 56px);
+      gap:10px;
+    }
+    .msgs{
+      flex:1; overflow:auto; padding-right:6px;
+    }
+    .row{
+      display:flex; gap:10px; margin:10px 0;
+      align-items:flex-start;
+    }
     .avatar{
-      width:30px;height:30px;border-radius:10px;
-      display:grid;place-items:center;
-      font-weight:900;
+      width:28px; height:28px; border-radius:10px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
+      display:flex; align-items:center; justify-content:center;
+      font-weight:800; font-size:12px; color:var(--muted);
+      background:rgba(255,255,255,.04);
       flex:0 0 auto;
     }
     .bubble{
-      max-width:820px;
+      max-width:85%;
       padding:12px 12px;
-      border-radius:14px;
+      border-radius:16px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.16);
-      line-height:1.35;
+      background:rgba(255,255,255,.04);
       white-space:pre-wrap;
+      line-height:1.35;
     }
-    .msg.you .avatar{background:rgba(42,102,255,.18)}
-    .msg.you .bubble{
-      background:rgba(42,102,255,.10);
-      border-color:rgba(42,102,255,.25);
+    .you .bubble{
+      background:rgba(42,102,255,.16);
+      border-color:rgba(42,102,255,.35);
     }
-
-    .composer{
-      padding:12px 12px;
-      border-top:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-      display:flex;
-      flex-direction:column;
+    .sys{
+      color:var(--muted);
+      font-size:12px;
+      padding:8px 10px;
+      border:1px dashed rgba(255,255,255,.15);
+      border-radius:14px;
+      background:rgba(0,0,0,.08);
+    }
+    .inputRow{
+      display:grid;
+      grid-template-columns: 1fr 120px;
       gap:10px;
+      align-items:stretch;
     }
-    .row{display:flex;gap:10px;align-items:stretch}
     textarea{
       width:100%;
-      flex:1;
-      min-height:84px;         /* stable + comfortable */
-      max-height:220px;
+      min-height:86px;
       resize:vertical;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
+      border-radius:16px;
       padding:12px 12px;
-      outline:none;
-      font-size:14px;
-      line-height:1.35;
-    }
-    textarea:focus{border-color:rgba(42,102,255,.45)}
-    .send{padding:12px 18px;border-radius:14px;font-weight:900;min-width:110px}
-
-    .actions{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-    .hint{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;padding:0 2px}
-    .chip{
-      display:inline-flex;gap:6px;align-items:center;
-      padding:6px 10px;border-radius:999px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.14);
-      font-weight:700;
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      outline:none;
+    }
+    textarea:focus{border-color:rgba(42,102,255,.55)}
+    .footRow{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .mini{
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.03);
+      color:var(--muted);
+      font-size:12px;
+    }
+    .btnStrip{
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+    }
+    .btn.small{padding:9px 12px; font-weight:800}
+    .btn.ghost{
+      background:rgba(255,255,255,.04);
+      border:1px solid var(--line);
+      box-shadow:none;
+    }
+    .disabled{
+      opacity:.45; pointer-events:none; filter:grayscale(.25);
     }
 
-    /* Preview: ALWAYS dark, never white */
+    /* Preview */
     .previewWrap{
-      position:relative;
-      flex:1;
-      display:flex;
+      height:calc(100% - 56px);
       background:rgba(0,0,0,.18);
+      position:relative;
     }
-    iframe{
-      width:100%;
-      height:100%;
+    .previewFrame{
+      width:100%; height:100%;
       border:0;
-      background:var(--bg);    /* key: dark even when empty */
+      display:block;
+      background:#0b1020;
     }
     .previewEmpty{
-      position:absolute;inset:0;
-      display:grid;place-items:center;
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      padding:20px;
       color:var(--muted);
-      font-weight:800;
+      text-align:center;
       pointer-events:none;
-      background:transparent;
     }
-    .previewEmpty.hidden{display:none}
+    .previewEmpty strong{color:var(--text)}
+    .stamp{
+      position:absolute;
+      left:12px; bottom:12px;
+      padding:6px 10px;
+      border-radius:12px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.12);
+      color:var(--muted);
+      font-size:12px;
+    }
 
     /* Modal */
     .modalBack{
-      position:fixed;inset:0;
-      background:rgba(0,0,0,.55);
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.6);
       display:none;
-      align-items:center;
-      justify-content:center;
+      align-items:center; justify-content:center;
       padding:18px;
+      z-index:50;
     }
-    .modalBack.show{display:flex}
     .modal{
       width:min(520px, 100%);
-      border-radius:20px;
-      border:1px solid var(--line);
+      border-radius:18px;
       background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.03));
-      box-shadow:0 18px 50px rgba(0,0,0,.55);
-      overflow:hidden;
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow:0 30px 80px rgba(0,0,0,.55);
+      padding:16px;
     }
-    .modal .mhead{padding:14px 16px;border-bottom:1px solid var(--line);font-weight:900}
-    .modal .mbody{padding:14px 16px;color:var(--muted)}
+    .modal h3{margin:0 0 8px}
+    .modal p{margin:0 0 12px; color:var(--muted); line-height:1.35}
     .modal input{
       width:100%;
       padding:12px 12px;
       border-radius:14px;
       border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
+      background:rgba(0,0,0,.22);
       color:var(--text);
       outline:none;
-      font-size:14px;
-      margin-top:10px;
+      margin-bottom:12px;
     }
-    .modal .mfoot{
-      padding:14px 16px;border-top:1px solid var(--line);
-      display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;
+    .modalActions{display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap}
+    .proGlow{
+      box-shadow:0 0 0 6px rgba(57,255,122,.14), 0 14px 34px rgba(0,0,0,.35) !important;
+      border-color: rgba(57,255,122,.35) !important;
     }
 
     @media (max-width: 980px){
       .grid{grid-template-columns:1fr}
-      .panel{min-height:64vh}
+      .card{min-height:560px}
+      .brand{min-width:auto}
     }
   </style>
 </head>
+
 <body>
   <div class="wrap">
     <div class="topbar">
@@ -229,89 +262,460 @@
         <div class="dot"></div>
         <div>
           <h1>Simo</h1>
-          <div class="sub">Checkpoint V1.2.2 — strict preview truth + no white pane</div>
+          <div class="sub" id="subline">Checkpoint V1.2.2 — strict preview truth + no white pane</div>
         </div>
       </div>
 
-      <div class="right">
-        <button class="btn danger" id="resetBtn">Reset</button>
+      <div class="actions">
+        <button class="btn danger" id="btnReset">Reset</button>
 
-        <div class="pill on" id="modePill" title="Click to cycle modes">
-          <span class="led"></span>
-          <span id="modeLabel">Mode: building</span>
+        <div class="pill" id="modePill" title="Mode">
+          <div class="led on" id="modeLed"></div>
+          <div><strong id="modeText">Mode: building</strong></div>
         </div>
 
-        <div class="pill" id="proPill" title="Pro status (controlled by key)">
-          <span class="led"></span>
-          <span id="proLabel">Pro: OFF</span>
+        <div class="pill" id="proPill" title="Pro status">
+          <div class="led" id="proLed"></div>
+          <div><strong id="proText">Pro: OFF</strong></div>
         </div>
 
-        <button class="btn" id="unlockBtn">Unlock Pro</button>
+        <button class="btn" id="btnUnlock">Unlock Pro</button>
       </div>
     </div>
 
     <div class="grid">
-      <section class="panel">
-        <div class="head">
-          <div>Chat</div>
-          <small id="statusText">Ready</small>
+      <!-- Chat -->
+      <div class="card">
+        <div class="cardHead">
+          <h2>Chat</h2>
+          <div class="status" id="chatStatus">Ready</div>
         </div>
 
-        <div class="chat" id="chat"></div>
+        <div class="chatBody">
+          <div class="msgs" id="msgs"></div>
 
-        <div class="composer">
-          <div class="row">
+          <div class="inputRow">
             <textarea id="input" placeholder="Enter to send • Shift+Enter for new line"></textarea>
-            <button class="btn send" id="sendBtn">Send</button>
+            <button class="btn" id="btnSend">Send</button>
           </div>
 
-          <div class="actions">
-            <button class="btn ghost" id="previewBtn">Preview</button>
-            <button class="btn ghost" id="downloadBtn">Download</button>
-            <button class="btn ghost" id="saveBtn">Save</button>
-            <button class="btn ghost" id="libraryBtn">Library</button>
+          <div class="btnStrip">
+            <button class="btn small ghost" id="btnPreview">Preview</button>
+            <button class="btn small" id="btnDownload">Download</button>
+            <button class="btn small ghost disabled" id="btnSave">Save</button>
+            <button class="btn small ghost disabled" id="btnLibrary">Library</button>
           </div>
 
-          <div class="hint">
-            <span class="chip" id="topicChip">topic: none</span>
-            <span class="chip" id="draftChip">draft: none</span>
-            <span class="chip">Tip: “build a landing page…” then “show me a preview”</span>
+          <div class="footRow">
+            <span class="mini" id="topicChip">topic: general</span>
+            <span class="mini" id="draftChip">draft: none</span>
+            <span class="mini" id="tipChip">Tip: “build a landing page…” then “show me a preview”</span>
           </div>
         </div>
-      </section>
+      </div>
 
-      <section class="panel">
-        <div class="head">
-          <div>Preview</div>
-          <small id="previewMeta">No preview yet</small>
+      <!-- Preview -->
+      <div class="card">
+        <div class="cardHead">
+          <h2>Preview</h2>
+          <div class="status" id="previewStatus">—</div>
         </div>
         <div class="previewWrap">
-          <iframe id="iframe" sandbox="allow-scripts"></iframe>
-          <div class="previewEmpty" id="previewEmpty">No preview yet.</div>
+          <!-- IMPORTANT: sandbox does NOT include allow-same-origin -->
+          <iframe
+            id="previewFrame"
+            class="previewFrame"
+            sandbox="allow-scripts allow-forms allow-modals"
+            referrerpolicy="no-referrer"
+            title="Simo Preview"
+          ></iframe>
+
+          <div class="previewEmpty" id="previewEmpty">
+            <div>
+              <strong>No preview yet.</strong><br/>
+              Ask for a build (example: “build a landing page for a fitness coach”).
+            </div>
+          </div>
+
+          <div class="stamp" id="previewStamp">Strict preview truth</div>
         </div>
-      </section>
+      </div>
     </div>
   </div>
 
-  <div class="modalBack" id="modalBack" role="dialog" aria-modal="true">
+  <!-- Pro Modal -->
+  <div class="modalBack" id="modalBack">
     <div class="modal">
-      <div class="mhead">Unlock Pro</div>
-      <div class="mbody">
-        Paste a Pro key to unlock Save + Library.
-        <input id="proKey" placeholder="Enter Pro key (e.g. SIMO-TEST-123)" />
-        <div style="margin-top:10px;color:var(--muted);font-size:12px;">
-          Verifies via <code>/.netlify/functions/pro</code>
-        </div>
+      <h3>Unlock Pro</h3>
+      <p>Enter a Pro key. Pro unlocks Save + Library.</p>
+      <input id="proKey" placeholder="Enter your key (example: SIMO-TEST-123)" />
+      <div class="modalActions">
+        <button class="btn secondary" id="btnCancel">Cancel</button>
+        <button class="btn" id="btnVerify">Verify</button>
       </div>
-      <div class="mfoot">
-        <button class="btn ghost" id="cancelPro">Cancel</button>
-        <button class="btn" id="verifyPro">Verify</button>
-      </div>
+      <p class="sys" id="verifyMsg" style="margin-top:12px; display:none;"></p>
     </div>
   </div>
 
-  <script defer src="./app.js?v=123"></script>
+  <script>
+    // ====== CONFIG ======
+    const FN_SIMON = "/.netlify/functions/simon"; // backend
+    const FN_PRO   = "/.netlify/functions/pro";   // pro verifier
+    const LS = {
+      pro: "simo_pro",
+      key: "simo_pro_key",
+      lib: "simo_library",
+      lastHtml: "simo_last_html",
+      mode: "simo_mode",
+      topic: "simo_topic"
+    };
+
+    // ====== HELPERS ======
+    const $ = (id) => document.getElementById(id);
+    const escapeHtml = (s) => (s||"").replace(/[&<>"']/g, m => ({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+    }[m]));
+
+    function nowStamp(){
+      const d = new Date();
+      return d.toLocaleString([], {month:"short", day:"2-digit", hour:"2-digit", minute:"2-digit"});
+    }
+
+    function setStatus(text){ $("chatStatus").textContent = text; }
+    function setPreviewStatus(text){ $("previewStatus").textContent = text; }
+
+    function pushMsg(who, text){
+      const row = document.createElement("div");
+      row.className = "row " + (who === "you" ? "you" : "simo");
+
+      const av = document.createElement("div");
+      av.className = "avatar";
+      av.textContent = who === "you" ? "You" : "S";
+
+      const bub = document.createElement("div");
+      bub.className = "bubble";
+      bub.textContent = text;
+
+      row.appendChild(av);
+      row.appendChild(bub);
+      $("msgs").appendChild(row);
+      $("msgs").scrollTop = $("msgs").scrollHeight;
+    }
+
+    function pushSys(text){
+      const div = document.createElement("div");
+      div.className = "sys";
+      div.textContent = text;
+      $("msgs").appendChild(div);
+      $("msgs").scrollTop = $("msgs").scrollHeight;
+    }
+
+    function setMode(mode){
+      localStorage.setItem(LS.mode, mode);
+      $("modeText").textContent = "Mode: " + mode;
+      // LED on for building/solving, still on for venting (just UI)
+      $("modeLed").classList.add("on");
+    }
+
+    function setTopic(topic){
+      localStorage.setItem(LS.topic, topic);
+      $("topicChip").textContent = "topic: " + (topic || "general");
+    }
+
+    function setDraft(state){
+      $("draftChip").textContent = "draft: " + state;
+    }
+
+    // Strict preview truth: only render if it really looks like HTML
+    function looksLikeHtml(s){
+      if(!s) return false;
+      const t = String(s).trim();
+      return /^<!doctype html/i.test(t) || /<html[\s>]/i.test(t) || /<body[\s>]/i.test(t);
+    }
+
+    function setPreviewHtml(html){
+      const frame = $("previewFrame");
+      const empty = $("previewEmpty");
+
+      if(looksLikeHtml(html)){
+        frame.srcdoc = html;
+        empty.style.display = "none";
+        setPreviewStatus("Updated • " + nowStamp());
+        localStorage.setItem(LS.lastHtml, html);
+        setDraft("updated");
+      }else{
+        // Don't show white/blank page as "preview"
+        frame.srcdoc = "";
+        empty.style.display = "flex";
+        setPreviewStatus("No valid HTML");
+        setDraft("none");
+      }
+    }
+
+    function downloadHtml(html){
+      const blob = new Blob([html || ""], {type:"text/html"});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "simo_preview.html";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    // ====== PRO ======
+    function setPro(on){
+      localStorage.setItem(LS.pro, on ? "1" : "0");
+      $("proLed").classList.toggle("on", !!on);
+      $("proText").textContent = "Pro: " + (on ? "ON" : "OFF");
+      $("proPill").classList.toggle("proGlow", !!on);
+
+      $("btnSave").classList.toggle("disabled", !on);
+      $("btnLibrary").classList.toggle("disabled", !on);
+    }
+
+    async function verifyProKey(key){
+      const r = await fetch(FN_PRO, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ key })
+      });
+      const j = await r.json().catch(()=> ({}));
+      return !!(j && j.ok && j.pro);
+    }
+
+    function openModal(on){
+      $("modalBack").style.display = on ? "flex" : "none";
+      $("verifyMsg").style.display = "none";
+      $("verifyMsg").textContent = "";
+      if(on) $("proKey").focus();
+    }
+
+    // ====== BACKEND CALL ======
+    async function callSimo(input){
+      const mode = localStorage.getItem(LS.mode) || "building";
+      const topic = localStorage.getItem(LS.topic) || "general";
+
+      const payload = { mode, topic, input };
+
+      const r = await fetch(FN_SIMON, {
+        method:"POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify(payload)
+      });
+
+      const text = await r.text();
+
+      // Try parse JSON; fallback to plain text
+      let data = null;
+      try { data = JSON.parse(text); } catch(e){}
+
+      // We accept multiple backend shapes without breaking
+      const reply =
+        (data && (data.text || data.reply || data.output_text)) ||
+        (typeof text === "string" ? text : "");
+
+      const html =
+        (data && (data.html || data.preview_html || data.output_html)) ||
+        "";
+
+      return { ok: r.ok, status: r.status, reply, html, raw: text };
+    }
+
+    // ====== LIBRARY ======
+    function getLibrary(){
+      try { return JSON.parse(localStorage.getItem(LS.lib) || "[]"); }
+      catch(e){ return []; }
+    }
+    function setLibrary(arr){
+      localStorage.setItem(LS.lib, JSON.stringify(arr || []));
+    }
+
+    function saveToLibrary(html){
+      const lib = getLibrary();
+      const item = {
+        id: Math.random().toString(16).slice(2),
+        title: "Saved build",
+        ts: Date.now(),
+        html: html || ""
+      };
+      lib.unshift(item);
+      setLibrary(lib.slice(0, 20));
+      pushSys("Saved to Library.");
+    }
+
+    function openLibrary(){
+      const lib = getLibrary();
+      if(!lib.length){
+        pushSys("Library is empty.");
+        return;
+      }
+      const list = lib.map((x, i) => `${i+1}) ${new Date(x.ts).toLocaleString()} — ${x.title}`).join("\n");
+      pushSys("Library:\n" + list + "\n\nType: load 1  (or load 2, etc.)");
+    }
+
+    function tryHandleLoadCommand(input){
+      const m = String(input||"").trim().match(/^load\s+(\d+)$/i);
+      if(!m) return false;
+      const idx = Math.max(1, parseInt(m[1],10)) - 1;
+      const lib = getLibrary();
+      if(!lib[idx]){
+        pushSys("No saved item at that number.");
+        return true;
+      }
+      setPreviewHtml(lib[idx].html);
+      pushSys("Loaded item " + (idx+1) + " into Preview.");
+      return true;
+    }
+
+    // ====== RESET ======
+    function hardReset(){
+      $("msgs").innerHTML = "";
+      $("input").value = "";
+      setPreviewHtml("");
+      setStatus("Ready");
+      setTopic("general");
+      setMode(localStorage.getItem(LS.mode) || "building");
+
+      pushMsg("simo", "Tell me what you want right now — venting, solving, or building.");
+    }
+
+    // ====== INIT ======
+    (function init(){
+      // Restore
+      const proOn = localStorage.getItem(LS.pro) === "1";
+      setPro(proOn);
+
+      setMode(localStorage.getItem(LS.mode) || "building");
+      setTopic(localStorage.getItem(LS.topic) || "general");
+
+      const last = localStorage.getItem(LS.lastHtml) || "";
+      if(looksLikeHtml(last)){
+        setPreviewHtml(last);
+      }else{
+        setPreviewHtml("");
+      }
+
+      // Starter message
+      if(!$("msgs").children.length){
+        pushMsg("simo", "Tell me what you want right now — venting, solving, or building.");
+      }
+
+      // Events
+      $("btnReset").addEventListener("click", hardReset);
+
+      $("btnSend").addEventListener("click", async () => {
+        const val = $("input").value.trim();
+        if(!val) return;
+
+        // Local commands
+        if(tryHandleLoadCommand(val)){ $("input").value = ""; return; }
+
+        pushMsg("you", val);
+        $("input").value = "";
+        setStatus("Thinking…");
+
+        try{
+          const res = await callSimo(val);
+          if(!res.ok){
+            pushSys("Backend error (" + res.status + ").");
+            // Still show text if any
+            const msg = (res.reply || "").trim();
+            if(msg) pushMsg("simo", msg);
+            setStatus("Ready");
+            return;
+          }
+
+          // Show assistant text
+          const msg = (res.reply || "").trim();
+          pushMsg("simo", msg || "Done.");
+
+          // If backend returned HTML, render it
+          if(res.html && looksLikeHtml(res.html)){
+            setPreviewHtml(res.html);
+            pushMsg("simo", "Preview updated on the right.");
+          }
+
+          setStatus("Ready");
+        }catch(e){
+          pushSys("Network or script error: " + e.message);
+          setStatus("Ready");
+        }
+      });
+
+      $("input").addEventListener("keydown", (e) => {
+        if(e.key === "Enter" && !e.shiftKey){
+          e.preventDefault();
+          $("btnSend").click();
+        }
+      });
+
+      $("btnPreview").addEventListener("click", () => {
+        const last = localStorage.getItem(LS.lastHtml) || "";
+        if(looksLikeHtml(last)){
+          setPreviewHtml(last);
+          pushSys("Preview refreshed.");
+        }else{
+          pushSys("No HTML cached yet. Ask for a build first (example: “build a landing page…”).");
+        }
+      });
+
+      $("btnDownload").addEventListener("click", () => {
+        const html = localStorage.getItem(LS.lastHtml) || "";
+        if(!looksLikeHtml(html)){
+          pushSys("Nothing to download yet. Generate a preview first.");
+          return;
+        }
+        downloadHtml(html);
+        pushSys("Downloaded preview HTML.");
+      });
+
+      $("btnSave").addEventListener("click", () => {
+        if(localStorage.getItem(LS.pro) !== "1") return;
+        const html = localStorage.getItem(LS.lastHtml) || "";
+        if(!looksLikeHtml(html)){
+          pushSys("Nothing to save yet. Generate a preview first.");
+          return;
+        }
+        saveToLibrary(html);
+      });
+
+      $("btnLibrary").addEventListener("click", () => {
+        if(localStorage.getItem(LS.pro) !== "1") return;
+        openLibrary();
+      });
+
+      $("btnUnlock").addEventListener("click", () => openModal(true));
+      $("btnCancel").addEventListener("click", () => openModal(false));
+
+      $("btnVerify").addEventListener("click", async () => {
+        const key = $("proKey").value.trim();
+        if(!key) return;
+        $("verifyMsg").style.display = "block";
+        $("verifyMsg").textContent = "Verifying…";
+
+        try{
+          const ok = await verifyProKey(key);
+          if(ok){
+            localStorage.setItem(LS.key, key);
+            setPro(true);
+            $("verifyMsg").textContent = "Verified. Pro is ON.";
+            setTimeout(()=>openModal(false), 500);
+          }else{
+            setPro(false);
+            $("verifyMsg").textContent = "Invalid key.";
+          }
+        }catch(e){
+          $("verifyMsg").textContent = "Verify failed: " + e.message;
+        }
+      });
+
+      // Clicking outside modal closes it
+      $("modalBack").addEventListener("click", (e) => {
+        if(e.target === $("modalBack")) openModal(false);
+      });
+    })();
+  </script>
 </body>
 </html>
-
-
