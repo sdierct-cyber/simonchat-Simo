@@ -1,8 +1,9 @@
 // netlify/functions/simon.js
-// 504-proof Simo backend:
-// - ALWAYS responds quickly (prevents Netlify inactivity timeout)
-// - building mode ALWAYS returns full HTML
-// - OpenAI call is time-boxed; if slow, we fall back to instant templates
+// FAST + 504-proof + always-HTML builder.
+// - Always responds within ~7s (Netlify won't 504)
+// - Building returns instant HTML template every time
+// - OpenAI is optional and time-boxed. If slow/down, you still get the template.
+// - Output contract: { ok, mode, topic, text, html }
 
 export default async (req) => {
   const cors = {
@@ -13,94 +14,75 @@ export default async (req) => {
   if (req.method === "OPTIONS") return new Response("", { status: 200, headers: cors });
 
   try {
-    if (req.method !== "POST") return json({ ok: false, error: "Use POST" }, 405, cors);
+    if (req.method !== "POST") return j({ ok:false, error:"Use POST" }, 405, cors);
 
     const body = await req.json().catch(() => ({}));
-    const mode = cleanMode(body.mode) || "building";
-    const topic = cleanText(body.topic) || "general";
-    const input = cleanText(body.input) || "";
+    const mode  = cleanMode(body.mode) || "building";
+    const topic = clean(body.topic) || "general";
+    const input = clean(body.input) || "";
 
     if (!input.trim()) {
-      return json({ ok: true, mode, topic, text: "Tell me what you want to build.", html: "" }, 200, cors);
+      return j({ ok:true, mode, topic, text:"Tell me what you want to build.", html:"" }, 200, cors);
     }
 
     const wantsBuild = mode === "building" || isBuildIntent(input);
 
-    // ✅ Instant deterministic HTML for common build types (prevents timeouts)
+    // ===== BUILDING: instant template ALWAYS (never blank, never waits) =====
     if (wantsBuild) {
-      const kind = detectBuildKind(input);
-      const baseHtml = buildTemplate(kind, input);
+      const kind = detectKind(input);
+      const template = buildTemplate(kind, input);
 
-      // Try to improve copy via OpenAI, but NEVER block preview on it
-      const ai = await tryOpenAIQuick({ mode, topic, input, timeoutMs: 7000 });
+      // Optional AI upgrade (time-boxed). Never blocks preview.
+      const ai = await tryOpenAIQuick({
+        mode:"building",
+        topic,
+        input,
+        timeoutMs: 6500,      // keep under Netlify inactivity
+        maxTokens: 800
+      });
+
       if (ai.ok && ai.text) {
-        // If AI returned full HTML, use it; else just swap in better text blocks
         const maybeHtml = extractHtml(ai.text);
         if (looksLikeHtml(maybeHtml)) {
-          return json({ ok: true, mode, topic, text: "Done. Preview updated.", html: normalizeHtml(maybeHtml) }, 200, cors);
+          return j({ ok:true, mode, topic, text:"Done. Preview updated.", html: normalizeHtml(maybeHtml) }, 200, cors);
         }
-
-        // otherwise: keep deterministic HTML and return AI response as chat text
-        return json(
-          {
-            ok: true,
-            mode,
-            topic,
-            text: ai.text.trim() || "Done. Preview updated.",
-            html: baseHtml,
-          },
-          200,
-          cors
-        );
+        // AI gave text only: keep template, use AI as chat copy
+        return j({ ok:true, mode, topic, text: ai.text.trim(), html: template }, 200, cors);
       }
 
-      // OpenAI slow/down -> still return instantly with template
-      return json(
-        {
-          ok: true,
-          mode,
-          topic,
-          text: "Done. Preview updated.",
-          html: baseHtml,
-          note: ai.error ? `fallback: ${ai.error}` : "fallback: timeout",
-        },
-        200,
-        cors
-      );
+      // AI slow/down: still perfect preview via template
+      return j({ ok:true, mode, topic, text:"Done. Preview updated.", html: template }, 200, cors);
     }
 
-    // Non-build modes (venting/solving): still time-box OpenAI so we never 504
-    const ai = await tryOpenAIQuick({ mode, topic, input, timeoutMs: 7000 });
-    if (ai.ok && ai.text) {
-      return json({ ok: true, mode, topic, text: ai.text.trim(), html: "" }, 200, cors);
-    }
-    return json(
-      {
-        ok: true,
-        mode,
-        topic,
-        text: mode === "venting"
-          ? "I’m here. Tell me what happened — start wherever you want."
-          : "Got it. What’s the goal and what’s blocking you right now?",
-        html: "",
-        note: ai.error ? `fallback: ${ai.error}` : "fallback: timeout",
-      },
-      200,
-      cors
-    );
+    // ===== NON-BUILD: best friend / solving (time-boxed so no 504) =====
+    const ai = await tryOpenAIQuick({
+      mode,
+      topic,
+      input,
+      timeoutMs: 6500,
+      maxTokens: 500
+    });
 
-  } catch (err) {
-    return json({ ok: false, error: err?.message || String(err) }, 500, cors);
+    if (ai.ok && ai.text) return j({ ok:true, mode, topic, text: ai.text.trim(), html:"" }, 200, cors);
+
+    // Fallback if OpenAI slow
+    const fallback =
+      mode === "venting"
+        ? "I’m here. Talk to me — what happened today?"
+        : "Got you. What’s the goal, and what’s blocking you right now?";
+    return j({ ok:true, mode, topic, text: fallback, html:"" }, 200, cors);
+
+  } catch (e) {
+    return j({ ok:false, error: e?.message || String(e) }, 500, cors);
   }
 };
 
 // ---------- OpenAI (time-boxed) ----------
-async function tryOpenAIQuick({ mode, topic, input, timeoutMs }) {
+async function tryOpenAIQuick({ mode, topic, input, timeoutMs, maxTokens }) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return { ok: false, error: "missing_openai_key" };
+  if (!apiKey) return { ok:false, error:"missing_key" };
 
   const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
-
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -110,26 +92,24 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs }) {
       model,
       input: `${sys}\n\nUSER:\n${input}\n`,
       temperature: mode === "building" ? 0.4 : 0.7,
-      max_output_tokens: mode === "building" ? 900 : 450, // ✅ keep small to stay fast
+      max_output_tokens: maxTokens
     };
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+      headers: { "Content-Type":"application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify(payload),
-      signal: controller.signal,
+      signal: controller.signal
     });
 
     const raw = await r.text();
-    if (!r.ok) return { ok: false, error: `openai_${r.status}`, details: safeTrim(raw, 300) };
+    if (!r.ok) return { ok:false, error:`openai_${r.status}` };
 
     const data = JSON.parse(raw);
-    const outText = (data.output_text || "").trim();
-    return { ok: true, text: outText };
+    return { ok:true, text: (data.output_text || "").trim() };
 
   } catch (e) {
-    // AbortError = timeout. Others = network.
-    return { ok: false, error: e?.name === "AbortError" ? "timeout" : "network_error" };
+    return { ok:false, error: e?.name === "AbortError" ? "timeout" : "network" };
   } finally {
     clearTimeout(t);
   }
@@ -138,29 +118,30 @@ async function tryOpenAIQuick({ mode, topic, input, timeoutMs }) {
 function systemPrompt(mode, topic) {
   if (mode === "building") {
     return `
-You are Simo, a web builder.
-If the user asks for a UI/mockup/book cover, you may return HTML.
-If you return HTML, it MUST be a complete document starting with <!doctype html>.
+You are Simo, a product-grade builder.
+When building, you may output HTML.
+If you output HTML: it MUST be a full document starting with <!doctype html>.
 No markdown fences unless the entire output is HTML.
+Style: clean, modern, dark-friendly, polished.
 Topic: ${topic}
 `.trim();
   }
   if (mode === "venting") {
     return `
-You are Simo, the user's private best friend. Direct, warm, no therapy clichés.
-Ask at most one question.
+You are Simo, the user's private best friend.
+Be direct and real. No therapy clichés. One question max.
 Topic: ${topic}
 `.trim();
   }
   return `
 You are Simo, practical problem-solver.
-Give numbered steps. Ask only essential info.
+Give a short plan with numbered steps.
 Topic: ${topic}
 `.trim();
 }
 
-// ---------- Templates (instant) ----------
-function detectBuildKind(input) {
+// ---------- Templates (instant = never fails) ----------
+function detectKind(input){
   const t = input.toLowerCase();
   if (t.includes("book cover")) return "book_cover";
   if (t.includes("landing page")) return "landing";
@@ -169,16 +150,16 @@ function detectBuildKind(input) {
   return "generic";
 }
 
-function buildTemplate(kind, input) {
+function buildTemplate(kind, input){
   if (kind === "book_cover") return bookCoverHtml(input);
   if (kind === "landing") return landingHtml(input);
   return genericHtml(input);
 }
 
-function bookCoverHtml(prompt) {
-  const title = guessTitle(prompt) || "New Roots";
-  const subtitle = guessSubtitle(prompt) || "A factory worker’s American journey";
-  const author = guessAuthor(prompt) || "Simon Gojcaj";
+function bookCoverHtml(prompt){
+  const title = pick(prompt, /title\s*:\s*["“]?([^"\n”]+)["”]?/i) || "New Roots";
+  const subtitle = pick(prompt, /subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i) || "A factory worker’s American journey";
+  const author = pick(prompt, /author\s*:\s*["“]?([^"\n”]+)["”]?/i) || "Simon Gojcaj";
 
   return `<!doctype html>
 <html lang="en">
@@ -213,10 +194,7 @@ function bookCoverHtml(prompt) {
   }
   h1{margin:0; font-size:34px; letter-spacing:.4px; line-height:1.05}
   h2{margin:10px 0 0; font-size:14px; color:rgba(234,240,255,.82); font-weight:600}
-  .art{
-    position:absolute; inset:0; display:grid; place-items:center;
-    padding-top:105px;
-  }
+  .art{position:absolute; inset:0; display:grid; place-items:center; padding-top:105px;}
   .badge{
     width:76%; border-radius:18px;
     background:rgba(242,239,232,.92);
@@ -224,7 +202,7 @@ function bookCoverHtml(prompt) {
     padding:18px;
     box-shadow:0 12px 30px rgba(0,0,0,.25);
   }
-  .badge .kicker{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:#3a4460}
+  .badge .k{font-size:12px; letter-spacing:.2em; text-transform:uppercase; color:#3a4460}
   .badge .line{height:1px; background:rgba(0,0,0,.12); margin:10px 0}
   .badge p{margin:0; color:#26304a; line-height:1.45}
   .author{
@@ -244,9 +222,7 @@ function bookCoverHtml(prompt) {
     box-shadow:0 18px 44px rgba(0,0,0,.35);
   }
   .right h3{margin:0 0 8px}
-  .right p{margin:0; color:var(--muted); line-height:1.5}
-  .tags{margin-top:12px; display:flex; gap:10px; flex-wrap:wrap}
-  .tag{padding:8px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.12); background:rgba(0,0,0,.18); color:rgba(234,240,255,.8); font-size:12px}
+  .right p{margin:0;color:var(--muted);line-height:1.5}
   @media (max-width: 980px){
     .stage{grid-template-columns:1fr}
     .cover{width:min(420px, 100%)}
@@ -260,29 +236,21 @@ function bookCoverHtml(prompt) {
         <h1>${esc(title)}</h1>
         <h2>${esc(subtitle)}</h2>
       </div>
-
       <div class="art">
         <div class="badge">
-          <div class="kicker">A modern immigrant story</div>
+          <div class="k">A modern immigrant story</div>
           <div class="line"></div>
           <p>Early mornings. Factory floors. Quiet pride. A modest life built one shift at a time — and gratitude for what America offers.</p>
         </div>
       </div>
-
       <div class="author">
         <strong>${esc(author)}</strong>
         <div class="meta">Memoir • Contemporary • Hope</div>
       </div>
     </div>
-
     <div class="right">
-      <h3>What you can change</h3>
-      <p>Tell me: <b>title</b>, <b>subtitle</b>, <b>author</b>, and the <b>vibe</b> (gritty / hopeful / cinematic / minimal). I’ll update the cover instantly.</p>
-      <div class="tags">
-        <div class="tag">Book cover mockup</div>
-        <div class="tag">Print-ready layout</div>
-        <div class="tag">No external assets</div>
-      </div>
+      <h3>Cover ready</h3>
+      <p>Say: “title: …”, “subtitle: …”, “author: …”, or “make it more gritty / more hopeful / more minimal” and I’ll update it.</p>
     </div>
   </div>
 </body>
@@ -290,26 +258,28 @@ function bookCoverHtml(prompt) {
 }
 
 function landingHtml(prompt){
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Landing</title>
-<style>body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
-.card{max-width:860px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
-h1{margin:0 0 8px}p{margin:0;color:rgba(234,240,255,.75);line-height:1.5}
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Landing</title><style>
+body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
+.card{max-width:900px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
+p{color:rgba(234,240,255,.75);line-height:1.5}
 </style></head><body><div class="card"><h1>Landing Page</h1><p>${esc(prompt)}</p></div></body></html>`;
 }
+
 function genericHtml(prompt){
-  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Simo Build</title>
-<style>body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
-.card{max-width:860px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
+  return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Simo Build</title><style>
+body{margin:0;font-family:system-ui;background:#0b1020;color:#eaf0ff;display:grid;place-items:center;min-height:100vh}
+.card{max-width:900px;width:92%;border:1px solid rgba(255,255,255,.12);border-radius:18px;background:rgba(255,255,255,.06);padding:18px}
 </style></head><body><div class="card"><h1>Simo Build</h1><div>${esc(prompt)}</div></div></body></html>`;
 }
 
-// ---------- Utilities ----------
-function json(obj, status = 200, headers = {}) {
-  return new Response(JSON.stringify(obj), { status, headers: { "Content-Type": "application/json", ...headers } });
+// ---------- Utils ----------
+function j(obj, status=200, headers={}) {
+  return new Response(JSON.stringify(obj), { status, headers:{ "Content-Type":"application/json", ...headers } });
 }
-function cleanText(x){ return typeof x === "string" ? x.replace(/\u0000/g,"").trim() : ""; }
+function clean(x){ return typeof x === "string" ? x.replace(/\u0000/g,"").trim() : ""; }
 function cleanMode(m){ const s = String(m||"").toLowerCase().trim(); return ["venting","solving","building"].includes(s) ? s : ""; }
-function safeTrim(s,n){ const t=String(s||""); return t.length>n ? t.slice(0,n)+"…" : t; }
 function isBuildIntent(input){
   const t = input.toLowerCase();
   return t.includes("build ") || t.includes("preview") || t.includes("html") || t.includes("book cover") || t.includes("mockup") || t.includes("landing page");
@@ -328,15 +298,4 @@ function normalizeHtml(s){
   return /^<!doctype html/i.test(t) ? t : "<!doctype html>\n" + t;
 }
 function esc(s){ return String(s||"").replace(/[&<>"']/g, m => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;" }[m])); }
-function guessTitle(prompt){
-  const m = String(prompt||"").match(/title\s*:\s*["“]?([^"\n”]+)["”]?/i);
-  return m ? m[1].trim() : "";
-}
-function guessSubtitle(prompt){
-  const m = String(prompt||"").match(/subtitle\s*:\s*["“]?([^"\n”]+)["”]?/i);
-  return m ? m[1].trim() : "";
-}
-function guessAuthor(prompt){
-  const m = String(prompt||"").match(/author\s*:\s*["“]?([^"\n”]+)["”]?/i);
-  return m ? m[1].trim() : "";
-}
+function pick(s, re){ const m = String(s||"").match(re); return m ? m[1].trim() : ""; }
