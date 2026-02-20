@@ -2,7 +2,6 @@
   publish = "."
   functions = "netlify/functions"
 
-# If you need SPA routing, keep it LAST and DO NOT force it.
 [[redirects]]
   from = "/*"
   to = "/index.html"
