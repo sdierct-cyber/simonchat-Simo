@@ -1,13 +1,15 @@
-/* app.js — Simo Stable V2
-   Goals:
-   - UI never clips (textbox/buttons always visible)
-   - Pro modal always centered overlay
-   - Pro gating works through /.netlify/functions/pro
-   - “Brain doesn’t lose it” via rolling memory sent every request
-   - Preview never flashes white (iframe always has dark placeholder)
+/* app.js — Simo Checkpoint V2 LOCKED (v4)
+   - No UI clipping
+   - Stable event wiring (won't crash if IDs missing)
+   - Rolling memory + thread id
+   - Sends lastHtml for continued edits
+   - Preview stays dark (no white flash)
+   - Pro gating via /.netlify/functions/pro
 */
 
 (() => {
+  window.__SIMO_APP__ = { version: "v4" };
+
   const $ = (id) => document.getElementById(id);
 
   const els = {
@@ -37,6 +39,15 @@
     proStatus: $("proStatus")
   };
 
+  // If critical elements are missing, show a clear message instead of crashing.
+  const critical = ["log","input","send","reset","previewBtn","previewFrame","previewStatus"];
+  const missing = critical.filter(k => !els[k]);
+  if (missing.length) {
+    console.warn("Simo app.js: missing critical IDs:", missing);
+    // Don't throw; page still renders.
+    return;
+  }
+
   const API = {
     simon: "/.netlify/functions/simon",
     pro: "/.netlify/functions/pro"
@@ -46,11 +57,12 @@
     pro: "simo_pro_enabled",
     proKey: "simo_pro_key",
     threadId: "simo_thread_id",
-    memory: "simo_memory_v2",
-    html: "simo_last_html_v2"
+    memory: "simo_memory_v3",
+    html: "simo_last_html_v3",
+    lib: "simo_library_v3"
   };
 
-  const MAX_TURNS = 14; // last 14 user+assistant turns (ChatGPT-like continuity)
+  const MAX_TURNS = 16;
 
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, (c) => ({
@@ -109,12 +121,15 @@
   function pushMsg(role, text){
     const div = document.createElement("div");
     div.className = "msg " + (role === "user" ? "you" : "simo");
+
     const meta = document.createElement("div");
     meta.className = "meta";
     meta.textContent = (role === "user" ? "You" : "Simo") + " • " + nowTime();
+
     const body = document.createElement("div");
     body.className = "txt";
     body.textContent = text;
+
     div.appendChild(meta);
     div.appendChild(body);
     els.log.appendChild(div);
@@ -131,10 +146,12 @@
   function setPreviewPlaceholder(){
     els.previewFrame.srcdoc = darkPlaceholder("Preview");
   }
+
   function setPreviewHtml(html){
     els.previewFrame.srcdoc = html;
     localStorage.setItem(STORAGE.html, html);
   }
+
   function loadCachedHtml(){
     const html = localStorage.getItem(STORAGE.html);
     if (html && html.trim().length > 30){
@@ -161,19 +178,21 @@
   }
 
   function openModal(){
+    if (!els.modalWrap) return;
     els.modalWrap.style.display = "flex";
-    els.proStatus.textContent = "";
-    els.proKey.value = localStorage.getItem(STORAGE.proKey) || "";
-    setTimeout(() => els.proKey.focus(), 0);
+    if (els.proStatus) els.proStatus.textContent = "";
+    if (els.proKey) els.proKey.value = localStorage.getItem(STORAGE.proKey) || "";
+    setTimeout(() => els.proKey?.focus?.(), 0);
   }
   function closeModal(){
+    if (!els.modalWrap) return;
     els.modalWrap.style.display = "none";
   }
 
   async function verifyProKey(){
-    const key = (els.proKey.value || "").trim();
-    if (!key){ els.proStatus.textContent = "Enter a key first."; return; }
-    els.proStatus.textContent = "Verifying…";
+    const key = (els.proKey?.value || "").trim();
+    if (!key){ if (els.proStatus) els.proStatus.textContent = "Enter a key first."; return; }
+    if (els.proStatus) els.proStatus.textContent = "Verifying…";
     try{
       const r = await fetch(API.pro, {
         method:"POST",
@@ -185,15 +204,15 @@
         localStorage.setItem(STORAGE.proKey, key);
         setPro(true);
         updateProButtons();
-        els.proStatus.textContent = "Pro unlocked ✅";
+        if (els.proStatus) els.proStatus.textContent = "Pro unlocked ✅";
         closeModal();
       } else {
         setPro(false);
         updateProButtons();
-        els.proStatus.textContent = "Invalid key ❌";
+        if (els.proStatus) els.proStatus.textContent = "Invalid key ❌";
       }
     }catch(e){
-      els.proStatus.textContent = "Verify failed: " + (e?.message || "error");
+      if (els.proStatus) els.proStatus.textContent = "Verify failed: " + (e?.message || "error");
     }
   }
 
@@ -201,7 +220,7 @@
     const t = (userText || "").toLowerCase();
     if (/(wife|husband|girlfriend|boyfriend|relationship|fight|argu|mad at|upset|vent)/.test(t)) return "venting";
     if (/(how do i|help me|fix|debug|error|issue|broken|why|what is)/.test(t)) return "solving";
-    if (/(build|design|create|make|landing page|app|website|preview|ui|wireframe)/.test(t)) return "building";
+    if (/(build|design|create|make|landing page|app|website|preview|ui|wireframe|page)/.test(t)) return "building";
     return "general";
   }
 
@@ -227,12 +246,14 @@
       mode,
       input,
       pro: isPro(),
-      memory: trimMemory(loadMemory())
+      memory: trimMemory(loadMemory()),
+      lastHtml: (localStorage.getItem(STORAGE.html) || "").slice(0, 40000) // enough for edits
     };
 
     try{
       const ctrl = new AbortController();
-const t = setTimeout(() => ctrl.abort(), 90000);
+      const t = setTimeout(() => ctrl.abort(), 90000); // 90s for cold starts
+
       const r = await fetch(API.simon, {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
@@ -257,7 +278,7 @@ const t = setTimeout(() => ctrl.abort(), 90000);
       mem2.push({ role:"assistant", content: msg });
       saveMemory(trimMemory(mem2));
 
-      // preview
+      // preview update
       if (j.html && j.html.trim().length > 30){
         setPreviewHtml(j.html);
         els.previewStatus.textContent = "Updated by Simo.";
@@ -324,17 +345,15 @@ const t = setTimeout(() => ctrl.abort(), 90000);
     if (!html.trim()){ systemSay("No HTML cached to save yet."); return; }
     const name = prompt("Save name:", "Build " + new Date().toLocaleString());
     if (!name) return;
-    const libKey = "simo_library_v2";
-    const lib = JSON.parse(localStorage.getItem(libKey) || "[]");
+    const lib = JSON.parse(localStorage.getItem(STORAGE.lib) || "[]");
     lib.unshift({ name, html, savedAt: Date.now() });
-    localStorage.setItem(libKey, JSON.stringify(lib.slice(0, 50)));
+    localStorage.setItem(STORAGE.lib, JSON.stringify(lib.slice(0, 50)));
     systemSay(`Saved: ${name}`);
   }
 
   function openLibrary(){
     if (!isPro()){ openModal(); return; }
-    const libKey = "simo_library_v2";
-    const lib = JSON.parse(localStorage.getItem(libKey) || "[]");
+    const lib = JSON.parse(localStorage.getItem(STORAGE.lib) || "[]");
     if (!lib.length){ systemSay("Library empty."); return; }
     const list = lib.map((x, i) => `${i+1}) ${x.name}`).join("\n");
     const pick = prompt("Pick a number to load:\n\n" + list);
@@ -345,21 +364,21 @@ const t = setTimeout(() => ctrl.abort(), 90000);
     els.previewStatus.textContent = "Loaded from Library: " + lib[idx].name;
   }
 
-  // Wire events
+  // Wire events safely
   els.send.addEventListener("click", send);
   els.reset.addEventListener("click", reset);
   els.previewBtn.addEventListener("click", preview);
-  els.download.addEventListener("click", downloadHtml);
-  els.save.addEventListener("click", saveBuild);
-  els.library.addEventListener("click", openLibrary);
+  els.download?.addEventListener?.("click", downloadHtml);
+  els.save?.addEventListener?.("click", saveBuild);
+  els.library?.addEventListener?.("click", openLibrary);
 
-  els.btnPro.addEventListener("click", openModal);
-  els.closeModal.addEventListener("click", closeModal);
-  els.modalWrap.addEventListener("click", (e) => { if (e.target === els.modalWrap) closeModal(); });
-  els.verifyKey.addEventListener("click", verifyProKey);
+  els.btnPro?.addEventListener?.("click", openModal);
+  els.closeModal?.addEventListener?.("click", closeModal);
+  els.modalWrap?.addEventListener?.("click", (e) => { if (e.target === els.modalWrap) closeModal(); });
+  els.verifyKey?.addEventListener?.("click", verifyProKey);
 
-  els.btnClearMemory.addEventListener("click", clearMemory);
-  els.btnNewThread.addEventListener("click", newThread);
+  els.btnClearMemory?.addEventListener?.("click", clearMemory);
+  els.btnNewThread?.addEventListener?.("click", newThread);
 
   els.input.addEventListener("keydown", (e) => {
     if (e.key === "Enter" && !e.shiftKey){
