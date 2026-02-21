@@ -66,10 +66,12 @@ CRITICAL HTML RULES (must follow):
     body { background:#0b1020; color:#eaf0ff; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
 - Never output placeholder image domains like example.com.
 - Use reliable real images that always load:
-  Use https://source.unsplash.com/1200x800/?<keywords>
+  Use - Never use source.unsplash.com (it may fail).
+- Use reliable images that always load:
+  Use https://picsum.photos/seed/<seed>/1200/800
   Examples:
-    https://source.unsplash.com/1200x800/?mountain-bike,snow
-    https://source.unsplash.com/1200x800/?road-bike
+    https://picsum.photos/seed/mountain-bike-snow/1200/800
+    https://picsum.photos/seed/road-bike/1200/800
 - Keep it self-contained (inline CSS). No external JS frameworks.
 - When the user says "continue/next/add/change/remove", edit the CURRENT_ACTIVE_HTML and return the full updated document.
 - Do NOT say “updated preview” unless you included full HTML in your response.
