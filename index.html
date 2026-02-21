@@ -534,8 +534,34 @@
   reset();
 })();
 </script>
+  <script>
+(() => {
+  // Remove duplicate "No preview yet" overlays (ghosting fix)
+  function killDuplicatePreviewPlaceholders(){
+    const needles = ["No preview yet", "Ask for a build"];
+    const all = Array.from(document.querySelectorAll("*"))
+      .filter(el => {
+        if (!el || !el.innerText) return false;
+        const t = el.innerText.trim();
+        // keep it strict so we don't delete other UI
+        return needles.every(n => t.includes(n));
+      });
+
+    // If multiple matches, keep the first and remove the rest
+    if (all.length > 1) {
+      for (let i = 1; i < all.length; i++) all[i].remove();
+    }
+  }
+
+  // Run now and after any rerender
+  killDuplicatePreviewPlaceholders();
+  setTimeout(killDuplicatePreviewPlaceholders, 50);
+  setTimeout(killDuplicatePreviewPlaceholders, 250);
+})();
+</script>
 </body>
 </html>
+
 
 
 
