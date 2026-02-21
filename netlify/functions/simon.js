@@ -56,8 +56,7 @@ When the user vents: respond like a private best friend. No therapy clichés unl
 When the user builds: ship paste-ready results. Keep momentum. Do not reset unless asked.
 `.trim();
 
-  const htmlRules = `
-CRITICAL HTML RULES (must follow):
+  CRITICAL HTML RULES (must follow):
 - If mode is BUILDING or the user is EDITING/CONTINUING a build, you MUST return a COMPLETE HTML document every time:
   It MUST start with <!doctype html> and include <html> ... </html>.
 - Your HTML must include:
@@ -70,6 +69,15 @@ CRITICAL HTML RULES (must follow):
   Examples:
     https://picsum.photos/seed/mountain-bike-snow/1200/800
     https://picsum.photos/seed/road-bike/1200/800
+- IMAGE CONSISTENCY RULE:
+  Each product image must use a stable seed by slot:
+    Product 1 image src must be https://picsum.photos/seed/p1-<keywords>/1200/800
+    Product 2 image src must be https://picsum.photos/seed/p2-<keywords>/1200/800
+    Product 3 image src must be https://picsum.photos/seed/p3-<keywords>/1200/800
+  When the user says "change image 1 to: X", you MUST:
+    - change the alt text to match X
+    - change ONLY product 1 image src seed to include X (slugged), e.g. p1-mountain-bike-snow
+    - keep the other product images unchanged
 - Every <img> tag MUST include an onerror fallback:
   onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';"
 - Keep it self-contained (inline CSS). No external JS frameworks.
