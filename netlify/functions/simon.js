@@ -1,143 +1,173 @@
 // netlify/functions/simon.js
-// Stable backend contract: ALWAYS returns { ok, message, html }
-// No silent failures. No "Reset. I'm here." masking.
-// Uses Chat Completions because it's predictable across setups.
+// Stable Simo backend: stateless server, durable client memory.
+// Expects POST JSON: { threadId, mode, input, memory:[{role,content}], pro }
+// Returns: { ok:true, message, html }
 
-export default async (req) => {
-  // CORS
-  const headers = {
-    "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
-    "access-control-allow-methods": "POST,OPTIONS",
-    "content-type": "application/json; charset=utf-8",
+const OPENAI_URL = "https://api.openai.com/v1/responses";
+const MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini"; // safe default; change if you want
+
+function json(statusCode, obj){
+  return {
+    statusCode,
+    headers: {
+      "Content-Type":"application/json",
+      "Access-Control-Allow-Origin":"*",
+      "Access-Control-Allow-Headers":"Content-Type",
+      "Access-Control-Allow-Methods":"POST,OPTIONS"
+    },
+    body: JSON.stringify(obj)
+  };
+}
+
+function extractHtml(text){
+  if (!text) return "";
+  const t = String(text);
+
+  // ```html ... ```
+  const fence = t.match(/```html\s*([\s\S]*?)```/i);
+  if (fence && fence[1]) return fence[1].trim();
+
+  // looks like full HTML
+  if (/<html[\s>]/i.test(t) && /<\/html>/i.test(t)) return t.trim();
+
+  // sometimes returns only body-ish markup; if it contains tags, wrap it
+  if (/<(div|section|main|header|footer|style|script)\b/i.test(t)){
+    return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="dark"></head><body>${t}</body></html>`;
+  }
+
+  return "";
+}
+
+function safeModeLabel(mode){
+  const m = String(mode || "general").toLowerCase();
+  return ["venting","solving","building","general"].includes(m) ? m : "general";
+}
+
+function buildSystem(mode, pro){
+  const base = `You are Simo: a sharp, loyal best-friend assistant who can also build practical outputs.
+Rules:
+- Stay consistent with the ongoing conversation context provided in memory.
+- If the user asks to "continue", continue the most recent relevant work.
+- Be direct. No therapy-speak unless asked.
+- If building, produce clean, usable output. When returning HTML, include FULL HTML document.`;
+
+  const modeRules = {
+    venting: `Mode: venting.
+- Be supportive like a best friend. Ask 1–2 tight questions max.
+- No generic "communicate better" filler.`,
+    solving: `Mode: solving.
+- Diagnose and propose steps that reduce risk and rework. Be concrete.`,
+    building: `Mode: building.
+- Produce a result the user can paste/use. If relevant, return HTML. Keep it clean and modern.`
   };
 
-  if (req.method === "OPTIONS") {
-    return new Response("", { status: 204, headers });
-  }
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ ok: false, error: "Use POST" }), { status: 405, headers });
-  }
+  const proLine = pro ? `User is Pro: YES (they can Save/Download/Library).` : `User is Pro: NO.`;
 
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) {
-    return new Response(JSON.stringify({ ok: false, error: "Missing OPENAI_API_KEY in Netlify env vars." }), {
-      status: 500,
-      headers,
-    });
-  }
+  return [base, modeRules[mode] || modeRules.general || "", proLine].filter(Boolean).join("\n\n");
+}
 
-  let body;
-  try {
-    body = await req.json();
-  } catch {
-    return new Response(JSON.stringify({ ok: false, error: "Invalid JSON body." }), { status: 400, headers });
-  }
+async function callOpenAI({ system, memory, input }){
+  const messages = [];
 
-  const mode = (body?.mode || "solving").toString();
-  const topic = (body?.topic || "general").toString();
-  const input = (body?.input || "").toString().trim();
+  // system instruction
+  messages.push({
+    role: "system",
+    content: system
+  });
 
-  if (!input) {
-    return new Response(JSON.stringify({ ok: true, message: "Say something and I’ll respond.", html: "" }), {
-      status: 200,
-      headers,
-    });
+  // memory turns (user+assistant)
+  for (const m of (memory || [])){
+    if (!m || !m.role || !m.content) continue;
+    const role = m.role === "user" ? "user" : (m.role === "assistant" ? "assistant" : null);
+    if (!role) continue;
+    messages.push({ role, content: String(m.content).slice(0, 6000) });
   }
 
-  // System behavior: ChatGPT-like routing without "brainfart" resets.
-  // IMPORTANT: We never output "Reset. I'm here." unless user asked to reset.
-  const system = `
-You are "Simo": a helpful, steady assistant that can handle rapid topic switches.
-Mode can be: venting | solving | building.
-- venting: supportive best-friend vibe, no therapy-speak unless asked, ask 1-2 clarifying questions max.
-- solving: direct, practical steps.
-- building: produce usable artifacts. If the user asks for a preview, generate HTML.
+  // current input
+  messages.push({ role:"user", content: String(input || "") });
 
-CRITICAL OUTPUT RULE:
-Return ONLY a valid JSON object with keys:
-- "message": string (what you say in chat)
-- "html": string (optional; either "" or a complete HTML doc starting with <!doctype html>)
-No extra keys. No markdown. No backticks.
+  const body = {
+    model: MODEL,
+    input: messages,
+    max_output_tokens: 900,
+    // Ask for plain text; we parse HTML if it appears
+    text: { format: { type: "text" } }
+  };
 
-Preview policy:
-- Only put HTML in "html" when the user clearly requests a preview/build ("build a landing page", "show me a preview", "make a website", etc.).
-- Otherwise set "html" to "".
+  const r = await fetch(OPENAI_URL, {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
 
-Do NOT claim you updated the preview unless you actually put HTML in "html".
-  `.trim();
+  const raw = await r.text();
+  let data;
+  try{ data = JSON.parse(raw); } catch { data = null; }
 
-  // User prompt includes mode/topic so it can switch cleanly.
-  const userPrompt = `mode=${mode}\ntopic=${topic}\nuser=${input}`;
+  if (!r.ok){
+    return { ok:false, error: "OpenAI error", details: raw.slice(0, 1200) };
+  }
 
-  // Pick a common, widely-available model name.
-  // If your account uses a specific model, this still usually works:
-  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
+  // Responses API: text is often in output_text on convenience, but safest: scan output
+  let outText = "";
+  if (data && typeof data.output_text === "string"){
+    outText = data.output_text;
+  } else if (data && Array.isArray(data.output)){
+    // try to find any text chunks
+    for (const item of data.output){
+      const content = item?.content || [];
+      for (const c of content){
+        if (c?.type === "output_text" && typeof c.text === "string"){
+          outText += c.text;
+        }
+      }
+    }
+  }
 
-  try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${key}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        temperature: 0.6,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: userPrompt },
-        ],
-        // Force JSON-ish behavior
-        response_format: { type: "json_object" },
-      }),
-    });
+  outText = (outText || "").trim();
+  if (!outText) outText = "I’m here. Tell me what you want to do next.";
 
-    const raw = await r.text();
+  return { ok:true, text: outText };
+}
 
-    if (!r.ok) {
-      return new Response(JSON.stringify({ ok: false, error: "OpenAI error", details: raw.slice(0, 1200) }), {
-        status: 500,
-        headers,
-      });
+exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS"){
+    return json(200, { ok:true });
+  }
+  if (event.httpMethod !== "POST"){
+    return json(405, { ok:false, error:"Use POST" });
+  }
+
+  try{
+    const body = JSON.parse(event.body || "{}");
+    const input = (body.input || "").trim();
+    if (!input){
+      return json(200, { ok:true, message:"Say something and I’ll respond.", html:"" });
     }
 
-    let data;
-    try {
-      data = JSON.parse(raw);
-    } catch {
-      return new Response(JSON.stringify({ ok: false, error: "Bad OpenAI response JSON", details: raw.slice(0, 1200) }), {
-        status: 500,
-        headers,
-      });
+    const mode = safeModeLabel(body.mode);
+    const pro = !!body.pro;
+    const memory = Array.isArray(body.memory) ? body.memory : [];
+
+    const system = buildSystem(mode, pro);
+
+    const ai = await callOpenAI({ system, memory, input });
+    if (!ai.ok){
+      return json(200, { ok:false, error: ai.error, details: ai.details || "" });
     }
 
-    const content = data?.choices?.[0]?.message?.content || "";
-    let out;
-    try {
-      out = JSON.parse(content);
-    } catch {
-      // If the model ever breaks format, degrade safely instead of blank/looping
-      return new Response(JSON.stringify({ ok: true, message: content || "I responded but formatting failed.", html: "" }), {
-        status: 200,
-        headers,
-      });
-    }
+    const message = ai.text;
+    const html = extractHtml(message);
 
-    const message = (out?.message || "").toString();
-    const html = (out?.html || "").toString();
+    // If we extracted HTML from the response, keep message human-friendly:
+    // Optionally strip the HTML fence text from message (but keep it simple).
+    const cleanMessage = message.replace(/```html[\s\S]*?```/ig, "Done. I updated the preview on the right.").trim();
 
-    // Guardrails: ensure html is either empty or a full doc
-    const safeHTML = html.trim().startsWith("<!doctype html") ? html : "";
-
-    return new Response(JSON.stringify({ ok: true, message: message || "…", html: safeHTML }), {
-      status: 200,
-      headers,
-    });
-  } catch (e) {
-    return new Response(
-      JSON.stringify({ ok: false, error: "Server exception", details: String(e?.message || e) }),
-      { status: 500, headers }
-    );
+    return json(200, { ok:true, message: cleanMessage, html: html || "" });
+  }catch(e){
+    return json(200, { ok:false, error:"Server error", details: String(e?.message || e).slice(0, 600) });
   }
 };
