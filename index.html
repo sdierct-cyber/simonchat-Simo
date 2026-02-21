@@ -124,11 +124,12 @@
 
     /* chat */
     #log{
-      height:100%;
-      min-height:0;
-      overflow:auto;
-      padding-right:6px;
-    }
+  height:auto;        /* key fix: don’t force full height */
+  flex:1;             /* take remaining space */
+  min-height:0;
+  overflow:auto;
+  padding-right:6px;
+}
     .msg{
       border:1px solid rgba(255,255,255,.10);
       background:rgba(0,0,0,.18);
@@ -300,8 +301,8 @@
           </div>
           <div class="hint">Enter to send • Shift+Enter = new line</div>
         </div>
-        <div class="body" style="display:grid; grid-template-rows: 1fr auto; gap:10px; min-height:0;">
-          <div id="log" aria-live="polite"></div>
+        <div class="body" style="display:flex; flex-direction:column; gap:10px; min-height:0;">
+          <div id="log" aria-live="polite" style="flex:1; min-height:0;"></div>
 
           <div>
             <div class="composer">
@@ -360,3 +361,4 @@
   <script defer src="./app.js"></script>
 </body>
 </html>
+
