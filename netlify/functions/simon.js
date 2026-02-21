@@ -214,6 +214,24 @@ exports.handler = async (event) => {
 
     let reply = typeof parsed.reply === "string" ? parsed.reply : "";
     let html = typeof parsed.html === "string" ? parsed.html : "";
+    // --- reply guard: if HTML was produced but reply is vague, fix it ---
+const hasHtmlDoc = html && html.trim().toLowerCase().startsWith("<!doctype html");
+const vague = (reply || "").trim().toLowerCase();
+
+if (hasHtmlDoc) {
+  const tooGeneric =
+    vague === "" ||
+    vague === "i’m here. what do you want to do next?" ||
+    vague === "i'm here. what do you want to do next?" ||
+    vague === "i'm here" ||
+    vague.includes("what do you want to do next");
+
+  if (tooGeneric) {
+    reply =
+      "Done — I built it and rendered it in Preview. " +
+      "Tell me edits like: `headline: ...`, `add testimonials`, `change image 1 to: ...`, `add pricing`, `remove faq`.";
+  }
+}
 
     // Optional: if user requests image changes AND serper enabled, we can swap seeds to real URLs
     // BUT we keep this conservative: only if useSerper true AND SERPER_API_KEY exists.
