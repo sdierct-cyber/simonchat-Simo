@@ -64,19 +64,19 @@ CRITICAL HTML RULES (must follow):
   <meta name="color-scheme" content="dark">
   and a dark base so the preview never flashes white:
     body { background:#0b1020; color:#eaf0ff; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-- Never output placeholder image domains like example.com.
-- Use reliable real images that always load:
-  Use - Never use source.unsplash.com (it may fail).
+- Never use source.unsplash.com.
 - Use reliable images that always load:
   Use https://picsum.photos/seed/<seed>/1200/800
   Examples:
     https://picsum.photos/seed/mountain-bike-snow/1200/800
     https://picsum.photos/seed/road-bike/1200/800
+- Every <img> tag MUST include an onerror fallback:
+  onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';"
 - Keep it self-contained (inline CSS). No external JS frameworks.
 - When the user says "continue/next/add/change/remove", edit the CURRENT_ACTIVE_HTML and return the full updated document.
 - Do NOT say “updated preview” unless you included full HTML in your response.
 `.trim();
-
+  
   const modeLine =
     mode === "venting"
       ? "MODE: venting. Be direct + supportive. Ask at most 1 question if needed."
