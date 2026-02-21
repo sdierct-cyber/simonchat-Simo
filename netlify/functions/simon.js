@@ -89,7 +89,7 @@ async function callOpenAI({ system, memory, input }){
   const body = {
     model: MODEL,
     input: messages,
-    max_output_tokens: 900,
+   max_output_tokens: 650,
     // Ask for plain text; we parse HTML if it appears
     text: { format: { type: "text" } }
   };
