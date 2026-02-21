@@ -1,43 +1,55 @@
-// netlify/functions/simon.js
-// Simo backend (stable):
-// - POST-only JSON API
-// - Uses OpenAI Responses API (correct input_text)
-// - Returns { ok, reply, html, message } and never crashes on bad model output
-// - Optional SERPER image lookup (fallback to picsum)
+// netlify/functions/simon.js — Simo backend (stable V2)
+// Uses OpenAI Responses API via fetch.
+// Enforces full HTML in building/editing mode and carries CURRENT_ACTIVE_HTML forward.
 
-const OPENAI_API_KEY = process.env.OPENAI_API_KEY || process.env.OPENAI_KEY;
-const SERPER_API_KEY = process.env.SERPER_API_KEY;
-
-// In-memory “best effort” memory (note: serverless is not guaranteed persistent)
-const THREADS = globalThis.__SIMO_THREADS__ || (globalThis.__SIMO_THREADS__ = new Map());
+const OPENAI_URL = "https://api.openai.com/v1/responses";
 
 function json(statusCode, obj) {
   return {
     statusCode,
     headers: {
-      "content-type": "application/json; charset=utf-8",
-      "access-control-allow-origin": "*",
-      "access-control-allow-methods": "POST,OPTIONS",
-      "access-control-allow-headers": "content-type",
-      "cache-control": "no-store",
+      "Content-Type": "application/json; charset=utf-8",
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "content-type",
+      "Access-Control-Allow-Methods": "POST,OPTIONS",
+      "Cache-Control": "no-store",
     },
     body: JSON.stringify(obj),
   };
 }
 
-function safeJsonParse(s) {
-  try { return JSON.parse(s); } catch { return null; }
+function ok(obj) { return json(200, { ok: true, ...obj }); }
+function bad(status, msg, extra = {}) { return json(status, { ok: false, error: msg, ...extra }); }
+
+function safeParse(body) {
+  try { return JSON.parse(body || "{}"); } catch { return null; }
 }
 
-function getThread(threadId) {
-  const id = (threadId && String(threadId).trim()) || "default";
-  if (!THREADS.has(id)) THREADS.set(id, { messages: [], activeHtml: "" });
-  return THREADS.get(id);
+function extractOutputText(resp) {
+  if (!resp) return "";
+  if (typeof resp.output_text === "string" && resp.output_text.trim()) return resp.output_text.trim();
+
+  // fallback parse
+  const out = resp.output;
+  if (Array.isArray(out)) {
+    let text = "";
+    for (const item of out) {
+      const content = item?.content;
+      if (!Array.isArray(content)) continue;
+      for (const c of content) {
+        if (c?.type === "output_text" && typeof c?.text === "string") text += c.text;
+      }
+    }
+    return (text || "").trim();
+  }
+  return "";
 }
 
-function clampMessages(msgs, max = 18) {
-  if (!Array.isArray(msgs)) return [];
-  return msgs.slice(-max);
+function findHtmlInText(t) {
+  const s = String(t || "");
+  const idx = s.toLowerCase().indexOf("<!doctype html");
+  if (idx >= 0) return s.slice(idx).trim();
+  return "";
 }
 
 function buildSystem(mode, pro) {
@@ -45,225 +57,147 @@ function buildSystem(mode, pro) {
 You are Simo — human as possible: loyal, sharp, present.
 When the user vents: respond like a private best friend. No therapy clichés unless asked.
 When the user builds: ship paste-ready results. Keep momentum. Do not reset unless asked.
-Be concise, useful, and consistent. Never gaslight or claim you updated something unless you did.
+Be concise and useful.
 `.trim();
 
   const htmlRules = `
 CRITICAL HTML RULES (must follow):
-- If the user is BUILDING or EDITING/CONTINUING a build, you MUST return a COMPLETE HTML document every time.
+- If mode is BUILDING, or the user is EDITING/CONTINUING a build, you MUST return a COMPLETE HTML document every time.
   It MUST start with <!doctype html> and include <html> ... </html>.
-- Always include: <meta name="color-scheme" content="dark">
-- Always use a dark base so preview never flashes white:
-  body{background:#0b1020;color:#eaf0ff;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;}
-- Never use source.unsplash.com (it can break / 3rd-party errors).
-- Default image source MUST be reliable:
-  https://picsum.photos/seed/<seed>/1200/800
-- IMAGE CONSISTENCY RULE (important):
-  Product 1 image src MUST be https://picsum.photos/seed/p1-<keywords>/1200/800
-  Product 2 image src MUST be https://picsum.photos/seed/p2-<keywords>/1200/800
-  Product 3 image src MUST be https://picsum.photos/seed/p3-<keywords>/1200/800
+- HTML must include:
+  <meta name="color-scheme" content="dark">
+  and a dark base (no white flash):
+    body { background:#0b1020; color:#eaf0ff; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+- Never use source.unsplash.com.
+- Use reliable images that always load:
+  Use https://picsum.photos/seed/<seed>/1200/800
+  Examples:
+    https://picsum.photos/seed/p1-mountain-bike-snow/1200/800
+    https://picsum.photos/seed/p2-road-bike/1200/800
+- IMAGE CONSISTENCY RULE:
+  Each product image must use a stable seed by slot:
+    Product 1: https://picsum.photos/seed/p1-<keywords>/1200/800
+    Product 2: https://picsum.photos/seed/p2-<keywords>/1200/800
+    Product 3: https://picsum.photos/seed/p3-<keywords>/1200/800
   When the user says "change image 1 to: X", you MUST:
-    - change ONLY product 1 image seed to p1-<slug(X)>
-    - update the alt text to X
-    - keep product 2 and 3 image seeds unchanged
-- Every <img> MUST include onerror fallback:
+    - change alt text to X
+    - change ONLY product 1 image src to seed p1-<slugged X>
+    - keep other product images unchanged
+- Every <img> must include onerror fallback:
   onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';"
-- Keep the HTML self-contained (inline CSS). No external frameworks.
-- If the user says "continue/next/add/change/remove", edit CURRENT_ACTIVE_HTML and return the full updated document.
+- Keep it self-contained (inline CSS). No external JS frameworks.
+- When the user says "continue/next/add/change/remove", edit CURRENT_ACTIVE_HTML and return the full updated document.
+- Do NOT claim “updated preview” unless you actually returned full HTML.
 `.trim();
 
-  const outputContract = `
-OUTPUT CONTRACT:
-Return ONE JSON object only (no markdown fences).
-{
-  "reply": "what you say in chat (friendly, useful)",
-  "html":  "full HTML document string or empty string if not building"
+  const proNote = pro ? `Pro is ON. You may include a tiny "Export" hint in the HTML footer, but keep the page clean.` : `Pro is OFF. Keep it clean.`;
+
+  return `${spirit}\n\nMode: ${mode}\n${proNote}\n\n${mode === "building" ? htmlRules : ""}`.trim();
 }
-Rules:
-- If building/editing a page: html MUST be a full document (<!doctype html>...).
-- If not building: html MUST be "" (empty string).
+
+function buildPrompt({ mode, pro, input, messages, currentHtml }) {
+  const sys = buildSystem(mode, pro);
+
+  // Build conversation summary for continuity
+  const lastTurns = (Array.isArray(messages) ? messages : []).slice(-20)
+    .map(m => `${m.role === "user" ? "User" : "Simo"}: ${String(m.text || "").trim()}`)
+    .join("\n");
+
+  const htmlContext = currentHtml
+    ? `CURRENT_ACTIVE_HTML (edit this when user asks changes/continue):\n${currentHtml}\n`
+    : `CURRENT_ACTIVE_HTML: (none yet)\n`;
+
+  return `
+SYSTEM:
+${sys}
+
+CONVERSATION (recent):
+${lastTurns || "(none)"}
+
+${mode === "building" ? htmlContext : ""}
+
+USER REQUEST:
+${input}
+
+INSTRUCTIONS:
+- If mode is BUILDING, return ONLY the final answer the user should see.
+- If BUILDING, include the full HTML document in your response (starting <!doctype html>).
+- If GENERAL, reply normally in Simo style.
 `.trim();
-
-  const modeLine = `Current mode: ${mode || "general"} | Pro: ${pro ? "ON" : "OFF"}`;
-  return [spirit, modeLine, htmlRules, outputContract].join("\n\n");
 }
 
-// Optional: use Serper for *image URL suggestions*.
-// We only use it if SERPER_API_KEY exists AND caller asks for it via `useSerper: true`.
-async function serperImageUrl(query) {
-  if (!SERPER_API_KEY) return null;
-  const r = await fetch("https://google.serper.dev/images", {
-    method: "POST",
-    headers: { "X-API-KEY": SERPER_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({ q: query, num: 1 }),
-  });
-  if (!r.ok) return null;
-  const data = await r.json().catch(() => null);
-  const first = data && Array.isArray(data.images) && data.images[0];
-  const url = first && (first.imageUrl || first.thumbnailUrl || first.link);
-  return (url && typeof url === "string") ? url : null;
-}
+async function callOpenAI(prompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) throw new Error("Missing OPENAI_API_KEY");
 
-async function callOpenAI({ system, user, model }) {
-  if (!OPENAI_API_KEY) {
-    return { ok: false, error: "Missing OPENAI_API_KEY in Netlify env vars." };
-  }
+  const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
-  const payload = {
-    model: model || "gpt-4.1-mini",
-    input: [
-      { role: "system", content: [{ type: "input_text", text: system }] },
-      { role: "user",   content: [{ type: "input_text", text: user }] },
-    ],
-  };
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 25000);
 
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
+  try {
+    const r = await fetch(OPENAI_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        input: prompt,          // IMPORTANT: string input is the safest format
+        max_output_tokens: 1800,
+      }),
+      signal: ctrl.signal,
+    });
 
-  const raw = await r.text();
-  if (!r.ok) {
-    return { ok: false, error: `OpenAI ${r.status}`, details: raw.slice(0, 2000) };
-  }
+    const raw = await r.text();
+    let data = null;
+    try { data = JSON.parse(raw); } catch { /* keep null */ }
 
-  // Responses API can include output_text in different shapes; safest is to collect text blocks.
-  const data = safeJsonParse(raw);
-  let text = "";
-
-  if (data && Array.isArray(data.output)) {
-    for (const item of data.output) {
-      if (item && Array.isArray(item.content)) {
-        for (const c of item.content) {
-          if (c && c.type === "output_text" && typeof c.text === "string") {
-            text += c.text;
-          }
-        }
-      }
+    if (!r.ok) {
+      const details = data?.error?.message || raw || `HTTP ${r.status}`;
+      const e = new Error(details);
+      e.status = r.status;
+      throw e;
     }
+    return data;
+  } finally {
+    clearTimeout(t);
   }
-
-  text = (text || "").trim();
-  return { ok: true, text, raw: data };
 }
 
 exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") return json(204, {});
+  if (event.httpMethod !== "POST") return bad(405, "Use POST");
+
+  const body = safeParse(event.body);
+  if (!body) return bad(400, "Bad JSON");
+
+  const mode = (body.mode === "building" ? "building" : "general");
+  const pro = !!body.pro;
+  const input = String(body.input || "").trim();
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+  const currentHtml = String(body.currentHtml || "").trim();
+
+  if (!input) return bad(400, "Missing input");
+
   try {
-    if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
+    const prompt = buildPrompt({ mode, pro, input, messages, currentHtml });
+    const resp = await callOpenAI(prompt);
+    const text = extractOutputText(resp);
 
-    if (event.httpMethod !== "POST") {
-      return json(405, { ok: false, error: "Use POST" });
-    }
+    if (!text) return ok({ reply: "I didn’t get a usable response. Try again." });
 
-    const body = safeJsonParse(event.body || "{}") || {};
-    const {
-      input = "",
-      mode = "general",
-      pro = false,
-      threadId = "default",
-      command = "",
-      useSerper = false,
-      model = "gpt-4.1-mini",
-    } = body;
+    const html = mode === "building" ? findHtmlInText(text) : "";
+    const reply = text.trim();
 
-    const t = getThread(threadId);
-
-    // Commands (from UI buttons)
-    if (command === "clear_memory") {
-      t.messages = [];
-      t.activeHtml = "";
-      return json(200, { ok: true, message: "MEM_OK", html: "" });
-    }
-    if (command === "new_thread") {
-      const newId = `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-      THREADS.set(newId, { messages: [], activeHtml: "" });
-      return json(200, { ok: true, message: "THREAD_OK", threadId: newId });
-    }
-
-    const userText = String(input || "").trim();
-    if (!userText) return json(200, { ok: true, reply: "Say something and I’m on it.", html: t.activeHtml || "" });
-
-    // Build a “current active html” hint for continuing edits
-    const activeHint = t.activeHtml
-      ? `CURRENT_ACTIVE_HTML (edit this when user continues):\n${t.activeHtml.slice(0, 8000)}`
-      : `CURRENT_ACTIVE_HTML: (none yet)`;
-
-    const system = buildSystem(mode, pro);
-    const user = `${activeHint}\n\nUser says:\n${userText}`;
-
-    const res = await callOpenAI({ system, user, model });
-
-    if (!res.ok) {
-      return json(200, { ok: false, error: res.error, details: res.details || "" });
-    }
-
-    // Model must return JSON object (reply/html). Parse it safely.
-    const parsed = safeJsonParse(res.text);
-    if (!parsed || typeof parsed !== "object") {
-      // Don’t crash; return helpful error
-      return json(200, {
-        ok: false,
-        error: "Model did not return valid JSON.",
-        details: res.text.slice(0, 1200),
-      });
-    }
-
-    let reply = typeof parsed.reply === "string" ? parsed.reply : "";
-    let html = typeof parsed.html === "string" ? parsed.html : "";
-    // --- reply guard: if HTML was produced but reply is vague, fix it ---
-const hasHtmlDoc = html && html.trim().toLowerCase().startsWith("<!doctype html");
-const vague = (reply || "").trim().toLowerCase();
-
-if (hasHtmlDoc) {
-  const tooGeneric =
-    vague === "" ||
-    vague === "i’m here. what do you want to do next?" ||
-    vague === "i'm here. what do you want to do next?" ||
-    vague === "i'm here" ||
-    vague.includes("what do you want to do next");
-
-  if (tooGeneric) {
-    reply =
-      "Done — I built it and rendered it in Preview. " +
-      "Tell me edits like: `headline: ...`, `add testimonials`, `change image 1 to: ...`, `add pricing`, `remove faq`.";
-  }
-}
-
-    // Optional: if user requests image changes AND serper enabled, we can swap seeds to real URLs
-    // BUT we keep this conservative: only if useSerper true AND SERPER_API_KEY exists.
-    if (useSerper && SERPER_API_KEY && html && /<img\b/i.test(html)) {
-      // Light touch: replace any picsum src that looks like p1-<keywords> with a serper URL for that keywords
-      // If Serper fails, keep original.
-      const imgSeedMatches = [...html.matchAll(/https:\/\/picsum\.photos\/seed\/(p[123]-[^\/]+)\/1200\/800/g)];
-      for (const m of imgSeedMatches) {
-        const seed = m[1]; // e.g. p1-mountain-bike-snow
-        const query = seed.replace(/^p[123]-/, "").replace(/-/g, " ");
-        const url = await serperImageUrl(query);
-        if (url) {
-          html = html.replaceAll(`https://picsum.photos/seed/${seed}/1200/800`, url);
-        }
-      }
-    }
-
-    // Update thread memory
-    t.messages.push({ role: "user", text: userText });
-    t.messages.push({ role: "assistant", text: reply });
-    t.messages = clampMessages(t.messages);
-
-    // Update active HTML only if it looks like a full HTML doc
-    if (typeof html === "string" && html.trim().toLowerCase().startsWith("<!doctype html")) {
-      t.activeHtml = html;
-    } else if (html && typeof html === "string" && html.trim() !== "") {
-      // If model returned partial HTML, we refuse to cache it (prevents broken preview)
-      html = "";
-    }
-
-    return json(200, { ok: true, reply, html: t.activeHtml || "" });
-  } catch (err) {
-    return json(200, { ok: false, error: "Function crashed", details: String(err && err.stack ? err.stack : err) });
+    return ok({
+      reply,
+      html: html || undefined,
+    });
+  } catch (e) {
+    const msg = String(e?.message || e);
+    const status = e?.status || 500;
+    return bad(status, msg);
   }
 };
