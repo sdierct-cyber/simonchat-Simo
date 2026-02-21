@@ -1,342 +1,350 @@
 // netlify/functions/simon.js
-// Simo backend (stable):
-// - OpenAI Responses API for chat + HTML builds
-// - Pro-only: real images via Serper (Google Images) with hard fallback to Picsum
-// - Clear memory / New thread actions supported
-// - Always returns { ok, message, html } with ok:true on success
+// Simo backend — stable thread memory + "current active HTML" editing + (optional) Serper images
+// - Option A: in-memory only (fastest; resets if function cold-starts)
+// - Enforces: build/edit returns COMPLETE HTML doc
+// - Image commands can resolve to real images via SERPER_API_KEY, with safe fallback.
 
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o-mini";
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 
-// Soft in-memory store (resets on cold starts, but OK for now)
-const MEM = new Map(); // threadId -> { turns: [{role, content}] }
+// Pick your model (you can set MODEL in Netlify env if you want)
+const MODEL = process.env.MODEL || "gpt-4.1-mini";
 
-function json(statusCode, obj) {
+// In-memory session store: threadId -> { messages: [], activeHtml: "", updatedAt: ms }
+const SESSIONS = new Map();
+const SESSION_TTL_MS = 1000 * 60 * 45; // 45 minutes
+
+function now() { return Date.now(); }
+function cleanOldSessions() {
+  const t = now();
+  for (const [k, v] of SESSIONS.entries()) {
+    if (!v || (t - (v.updatedAt || 0)) > SESSION_TTL_MS) SESSIONS.delete(k);
+  }
+}
+
+function json(statusCode, body) {
   return {
     statusCode,
     headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST,OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type",
-      "Cache-Control": "no-store",
+      "content-type": "application/json; charset=utf-8",
+      "access-control-allow-origin": "*",
+      "access-control-allow-headers": "content-type",
+      "access-control-allow-methods": "POST, OPTIONS"
     },
-    body: JSON.stringify(obj),
+    body: JSON.stringify(body)
   };
 }
 
-function safeId(x) {
-  return String(x || "default").slice(0, 80);
+function safeParseJson(s) {
+  try { return JSON.parse(s); } catch { return null; }
 }
 
-function stripCodeFences(s) {
-  if (!s) return "";
-  return s.replace(/```[a-zA-Z]*\n([\s\S]*?)```/g, "$1").trim();
+function isBuildMode(mode) {
+  return String(mode || "").toLowerCase() === "building";
 }
 
-function extractHtml(text) {
-  if (!text) return "";
-  const t = stripCodeFences(text);
-  const m = t.match(/<!doctype html[\s\S]*<\/html>/i);
-  return m ? m[0].trim() : "";
+function looksLikeEditCommand(text) {
+  const t = String(text || "").toLowerCase().trim();
+  return (
+    t.startsWith("add ") ||
+    t.startsWith("remove ") ||
+    t.startsWith("change ") ||
+    t.startsWith("update ") ||
+    t.startsWith("edit ") ||
+    t === "continue" ||
+    t === "next" ||
+    t.includes("change image") ||
+    t.includes("image 1") ||
+    t.includes("image 2") ||
+    t.includes("image 3") ||
+    t.includes("headline:") ||
+    t.includes("cta:") ||
+    t.includes("price:")
+  );
 }
 
-function extractTextOutput(respJson) {
-  // Prefer output_text if present
-  if (typeof respJson?.output_text === "string" && respJson.output_text.trim()) {
-    return respJson.output_text.trim();
-  }
-  // Otherwise walk outputs
-  const out = respJson?.output;
-  if (!Array.isArray(out)) return "";
-  let acc = "";
-  for (const item of out) {
-    const content = item?.content;
-    if (!Array.isArray(content)) continue;
-    for (const c of content) {
-      if (c?.type === "output_text" && typeof c?.text === "string") {
-        acc += c.text;
-      }
-    }
-  }
-  return acc.trim();
+function needsHtmlReturn(mode, userText, hasActiveHtml) {
+  if (isBuildMode(mode)) return true;
+  // If user is continuing/editing a build and we have active HTML, always return updated HTML
+  if (hasActiveHtml && looksLikeEditCommand(userText)) return true;
+  // If user explicitly asks for HTML or "build"
+  const t = String(userText || "").toLowerCase();
+  if (t.includes("<!doctype") || t.includes("html") && t.includes("build")) return true;
+  if (t.startsWith("build ")) return true;
+  return false;
 }
 
-function buildSystem(mode, pro) {
-  const spirit = `
-You are Simo — human as possible: loyal, sharp, present.
-When the user vents: respond like a private best friend. No therapy clichés unless asked.
-When the user builds: ship paste-ready results. Keep momentum. Do not reset unless asked.
-`.trim();
-
-  const htmlRules = `
-CRITICAL HTML RULES (must follow):
-- If mode is BUILDING or the user is EDITING/CONTINUING a build, you MUST return a COMPLETE HTML document every time:
-  It MUST start with <!doctype html> and include <html> ... </html>.
-- Your HTML must include:
-  <meta name="color-scheme" content="dark">
-  and a dark base so the preview never flashes white:
-    body { background:#0b1020; color:#eaf0ff; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-- Never use source.unsplash.com.
-- Use reliable images that always load:
-  Use https://picsum.photos/seed/<seed>/1200/800
-- IMAGE CONSISTENCY RULE:
-  Each product image must use a stable seed by slot:
-    Product 1 image src must be https://picsum.photos/seed/p1-<keywords>/1200/800
-    Product 2 image src must be https://picsum.photos/seed/p2-<keywords>/1200/800
-    Product 3 image src must be https://picsum.photos/seed/p3-<keywords>/1200/800
-  Treat these as the same command: "image 1 to X", "change image 1 to X", "change image 1 to: X", "set image 1 to X".
-- Every <img> tag MUST include an onerror fallback:
-  onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';"
-- Keep it self-contained (inline CSS). No external JS frameworks.
-- When the user says "continue/next/add/change/remove", edit the CURRENT_ACTIVE_HTML and return the full updated document.
-- Do NOT say “updated preview” unless you included full HTML in your response.
-`.trim();
-
-  const modeLine =
-    mode === "venting"
-      ? "MODE: venting. Be direct + supportive. Ask at most 1 question if needed."
-      : mode === "solving"
-      ? "MODE: solving. Give concrete steps. Minimize rework."
-      : mode === "building"
-      ? "MODE: building. Return FULL HTML every time."
-      : "MODE: general. Be useful and concise.";
-
-  const proLine = pro ? "User is Pro: YES." : "User is Pro: NO.";
-
-  return [spirit, htmlRules, modeLine, proLine].join("\n\n");
-}
-
-async function openaiResponse({ system, user }) {
-  if (!OPENAI_API_KEY) throw new Error("Missing OPENAI_API_KEY");
-
-  const payload = {
-    model: OPENAI_MODEL,
-    input: [
-      {
-        role: "system",
-        content: [{ type: "input_text", text: system }],
-      },
-      {
-        role: "user",
-        content: [{ type: "input_text", text: user }],
-      },
-    ],
-    temperature: 0.6,
-  };
-
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${OPENAI_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const txt = await r.text();
-  let data;
-  try {
-    data = JSON.parse(txt);
-  } catch {
-    throw new Error(`OpenAI non-JSON response: ${txt.slice(0, 200)}`);
-  }
-
-  if (!r.ok) {
-    const msg = data?.error?.message || `OpenAI error (${r.status})`;
-    throw new Error(msg);
-  }
-
-  return extractTextOutput(data);
-}
-
-async function serperImageUrl(query) {
-  if (!SERPER_API_KEY) return null;
-
-  // Serper Images endpoint
+// --- Serper image search ---
+async function serperImageSearch(q) {
+  if (!SERPER_API_KEY) return [];
   const r = await fetch("https://google.serper.dev/images", {
     method: "POST",
     headers: {
       "X-API-KEY": SERPER_API_KEY,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      q: query,
-      num: 5,
-      gl: "us",
-      hl: "en",
-      safe: "active",
-    }),
+    body: JSON.stringify({ q, num: 6 })
   });
-
-  if (!r.ok) return null;
-  const data = await r.json().catch(() => null);
-  const images = data?.images;
-  if (!Array.isArray(images) || images.length === 0) return null;
-
-  // Prefer imageUrl, fall back to thumbnailUrl
-  const pick =
-    images.find((x) => typeof x?.imageUrl === "string" && x.imageUrl.startsWith("http")) ||
-    images.find((x) => typeof x?.thumbnailUrl === "string" && x.thumbnailUrl.startsWith("http"));
-
-  return pick?.imageUrl || pick?.thumbnailUrl || null;
+  const j = await r.json().catch(() => ({}));
+  const imgs = Array.isArray(j.images) ? j.images : [];
+  // Return URLs in priority order
+  return imgs
+    .map(x => x.imageUrl || x.thumbnailUrl || x.link)
+    .filter(Boolean)
+    .slice(0, 6);
 }
 
-function slugify(s) {
+function slug(s) {
   return String(s || "")
     .toLowerCase()
+    .trim()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60);
+    .replace(/(^-|-$)/g, "")
+    .slice(0, 60) || "fallback";
 }
 
-// Replace first 3 product images with Serper results (Pro only), keep Picsum fallback.
-async function injectRealImages(html) {
-  if (!html) return html;
+function picsumFallback(seed) {
+  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/1200/800`;
+}
 
-  // Find img tags with picsum seed p1-/p2-/p3-
-  const imgRe = /<img\b([^>]*?)\bsrc="https:\/\/picsum\.photos\/seed\/(p[123]-[^\/"]+)\/1200\/800"([^>]*?)>/gi;
+// We support images by slot via data-img-slot + data-img-query
+// Example: <img data-img-slot="p1" data-img-query="mountain bike in snow" ...>
+async function hydrateImagesWithSerper(html) {
+  if (!SERPER_API_KEY) return html;
 
-  const matches = [];
+  // Find all img tags with data-img-query
+  const imgTags = [];
+  const re = /<img\b[^>]*data-img-query="([^"]+)"[^>]*>/gi;
   let m;
-  while ((m = imgRe.exec(html)) !== null) {
-    matches.push({
-      full: m[0],
-      before: m[1] || "",
-      seed: m[2] || "",
-      after: m[3] || "",
-      idx: m.index,
-    });
-    if (matches.length >= 3) break;
+  while ((m = re.exec(html)) !== null) {
+    imgTags.push({ full: m[0], query: m[1] });
   }
-  if (matches.length === 0) return html;
+  if (!imgTags.length) return html;
 
-  // For each pX-keywords, query Serper with keywords
   let out = html;
 
-  for (const match of matches) {
-    const seed = match.seed; // e.g. p1-mountain-bike-snow
-    const keywords = seed.replace(/^p[123]-/, "").replace(/-/g, " ").trim();
-    const q = keywords ? `${keywords} bike photo` : "bicycle photo";
+  for (const it of imgTags) {
+    const q = it.query;
+    const urls = await serperImageSearch(q);
+    const chosen = urls[0] || picsumFallback(`p-${slug(q)}`);
 
-    const real = await serperImageUrl(q);
-    if (!real) continue;
+    // Ensure src is set to chosen
+    let tag = it.full;
 
-    // Replace only this img src with real URL, keep onerror fallback in tag (or add if missing)
-    let newTag = match.full.replace(
-      /src="https:\/\/picsum\.photos\/seed\/p[123]-[^\/"]+\/1200\/800"/i,
-      `src="${real}"`
-    );
-
-    // Ensure onerror fallback exists
-    if (!/onerror\s*=/.test(newTag)) {
-      // Insert onerror before closing >
-      newTag = newTag.replace(
-        />$/,
-        ` onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';">`
-      );
+    if (/\bsrc=/.test(tag)) {
+      tag = tag.replace(/\bsrc="[^"]*"/i, `src="${chosen}"`);
+    } else {
+      tag = tag.replace(/<img/i, `<img src="${chosen}"`);
     }
 
-    out = out.replace(match.full, newTag);
+    // Always add fallback onerror
+    if (!/\bonerror=/.test(tag)) {
+      tag = tag.replace(/<img/i, `<img onerror="this.onerror=null;this.src='${picsumFallback("fallback")}';"`);
+    }
+
+    out = out.replace(it.full, tag);
   }
 
   return out;
 }
 
-function ensureDarkMeta(html) {
-  if (!html) return html;
-  if (!/<meta\s+name="color-scheme"/i.test(html)) {
-    html = html.replace(/<head([^>]*)>/i, `<head$1>\n<meta name="color-scheme" content="dark">`);
+// --- OpenAI Responses call ---
+async function callOpenAI({ system, user, schema }) {
+  if (!OPENAI_API_KEY) {
+    return { ok: false, error: "Missing OPENAI_API_KEY in Netlify env vars." };
   }
-  return html;
+
+  const controller = new AbortController();
+  const timeoutMs = 25000; // 25s (reduce abort rage)
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    const resp = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: MODEL,
+        input: [
+          { role: "system", content: [{ type: "output_text", text: system }] },
+          { role: "user", content: [{ type: "output_text", text: user }] }
+        ],
+        // Force structured output so we always get {reply, html}
+        response_format: {
+          type: "json_schema",
+          json_schema: schema
+        }
+      })
+    });
+
+    const text = await resp.text();
+    const data = safeParseJson(text);
+
+    if (!resp.ok) {
+      return { ok: false, error: `OpenAI ${resp.status}`, details: data || text };
+    }
+
+    // Responses API output: data.output_text is often present; but in json_schema mode,
+    // the content will be in data.output[0].content[0].text typically. We'll search safely.
+    let raw = "";
+    if (typeof data?.output_text === "string") raw = data.output_text;
+    else {
+      const blocks = data?.output?.flatMap(o => o.content || []) || [];
+      const txt = blocks.find(b => typeof b.text === "string")?.text;
+      raw = txt || "";
+    }
+
+    const parsed = safeParseJson(raw) || data; // fallback if already parsed
+    return { ok: true, data: parsed };
+  } catch (e) {
+    const msg = String(e?.name || "") === "AbortError"
+      ? "Network/timeout error: request took too long"
+      : (e?.message || String(e));
+    return { ok: false, error: msg };
+  } finally {
+    clearTimeout(t);
+  }
 }
 
-exports.handler = async (event) => {
-  try {
-    if (event.httpMethod === "OPTIONS") {
-      return json(200, { ok: true });
-    }
-    if (event.httpMethod !== "POST") {
-      return json(200, { ok: false, error: "Use POST" });
-    }
+// --- Core prompt builder ---
+function buildSystem(mode, pro, activeHtml) {
+  const spirit = `
+You are Simo — human as possible: loyal, sharp, present.
+When the user vents: respond like a private best friend. No therapy clichés unless asked.
+When the user builds: ship paste-ready results. Keep momentum. Do not reset unless asked.
 
-    const body = event.body ? JSON.parse(event.body) : {};
-    const action = body.action || null;
+IMPORTANT:
+- You MUST keep continuity with CURRENT_ACTIVE_HTML when present.
+- Never “forget” the current build. If the user says "continue/add/change/remove", you edit it.
+`.trim();
 
-    const threadId = safeId(body.threadId || body.thread || "default");
-    const mode = (body.mode || "general").toLowerCase();
-    const pro = !!body.pro;
+  const htmlRules = `
+CRITICAL HTML RULES (must follow):
+- If you are building OR editing/continuing a build, you MUST return a COMPLETE HTML document every time:
+  It MUST start with <!doctype html> and include <html> ... </html>.
+- Include <meta name="color-scheme" content="dark"> and dark base:
+  body { background:#0b1020; color:#eaf0ff; margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
+- Never use source.unsplash.com.
+- Images must be reliable:
+  Prefer real image URLs if available; otherwise use:
+    https://picsum.photos/seed/p1-<keywords>/1200/800
+    https://picsum.photos/seed/p2-<keywords>/1200/800
+    https://picsum.photos/seed/p3-<keywords>/1200/800
+- IMAGE CONSISTENCY RULE (slots):
+  Product 1 image uses p1-..., product 2 uses p2-..., product 3 uses p3-...
+  When user says "change image 1 to: X", change ONLY product 1 image + alt text.
+- To allow the server to improve accuracy, every product image MUST include:
+  data-img-slot="p1|p2|p3" and data-img-query="<user keywords>"
+  Example:
+    <img data-img-slot="p1" data-img-query="mountain bike in snow" ...>
+- Every <img> must include onerror fallback:
+  onerror="this.onerror=null;this.src='https://picsum.photos/seed/fallback/1200/800';"
+- Keep it self-contained (inline CSS). No external JS frameworks.
+- Do NOT claim “updated preview” unless you actually returned full HTML.
+`.trim();
 
-    // UI actions
-    if (action === "clear_memory") {
-      MEM.delete(threadId);
-      return json(200, { ok: true, message: "MEM_OK", html: "" });
-    }
-    if (action === "new_thread") {
-      // Create a fresh thread id if caller didn't provide one
-      MEM.delete(threadId);
-      return json(200, { ok: true, message: "THREAD_OK", html: "" });
-    }
+  const context = `
+MODE: ${mode}
+PRO: ${pro ? "true" : "false"}
 
-    const input =
-      body.input ||
-      body.message ||
-      body.text ||
-      body.prompt ||
-      "";
+CURRENT_ACTIVE_HTML (empty if none):
+${activeHtml ? activeHtml : "(none)"}
+`.trim();
 
-    if (!input || !String(input).trim()) {
-      return json(200, { ok: true, message: "Say something and I’ll respond.", html: "" });
-    }
+  return `${spirit}\n\n${htmlRules}\n\n${context}`;
+}
 
-    // Build memory turns
-    if (!MEM.has(threadId)) MEM.set(threadId, { turns: [] });
-    const st = MEM.get(threadId);
-
-    // Keep last ~16 turns max to avoid bloat
-    st.turns.push({ role: "user", content: String(input).slice(0, 4000) });
-    st.turns = st.turns.slice(-16);
-
-    // Compose prompt: include short recent context
-    const system = buildSystem(mode, pro);
-    const recent = st.turns
-      .map((t) => `${t.role === "user" ? "User" : "Simo"}: ${t.content}`)
-      .join("\n");
-
-    const user = `${recent}\n\nNow respond as Simo.`;
-
-    const modelText = await openaiResponse({ system, user });
-
-    // Extract HTML if present
-    let html = extractHtml(modelText);
-    html = ensureDarkMeta(html);
-
-    // If Pro and we have HTML, inject real images (but never break if Serper fails)
-    if (pro && html) {
-      html = await injectRealImages(html);
-    }
-
-    // Create message for chat pane: prefer a short assistant line if not HTML
-    let message = modelText;
-    if (html) {
-      // Keep the message short when HTML exists (your UI doesn't need full HTML in chat)
-      message = "Done. I updated the preview on the right.";
-    } else {
-      message = stripCodeFences(modelText);
-      if (message.length > 1200) message = message.slice(0, 1200) + "…";
-    }
-
-    // Save assistant turn to memory (store concise)
-    st.turns.push({ role: "assistant", content: message });
-    st.turns = st.turns.slice(-16);
-
-    return json(200, { ok: true, message, html: html || "" });
-  } catch (e) {
-    return json(200, {
-      ok: false,
-      error: e?.message || "Server error",
-      html: "",
-    });
+// JSON schema for model response
+const OUT_SCHEMA = {
+  name: "simo_response",
+  strict: true,
+  schema: {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      reply: { type: "string" },
+      html: { type: "string" }
+    },
+    required: ["reply", "html"]
   }
+};
+
+exports.handler = async (event) => {
+  if (event.httpMethod === "OPTIONS") {
+    return json(200, { ok: true });
+  }
+
+  if (event.httpMethod !== "POST") {
+    return json(405, { ok: false, error: "Use POST" });
+  }
+
+  cleanOldSessions();
+
+  let body = {};
+  try { body = JSON.parse(event.body || "{}"); } catch {}
+
+  const input = String(body.input || body.prompt || body.message || "").trim();
+  const mode = String(body.mode || "general").toLowerCase();
+  const pro = !!body.pro;
+
+  // Thread ID is required for stable memory; create if missing
+  const threadId = String(body.threadId || body.thread || "").trim() || `t_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+
+  if (!input) {
+    return json(200, { ok: true, threadId, message: "MEM_OK", html: "" });
+  }
+
+  const session = SESSIONS.get(threadId) || { messages: [], activeHtml: "", updatedAt: now() };
+  session.updatedAt = now();
+
+  const hasActiveHtml = !!session.activeHtml;
+  const shouldReturnHtml = needsHtmlReturn(mode, input, hasActiveHtml);
+
+  // If user is explicitly starting a build, we treat it as building
+  const effectiveMode =
+    input.toLowerCase().startsWith("build ") ? "building" : mode;
+
+  // Build prompt
+  const system = buildSystem(effectiveMode, pro, session.activeHtml);
+  const user = input;
+
+  const ai = await callOpenAI({ system, user, schema: OUT_SCHEMA });
+
+  if (!ai.ok) {
+    return json(200, { ok: false, threadId, error: ai.error, details: ai.details || null });
+  }
+
+  const data = ai.data || {};
+  const reply = String(data.reply || "").trim();
+  let html = String(data.html || "").trim();
+
+  // Enforce: if we expected HTML but model returned empty, keep old HTML and warn in reply
+  if (shouldReturnHtml && !html) {
+    html = session.activeHtml || "";
+  }
+
+  // If HTML was returned and looks like a full doc, save as current active
+  if (html && /<!doctype html>/i.test(html) && /<\/html>/i.test(html)) {
+    // If Serper is enabled, try to replace data-img-query tags with real images
+    html = await hydrateImagesWithSerper(html);
+    session.activeHtml = html;
+  }
+
+  // Save message history lightly (for tone continuity)
+  session.messages.push({ role: "user", text: input, at: now() });
+  session.messages.push({ role: "assistant", text: reply, at: now() });
+  // Keep history bounded
+  if (session.messages.length > 40) session.messages = session.messages.slice(-40);
+
+  SESSIONS.set(threadId, session);
+
+  return json(200, {
+    ok: true,
+    threadId,
+    reply,
+    html: (shouldReturnHtml ? (session.activeHtml || html || "") : "")
+  });
 };
