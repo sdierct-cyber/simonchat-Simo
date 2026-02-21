@@ -232,8 +232,7 @@
 
     try{
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 25000);
-
+const t = setTimeout(() => ctrl.abort(), 90000);
       const r = await fetch(API.simon, {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
