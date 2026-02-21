@@ -12,7 +12,6 @@
       --muted:#a9b6d3;
       --line:rgba(255,255,255,.12);
       --card:rgba(255,255,255,.06);
-      --card2:rgba(0,0,0,.18);
       --btn:#2a66ff;
       --good:#39ff7a;
       --bad:#ff4d4d;
@@ -21,7 +20,6 @@
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
       --sans: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     }
-
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
@@ -34,34 +32,21 @@
       font-family:var(--sans);
     }
 
-    /* ========== NEVER-CLIP LAYOUT (fixes hidden textbox/buttons forever) ========== */
-    .wrap{
-      height:100vh;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
+    /* never-clip layout */
+    .wrap{height:100vh;display:flex;flex-direction:column;min-height:0;}
     header{
       flex:0 0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 16px;
-      border-bottom:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:14px 16px;border-bottom:1px solid var(--line);
       background:rgba(10,14,28,.55);
       backdrop-filter: blur(10px);
     }
     .main{
-      flex:1 1 auto;
-      min-height:0;
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap:14px;
-      padding:14px;
+      flex:1 1 auto;min-height:0;
+      display:grid;grid-template-columns: 1.1fr .9fr;
+      gap:14px;padding:14px;
     }
-    @media (max-width: 980px){
-      .main{grid-template-columns:1fr;}
-    }
+    @media (max-width: 980px){ .main{grid-template-columns:1fr;} }
 
     .card{
       border:1px solid var(--line);
@@ -69,103 +54,52 @@
       border-radius:var(--radius);
       box-shadow: var(--shadow);
       min-height:0;
-      display:flex;
-      flex-direction:column;
-      overflow:hidden;
+      display:flex;flex-direction:column;overflow:hidden;
     }
     .card .top{
       flex:0 0 auto;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:12px 12px;
-      border-bottom:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;
+      padding:12px 12px;border-bottom:1px solid var(--line);
       background:rgba(10,14,28,.35);
     }
     .title{font-weight:700;font-size:14px}
     .sub{font-size:12px;color:var(--muted)}
     .hint{font-size:12px;color:var(--muted)}
 
-    .body{
-      flex:1 1 auto;
-      min-height:0;
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      gap:10px;
-    }
+    .body{flex:1 1 auto;min-height:0;padding:12px;display:flex;flex-direction:column;gap:10px;}
 
-    /* Header brand + pills */
     .brand{display:flex;gap:10px;align-items:center;font-weight:800;letter-spacing:.2px}
     .mono{font-family:var(--mono); font-size:12px; color:var(--muted)}
-    .dot{
-      width:10px;height:10px;border-radius:999px;
-      background:var(--bad);
-      box-shadow:0 0 0 4px rgba(255,77,77,.14);
-    }
-    .dot.pro{
-      background:var(--good);
-      box-shadow:0 0 0 4px rgba(57,255,122,.16), 0 0 24px rgba(57,255,122,.25);
-    }
+    .dot{width:10px;height:10px;border-radius:999px;background:var(--bad);box-shadow:0 0 0 4px rgba(255,77,77,.14);}
+    .dot.pro{background:var(--good);box-shadow:0 0 0 4px rgba(57,255,122,.16), 0 0 24px rgba(57,255,122,.25);}
+
     .pillbar{display:flex;gap:10px;align-items:center}
     .pill{
       border:1px solid var(--line);
       background:rgba(255,255,255,.06);
       color:var(--text);
-      padding:8px 12px;
-      border-radius:999px;
-      font-size:13px;
-      cursor:pointer;
-      user-select:none;
+      padding:8px 12px;border-radius:999px;
+      font-size:13px;cursor:pointer;user-select:none;
     }
     .pill:hover{background:rgba(255,255,255,.10)}
-    .pill.primary{
-      border-color:rgba(42,102,255,.65);
-      background:rgba(42,102,255,.18);
-    }
+    .pill.primary{border-color:rgba(42,102,255,.65);background:rgba(42,102,255,.18);}
 
-    /* Chat log */
-    #log{
-      flex:1 1 auto;
-      min-height:0;
-      overflow:auto;
-      padding-right:6px;
-    }
+    #log{flex:1 1 auto;min-height:0;overflow:auto;padding-right:6px;}
     .msg{
       border:1px solid rgba(255,255,255,.10);
       background:rgba(0,0,0,.18);
-      border-radius:16px;
-      padding:10px 12px;
-      margin-bottom:10px;
+      border-radius:16px;padding:10px 12px;margin-bottom:10px;
     }
-    .msg.you{
-      background:rgba(42,102,255,.13);
-      border-color:rgba(42,102,255,.25);
-    }
+    .msg.you{background:rgba(42,102,255,.13);border-color:rgba(42,102,255,.25);}
     .meta{font-size:12px;color:var(--muted);margin-bottom:6px}
     .txt{white-space:pre-wrap; line-height:1.35}
 
-    /* Composer (textbox + buttons) */
-    .composer{
-      flex:0 0 auto;
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap:10px;
-      align-items:end;
-    }
+    .composer{flex:0 0 auto;display:grid;grid-template-columns: 1fr auto;gap:10px;align-items:end;}
     textarea{
-      width:100%;
-      min-height:48px;
-      max-height:140px;
-      resize:vertical;
-      padding:10px 12px;
-      border-radius:16px;
-      border:1px solid var(--line);
-      outline:none;
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      font-family:var(--sans);
-      font-size:14px;
+      width:100%;min-height:48px;max-height:140px;resize:vertical;
+      padding:10px 12px;border-radius:16px;border:1px solid var(--line);
+      outline:none;background:rgba(0,0,0,.18);color:var(--text);
+      font-family:var(--sans);font-size:14px;
     }
     textarea:focus{border-color:rgba(42,102,255,.6)}
     .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
@@ -173,76 +107,47 @@
       border:1px solid var(--line);
       background:rgba(255,255,255,.06);
       color:var(--text);
-      padding:10px 12px;
-      border-radius:14px;
-      cursor:pointer;
-      font-weight:700;
+      padding:10px 12px;border-radius:14px;
+      cursor:pointer;font-weight:700;
     }
     button:hover{background:rgba(255,255,255,.10)}
-    button.primary{
-      border-color:rgba(42,102,255,.65);
-      background:linear-gradient(180deg, rgba(42,102,255,.75), rgba(31,77,214,.75));
-    }
-    button.danger{
-      border-color:rgba(255,77,77,.55);
-      background:rgba(255,77,77,.12);
-    }
-    button.pro{
-      border-color:rgba(57,255,122,.55);
-      background:rgba(57,255,122,.10);
-    }
+    button.primary{border-color:rgba(42,102,255,.65);background:linear-gradient(180deg, rgba(42,102,255,.75), rgba(31,77,214,.75));}
+    button.danger{border-color:rgba(255,77,77,.55);background:rgba(255,77,77,.12);}
+    button.pro{border-color:rgba(57,255,122,.55);background:rgba(57,255,122,.10);}
     button[disabled]{opacity:.55;cursor:not-allowed}
 
-    /* Preview iframe: never white */
+    /* Preview: never white */
     #previewFrame{
-      width:100%;
-      height:100%;
-      border:0;
-      border-radius:14px;
-      background:transparent;
-      min-height:340px;
+      width:100%;height:100%;
+      border:0;border-radius:14px;
+      background:transparent;min-height:340px;
     }
 
-    /* ========== MODAL (centered overlay, never bottom) ========== */
+    /* Modal centered overlay */
     .modalWrap{
-      position:fixed;
-      inset:0;
-      background:rgba(0,0,0,.55);
-      display:none;            /* toggled to flex by JS */
-      align-items:center;
-      justify-content:center;
-      padding:18px;
-      z-index:9999;
+      position:fixed;inset:0;background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;
+      padding:18px;z-index:9999;
     }
     .modal{
       width:min(560px, 96vw);
-      border-radius:20px;
-      border:1px solid var(--line);
+      border-radius:20px;border:1px solid var(--line);
       background: linear-gradient(180deg, rgba(15,23,51,.98), rgba(10,14,28,.98));
       box-shadow: var(--shadow);
       overflow:hidden;
     }
     .mTop{
-      padding:14px 14px 10px;
-      border-bottom:1px solid var(--line);
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
+      padding:14px 14px 10px;border-bottom:1px solid var(--line);
+      display:flex;align-items:center;justify-content:space-between;gap:10px;
     }
     .mTop b{font-size:14px}
     .mBody{padding:14px}
     .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
     input[type="text"]{
-      flex:1;
-      min-width:220px;
-      padding:10px 12px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-      color:var(--text);
-      outline:none;
-      font-family:var(--mono);
+      flex:1;min-width:220px;padding:10px 12px;
+      border-radius:14px;border:1px solid var(--line);
+      background:rgba(0,0,0,.18);color:var(--text);
+      outline:none;font-family:var(--mono);
     }
     .status{margin-top:10px;font-size:12px;color:var(--muted)}
   </style>
@@ -280,12 +185,12 @@
           <div class="composer">
             <textarea id="input" placeholder="Type…"></textarea>
             <div class="btns">
-              <button id="send" class="primary">Send</button>
-              <button id="reset" class="danger">Reset</button>
-              <button id="previewBtn">Preview</button>
-              <button id="download" class="pro">Download</button>
-              <button id="save" class="pro">Save</button>
-              <button id="library" class="pro">Library</button>
+              <button id="send" class="primary" type="button">Send</button>
+              <button id="reset" class="danger" type="button">Reset</button>
+              <button id="previewBtn" type="button">Preview</button>
+              <button id="download" class="pro" type="button">Download</button>
+              <button id="save" class="pro" type="button">Save</button>
+              <button id="library" class="pro" type="button">Library</button>
             </div>
           </div>
 
@@ -303,6 +208,7 @@
           <div class="hint">Renders only when Simo returns valid HTML.</div>
         </div>
         <div class="body" style="padding:12px">
+          <!-- safer sandbox: no allow-same-origin -->
           <iframe id="previewFrame" sandbox="allow-scripts allow-forms"></iframe>
         </div>
       </section>
@@ -314,25 +220,21 @@
     <div class="modal">
       <div class="mTop">
         <b>Unlock Pro</b>
-        <button id="closeModal">Close</button>
+        <button id="closeModal" type="button">Close</button>
       </div>
       <div class="mBody">
         <div class="hint">Pro unlocks Save/Download/Library and stronger build flows.</div>
         <div style="height:10px"></div>
         <div class="row">
           <input id="proKey" type="text" placeholder="Enter your Pro key (e.g. SIMO-TEST-123)" />
-          <button id="verifyKey" class="primary">Verify</button>
+          <button id="verifyKey" class="primary" type="button">Verify</button>
         </div>
         <div class="status" id="proStatus"></div>
       </div>
     </div>
   </div>
 
-  <script src="./app.js"></script>
+  <!-- cache-bust lock: only bump when you edit app.js -->
+  <script defer src="./app.js?v=4"></script>
 </body>
 </html>
-
-
-
-
-
