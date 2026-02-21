@@ -169,9 +169,10 @@ async function callOpenAI({ system, user, schema }) {
       body: JSON.stringify({
         model: MODEL,
         input: [
-          { role: "system", content: [{ type: "output_text", text: system }] },
-          { role: "user", content: [{ type: "output_text", text: user }] }
-        ],
+          input: [
+  { role: "system", content: [{ type: "input_text", text: system }] },
+  { role: "user", content: [{ type: "input_text", text: user }] }
+],
         // Force structured output so we always get {reply, html}
         response_format: {
           type: "json_schema",
