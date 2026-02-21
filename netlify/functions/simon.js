@@ -71,6 +71,8 @@ CRITICAL HTML RULES (must follow):
     https://picsum.photos/seed/mountain-bike-snow/1200/800
     https://picsum.photos/seed/road-bike/1200/800
 - IMAGE CONSISTENCY RULE:
+- Treat these as the same command:
+  "image 1 to X" == "change image 1 to: X" (also "set image 1 to X", "image #1: X")
   Each product image must use a stable seed by slot:
     Product 1 image src must be https://picsum.photos/seed/p1-<keywords>/1200/800
     Product 2 image src must be https://picsum.photos/seed/p2-<keywords>/1200/800
