@@ -1,348 +1,295 @@
-/* app.js — Simo UI controller (stable V2)
-   - Bulletproof event wiring (DOMContentLoaded + delegation)
-   - Enter to send, Shift+Enter newline
-   - Pro gating via /.netlify/functions/pro
-   - Sends chat to /.netlify/functions/simon
-   - Maintains rolling memory + current HTML for edits/continue
-   - Preview via iframe srcdoc (no white flash)
-*/
-
-(() => {
-  const $ = (id) => document.getElementById(id);
-
-  const els = {};
-  const state = {
-    mode: "general",          // "general" | "building"
-    pro: false,
-    messages: [],             // rolling conversation
-    currentHtml: "",          // last full HTML doc
-    threadId: crypto?.randomUUID?.() || String(Date.now()),
-  };
-
-  const LS = {
-    pro: "simo_pro",
-    proKey: "simo_pro_key",
-    messages: "simo_messages_v2",
-    html: "simo_current_html_v2",
-    library: "simo_library_v2",
-  };
-
-  function safeJsonParse(s, fallback) {
-    try { return JSON.parse(s); } catch { return fallback; }
-  }
-
-  function setModeLabel(txt) { els.modeLabel.textContent = txt; }
-  function setStatus(txt) { els.statusLabel.textContent = txt; }
-  function setHint(txt) { els.hint.textContent = txt; }
-
-  function renderProUI() {
-    els.btnPro.classList.toggle("proOn", state.pro);
-    els.proDot.style.background = state.pro ? "#39ff7a" : "#ff3b3b";
-    els.proDot.style.boxShadow = state.pro ? "0 0 14px rgba(57,255,122,.55)" : "0 0 14px rgba(255,59,59,.55)";
-    els.proStatus.textContent = `Pro: ${state.pro ? "ON" : "OFF"}`;
-
-    // gated buttons
-    ["download","save","library"].forEach((id) => {
-      const b = els[id];
-      const locked = !state.pro;
-      b.disabled = locked;
-      b.classList.toggle("locked", locked);
-    });
-  }
-
-  function addMsg(role, text) {
-    const t = String(text ?? "").trim();
-    if (!t) return;
-
-    const time = new Date();
-    const stamp = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-    state.messages.push({ role, text: t, ts: Date.now() });
-
-    const wrap = document.createElement("div");
-    wrap.className = "msg " + (role === "user" ? "you" : "simo");
-
-    const meta = document.createElement("div");
-    meta.className = "meta";
-    meta.textContent = `${role === "user" ? "You" : "Simo"} • ${stamp}`;
-
-    const body = document.createElement("div");
-    body.className = "text";
-    body.textContent = t;
-
-    wrap.appendChild(meta);
-    wrap.appendChild(body);
-    els.log.appendChild(wrap);
-
-    // autoscroll
-    els.log.scrollTop = els.log.scrollHeight;
-
-    // persist rolling state
-    localStorage.setItem(LS.messages, JSON.stringify(state.messages.slice(-40)));
-  }
-
-  function setPreview(html) {
-    const doc = String(html || "").trim();
-    if (!doc || !doc.toLowerCase().startsWith("<!doctype html")) {
-      els.previewSub.textContent = "No HTML cached yet.";
-      els.previewFrame.srcdoc = "";
-      els.previewEmpty.style.display = "flex";
-      return;
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo</title>
+  <meta name="color-scheme" content="dark" />
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#101a34; --panel2:#0f1730;
+      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
+      --btn:#2a66ff; --btn2:#1f4dd6;
+      --danger:#ff4d4d; --good:#39ff7a;
+      --shadow:0 14px 34px rgba(0,0,0,.35);
+      --r:16px;
     }
-    state.currentHtml = doc;
-    localStorage.setItem(LS.html, doc);
-
-    els.previewEmpty.style.display = "none";
-    els.previewSub.textContent = "Updated by Simo.";
-    els.previewFrame.srcdoc = doc;
-  }
-
-  function detectModeFromUserText(t) {
-    const s = t.toLowerCase();
-    const buildWords = ["build", "make a", "create a", "landing page", "website", "app", "preview"];
-    const editWords  = ["change", "add", "remove", "continue", "next", "update", "edit", "headline", "cta", "price", "image"];
-    const isBuild = buildWords.some(w => s.includes(w));
-    const isEdit = editWords.some(w => s.includes(w));
-
-    if (isBuild || (isEdit && state.currentHtml)) return "building";
-    return "general";
-  }
-
-  async function postJson(url, body, timeoutMs = 20000) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify(body),
-        signal: ctrl.signal
-      });
-      const text = await r.text();
-      let json = null;
-      try { json = JSON.parse(text); } catch { /* keep null */ }
-      return { ok: r.ok, status: r.status, text, json };
-    } finally {
-      clearTimeout(t);
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:radial-gradient(1200px 800px at 20% 10%, #14224a 0%, var(--bg) 55%, #070a14 100%);
+      color:var(--text);
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      overflow:hidden;
     }
-  }
-
-  async function send() {
-    const input = els.input.value;
-    const msg = String(input || "").trim();
-    if (!msg) return;
-
-    els.input.value = "";
-    addMsg("user", msg);
-
-    // decide mode
-    state.mode = detectModeFromUserText(msg);
-    setModeLabel(state.mode);
-    setStatus("Thinking...");
-    setHint(state.mode === "building" ? "Building / editing with HTML continuity…" : "Chatting…");
-
-    const payload = {
-      mode: state.mode,        // "general" | "building"
-      pro: state.pro,
-      threadId: state.threadId,
-      input: msg,
-      // send last messages for continuity
-      messages: state.messages.slice(-20),
-      currentHtml: state.currentHtml || ""
-    };
-
-    const res = await postJson("/.netlify/functions/simon", payload, 25000).catch((e) => {
-      return { ok:false, status: 0, text: "", json: { ok:false, error: `Network/timeout error: ${e?.name || e}` } };
-    });
-
-    if (!res.ok) {
-      const err = res.json?.error || res.text || `HTTP ${res.status}`;
-      addMsg("assistant", `Error: ${err}`);
-      setStatus("Ready");
-      setHint("If this repeats: open Netlify → Functions → simon → Logs.");
-      return;
+    .topbar{
+      height:64px; display:flex; align-items:center; justify-content:space-between;
+      padding:10px 14px; border-bottom:1px solid var(--line);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+    }
+    .brand{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.2px}
+    .dot{width:12px;height:12px;border-radius:99px;background:#ff3b3b; box-shadow:0 0 14px rgba(255,59,59,.55)}
+    .mode{font-size:12px;color:var(--muted); font-weight:600; opacity:.9}
+    .pillbar{display:flex; align-items:center; gap:10px}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:10px 14px; border-radius:999px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--text);
+      cursor:pointer;
+      user-select:none;
+      box-shadow:0 8px 20px rgba(0,0,0,.18);
+      transition:transform .08s ease, background .15s ease, border-color .15s ease;
+      font-weight:700;
+    }
+    .pill:hover{transform:translateY(-1px); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.16)}
+    .pill:active{transform:translateY(0px)}
+    .pill.proOn{
+      background:rgba(57,255,122,.10);
+      border-color:rgba(57,255,122,.30);
+      box-shadow:0 0 0 2px rgba(57,255,122,.12), 0 10px 30px rgba(0,0,0,.25);
     }
 
-    const out = res.json || {};
-    const reply = out.reply || out.output || out.text || "(no response)";
-    addMsg("assistant", reply);
-
-    if (out.html) setPreview(out.html);
-
-    setStatus("Ready");
-    setHint(state.currentHtml ? "You can say: change headline…, add testimonials, change image 1…, download, save" : "Build something to render in Preview.");
-  }
-
-  function resetThread() {
-    state.threadId = crypto?.randomUUID?.() || String(Date.now());
-    state.messages = [];
-    state.currentHtml = "";
-    localStorage.removeItem(LS.messages);
-    localStorage.removeItem(LS.html);
-    els.log.innerHTML = "";
-    setPreview("");
-    addMsg("assistant", "Reset. I’m here.");
-    setModeLabel("ready");
-    setStatus("Ready");
-    setHint("Start with: build a landing page for …");
-  }
-
-  function clearMemory() {
-    // clears *rolling* chat memory but keeps current HTML (so edits can still work if you want)
-    state.messages = [];
-    localStorage.removeItem(LS.messages);
-    addMsg("assistant", "Memory cleared (rolling context reset).");
-  }
-
-  function newThread() {
-    // clears rolling + html
-    resetThread();
-    addMsg("assistant", "New thread started.");
-  }
-
-  function openProModal() {
-    els.verifyStatus.textContent = "";
-    els.modalWrap.classList.add("show");
-    setTimeout(() => els.proKey?.focus(), 50);
-  }
-  function closeProModal() {
-    els.modalWrap.classList.remove("show");
-  }
-
-  async function verifyPro() {
-    const key = String(els.proKey.value || "").trim();
-    if (!key) return;
-
-    els.verifyStatus.className = "status";
-    els.verifyStatus.textContent = "Verifying…";
-
-    const res = await postJson("/.netlify/functions/pro", { key }, 12000).catch(() => ({ ok:false, json:null, status:0, text:"" }));
-    const ok = !!res?.json?.ok && !!res?.json?.pro;
-
-    if (ok) {
-      state.pro = true;
-      localStorage.setItem(LS.pro, "1");
-      localStorage.setItem(LS.proKey, key);
-      els.verifyStatus.className = "status ok";
-      els.verifyStatus.textContent = "Pro unlocked.";
-      renderProUI();
-      closeProModal();
-      addMsg("assistant", "Pro enabled.");
-    } else {
-      state.pro = false;
-      localStorage.removeItem(LS.pro);
-      els.verifyStatus.className = "status bad";
-      els.verifyStatus.textContent = "Invalid key.";
-      renderProUI();
+    .grid{
+      height:calc(100vh - 64px);
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:12px;
+      padding:12px;
+      min-height:0;
     }
-  }
-
-  function downloadHtml() {
-    if (!state.currentHtml) {
-      addMsg("assistant", "No HTML cached yet. Build something first.");
-      return;
+    .card{
+      min-height:0;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:var(--r);
+      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
     }
-    const blob = new Blob([state.currentHtml], { type: "text/html;charset=utf-8" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "simo_build.html";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function saveToLibrary() {
-    if (!state.currentHtml) {
-      addMsg("assistant", "No HTML cached yet. Build something first.");
-      return;
+    .cardHead{
+      padding:10px 12px;
+      border-bottom:1px solid rgba(255,255,255,.10);
+      display:flex; align-items:center; justify-content:space-between;
+      background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0));
     }
-    const lib = safeJsonParse(localStorage.getItem(LS.library), []);
-    const item = {
-      id: crypto?.randomUUID?.() || String(Date.now()),
-      ts: Date.now(),
-      title: `Build ${new Date().toLocaleString()}`,
-      html: state.currentHtml
-    };
-    lib.unshift(item);
-    localStorage.setItem(LS.library, JSON.stringify(lib.slice(0, 50)));
-    addMsg("assistant", "Saved to Library.");
-  }
-
-  function openLibrary() {
-    const lib = safeJsonParse(localStorage.getItem(LS.library), []);
-    if (!lib.length) {
-      addMsg("assistant", "Library is empty.");
-      return;
+    .title{font-weight:800}
+    .sub{color:var(--muted); font-size:12px; font-weight:600}
+    .body{
+      padding:12px;
+      flex:1;
+      min-height:0;
+      overflow:auto;
     }
-    // Load newest
-    const item = lib[0];
-    state.currentHtml = item.html;
-    setPreview(item.html);
-    addMsg("assistant", `Loaded latest from Library: ${item.title}`);
-  }
+    .msg{padding:12px; border-radius:14px; border:1px solid rgba(255,255,255,.08); background:rgba(0,0,0,.18); margin-bottom:10px}
+    .msg.you{background:rgba(42,102,255,.14); border-color:rgba(42,102,255,.25)}
+    .meta{color:var(--muted); font-size:12px; font-weight:700; margin-bottom:6px}
+    .text{white-space:pre-wrap; line-height:1.35}
 
-  function bind() {
-    // cache elements
-    [
-      "modeLabel","statusLabel","hint","log","input",
-      "send","reset","previewBtn","download","save","library",
-      "btnPro","btnClearMemory","btnNewThread",
-      "proDot","proStatus","previewFrame","previewSub","previewEmpty",
-      "modalWrap","closeModal","verifyKey","proKey","verifyStatus"
-    ].forEach(id => els[id] = $(id));
-
-    // restore pro + state
-    state.pro = localStorage.getItem(LS.pro) === "1";
-    const savedMsgs = safeJsonParse(localStorage.getItem(LS.messages), []);
-    const savedHtml = localStorage.getItem(LS.html) || "";
-    state.messages = Array.isArray(savedMsgs) ? savedMsgs : [];
-    state.currentHtml = savedHtml;
-
-    renderProUI();
-
-    // restore UI
-    els.log.innerHTML = "";
-    if (state.messages.length) {
-      state.messages.forEach(m => addMsg(m.role, m.text));
-    } else {
-      addMsg("assistant", "Back again — pick up where we left off.");
+    .composer{
+      padding:12px;
+      border-top:1px solid rgba(255,255,255,.10);
+      background:linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,.03));
+      display:flex; flex-direction:column; gap:10px;
     }
-    if (state.currentHtml) setPreview(state.currentHtml);
-    else setPreview("");
+    .row{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      align-items:end;
+    }
+    textarea{
+      width:100%;
+      min-height:52px;
+      max-height:180px;
+      resize:vertical;
+      padding:12px 12px;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      outline:none;
+      font-size:14px;
+    }
+    textarea:focus{border-color:rgba(42,102,255,.40); box-shadow:0 0 0 3px rgba(42,102,255,.12)}
+    .btns{
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      justify-content:flex-end;
+    }
+    button{
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      color:var(--text);
+      border-radius:999px;
+      padding:10px 14px;
+      font-weight:800;
+      cursor:pointer;
+      user-select:none;
+      transition:transform .08s ease, background .15s ease, border-color .15s ease, opacity .15s ease;
+    }
+    button:hover{transform:translateY(-1px); background:rgba(255,255,255,.08); border-color:rgba(255,255,255,.18)}
+    button:active{transform:translateY(0px)}
+    button.primary{background:linear-gradient(180deg, var(--btn), var(--btn2)); border-color:rgba(42,102,255,.55)}
+    button.danger{background:rgba(255,77,77,.10); border-color:rgba(255,77,77,.35)}
+    button.ghost{opacity:.95}
+    button[disabled]{opacity:.45; cursor:not-allowed; transform:none}
 
-    setModeLabel("ready");
-    setStatus("Ready");
+    .proGated{opacity:.55}
+    .proGated.locked{filter:saturate(.7)}
+    .footerHint{display:flex; justify-content:space-between; gap:10px; color:var(--muted); font-size:12px; font-weight:600}
 
-    // button clicks
-    els.send.addEventListener("click", send);
-    els.reset.addEventListener("click", resetThread);
-    els.previewBtn.addEventListener("click", () => setPreview(state.currentHtml));
-    els.download.addEventListener("click", downloadHtml);
-    els.save.addEventListener("click", saveToLibrary);
-    els.library.addEventListener("click", openLibrary);
+    /* preview */
+    .previewWrap{height:100%; min-height:0; display:flex; flex-direction:column}
+    .previewFrame{
+      flex:1; min-height:0;
+      width:100%;
+      border:0;
+      background:#0b1020;
+      border-radius:14px;
+      overflow:hidden;
+    }
+    .previewEmpty{
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:var(--muted);
+      font-weight:700;
+    }
 
-    els.btnClearMemory.addEventListener("click", clearMemory);
-    els.btnNewThread.addEventListener("click", newThread);
-    els.btnPro.addEventListener("click", openProModal);
+    /* modal */
+    .modalWrap{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.55);
+      display:none;
+      align-items:center; justify-content:center;
+      padding:16px;
+      z-index:9999;
+    }
+    .modalWrap.show{display:flex}
+    .modal{
+      width:min(520px, 100%);
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.12);
+      background:linear-gradient(180deg, rgba(16,26,52,.98), rgba(10,14,30,.98));
+      box-shadow:0 20px 60px rgba(0,0,0,.55);
+      padding:16px;
+    }
+    .modalTop{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px}
+    .modalTitle{font-weight:900; font-size:16px}
+    .modalBody{color:var(--muted); font-weight:650; font-size:13px; line-height:1.35}
+    .modalRow{display:flex; gap:10px; margin-top:12px}
+    .modalRow input{
+      flex:1;
+      padding:12px 12px;
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(0,0,0,.22);
+      color:var(--text);
+      outline:none;
+    }
+    .modalRow input:focus{border-color:rgba(42,102,255,.45); box-shadow:0 0 0 3px rgba(42,102,255,.12)}
+    .status{margin-top:10px; font-weight:800; font-size:12px}
+    .status.ok{color:var(--good)}
+    .status.bad{color:var(--danger)}
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <span class="dot" id="proDot" aria-hidden="true"></span>
+      <div>
+        <div style="display:flex;gap:10px;align-items:baseline">
+          <div style="font-size:18px">Simo</div>
+          <div class="mode">mode: <span id="modeLabel">ready</span></div>
+        </div>
+      </div>
+    </div>
 
-    // modal
-    els.closeModal.addEventListener("click", closeProModal);
-    els.modalWrap.addEventListener("click", (e) => { if (e.target === els.modalWrap) closeProModal(); });
-    els.verifyKey.addEventListener("click", verifyPro);
-    els.proKey.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") verifyPro();
-      if (e.key === "Escape") closeProModal();
-    });
+    <div class="pillbar">
+      <div class="pill" id="btnPro">Pro</div>
+      <div class="pill" id="btnClearMemory">Clear Memory</div>
+      <div class="pill" id="btnNewThread">New Thread</div>
+    </div>
+  </div>
 
-    // textarea enter to send
-    els.input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        send();
-      }
-    });
-  }
+  <div class="grid">
+    <!-- Chat -->
+    <div class="card">
+      <div class="cardHead">
+        <div>
+          <div class="title">Chat</div>
+          <div class="sub" id="statusLabel">Ready</div>
+        </div>
+        <div class="sub">Enter to send • Shift+Enter = new line</div>
+      </div>
 
-  document.addEventListener("DOMContentLoaded", bind);
-})();
+      <div class="body" id="log"></div>
+
+      <div class="composer">
+        <div class="row">
+          <textarea id="input" placeholder="Type..."></textarea>
+          <div class="btns">
+            <button class="primary" id="send">Send</button>
+            <button class="danger" id="reset">Reset</button>
+            <button class="ghost" id="previewBtn">Preview</button>
+            <button id="download" class="proGated locked" disabled>Download</button>
+            <button id="save" class="proGated locked" disabled>Save</button>
+            <button id="library" class="proGated locked" disabled>Library</button>
+          </div>
+        </div>
+        <div class="footerHint">
+          <div id="proStatus">Pro: OFF</div>
+          <div id="hint">Build something to render in Preview.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="card previewWrap">
+      <div class="cardHead">
+        <div>
+          <div class="title">Preview</div>
+          <div class="sub" id="previewSub">No HTML cached yet.</div>
+        </div>
+        <div class="sub">Renders only when Simo returns valid HTML.</div>
+      </div>
+      <div class="body" style="padding:12px">
+        <iframe
+          id="previewFrame"
+          class="previewFrame"
+          sandbox="allow-scripts allow-forms"
+          referrerpolicy="no-referrer"
+        ></iframe>
+        <div id="previewEmpty" class="previewEmpty" style="display:none">
+          Preview<br/>Build something to render here.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Pro Modal -->
+  <div class="modalWrap" id="modalWrap" role="dialog" aria-modal="true" aria-label="Unlock Pro">
+    <div class="modal">
+      <div class="modalTop">
+        <div class="modalTitle">Unlock Pro</div>
+        <button id="closeModal">Close</button>
+      </div>
+      <div class="modalBody">
+        Pro unlocks Save/Download/Library and stronger build flows.
+      </div>
+      <div class="modalRow">
+        <input id="proKey" placeholder="Enter your Pro key (e.g. SIMO-TEST-123)" />
+        <button class="primary" id="verifyKey">Verify</button>
+      </div>
+      <div class="status" id="verifyStatus"></div>
+    </div>
+  </div>
+
+  <script defer src="./app.js?v=4"></script>
+</body>
+</html>
