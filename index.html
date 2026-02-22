@@ -1,215 +1,238 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Simo</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simo</title>
+  <meta name="color-scheme" content="dark" />
+  <style>
+    :root{
+      --bg:#0b1020; --panel:#101a33; --panel2:#0f1730;
+      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
+      --btn:#2a66ff; --btn2:#1f4dd6; --good:#39ff7a; --bad:#ff4d4d;
+      --shadow:0 14px 34px rgba(0,0,0,.35);
+      --radius:18px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; font-family:var(--sans); color:var(--text);
+      background: radial-gradient(1200px 700px at 20% 10%, #1a2a66 0%, rgba(26,42,102,0) 60%),
+                  radial-gradient(900px 600px at 90% 40%, #3b1a66 0%, rgba(59,26,102,0) 55%),
+                  linear-gradient(180deg, #070b18 0%, #0b1020 70%, #070b18 100%);
+    }
+    .wrap{max-width:1200px; margin:0 auto; padding:18px}
+    .top{
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:14px 16px; border:1px solid var(--line); border-radius:var(--radius);
+      background:rgba(16,26,51,.55); backdrop-filter: blur(8px); box-shadow:var(--shadow);
+    }
+    .brand{display:flex; align-items:center; gap:10px}
+    .logo{
+      width:38px; height:38px; border-radius:12px;
+      background:linear-gradient(135deg, rgba(42,102,255,.9), rgba(57,255,122,.55));
+      box-shadow: 0 0 22px rgba(42,102,255,.25);
+    }
+    .title{display:flex; flex-direction:column; line-height:1.05}
+    .title b{font-size:15px}
+    .title span{font-size:12px; color:var(--muted)}
+    .pills{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .pill{
+      border:1px solid var(--line); border-radius:999px; padding:8px 12px;
+      background:rgba(255,255,255,.06);
+      display:flex; gap:10px; align-items:center;
+      user-select:none;
+    }
+    .pill strong{font-size:12px; letter-spacing:.2px}
+    .toggle{
+      width:44px; height:24px; border-radius:999px; position:relative;
+      background:rgba(255,255,255,.16); border:1px solid var(--line);
+      cursor:pointer;
+    }
+    .knob{
+      width:18px; height:18px; border-radius:999px; position:absolute; top:50%; left:3px;
+      transform:translateY(-50%);
+      background:rgba(255,255,255,.85);
+      transition: all .18s ease;
+    }
+    .toggle.on{
+      background:rgba(57,255,122,.22);
+      border-color: rgba(57,255,122,.45);
+      box-shadow: 0 0 18px rgba(57,255,122,.18);
+    }
+    .toggle.on .knob{ left:22px; background: rgba(57,255,122,.95); }
 
-<style>
-:root{
-  --bg:#0b1020;
-  --panel:#11162a;
-  --panel2:#0f1530;
-  --line:rgba(255,255,255,.08);
-  --text:#eaf0ff;
-  --muted:#9fb0ff;
-  --accent:#2a66ff;
-  --good:#39ff7a;
-  --shadow:0 14px 34px rgba(0,0,0,.35);
-}
+    .grid{display:grid; grid-template-columns: 1.05fr .95fr; gap:14px; margin-top:14px}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
 
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  background:var(--bg);
-  color:var(--text);
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;
-  display:flex;
-  min-height:100vh;
-}
+    .card{
+      border:1px solid var(--line); border-radius:var(--radius);
+      background:rgba(16,26,51,.55); backdrop-filter: blur(8px);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+    .cardHead{
+      display:flex; justify-content:space-between; align-items:center;
+      padding:12px 14px; border-bottom:1px solid var(--line);
+      background:rgba(0,0,0,.12);
+    }
+    .cardHead .h{font-weight:700; font-size:13px; color:#d9e5ff}
+    .cardHead .meta{font-size:12px; color:var(--muted)}
+    .chatBody{height: 56vh; min-height: 360px; overflow:auto; padding:14px}
+    .msg{margin:0 0 12px 0}
+    .msg .who{font-size:11px; color:var(--muted); margin-bottom:6px}
+    .bubble{
+      padding:10px 12px; border-radius:14px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      white-space:pre-wrap;
+    }
+    .bubble.you{ background: rgba(42,102,255,.12); border-color: rgba(42,102,255,.25); }
+    .bubble.simo{ background: rgba(255,255,255,.06); }
+    .composer{
+      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
+      background:rgba(0,0,0,.12);
+    }
+    textarea{
+      flex:1; resize:none; height:46px; max-height:120px;
+      border-radius:14px; padding:12px 12px;
+      border:1px solid var(--line);
+      background: rgba(7,11,24,.55);
+      color:var(--text);
+      outline:none;
+    }
+    .btn{
+      border:1px solid rgba(42,102,255,.35);
+      background: linear-gradient(180deg, var(--btn) 0%, var(--btn2) 100%);
+      color:white; border-radius:14px; padding:10px 14px;
+      cursor:pointer; font-weight:700;
+      box-shadow: 0 10px 22px rgba(42,102,255,.18);
+    }
+    .btn:disabled{opacity:.55; cursor:not-allowed}
+    .btn.ghost{
+      background: rgba(255,255,255,.06);
+      border:1px solid var(--line);
+      box-shadow:none;
+      font-weight:600;
+    }
+    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .status{font-size:12px; color:var(--muted)}
+    .status.good{color: rgba(57,255,122,.9)}
+    .status.bad{color: rgba(255,77,77,.95)}
+    .small{font-size:12px; color:var(--muted)}
+    .libList{padding:10px 14px; border-top:1px solid var(--line); display:none}
+    .libList.show{display:block}
+    .libItem{
+      display:flex; justify-content:space-between; gap:10px; align-items:center;
+      padding:8px 10px; border:1px solid var(--line); border-radius:14px;
+      background: rgba(255,255,255,.05);
+      margin-bottom:8px;
+    }
+    .libItem b{font-size:12px}
+    .libItem span{font-size:11px; color:var(--muted)}
+    .libItem button{padding:8px 10px; border-radius:12px}
 
-/* LEFT */
-.sidebar{
-  width:380px;
-  display:flex;
-  flex-direction:column;
-  border-right:1px solid var(--line);
-  background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
-  min-height:100vh;
-}
-
-.header{
-  padding:16px;
-  font-weight:700;
-  border-bottom:1px solid var(--line);
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-}
-
-.pill{
-  display:inline-flex;
-  align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-radius:999px;
-  border:1px solid var(--line);
-  background:rgba(255,255,255,.04);
-  color:var(--text);
-  cursor:pointer;
-  user-select:none;
-}
-.pill.on{
-  border-color:rgba(57,255,122,.55);
-  box-shadow:0 0 0 3px rgba(57,255,122,.12);
-}
-.dot{
-  width:10px;height:10px;border-radius:50%;
-  background:rgba(255,255,255,.25);
-}
-.pill.on .dot{ background:var(--good); }
-
-.chat{
-  flex:1;
-  padding:16px;
-  overflow-y:auto;
-}
-
-.msg{margin:0 0 14px 0; line-height:1.4}
-.msg.you{color:#ffffff}
-.msg.simo{color:var(--muted)}
-
-.inputbar{
-  position:sticky;
-  bottom:0;
-  padding:12px;
-  border-top:1px solid var(--line);
-  background:rgba(17,22,42,.92);
-  backdrop-filter: blur(8px);
-  display:flex;
-  gap:8px;
-}
-
-textarea{
-  flex:1;
-  resize:none;
-  height:44px;
-  background:var(--panel2);
-  border:1px solid var(--line);
-  color:var(--text);
-  padding:10px 10px;
-  border-radius:10px;
-  outline:none;
-}
-textarea:focus{ border-color:rgba(42,102,255,.65); }
-
-button{
-  background:var(--accent);
-  border:none;
-  padding:0 14px;
-  border-radius:10px;
-  color:white;
-  cursor:pointer;
-  box-shadow:var(--shadow);
-}
-button.secondary{
-  background:#222a55;
-  box-shadow:none;
-}
-
-/* RIGHT */
-.previewWrap{
-  flex:1;
-  min-width:0;
-  min-height:100vh;
-  background:radial-gradient(900px 600px at 20% 10%, rgba(42,102,255,.12), transparent 60%),
-             radial-gradient(900px 600px at 70% 40%, rgba(57,255,122,.08), transparent 60%),
-             var(--bg);
-  display:flex;
-  padding:18px;
-}
-
-.previewCard{
-  flex:1;
-  background:rgba(255,255,255,.03);
-  border:1px solid var(--line);
-  border-radius:16px;
-  overflow:hidden;
-  position:relative;
-  box-shadow:var(--shadow);
-}
-
-/* Placeholder never-white */
-.placeholder{
-  position:absolute;
-  inset:0;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:24px;
-  text-align:center;
-  color:var(--muted);
-}
-.placeholder .box{
-  max-width:520px;
-  padding:22px 18px;
-  border-radius:14px;
-  border:1px dashed rgba(255,255,255,.18);
-  background:rgba(15,21,48,.55);
-}
-.placeholder h2{
-  margin:0 0 8px 0;
-  font-size:18px;
-  color:var(--text);
-}
-.placeholder p{margin:0;font-size:14px;line-height:1.5}
-
-/* Iframe */
-iframe{
-  width:100%;
-  height:100%;
-  border:none;
-  display:block;
-  background:white; /* inside iframe only when there IS HTML */
-}
-
-</style>
+    /* PREVIEW: hidden until HTML exists (prevents white panel) */
+    .previewWrap{
+      height: calc(56vh + 86px);
+      min-height: 446px;
+      padding:12px;
+    }
+    .previewEmpty{
+      height:100%;
+      border:1px dashed rgba(255,255,255,.18);
+      border-radius: var(--radius);
+      display:flex; align-items:center; justify-content:center;
+      background: rgba(7,11,24,.25);
+      color: var(--muted);
+      padding:18px;
+      text-align:center;
+    }
+    iframe{
+      width:100%; height:100%;
+      border:1px solid rgba(255,255,255,.12);
+      border-radius: var(--radius);
+      background: transparent; /* important */
+      display:none; /* important */
+    }
+    iframe.show{display:block}
+    .previewEmpty.hide{display:none}
+    .kbd{font-family:var(--mono); font-size:11px; padding:2px 6px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.06)}
+  </style>
 </head>
-
 <body>
-
-  <div class="sidebar">
-    <div class="header">
-      <div>Simo</div>
-      <div id="proBtn" class="pill" title="Verify Pro key">
-        <span class="dot"></span>
-        <span id="proLabel">Pro</span>
-      </div>
-    </div>
-
-    <div id="chat" class="chat"></div>
-
-    <div class="inputbar">
-      <textarea id="input" placeholder="Enter to send • Shift+Enter new line"></textarea>
-      <button id="send">Send</button>
-      <button id="reset" class="secondary">Reset</button>
-    </div>
-  </div>
-
-  <div class="previewWrap">
-    <div class="previewCard">
-      <div id="placeholder" class="placeholder">
-        <div class="box">
-          <h2>Preview ready.</h2>
-          <p>Ask Simo to <b>build</b> something (example: “build a landing page for a fitness coach”).<br/>
-          When HTML exists, it will render here automatically — no white panel on reset.</p>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand">
+        <div class="logo" aria-hidden="true"></div>
+        <div class="title">
+          <b>Simo</b>
+          <span>Chat + Build + Preview</span>
         </div>
       </div>
-      <iframe id="frame"></iframe>
+      <div class="pills">
+        <div class="pill">
+          <strong>PRO</strong>
+          <div id="proToggle" class="toggle" role="switch" aria-checked="false" tabindex="0">
+            <div class="knob"></div>
+          </div>
+        </div>
+        <div class="pill">
+          <strong>Status</strong>
+          <span id="proStatus" class="status">Free</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <!-- Chat -->
+      <div class="card">
+        <div class="cardHead">
+          <div class="h">Chat</div>
+          <div class="meta">Enter to send • <span class="kbd">Shift</span>+<span class="kbd">Enter</span> newline</div>
+        </div>
+
+        <div id="chatBody" class="chatBody"></div>
+
+        <div class="composer">
+          <textarea id="chatInput" placeholder="Tell Simo what you need…"></textarea>
+          <div class="row" style="flex-direction:column; align-items:stretch">
+            <button id="sendBtn" class="btn">Send</button>
+            <button id="resetBtn" class="btn ghost" title="Clear chat + preview">Reset</button>
+          </div>
+        </div>
+
+        <div class="cardHead" style="border-top:1px solid var(--line); border-bottom:none;">
+          <div class="row">
+            <button id="downloadBtn" class="btn ghost">Download</button>
+            <button id="saveBtn" class="btn ghost">Save</button>
+            <button id="libraryBtn" class="btn ghost">Library</button>
+          </div>
+          <div id="hint" class="small">Build something first (example: “build a landing page for a fitness coach”).</div>
+        </div>
+
+        <div id="libraryPanel" class="libList"></div>
+      </div>
+
+      <!-- Preview -->
+      <div class="card">
+        <div class="cardHead">
+          <div class="h">Preview</div>
+          <div class="meta">Updates automatically when HTML exists</div>
+        </div>
+        <div class="previewWrap">
+          <div id="previewEmpty" class="previewEmpty">
+            No preview yet. Ask for a build (example: “build a landing page for a fitness coach”).<br><br>
+            This stays dark on purpose — no white panel.
+          </div>
+          <iframe id="previewFrame" title="Preview"></iframe>
+        </div>
+      </div>
     </div>
   </div>
 
-<script src="./app.js"></script>
+  <script defer src="./app.js"></script>
 </body>
 </html>
