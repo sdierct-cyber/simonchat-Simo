@@ -1,11 +1,10 @@
-/* app.js — Simo UI controller (KNOWN-GOOD)
-   Fixes:
-   - No syntax traps (no stray catch, no top-level await)
-   - Uses your real IDs: sendBtn, resetBtn, chatInput, previewFrame, previewEmpty
-   - Pro verify uses simple fetch (no AbortController)
-   - Sets window.__SIMO_UI_OK__ = true when initialized
+/* app.js — Simo UI controller (KNOWN-GOOD, RESTORE)
+   - No syntax traps
+   - Send/Enter/Reset wired
+   - Pro verify via /.netlify/functions/pro
+   - Updates Pro toggle UI state correctly
+   - Preview stays dark until HTML exists
 */
-
 (() => {
   const BACKEND_URL = "/.netlify/functions/simon";
   const PRO_URL = "/.netlify/functions/pro";
@@ -17,13 +16,12 @@
     conversation: []
   };
 
-  // ---------- DOM helpers ----------
   const $ = (id) => document.getElementById(id);
   const q = (sel) => document.querySelector(sel);
   const qa = (sel) => Array.from(document.querySelectorAll(sel));
 
   function byTextButton(label) {
-    const t = label.toLowerCase();
+    const t = String(label || "").toLowerCase();
     return qa("button").find(b => (b.textContent || "").trim().toLowerCase() === t) || null;
   }
 
@@ -38,6 +36,7 @@
   function addMsg(who, text) {
     const body = chatBodyEl();
     if (!body) return;
+
     const wrap = document.createElement("div");
     wrap.className = "msg";
 
@@ -46,7 +45,7 @@
     whoEl.textContent = who;
 
     const bubble = document.createElement("div");
-    bubble.className = "bubble " + (who.toLowerCase() === "you" ? "you" : "simo");
+    bubble.className = "bubble " + (String(who).toLowerCase() === "you" ? "you" : "simo");
     bubble.innerHTML = esc(text);
 
     wrap.appendChild(whoEl);
@@ -75,7 +74,7 @@
 
     if (!frame) return;
 
-    if (html && html.trim()) {
+    if (html && String(html).trim()) {
       if (empty) empty.style.display = "none";
       frame.style.display = "block";
       frame.srcdoc = html;
@@ -86,24 +85,23 @@
     }
   }
 
- function setProUI(on) {
-  state.pro = !!on;
-  setStatus(on ? "Pro" : "Free", on);
+  function setProUI(on) {
+    state.pro = !!on;
+    setStatus(on ? "Pro" : "Free", !!on);
 
-  const toggle = $("proToggle") || q('input[type="checkbox"]');
-  if (toggle) toggle.checked = !!on;
+    // ✅ keep toggle in sync (this is what you wanted)
+    const toggle = $("proToggle") || q('input[type="checkbox"]');
+    if (toggle) toggle.checked = !!on;
 
-  const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
-  const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
-  const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
+    const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
+    const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
+    const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
 
-  if (saveBtn) saveBtn.disabled = !on;
-  if (dlBtn) dlBtn.disabled = !on;
-  if (libBtn) libBtn.disabled = !on;
-}
+    if (saveBtn) saveBtn.disabled = !on;
+    if (dlBtn) dlBtn.disabled = !on;
+    if (libBtn) libBtn.disabled = !on;
   }
 
-  // ---------- Pro verify ----------
   async function verifyProKey(key) {
     try {
       const r = await fetch(PRO_URL, {
@@ -138,7 +136,7 @@
     const toggle = $("proToggle") || q('input[type="checkbox"]') || null;
     if (!toggle) return;
 
-    // On boot, try stored key (quietly)
+    // On boot, try stored key quietly
     if (state.proKey) {
       verifyProKey(state.proKey);
     } else {
@@ -159,7 +157,6 @@
     });
   }
 
-  // ---------- Chat send ----------
   async function sendMessage() {
     const ta = $("chatInput") || q("textarea");
     if (!ta) return;
@@ -232,11 +229,9 @@
     }
   }
 
-  // ---------- Init ----------
   function init() {
     window.__SIMO_UI_OK__ = true;
 
-    // Keep preview dark until HTML exists
     const frame = $("previewFrame") || q("iframe");
     const empty = $("previewEmpty") || q(".previewEmpty");
     if (frame) frame.style.display = "none";
