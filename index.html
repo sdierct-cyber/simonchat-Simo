@@ -1,343 +1,130 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
-  <meta name="color-scheme" content="dark" />
-  <style>
-    :root{
-      --bg:#0b1020; --panel:#0f1833; --panel2:#0c142a;
-      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
-      --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a; --bad:#ff4d4d; --warn:#ffd34d;
-      --shadow:0 14px 34px rgba(0,0,0,.35);
-      --r:18px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family:var(--sans);
-      background:
-        radial-gradient(1100px 700px at 15% 15%, rgba(42,102,255,.22), transparent 60%),
-        radial-gradient(900px 600px at 85% 30%, rgba(57,255,122,.10), transparent 55%),
-        radial-gradient(1000px 800px at 50% 120%, rgba(255,255,255,.05), transparent 60%),
-        var(--bg);
-      color:var(--text);
-    }
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Simo</title>
 
-    header{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:16px 18px;
-      border-bottom:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(15,24,51,.85), rgba(15,24,51,.35));
-      position:sticky; top:0; z-index:5;
-      backdrop-filter: blur(10px);
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.3px;
-    }
-    .dot{width:10px;height:10px;border-radius:50%; background:var(--bad); box-shadow:0 0 0 3px rgba(255,77,77,.15)}
-    .mode{font-weight:600; color:var(--muted); font-size:13px}
-    .actions{display:flex; gap:10px; align-items:center}
-    .pill{
-      border:1px solid var(--line);
-      background:rgba(10,16,32,.6);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:999px;
-      cursor:pointer;
-      box-shadow:var(--shadow);
-      font-weight:650;
-    }
-    .pill:hover{border-color:rgba(255,255,255,.18)}
-    .pill.pro-on{
-      border-color:rgba(57,255,122,.55);
-      box-shadow:0 0 0 2px rgba(57,255,122,.14), var(--shadow);
-    }
+<style>
+:root{
+  --bg:#0b1020;
+  --panel:#11162a;
+  --line:rgba(255,255,255,.08);
+  --text:#eaf0ff;
+  --muted:#9fb0ff;
+  --accent:#2a66ff;
+  --good:#39ff7a;
+}
 
-    main{
-      display:grid;
-      grid-template-columns: 1.1fr .9fr;
-      gap:16px;
-      padding:16px;
-      height:calc(100vh - 72px);
-    }
-    .card{
-      border:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(15,24,51,.68), rgba(12,20,42,.55));
-      border-radius:var(--r);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      min-height:0;
-    }
-    .cardhead{
-      display:flex; justify-content:space-between; align-items:flex-start;
-      padding:14px 14px 10px;
-      border-bottom:1px solid var(--line);
-    }
-    .title{font-weight:800}
-    .sub{color:var(--muted); font-size:13px; margin-top:2px}
-    .hint{color:var(--muted); font-size:12px; text-align:right; line-height:1.3}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui;
+  display:flex;
+  height:100vh;
+}
 
-    .chatwrap{
-      display:flex; flex-direction:column; height:100%; min-height:0;
-    }
-    #log{
-      padding:14px;
-      overflow:auto;
-      flex:1;
-      min-height:0;
-    }
-    .msg{border:1px solid rgba(255,255,255,.08); background:rgba(0,0,0,.18); border-radius:16px; padding:12px 12px; margin:10px 0}
-    .msg.you{background:rgba(42,102,255,.12); border-color:rgba(42,102,255,.18)}
-    .meta{display:flex; justify-content:space-between; color:var(--muted); font-size:12px; margin-bottom:6px}
-    .body{white-space:pre-wrap; line-height:1.35}
-    .body code{font-family:var(--mono); font-size:12px}
-    .body pre{
-      background:rgba(0,0,0,.35);
-      border:1px solid rgba(255,255,255,.10);
-      padding:10px;
-      border-radius:12px;
-      overflow:auto;
-      font-family:var(--mono);
-      font-size:12px;
-    }
+.sidebar{
+  width:380px;
+  display:flex;
+  flex-direction:column;
+  border-right:1px solid var(--line);
+  background:var(--panel);
+}
 
-    .composer{
-      padding:12px;
-      border-top:1px solid var(--line);
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap:10px;
-      align-items:end;
-      background:linear-gradient(180deg, rgba(12,20,42,.2), rgba(12,20,42,.55));
-    }
-    textarea{
-      width:100%;
-      min-height:48px;
-      max-height:140px;
-      resize:vertical;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      outline:none;
-      background:rgba(0,0,0,.22);
-      color:var(--text);
-      font-family:var(--sans);
-    }
-    textarea:focus{border-color:rgba(42,102,255,.5); box-shadow:0 0 0 3px rgba(42,102,255,.14)}
-    .btnrow{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .btn{
-      border:1px solid rgba(255,255,255,.12);
-      background:rgba(0,0,0,.20);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius:14px;
-      cursor:pointer;
-      font-weight:750;
-      min-width:86px;
-      text-align:center;
-      user-select:none;
-    }
-    .btn.primary{background:linear-gradient(180deg, var(--btn), var(--btn2)); border-color:rgba(42,102,255,.55)}
-    .btn.danger{border-color:rgba(255,77,77,.45)}
-    .btn.ghost{border-color:rgba(255,255,255,.10)}
-    .btn:disabled{opacity:.45; cursor:not-allowed}
+.header{
+  padding:16px;
+  font-weight:600;
+  border-bottom:1px solid var(--line);
+}
 
-    .statusbar{
-      display:flex; justify-content:space-between; align-items:center;
-      padding:10px 12px;
-      color:var(--muted);
-      font-size:12px;
-      border-top:1px solid var(--line);
-      background:rgba(0,0,0,.08);
-    }
-    .protag{font-weight:800}
-    .protag.on{color:var(--good)}
-    .protag.off{color:rgba(255,255,255,.35)}
+.chat{
+  flex:1;
+  padding:16px;
+  overflow-y:auto;
+}
 
-    /* Preview side */
-    .previewwrap{
-      display:flex; flex-direction:column; height:100%; min-height:0;
-    }
-    .previewframewrap{
-      padding:12px;
-      height:100%;
-      min-height:0;
-    }
-    #previewFrame{
-      width:100%;
-      height:100%;
-      border:1px solid rgba(255,255,255,.10);
-      border-radius:14px;
-      background:var(--bg);          /* <-- kills white */
-      box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
-    }
-    .emptyPreview{
-      position:absolute;
-      inset:0;
-      display:grid;
-      place-items:center;
-      pointer-events:none;
-      color:rgba(255,255,255,.45);
-      font-weight:700;
-    }
-    .rel{position:relative; height:100%; min-height:0}
-    .badge{
-      display:inline-flex; gap:8px; align-items:center;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.25);
-      color:var(--muted);
-      font-size:12px;
-    }
+.msg{
+  margin-bottom:14px;
+  line-height:1.4;
+}
 
-    /* Modal */
-    #modalWrap{
-      position:fixed; inset:0;
-      display:none;
-      place-items:center;
-      background:rgba(0,0,0,.55);
-      z-index:20;
-      padding:18px;
-    }
-    #modal{
-      width:min(720px, 96vw);
-      border-radius:22px;
-      border:1px solid rgba(255,255,255,.12);
-      background:linear-gradient(180deg, rgba(15,24,51,.92), rgba(12,20,42,.88));
-      box-shadow:0 24px 70px rgba(0,0,0,.55);
-      overflow:hidden;
-    }
-    #modal .top{
-      display:flex; align-items:center; justify-content:space-between;
-      padding:14px 16px;
-      border-bottom:1px solid rgba(255,255,255,.10);
-    }
-    #modal .content{padding:16px}
-    #modal input{
-      width:100%;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px solid rgba(255,255,255,.10);
-      background:rgba(0,0,0,.22);
-      color:var(--text);
-      font-family:var(--mono);
-      outline:none;
-    }
-    #modal input:focus{border-color:rgba(42,102,255,.55); box-shadow:0 0 0 3px rgba(42,102,255,.14)}
-    .row{display:flex; gap:10px; align-items:center; margin-top:10px}
-    .grow{flex:1}
-    #proStatus{margin-top:10px; font-weight:800}
-    #proStatus.bad{color:var(--bad)}
-    #proStatus.good{color:var(--good)}
-    @media (max-width: 980px){
-      main{grid-template-columns:1fr; height:auto}
-      .card{min-height:520px}
-    }
-  </style>
+.msg.you{color:white}
+.msg.simo{color:var(--muted)}
+
+.inputbar{
+  display:flex;
+  gap:8px;
+  padding:12px;
+  border-top:1px solid var(--line);
+}
+
+textarea{
+  flex:1;
+  resize:none;
+  height:42px;
+  background:#0f1530;
+  border:1px solid var(--line);
+  color:white;
+  padding:8px;
+  border-radius:8px;
+}
+
+button{
+  background:var(--accent);
+  border:none;
+  padding:0 16px;
+  border-radius:8px;
+  color:white;
+  cursor:pointer;
+}
+
+button.secondary{
+  background:#222a55;
+}
+
+button.pro{
+  background:var(--good);
+  color:black;
+}
+
+.preview{
+  flex:1;
+  display:none;
+  background:#0f1530;
+}
+
+.preview iframe{
+  width:100%;
+  height:100%;
+  border:none;
+}
+</style>
 </head>
 
 <body>
-  <header>
-    <div class="brand">
-      <span class="dot" id="dot"></span>
-      <div>
-        <div style="display:flex;gap:10px;align-items:baseline;">
-          <div style="font-size:18px;">Simo</div>
-          <div class="mode" id="modeLabel">mode: ready</div>
-        </div>
-      </div>
-    </div>
 
-    <div class="actions">
-      <button class="pill" id="btnPro">Pro</button>
-      <button class="pill" id="btnClearMemory">Clear Memory</button>
-      <button class="pill" id="btnNewThread">New Thread</button>
-    </div>
-  </header>
-
-  <main>
-    <!-- Chat -->
-    <section class="card chatwrap">
-      <div class="cardhead">
-        <div>
-          <div class="title">Chat</div>
-          <div class="sub" id="chatSub">Ready</div>
-        </div>
-        <div class="hint">Enter to send • Shift+Enter = new line</div>
-      </div>
-
-      <div id="log" aria-live="polite"></div>
-
-      <div class="composer">
-        <textarea id="input" placeholder="Type..."></textarea>
-        <div class="btnrow">
-          <button class="btn primary" id="send">Send</button>
-          <button class="btn danger" id="reset">Reset</button>
-          <button class="btn ghost" id="previewBtn">Preview</button>
-          <button class="btn ghost" id="downloadBtn">Download</button>
-          <button class="btn ghost" id="saveBtn">Save</button>
-          <button class="btn ghost" id="libraryBtn">Library</button>
-        </div>
-      </div>
-
-      <div class="statusbar">
-        <div id="proTag" class="protag off">Pro: OFF</div>
-        <div class="badge" id="miniStatus">Build something to render in Preview.</div>
-      </div>
-    </section>
-
-    <!-- Preview -->
-    <section class="card previewwrap">
-      <div class="cardhead">
-        <div>
-          <div class="title">Preview</div>
-          <div class="sub">Updated by Simo.</div>
-        </div>
-        <div class="hint">Renders only when Simo returns valid HTML.</div>
-      </div>
-
-      <div class="previewframewrap">
-        <div class="rel">
-          <iframe
-            id="previewFrame"
-            sandbox="allow-scripts allow-forms"
-            referrerpolicy="no-referrer"
-            title="Preview"
-          ></iframe>
-          <div class="emptyPreview" id="emptyPreview">Preview<br><span style="font-weight:600;opacity:.8">Build something to render here.</span></div>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <!-- Pro Modal -->
-  <div id="modalWrap">
-    <div id="modal">
-      <div class="top">
-        <div style="font-weight:900;font-size:18px;">Unlock Pro</div>
-        <button class="pill" id="closeModal">Close</button>
-      </div>
-      <div class="content">
-        <div style="color:var(--muted);font-weight:700;margin-bottom:12px;">
-          Pro unlocks Save/Download/Library and stronger build flows.
-        </div>
-        <input id="proKey" placeholder="Enter license key..." autocomplete="off" spellcheck="false" />
-        <div class="row">
-          <div class="grow"></div>
-          <button class="btn primary" id="verifyKey">Verify</button>
-        </div>
-        <div id="proStatus"></div>
-      </div>
-    </div>
+<div class="sidebar">
+  <div class="header">
+    Simo
+    <button id="proBtn" class="secondary" style="float:right">Pro</button>
   </div>
 
-  <script defer src="./app.js?v=1000"></script>
+  <div id="chat" class="chat"></div>
+
+  <div class="inputbar">
+    <textarea id="input" placeholder="Enter to send • Shift+Enter new line"></textarea>
+    <button id="send">Send</button>
+    <button id="reset" class="secondary">Reset</button>
+  </div>
+</div>
+
+<div id="preview" class="preview">
+  <iframe id="frame"></iframe>
+</div>
+
+<script src="./app.js"></script>
 </body>
 </html>
