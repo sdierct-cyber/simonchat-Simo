@@ -87,17 +87,20 @@
   }
 
   function setProUI(on) {
-    state.pro = !!on;
-    setStatus(on ? "Pro" : "Free", on);
+  state.pro = !!on;
+  setStatus(on ? "Pro" : "Free", on);
 
-    // Don’t assume IDs; support either
-    const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
-    const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
-    const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
+  const toggle = $("proToggle") || q('input[type="checkbox"]');
+  if (toggle) toggle.checked = !!on;
 
-    if (saveBtn) saveBtn.disabled = !on;
-    if (dlBtn) dlBtn.disabled = !on;
-    if (libBtn) libBtn.disabled = !on;
+  const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
+  const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
+  const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
+
+  if (saveBtn) saveBtn.disabled = !on;
+  if (dlBtn) dlBtn.disabled = !on;
+  if (libBtn) libBtn.disabled = !on;
+}
   }
 
   // ---------- Pro verify ----------
