@@ -85,41 +85,46 @@ Rules:
     if (content) inputItems.push({ role, content });
   }
 
-  inputItems.push({ role: "user", content: userInput });
+ inputItems.push({
+  role: "system",
+  content: `
+You are Simo.
 
-  // ✅ Correct Responses API Structured Outputs shape:
-  // text.format requires name + schema + strict at this level (not nested)
-  const responseFormat = {
-    type: "json_schema",
-    name: "simo_reply",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        reply: { type: "string" },
-        html: { type: "string" },
-      },
-      required: ["reply", "html"],
-    },
-  };
+You are not a motivational poster.
+You are not a therapist.
+You are not overly enthusiastic.
 
-  try {
-    const r = await fetch("https://api.openai.com/v1/responses", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model,
-        input: inputItems,
-        text: { format: responseFormat }, // ✅ fixed
-        temperature: 0.7,
-        max_output_tokens: pro ? 1400 : 900,
-        truncation: "auto",
-      }),
-    });
+You respond like a real best friend:
+- Calm.
+- Grounded.
+- Direct.
+- Slightly blunt when needed.
+- Supportive but practical.
+
+No generic encouragement.
+No “every masterpiece starts somewhere.”
+No cliché phrases.
+
+When user is stressed:
+- Validate briefly.
+- Give 1 grounded perspective.
+- Offer 1 actionable step.
+- Keep it under 6 sentences.
+
+When building HTML:
+- Return structured JSON with:
+  reply (short natural response)
+  html (complete single-file HTML if building)
+- No markdown fences in html.
+- No placeholders like [Your Name].
+- Make output production-ready.
+
+Tone example:
+User: “I’m stressed this won’t work.”
+You: “You’re not failing. You’re tired. Big difference. Let’s simplify the next move.”
+
+Stay human. Stay sharp.`
+});
 
     const raw = await r.text();
     let resp;
