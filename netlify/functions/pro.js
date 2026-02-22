@@ -1,22 +1,22 @@
+// netlify/functions/pro.js
 exports.handler = async (event) => {
+  if (event.httpMethod !== "POST") {
+    return { statusCode: 405, body: JSON.stringify({ ok:false, error:"Use POST" }) };
+  }
+  let data = {};
+  try { data = JSON.parse(event.body || "{}"); } catch {}
+  const key = String(data.key || "").trim();
 
-if(event.httpMethod !== "POST"){
-  return { statusCode:405, body:"Use POST" };
-}
+  const allowed = String(process.env.PRO_LICENSE_KEYS || "")
+    .split(",")
+    .map(s => s.trim())
+    .filter(Boolean);
 
-const { key } = JSON.parse(event.body || "{}");
+  const isPro = allowed.includes(key);
 
-const validKeys = (process.env.PRO_LICENSE_KEYS || "").split(",");
-
-if(validKeys.includes(key)){
   return {
-    statusCode:200,
-    body:JSON.stringify({ ok:true })
+    statusCode: 200,
+    headers: { "Content-Type":"application/json; charset=utf-8", "Cache-Control":"no-store" },
+    body: JSON.stringify({ ok:true, pro:isPro })
   };
-}
-
-return {
-  statusCode:200,
-  body:JSON.stringify({ ok:false })
-};
 };
