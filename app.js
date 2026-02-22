@@ -210,8 +210,104 @@
   }
 
   // ---------- Pro verification ----------
+    // ---------- Pro verification (robust) ----------
   async function verifyProKey(key) {
-    setStatus("Verifying…", true);
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 12000);
+
+    try {
+      const r = await fetch(PRO_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ key }),
+        signal: ctrl.signal
+      });
+
+      const raw = await r.text();
+      let data;
+      try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false, error:"non-json" }; }
+
+      if (r.ok && data.ok && data.pro) {
+        state.proKey = key;
+        localStorage.setItem("simo_pro_key", key);
+        setProUI(true);
+        addMsg("Simo", "Pro verified. Save/Download/Library unlocked.");
+        renderLibrary();
+        return true;
+      }
+
+      setProUI(false);
+      addMsg("Simo", data?.error ? `Invalid key (${data.error}). Still in Free mode.` : "Invalid key. Still in Free mode.");
+      return false;
+
+    } catch (e) {
+      setProUI(false);
+      addMsg("Simo", `Pro verify failed (${e?.name === "AbortError" ? "timeout" : "network"}). Still in Free mode.`);
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  function wireProToggle() {
+    const toggle =
+      $id("proToggle") ||
+      qs('input[type="checkbox"][data-pro]') ||
+      qs('input[type="checkbox"]#pro') ||
+      qs('input[type="checkbox"]') ||
+      null;
+
+    // restore existing key silently
+    const saved = localStorage.getItem("simo_pro_key") || "";
+    if (saved) verifyProKey(saved);
+    else setProUI(false);
+
+    if (!toggle) return;
+
+    toggle.checked = !!state.pro;
+
+    toggle.addEventListener("change", async () => {
+      if (toggle.checked) {
+        // Try modal if exists, otherwise prompt fallback
+        const modal = $id("proModal");
+        const input = $id("proKeyInput");
+        const verifyBtn = $id("proVerifyBtn");
+        const cancelBtn = $id("proCancelBtn");
+
+        const fallbackPrompt = async () => {
+          const key = prompt("Enter Pro key:");
+          if (!key) { toggle.checked = false; return; }
+          const ok = await verifyProKey(String(key).trim());
+          if (!ok) toggle.checked = false;
+        };
+
+        if (modal && input && verifyBtn) {
+          modal.style.display = "block";
+          input.value = saved || "";
+          input.focus();
+
+          const close = () => (modal.style.display = "none");
+
+          if (cancelBtn) cancelBtn.onclick = () => { toggle.checked = false; close(); };
+
+          verifyBtn.onclick = async () => {
+            const key = String(input.value || "").trim();
+            if (!key) return;
+            const ok = await verifyProKey(key);
+            if (!ok) toggle.checked = false;
+            close();
+          };
+        } else {
+          await fallbackPrompt();
+        }
+      } else {
+        state.proKey = "";
+        localStorage.removeItem("simo_pro_key");
+        setProUI(false);
+        addMsg("Simo", "Pro turned off.");
+      }
+    });
+  }
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 12000);
 
