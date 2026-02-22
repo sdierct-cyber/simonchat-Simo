@@ -1,4 +1,4 @@
-//* app.js — Simo UI controller (KNOWN-GOOD)
+/* app.js — Simo UI controller (KNOWN-GOOD)
    Fixes:
    - No syntax traps (no stray catch, no top-level await)
    - Uses your real IDs: sendBtn, resetBtn, chatInput, previewFrame, previewEmpty
