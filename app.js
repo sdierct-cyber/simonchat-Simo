@@ -86,7 +86,7 @@
     }
   }
 
-  function setProUI(on) {
+ function setProUI(on) {
   state.pro = !!on;
   setStatus(on ? "Pro" : "Free", on);
 
