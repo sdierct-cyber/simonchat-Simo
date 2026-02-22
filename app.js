@@ -1,9 +1,10 @@
-/* app.js — Simo UI controller (stable)
-   - Sends chat to /.netlify/functions/simon
-   - Shows assistant text in chat
-   - Renders returned HTML into iframe via srcdoc
-   - Pro verify via /.netlify/functions/pro
-   - Save/Download/Library gated behind Pro (but won’t break free mode)
+/* app.js — Simo UI controller (NO top-level await, matches your IDs)
+   Works with:
+   - textarea id="chatInput"
+   - send button id="sendBtn"
+   - reset button id="resetBtn" (if present) or button text "Reset"
+   - iframe id="previewFrame"
+   - empty preview div id="previewEmpty"
 */
 
 (() => {
@@ -14,7 +15,7 @@
     pro: false,
     proKey: "",
     lastHTML: "",
-    conversation: [] // [{role:"user"|"assistant", content:"..."}]
+    conversation: [] // [{role, content}]
   };
 
   // ---------- Helpers ----------
@@ -22,41 +23,17 @@
   const qs = (sel) => document.querySelector(sel);
   const qsa = (sel) => Array.from(document.querySelectorAll(sel));
 
-  function esc(s){
-    return String(s).replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  }
-
   function findButtonByText(txt) {
     const t = txt.toLowerCase();
     return qsa("button").find(b => (b.textContent || "").trim().toLowerCase() === t) || null;
   }
 
-  function getTextarea() {
-    return qs("textarea") || $id("input") || $id("prompt") || $id("chatInput") || null;
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
   }
 
   function getChatBody() {
     return $id("chatBody") || qs(".chatBody") || $id("messages") || qs(".messages") || null;
-  }
-
-  function getPreviewFrame() {
-    return $id("previewFrame") || qs("iframe#preview") || qs("iframe") || null;
-  }
-
-  function getPreviewEmpty() {
-    return $id("previewEmpty") || qs(".previewEmpty") || null;
-  }
-
-  function setStatus(text, good=false) {
-    const el =
-      $id("statusText") ||
-      $id("status") ||
-      qs(".status") ||
-      null;
-    if (!el) return;
-    el.textContent = text;
-    el.classList.toggle("good", !!good);
-    el.classList.toggle("bad", !good && /error|invalid|fail/i.test(text));
   }
 
   function addMsg(who, text) {
@@ -80,9 +57,26 @@
     chat.scrollTop = chat.scrollHeight;
   }
 
+  function setStatus(text, good=false) {
+    const el =
+      $id("statusText") ||
+      $id("status") ||
+      qs(".status") ||
+      null;
+    if (!el) return;
+    el.textContent = text;
+    el.classList.toggle("good", !!good);
+    el.classList.toggle("bad", !good && /error|invalid|fail/i.test(text));
+  }
+
+  function isProbablyHTML(s){
+    const t = String(s || "").trim();
+    return /^<!doctype html/i.test(t) || /^<html[\s>]/i.test(t) || t.includes("<body");
+  }
+
   function setPreviewHTML(html) {
-    const frame = getPreviewFrame();
-    const empty = getPreviewEmpty();
+    const frame = $id("previewFrame") || qs("iframe");
+    const empty = $id("previewEmpty") || qs(".previewEmpty");
     state.lastHTML = html || "";
 
     if (!frame) return;
@@ -98,28 +92,12 @@
     }
   }
 
-  function looksLikeJsonString(s) {
-    const t = String(s || "").trim();
-    return (t.startsWith("{") && t.endsWith("}")) || (t.includes('"reply"') && t.includes('"html"'));
-  }
-
-  function extractReplyHtmlFromText(text) {
-    // Handles the edge case where backend returns JSON blob inside text.
+  function titleFromHTML(html) {
     try {
-      const t = String(text || "").trim();
-      const first = t.indexOf("{");
-      const last = t.lastIndexOf("}");
-      if (first !== -1 && last !== -1 && last > first) {
-        const obj = JSON.parse(t.slice(first, last + 1));
-        if (obj && typeof obj === "object") {
-          return {
-            reply: typeof obj.reply === "string" ? obj.reply : "",
-            html: typeof obj.html === "string" ? obj.html : ""
-          };
-        }
-      }
+      const m = html.match(/<title>([\s\S]*?)<\/title>/i);
+      if (m && m[1]) return m[1].trim().slice(0, 60);
     } catch {}
-    return { reply: "", html: "" };
+    return "Untitled build";
   }
 
   function getLibrary() {
@@ -134,14 +112,6 @@
 
   function setLibrary(arr) {
     localStorage.setItem("simo_library", JSON.stringify(arr));
-  }
-
-  function titleFromHTML(html) {
-    try {
-      const m = html.match(/<title>([\s\S]*?)<\/title>/i);
-      if (m && m[1]) return m[1].trim().slice(0, 60);
-    } catch {}
-    return "Untitled build";
   }
 
   function renderLibrary() {
@@ -188,29 +158,18 @@
 
   function setProUI(on) {
     state.pro = !!on;
+    setStatus(on ? "Pro" : "Free", on);
 
-    // Toggle pill/status if present
-    const statusPill = $id("statusPill") || qs(".statusPill");
-    if (statusPill) statusPill.textContent = on ? "Pro" : "Free";
-
-    setStatus(on ? "Pro" : "Ready", on);
-
-    // Gate buttons
-    const saveBtn = $id("btnSave") || findButtonByText("Save");
-    const dlBtn = $id("btnDownload") || findButtonByText("Download");
-    const libBtn = $id("btnLibrary") || findButtonByText("Library");
+    const saveBtn = $id("saveBtn") || $id("btnSave") || findButtonByText("Save");
+    const dlBtn   = $id("downloadBtn") || $id("btnDownload") || findButtonByText("Download");
+    const libBtn  = $id("libraryBtn") || $id("btnLibrary") || findButtonByText("Library");
 
     if (saveBtn) saveBtn.disabled = !on;
     if (dlBtn) dlBtn.disabled = !on;
     if (libBtn) libBtn.disabled = !on;
-
-    // Show/hide library list
-    const list = $id("libList") || qs(".libList");
-    if (list) list.classList.toggle("show", false);
   }
 
-  // ---------- Pro verification ----------
-    // ---------- Pro verification (robust) ----------
+  // ---------- Pro verify ----------
   async function verifyProKey(key) {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 12000);
@@ -225,7 +184,7 @@
 
       const raw = await r.text();
       let data;
-      try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false, error:"non-json" }; }
+      try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false }; }
 
       if (r.ok && data.ok && data.pro) {
         state.proKey = key;
@@ -237,9 +196,8 @@
       }
 
       setProUI(false);
-      addMsg("Simo", data?.error ? `Invalid key (${data.error}). Still in Free mode.` : "Invalid key. Still in Free mode.");
+      addMsg("Simo", "Invalid key. Still in Free mode.");
       return false;
-
     } catch (e) {
       setProUI(false);
       addMsg("Simo", `Pro verify failed (${e?.name === "AbortError" ? "timeout" : "network"}). Still in Free mode.`);
@@ -250,152 +208,21 @@
   }
 
   function wireProToggle() {
-    const toggle =
-      $id("proToggle") ||
-      qs('input[type="checkbox"][data-pro]') ||
-      qs('input[type="checkbox"]#pro') ||
-      qs('input[type="checkbox"]') ||
-      null;
+    const toggle = $id("proToggle") || qs('input[type="checkbox"]') || null;
 
-    // restore existing key silently
     const saved = localStorage.getItem("simo_pro_key") || "";
     if (saved) verifyProKey(saved);
     else setProUI(false);
 
     if (!toggle) return;
 
-    toggle.checked = !!state.pro;
-
     toggle.addEventListener("change", async () => {
       if (toggle.checked) {
-        // Try modal if exists, otherwise prompt fallback
-        const modal = $id("proModal");
-        const input = $id("proKeyInput");
-        const verifyBtn = $id("proVerifyBtn");
-        const cancelBtn = $id("proCancelBtn");
-
-        const fallbackPrompt = async () => {
-          const key = prompt("Enter Pro key:");
-          if (!key) { toggle.checked = false; return; }
-          const ok = await verifyProKey(String(key).trim());
-          if (!ok) toggle.checked = false;
-        };
-
-        if (modal && input && verifyBtn) {
-          modal.style.display = "block";
-          input.value = saved || "";
-          input.focus();
-
-          const close = () => (modal.style.display = "none");
-
-          if (cancelBtn) cancelBtn.onclick = () => { toggle.checked = false; close(); };
-
-          verifyBtn.onclick = async () => {
-            const key = String(input.value || "").trim();
-            if (!key) return;
-            const ok = await verifyProKey(key);
-            if (!ok) toggle.checked = false;
-            close();
-          };
-        } else {
-          await fallbackPrompt();
-        }
+        const key = prompt("Enter Pro key:");
+        if (!key) { toggle.checked = false; return; }
+        const ok = await verifyProKey(String(key).trim());
+        if (!ok) toggle.checked = false;
       } else {
-        state.proKey = "";
-        localStorage.removeItem("simo_pro_key");
-        setProUI(false);
-        addMsg("Simo", "Pro turned off.");
-      }
-    });
-  }
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 12000);
-
-    try {
-      const r = await fetch(PRO_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-        signal: ctrl.signal
-      });
-
-      const data = await r.json().catch(() => ({ ok: false, pro: false }));
-      if (r.ok && data.ok && data.pro) {
-        state.proKey = key;
-        localStorage.setItem("simo_pro_key", key);
-        setProUI(true);
-        addMsg("Simo", "Pro verified. Save/Download/Library unlocked.");
-        renderLibrary();
-        return true;
-      } else {
-        setProUI(false);
-        addMsg("Simo", "Invalid key. Still in Free mode.");
-        setStatus("Free", false);
-        return false;
-      }
-    } catch (e) {
-      setProUI(false);
-      addMsg("Simo", "Pro verify failed (network). Still in Free mode.");
-      setStatus("Free", false);
-      return false;
-    } finally {
-      clearTimeout(t);
-    }
-  }
-
-  function wireProToggle() {
-    const toggle =
-      $id("proToggle") ||
-      qs('input[type="checkbox"][data-pro]') ||
-      qs('input[type="checkbox"]#pro') ||
-      null;
-
-    // If no toggle element, we still restore key if present.
-    const saved = localStorage.getItem("simo_pro_key") || "";
-    if (saved) {
-      // verify silently once
-      verifyProKey(saved);
-    } else {
-      setProUI(false);
-    }
-
-    if (!toggle) return;
-
-    toggle.checked = !!state.pro;
-
-    toggle.addEventListener("change", async () => {
-      if (toggle.checked) {
-        // ask for key
-        const modal = $id("proModal");
-        const input = $id("proKeyInput");
-        const verifyBtn = $id("proVerifyBtn");
-        const cancelBtn = $id("proCancelBtn");
-
-        if (modal && input && verifyBtn) {
-          modal.style.display = "block";
-          input.value = state.proKey || "";
-          input.focus();
-
-          const close = () => (modal.style.display = "none");
-
-          cancelBtn && (cancelBtn.onclick = () => { toggle.checked = false; close(); });
-
-          verifyBtn.onclick = async () => {
-            const key = String(input.value || "").trim();
-            if (!key) return;
-            const ok = await verifyProKey(key);
-            if (!ok) toggle.checked = false;
-            close();
-          };
-        } else {
-          // fallback prompt
-          const key = prompt("Enter Pro key:");
-          if (!key) { toggle.checked = false; return; }
-          const ok = await verifyProKey(String(key).trim());
-          if (!ok) toggle.checked = false;
-        }
-      } else {
-        // turn off pro locally
         state.proKey = "";
         localStorage.removeItem("simo_pro_key");
         setProUI(false);
@@ -406,7 +233,7 @@
 
   // ---------- Chat send ----------
   async function sendMessage() {
-    const ta = getTextarea();
+    const ta = $id("chatInput") || qs("textarea");
     if (!ta) return;
 
     const input = String(ta.value || "").trim();
@@ -415,9 +242,7 @@
     ta.value = "";
     addMsg("You", input);
 
-    // Send previous conversation as history (exclude current input)
     const history = state.conversation.slice(-12);
-
     setStatus("Thinking…", true);
 
     const ctrl = new AbortController();
@@ -435,7 +260,6 @@
         signal: ctrl.signal
       });
 
-      // IMPORTANT: read JSON (not text)
       const data = await r.json().catch(() => null);
 
       if (!r.ok || !data || !data.ok) {
@@ -444,30 +268,19 @@
         return;
       }
 
-      let text = String(data.text || "").trim();
-      let html = String(data.html || "").trim();
+      const text = String(data.text || "").trim() || "Done.";
+      const html = String(data.html || "").trim();
 
-      // If backend ever stuffs reply/html JSON into text, extract it
-      if (!html && looksLikeJsonString(text)) {
-        const ex = extractReplyHtmlFromText(text);
-        if (ex.reply) text = ex.reply;
-        if (ex.html) html = ex.html;
-      }
-
-      // Update memory
       state.conversation.push({ role: "user", content: input });
       state.conversation.push({ role: "assistant", content: text });
 
-      addMsg("Simo", text || "Done.");
+      addMsg("Simo", text);
 
-      if (html) {
-        setPreviewHTML(html);
-        setStatus("Ready", true);
-      } else {
-        setStatus("Ready", true);
-      }
+      if (isProbablyHTML(html)) setPreviewHTML(html);
+
+      setStatus("Ready", true);
     } catch (e) {
-      addMsg("Simo", "Backend error (network/timeout).");
+      addMsg("Simo", `Backend error (${e?.name === "AbortError" ? "timeout" : "network"}).`);
       setStatus("Error", false);
     } finally {
       clearTimeout(timeout);
@@ -475,11 +288,12 @@
   }
 
   function wireSendReset() {
-    const sendBtn = $id("btnSend") || findButtonByText("Send");
-    const resetBtn = $id("btnReset") || findButtonByText("Reset");
-    const ta = getTextarea();
+    // IMPORTANT: your real button id is sendBtn (your screenshot)
+    const sendBtn = $id("sendBtn") || $id("btnSend") || findButtonByText("Send");
+    const resetBtn = $id("resetBtn") || $id("btnReset") || findButtonByText("Reset");
+    const ta = $id("chatInput") || qs("textarea");
 
-    sendBtn && (sendBtn.onclick = sendMessage);
+    if (sendBtn) sendBtn.onclick = sendMessage;
 
     if (ta) {
       ta.addEventListener("keydown", (e) => {
@@ -497,16 +311,16 @@
         state.conversation = [];
         setPreviewHTML("");
         addMsg("Simo", "Reset. I’m here.");
+        setStatus(state.pro ? "Pro" : "Free", !!state.pro);
       };
     }
   }
 
-  // ---------- Save / Download / Library ----------
   function wireStorageButtons() {
-    const saveBtn = $id("btnSave") || findButtonByText("Save");
-    const dlBtn = $id("btnDownload") || findButtonByText("Download");
-    const libBtn = $id("btnLibrary") || findButtonByText("Library");
-    const list = $id("libList") || qs(".libList");
+    const saveBtn = $id("saveBtn") || $id("btnSave") || findButtonByText("Save");
+    const dlBtn   = $id("downloadBtn") || $id("btnDownload") || findButtonByText("Download");
+    const libBtn  = $id("libraryBtn") || $id("btnLibrary") || findButtonByText("Library");
+    const list    = $id("libList") || qs(".libList");
 
     if (saveBtn) {
       saveBtn.onclick = () => {
@@ -547,22 +361,23 @@
     }
   }
 
-  // ---------- Init ----------
   function init() {
+    // marker so you can verify in console
+    window.__SIMO_UI_OK__ = true;
+
     // default preview state
-    const frame = getPreviewFrame();
-    const empty = getPreviewEmpty();
+    const frame = $id("previewFrame") || qs("iframe");
+    const empty = $id("previewEmpty") || qs(".previewEmpty");
     if (frame) frame.style.display = "none";
     if (empty) empty.style.display = "flex";
 
+    // boot message
     addMsg("Simo", "Reset. I’m here.");
+    setStatus("Free", false);
 
     wireProToggle();
     wireSendReset();
     wireStorageButtons();
-
-    // Ensure UI gates correctly on boot
-    setProUI(!!state.pro);
     renderLibrary();
   }
 
