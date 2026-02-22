@@ -344,15 +344,33 @@ When you cite sources, include the raw URLs in the reply text.
   }
 
   const outText = pickAssistantText(res.json);
-  let parsed;
-  try { parsed = JSON.parse(outText); } catch {
-    // If model ever returns non-JSON, we fail soft (don’t break UI).
-    return json(200, { ok: true, text: outText || "Done.", html: "" });
+
+function extractJsonObject(s) {
+  if (!s) return null;
+  const t = String(s).trim();
+
+  // If it's clean JSON already, use it
+  try { return JSON.parse(t); } catch {}
+
+  // If it contains extra text, extract the first {...} block
+  const first = t.indexOf("{");
+  const last = t.lastIndexOf("}");
+  if (first !== -1 && last !== -1 && last > first) {
+    const maybe = t.slice(first, last + 1);
+    try { return JSON.parse(maybe); } catch {}
   }
+  return null;
+}
 
-  const reply = String(parsed.reply || "").trim() || "Done.";
-  const html = String(parsed.html || "").trim();
-  const safeHtml = isProbablyHTML(html) ? html : "";
+const parsed = extractJsonObject(outText);
 
-  return json(200, { ok: true, text: reply, html: safeHtml });
-};
+if (!parsed || typeof parsed !== "object") {
+  // Fail soft (don't break UI)
+  return json(200, { ok: true, text: outText || "Done.", html: "" });
+}
+
+const reply = String(parsed.reply || "").trim() || "Done.";
+const html = String(parsed.html || "").trim();
+const safeHtml = isProbablyHTML(html) ? html : "";
+
+return json(200, { ok: true, text: reply, html: safeHtml });
