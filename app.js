@@ -170,30 +170,37 @@
   }
 
   // ---------- Pro verify ----------
-  async function verifyProKey(key) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 12000);
+ async function verifyProKey(key) {
+  try {
+    const r = await fetch(PRO_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ key })
+    });
 
-    try {
-      const r = await fetch(PRO_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key }),
-        signal: ctrl.signal
-      });
+    const raw = await r.text();
+    let data;
+    try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false, error:"non-json" }; }
 
-      const raw = await r.text();
-      let data;
-      try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false }; }
+    if (r.ok && data.ok && data.pro) {
+      state.proKey = key;
+      localStorage.setItem("simo_pro_key", key);
+      setProUI(true);
+      addMsg("Simo", "Pro verified. Save/Download/Library unlocked.");
+      renderLibrary();
+      return true;
+    }
 
-      if (r.ok && data.ok && data.pro) {
-        state.proKey = key;
-        localStorage.setItem("simo_pro_key", key);
-        setProUI(true);
-        addMsg("Simo", "Pro verified. Save/Download/Library unlocked.");
-        renderLibrary();
-        return true;
-      }
+    setProUI(false);
+    addMsg("Simo", "Invalid key. Still in Free mode.");
+    return false;
+
+  } catch (e) {
+    setProUI(false);
+    addMsg("Simo", "Pro verify failed (network). Still in Free mode.");
+    return false;
+  }
+}
 
       setProUI(false);
       addMsg("Simo", "Invalid key. Still in Free mode.");
