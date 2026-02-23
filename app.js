@@ -1,11 +1,4 @@
-/* app.js — Simo UI Controller (bundle v2 / no-API demo)
-   Goals:
-   - Buttons always work (no null crashes)
-   - Enter sends, Shift+Enter newline
-   - Reset clears chat + preview without white panel
-   - Preview uses iframe srcdoc; hidden until valid HTML exists
-   - Pro gating ONLY gates Save/Download/Library (chat always works)
-*/
+/* app.js — Simo UI Controller */
 
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -17,7 +10,6 @@
     library: [],
   };
 
-  // ---------- UI helpers ----------
   function setStatusLine(text){
     const el = $("statusLine");
     if (el) el.textContent = text;
@@ -89,7 +81,6 @@
     if (!wrap || !frame) return;
 
     if (!has){
-      // Hide completely — NO white panel
       wrap.classList.remove("on");
       frame.removeAttribute("srcdoc");
       return;
@@ -124,7 +115,6 @@
     URL.revokeObjectURL(url);
   }
 
-  // ---------- Backend calls ----------
   async function callSimon(payload){
     const r = await fetch("/.netlify/functions/simon", {
       method: "POST",
@@ -138,7 +128,6 @@
     return { status:r.status, data };
   }
 
-  // ---------- Actions ----------
   async function onSend(){
     if (state.busy) return;
 
@@ -153,9 +142,8 @@
     state.busy = true;
     setModePill("Working…", state.pro);
 
-    // Decide mode: build vs edit
     const looksLikeEdit =
-      /^headline\s*:|^cta\s*:|^price\s*:|^add\s+|^remove\s+|^continue\b/i.test(msg);
+      /headline\s*:|cta\s*:|price\s*:|add\s+(faq|pricing|testimonials)|remove\s+(faq|pricing|testimonials)/i.test(msg);
 
     const mode = (looksLikeEdit && state.lastHtml) ? "edit" : "build";
 
@@ -191,10 +179,8 @@
   }
 
   function onReset(){
-    // Clear chat UI
     const log = $("chatLog");
     if (log) log.innerHTML = "";
-    // Clear preview (keeps hidden; no white block)
     setPreview("");
     state.lastHtml = "";
     addMsg("Simo", "Reset. I’m here.");
@@ -265,7 +251,6 @@
       return;
     }
 
-    // Simple picker
     const lines = state.library.map((x, i) => `${i+1}) ${x.name}`).join("\n");
     const pick = prompt(`Library:\n${lines}\n\nType a number to load:`) || "";
     const n = parseInt(pick, 10);
@@ -276,7 +261,6 @@
     addMsg("Simo", `Loaded: ${item.name}`);
   }
 
-  // ---------- Bind once, never breaks ----------
   function bind(){
     $("sendBtn")?.addEventListener("click", onSend);
     $("resetBtn")?.addEventListener("click", onReset);
@@ -296,13 +280,10 @@
     }
 
     $("proToggle")?.addEventListener("change", (e) => {
-      // Toggle alone does NOT unlock; it just reflects state.
-      // We keep it “truthy”: only verification changes pro.
       e.target.checked = state.pro;
       addMsg("Simo", "Verify a Pro key to unlock Pro features.");
     });
 
-    // initial state
     setProUI(false);
     onReset();
   }
