@@ -1,248 +1,293 @@
-/* app.js — Simo UI controller (KNOWN-GOOD, RESTORE)
-   - No syntax traps
-   - Send/Enter/Reset wired
-   - Pro verify via /.netlify/functions/pro
-   - Updates Pro toggle UI state correctly
-   - Preview stays dark until HTML exists
+/* app.js — Simo UI controller (V1.2 stable)
+   Fixes:
+   - Parses backend JSON {reply, html} OR plain text safely
+   - Renders reply text to chat only (never dumps raw JSON)
+   - Updates preview iframe from html string automatically
+   - Pro toggle ALWAYS triggers verify flow and gates buttons
+   - Enter-to-send works; Shift+Enter newline
+   - Safe selectors + fallbacks so it won’t “lose” buttons
 */
+
 (() => {
-  const BACKEND_URL = "/.netlify/functions/simon";
-  const PRO_URL = "/.netlify/functions/pro";
+  // ---------- Helpers ----------
+  const $ = (id) => document.getElementById(id);
+  const q = (sel, root = document) => root.querySelector(sel);
+  const qa = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
+  const byTextButton = (txt) =>
+    qa("button").find((b) => (b.textContent || "").trim().toLowerCase() === txt.toLowerCase());
+
+  const safeJSON = (text) => {
+    try { return JSON.parse(text); } catch { return null; }
+  };
+
+  const setStatus = (label, ok = true) => {
+    const el = $("status") || $("statusBadge") || q('[data-role="status"]') || q(".status");
+    if (!el) return;
+    el.textContent = label;
+    el.classList.toggle("ok", !!ok);
+    el.classList.toggle("bad", !ok);
+  };
 
   const state = {
     pro: false,
-    proKey: localStorage.getItem("simo_pro_key") || "",
     lastHTML: "",
-    conversation: []
+    lastReply: "",
+    proKey: localStorage.getItem("PRO_KEY") || "",
   };
 
-  const $ = (id) => document.getElementById(id);
-  const q = (sel) => document.querySelector(sel);
-  const qa = (sel) => Array.from(document.querySelectorAll(sel));
+  // ---------- Elements (with fallbacks) ----------
+  const chatLog =
+    $("chatLog") ||
+    q("#chat") ||
+    q(".chat") ||
+    q('[data-role="chat"]') ||
+    q(".messages");
 
-  function byTextButton(label) {
-    const t = String(label || "").toLowerCase();
-    return qa("button").find(b => (b.textContent || "").trim().toLowerCase() === t) || null;
-  }
+  const input =
+    $("userInput") ||
+    $("input") ||
+    q("textarea") ||
+    q('input[type="text"]');
 
-  function esc(s){
-    return String(s).replace(/[&<>"']/g, (c)=>({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
-  }
+  const sendBtn =
+    $("sendBtn") ||
+    $("btnSend") ||
+    byTextButton("Send");
 
-  function chatBodyEl() {
-    return $("chatBody") || q(".chatBody") || q('[data-chat="body"]') || null;
-  }
+  const resetBtn =
+    $("resetBtn") ||
+    $("btnReset") ||
+    byTextButton("Reset");
 
-  function addMsg(who, text) {
-    const body = chatBodyEl();
-    if (!body) return;
+  const previewFrame =
+    $("previewFrame") ||
+    q("iframe") ||
+    q('[data-role="preview"] iframe');
 
+  const proToggle =
+    $("proToggle") ||
+    q('input[type="checkbox"]') ||
+    q('button[aria-label*="pro" i]');
+
+  const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
+  const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
+  const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
+
+  // ---------- UI rendering ----------
+  const addMsg = (who, text) => {
+    if (!chatLog) return;
     const wrap = document.createElement("div");
-    wrap.className = "msg";
+    wrap.className = "msg " + (who === "You" ? "you" : "simo");
 
-    const whoEl = document.createElement("div");
-    whoEl.className = "who";
-    whoEl.textContent = who;
+    const name = document.createElement("div");
+    name.className = "who";
+    name.textContent = who;
 
     const bubble = document.createElement("div");
-    bubble.className = "bubble " + (String(who).toLowerCase() === "you" ? "you" : "simo");
-    bubble.innerHTML = esc(text);
+    bubble.className = "bubble";
+    bubble.textContent = text;
 
-    wrap.appendChild(whoEl);
+    wrap.appendChild(name);
     wrap.appendChild(bubble);
-    body.appendChild(wrap);
-    body.scrollTop = body.scrollHeight;
-  }
+    chatLog.appendChild(wrap);
+    chatLog.scrollTop = chatLog.scrollHeight;
+  };
 
-  function setStatus(text, good=false) {
-    const el = $("statusText") || $("status") || q(".status") || null;
-    if (!el) return;
-    el.textContent = text;
-    el.classList.toggle("good", !!good);
-    el.classList.toggle("bad", !good && /error|fail|invalid/i.test(text));
-  }
-
-  function isProbablyHTML(html) {
-    const t = String(html || "").trim();
-    return /^<!doctype html/i.test(t) || /^<html[\s>]/i.test(t) || t.includes("<body");
-  }
-
-  function setPreviewHTML(html) {
-    const frame = $("previewFrame") || q("iframe");
-    const empty = $("previewEmpty") || q(".previewEmpty");
+  const setPreviewHTML = (html) => {
     state.lastHTML = html || "";
+    if (!previewFrame) return;
 
-    if (!frame) return;
-
-    if (html && String(html).trim()) {
-      if (empty) empty.style.display = "none";
-      frame.style.display = "block";
-      frame.srcdoc = html;
-    } else {
-      frame.srcdoc = "";
-      frame.style.display = "none";
-      if (empty) empty.style.display = "flex";
+    if (!html) {
+      // keep preview empty / placeholder (don’t force a white panel)
+      try { previewFrame.srcdoc = ""; } catch {}
+      return;
     }
-  }
+
+    try {
+      previewFrame.srcdoc = html;
+    } catch (e) {
+      // fallback if srcdoc blocked for some reason
+      previewFrame.setAttribute("srcdoc", html);
+    }
+  };
 
   function setProUI(on) {
     state.pro = !!on;
-    setStatus(on ? "Pro" : "Free", !!on);
+    setStatus(on ? "Pro" : "Free", true);
 
-    // ✅ keep toggle in sync (this is what you wanted)
-    const toggle = $("proToggle") || q('input[type="checkbox"]');
-    if (toggle) toggle.checked = !!on;
+    // checkbox toggle sync
+    if (proToggle && proToggle.type === "checkbox") proToggle.checked = !!on;
 
-    const saveBtn = $("saveBtn") || $("btnSave") || byTextButton("Save");
-    const dlBtn   = $("downloadBtn") || $("btnDownload") || byTextButton("Download");
-    const libBtn  = $("libraryBtn") || $("btnLibrary") || byTextButton("Library");
-
+    // gate buttons
     if (saveBtn) saveBtn.disabled = !on;
-    if (dlBtn) dlBtn.disabled = !on;
-    if (libBtn) libBtn.disabled = !on;
+    if (dlBtn)   dlBtn.disabled   = !on;
+    if (libBtn)  libBtn.disabled  = !on;
   }
 
+  // ---------- Pro verify ----------
   async function verifyProKey(key) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 8000);
+
     try {
-      const r = await fetch(PRO_URL, {
+      const r = await fetch("/.netlify/functions/pro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ key })
+        body: JSON.stringify({ key }),
+        signal: ctrl.signal,
+      });
+      const data = await r.json().catch(() => null);
+      return !!(data && data.ok && data.pro);
+    } catch {
+      return false;
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  async function ensureProOn() {
+    // If already Pro, nothing to do
+    if (state.pro) return true;
+
+    // Ask for key (simple + reliable; avoids missing modal bugs)
+    let key = (state.proKey || "").trim();
+    if (!key) {
+      key = (window.prompt("Enter your Pro license key:") || "").trim();
+    }
+    if (!key) return false;
+
+    setStatus("Verifying…", true);
+    const ok = await verifyProKey(key);
+
+    if (ok) {
+      state.proKey = key;
+      localStorage.setItem("PRO_KEY", key);
+      setProUI(true);
+      return true;
+    } else {
+      setProUI(false);
+      setStatus("Free", true);
+      window.alert("Key not valid. Pro stayed OFF.");
+      return false;
+    }
+  }
+
+  function turnProOff() {
+    setProUI(false);
+  }
+
+  // ---------- Backend call ----------
+  async function callBackend(userText) {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 15000);
+
+    try {
+      const r = await fetch("/.netlify/functions/simon", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: userText }),
+        signal: ctrl.signal,
       });
 
       const raw = await r.text();
-      let data;
-      try { data = JSON.parse(raw); } catch { data = { ok:false, pro:false }; }
+      // Try parse JSON
+      const obj = safeJSON(raw);
 
-      if (r.ok && data.ok && data.pro) {
-        localStorage.setItem("simo_pro_key", key);
-        setProUI(true);
-        addMsg("Simo", "Pro verified. Save/Download/Library unlocked.");
-        return true;
+      // If JSON with reply/html -> return structured
+      if (obj && (typeof obj.reply === "string" || typeof obj.html === "string")) {
+        return {
+          reply: (obj.reply || "").toString(),
+          html: (obj.html || "").toString(),
+          raw,
+        };
       }
 
-      localStorage.removeItem("simo_pro_key");
-      setProUI(false);
-      addMsg("Simo", "Invalid key. Still in Free mode.");
-      return false;
-    } catch (e) {
-      setProUI(false);
-      addMsg("Simo", "Pro verify failed (network). Still in Free mode.");
-      return false;
+      // Otherwise treat as plain text; attempt to extract html if backend returned a full doc
+      const looksLikeHTML = raw.includes("<!doctype") || raw.includes("<html");
+      return {
+        reply: looksLikeHTML ? "Done. I updated the preview on the right." : raw,
+        html: looksLikeHTML ? raw : "",
+        raw,
+      };
+    } finally {
+      clearTimeout(t);
     }
   }
 
-  function wireProToggle() {
-    const toggle = $("proToggle") || q('input[type="checkbox"]') || null;
-    if (!toggle) return;
-
-    // On boot, try stored key quietly
-    if (state.proKey) {
-      verifyProKey(state.proKey);
-    } else {
-      setProUI(false);
-    }
-
-    toggle.addEventListener("change", async () => {
-      if (toggle.checked) {
-        const key = prompt("Enter Pro key:");
-        if (!key) { toggle.checked = false; return; }
-        const ok = await verifyProKey(String(key).trim());
-        if (!ok) toggle.checked = false;
-      } else {
-        localStorage.removeItem("simo_pro_key");
-        setProUI(false);
-        addMsg("Simo", "Pro turned off.");
-      }
-    });
-  }
-
-  async function sendMessage() {
-    const ta = $("chatInput") || q("textarea");
-    if (!ta) return;
-
-    const input = String(ta.value || "").trim();
+  // ---------- Send handling ----------
+  async function onSend() {
     if (!input) return;
+    const text = (input.value || "").trim();
+    if (!text) return;
 
-    ta.value = "";
-    addMsg("You", input);
-    setStatus("Thinking…", true);
-
-    const history = state.conversation.slice(-12);
+    addMsg("You", text);
+    input.value = "";
 
     try {
-      const r = await fetch(BACKEND_URL, {
-        method: "POST",
-        headers: { "Content-Type":"application/json" },
-        body: JSON.stringify({ input, history, pro: !!state.pro })
-      });
+      setStatus("Thinking…", true);
+      const res = await callBackend(text);
 
-      const data = await r.json().catch(() => null);
+      // IMPORTANT: never dump raw JSON into chat
+      const reply = (res.reply || "").trim() || "Done.";
+      addMsg("Simo", reply);
+      state.lastReply = reply;
 
-      if (!r.ok || !data || !data.ok) {
-        addMsg("Simo", `Backend error (${r.status || "?"}).`);
-        setStatus("Error", false);
-        return;
+      // Update preview if html exists
+      if (res.html && res.html.trim()) {
+        setPreviewHTML(res.html);
       }
-
-      const text = String(data.text || "").trim() || "Done.";
-      const html = String(data.html || "").trim();
-
-      state.conversation.push({ role:"user", content: input });
-      state.conversation.push({ role:"assistant", content: text });
-
-      addMsg("Simo", text);
-      if (isProbablyHTML(html)) setPreviewHTML(html);
 
       setStatus("Ready", true);
     } catch (e) {
-      addMsg("Simo", "Backend error (network).");
+      addMsg("Simo", "Something failed. Try again.");
       setStatus("Error", false);
     }
   }
 
-  function wireButtons() {
-    const sendBtn = $("sendBtn") || $("btnSend") || byTextButton("Send");
-    const resetBtn = $("resetBtn") || $("btnReset") || byTextButton("Reset");
-    const ta = $("chatInput") || q("textarea");
+  function onReset() {
+    // Clear chat
+    if (chatLog) chatLog.innerHTML = "";
+    // Clear preview WITHOUT forcing a white panel
+    setPreviewHTML("");
+    addMsg("Simo", "Reset. I’m here.");
+    setStatus(state.pro ? "Pro" : "Ready", true);
+  }
 
-    if (sendBtn) sendBtn.addEventListener("click", sendMessage);
+  // ---------- Wire events ----------
+  if (sendBtn) sendBtn.addEventListener("click", onSend);
+  if (resetBtn) resetBtn.addEventListener("click", onReset);
 
-    if (ta) {
-      ta.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+    });
+  }
+
+  // Pro toggle: handle checkbox or button-like toggle
+  if (proToggle) {
+    if (proToggle.type === "checkbox") {
+      proToggle.addEventListener("change", async () => {
+        if (proToggle.checked) {
+          const ok = await ensureProOn();
+          if (!ok) proToggle.checked = false;
+        } else {
+          turnProOff();
         }
       });
-    }
-
-    if (resetBtn) {
-      resetBtn.addEventListener("click", () => {
-        const body = chatBodyEl();
-        if (body) body.innerHTML = "";
-        state.conversation = [];
-        setPreviewHTML("");
-        addMsg("Simo", "Reset. I’m here.");
-        setStatus(state.pro ? "Pro" : "Free", !!state.pro);
+    } else {
+      proToggle.addEventListener("click", async () => {
+        if (!state.pro) await ensureProOn();
+        else turnProOff();
       });
     }
   }
 
-  function init() {
-    window.__SIMO_UI_OK__ = true;
-
-    const frame = $("previewFrame") || q("iframe");
-    const empty = $("previewEmpty") || q(".previewEmpty");
-    if (frame) frame.style.display = "none";
-    if (empty) empty.style.display = "flex";
-
-    addMsg("Simo", "Reset. I’m here.");
-    setStatus("Free", false);
-
-    wireButtons();
-    wireProToggle();
-  }
-
-  window.addEventListener("DOMContentLoaded", init);
+  // Boot
+  setProUI(false);           // default OFF
+  addMsg("Simo", "Reset. I’m here.");
+  setStatus("Ready", true);
 })();
