@@ -3,240 +3,296 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
+  <title>Simo • Chat + Builder</title>
   <meta name="color-scheme" content="dark" />
   <style>
-    :root{
-      --bg:#0b1020; --panel:#0f1835; --panel2:#0b142d;
-      --text:#eaf0ff; --muted:#a9b6d3; --line:rgba(255,255,255,.10);
-      --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a; --bad:#ff4d4d;
-      --shadow:0 14px 34px rgba(0,0,0,.35);
-      --radius:18px;
-    }
-    *{box-sizing:border-box}
-    body{
-      margin:0; font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-      background:radial-gradient(1000px 600px at 20% 10%, rgba(42,102,255,.25), transparent 60%),
-                 radial-gradient(900px 500px at 80% 20%, rgba(57,255,122,.14), transparent 55%),
-                 var(--bg);
-      color:var(--text);
-    }
-    .app{
-      height:100vh;
-      display:grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap:14px;
-      padding:14px;
-    }
-    @media (max-width: 980px){
-      .app{ grid-template-columns: 1fr; grid-template-rows: 1.1fr 0.9fr; }
-    }
-    .card{
-      background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-    }
-    .topbar{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:10px;
-      padding:12px 12px;
-      border-bottom:1px solid var(--line);
-      background:linear-gradient(180deg, rgba(15,24,53,.85), rgba(11,16,32,.35));
-    }
-    .brand{
-      display:flex; align-items:center; gap:10px;
-      font-weight:700; letter-spacing:.2px;
-    }
-    .dot{
-      width:10px; height:10px; border-radius:999px;
-      background:rgba(255,255,255,.25);
-      box-shadow:0 0 0 3px rgba(255,255,255,.08);
-    }
-    .pill{
-      display:inline-flex; align-items:center; gap:8px;
-      padding:7px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.15);
-      color:var(--muted);
-      user-select:none;
-      white-space:nowrap;
-    }
-    .pill strong{ color:var(--text); font-weight:700 }
-    .pill.proOn{
-      border-color: rgba(57,255,122,.45);
-      box-shadow:0 0 0 3px rgba(57,255,122,.14), 0 0 26px rgba(57,255,122,.12);
-      color:rgba(234,240,255,.95);
+    :root {
+      --bg: #0a0f1c;
+      --panel: #101a30;
+      --panel2: #0c1426;
+      --text: #e8f0ff;
+      --muted: #a3b5d4;
+      --line: rgba(255,255,255,0.09);
+      --btn: #3b82f6;
+      --btn-hover: #2563eb;
+      --good: #22c55e;
+      --bad: #ef4444;
+      --shadow: 0 16px 40px rgba(0,0,0,0.4);
+      --radius: 16px;
+      --gap: 16px;
     }
 
-    .actions{
-      display:flex; align-items:center; gap:8px; flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    button{
-      appearance:none; border:1px solid var(--line);
-      background:rgba(255,255,255,.06);
-      color:var(--text);
-      border-radius:12px;
-      padding:9px 12px;
-      cursor:pointer;
-      transition:.15s transform, .15s background, .15s opacity;
-    }
-    button:hover{ background:rgba(255,255,255,.10); transform:translateY(-1px); }
-    button:active{ transform:translateY(0); }
-    button.primary{
-      background:linear-gradient(180deg, var(--btn), var(--btn2));
-      border-color:rgba(42,102,255,.65);
-    }
-    button.primary:hover{ filter:brightness(1.05); }
-    button:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
-
-    .content{
-      display:flex; flex-direction:column;
-      min-height:0;
-      padding:12px;
-      gap:10px;
-    }
-    .chatLog{
-      flex:1;
-      min-height:0;
-      overflow:auto;
-      padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.18);
-    }
-    .msg{ margin:0 0 10px 0; }
-    .msg .who{ font-weight:800; }
-    .msg .bubble{
-      margin-top:6px;
-      padding:10px 10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.05);
-      white-space:pre-wrap;
-      overflow-wrap:anywhere;
-    }
-    .msg.you .bubble{ background:rgba(42,102,255,.10); border-color:rgba(42,102,255,.25); }
-    .msg.simo .bubble{ background:rgba(57,255,122,.06); border-color:rgba(57,255,122,.18); }
-
-    .composer{
-      display:flex;
-      gap:10px;
-      align-items:flex-end;
-      padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-    }
-    textarea{
-      flex:1;
-      resize:none;
-      min-height:44px;
-      max-height:140px;
-      padding:10px 10px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.20);
-      color:var(--text);
-      outline:none;
-    }
-    .hint{ color:var(--muted); font-size:12px; margin-top:-4px; }
-
-    /* Preview side */
-    .previewWrap{
-      padding:12px;
-      display:flex;
-      flex-direction:column;
-      min-height:0;
-      gap:10px;
-    }
-    .previewHeader{
-      display:flex; align-items:center; justify-content:space-between; gap:10px;
-      padding:10px;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-    }
-    .previewTitle{ font-weight:800; }
-    .previewSub{ color:var(--muted); font-size:12px; }
-
-    /* This stays HIDDEN until there is valid HTML */
-    .previewFrameWrap{
-      flex:1;
-      min-height:0;
-      border-radius:14px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-      overflow:hidden;
-      display:none;
-    }
-    .previewFrameWrap.on{ display:block; }
-    iframe{
-      width:100%;
-      height:100%;
-      border:0;
-      background:transparent;
+    * { box-sizing: border-box; margin:0; padding:0; }
+    body {
+      font: 15px/1.5 system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
     }
 
-    .proRow{
-      display:flex; align-items:center; gap:10px;
+    .app {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--gap);
+      padding: var(--gap);
+      height: 100vh;
+      max-height: 100vh;
+      overflow: hidden;
     }
-    .switch{
-      display:inline-flex; align-items:center; gap:10px;
-      padding:8px 10px;
-      border-radius:999px;
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.05);
-      user-select:none;
+
+    @media (max-width: 1023px) {
+      .app {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1.2fr 0.8fr;
+        padding: 12px;
+      }
     }
-    .switch input{ width:18px; height:18px; }
-    .keyRow{
-      display:flex; gap:8px; align-items:center;
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
-    .keyRow input{
-      width:220px;
-      padding:9px 10px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.20);
-      color:var(--text);
-      outline:none;
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(to bottom, rgba(20,30,60,0.6), transparent);
+      flex-wrap: wrap;
+      gap: 12px;
     }
-    .statusLine{
-      padding:8px 10px;
-      border-radius:12px;
-      border:1px solid var(--line);
-      background:rgba(0,0,0,.10);
-      color:var(--muted);
-      font-size:12px;
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.3);
+      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.2);
+      font-size: 0.9rem;
+      white-space: nowrap;
+    }
+
+    .pill strong { color: var(--text); }
+    .pill.proOn {
+      border-color: rgba(34,197,94,0.5);
+      background: rgba(34,197,94,0.08);
+      box-shadow: 0 0 20px rgba(34,197,94,0.15);
+    }
+
+    .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+
+    button {
+      appearance: none;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 8px 14px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      font-weight: 500;
+    }
+
+    button:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
+    button:active { transform: translateY(0); }
+    button.primary {
+      background: linear-gradient(180deg, var(--btn), var(--btn-hover));
+      border-color: rgba(59,130,246,0.6);
+      color: white;
+      font-weight: 600;
+    }
+
+    .content {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .chatLog {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.15);
+      border: 1px solid var(--line);
+    }
+
+    .msg { margin-bottom: 16px; }
+    .msg .who { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; opacity: 0.9; }
+    .msg .bubble {
+      padding: 12px 14px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--line);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .msg.you .bubble { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3); }
+    .msg.simo .bubble { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.25); }
+
+    .composer {
+      display: flex;
+      gap: 10px;
+      align-items: flex-end;
+    }
+
+    textarea {
+      flex: 1;
+      min-height: 48px;
+      max-height: 160px;
+      padding: 12px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.25);
+      color: var(--text);
+      resize: vertical;
+      font: inherit;
+    }
+
+    .hint { font-size: 0.82rem; color: var(--muted); margin-top: 6px; opacity: 0.8; }
+
+    /* ── Preview ──────────────────────────────────────── */
+
+    .previewWrap {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      gap: 12px;
+      overflow: hidden;
+    }
+
+    .previewHeader {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(0,0,0,0.15);
+      border: 1px solid var(--line);
+    }
+
+    .previewTitle { font-weight: 700; font-size: 1.1rem; }
+
+    .proRow {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .switch {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .switch input { width: 18px; height: 18px; accent-color: var(--good); }
+
+    .keyRow {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex: 1;
+      min-width: 220px;
+    }
+
+    .keyRow input {
+      flex: 1;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.3);
+      color: var(--text);
+      font: inherit;
+    }
+
+    .statusLine {
+      font-size: 0.85rem;
+      color: var(--muted);
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.15);
+      border: 1px solid var(--line);
+      flex: 1 1 100%;
+    }
+
+    .previewFrameWrap {
+      flex: 1;
+      min-height: 0;
+      border-radius: var(--radius);
+      border: 1px solid var(--line);
+      background: rgba(0,0,0,0.2);
+      overflow: hidden;
+      display: none;
+    }
+
+    .previewFrameWrap.on { display: block; }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: white; /* light bg so content looks normal */
+    }
+
+    @media (max-width: 1023px) {
+      .previewFrameWrap { min-height: 300px; }
     }
   </style>
 </head>
 <body>
+
   <div class="app">
 
     <!-- LEFT: Chat -->
-    <section class="card" aria-label="Chat">
+    <section class="card">
       <div class="topbar">
         <div class="brand">
           <div class="dot" id="modeDot"></div>
-          <div>
-            <div style="font-size:16px">Simo</div>
-            <div style="font-size:12px;color:var(--muted)">Chat + Builder Preview</div>
-          </div>
+          Simo
         </div>
 
         <div class="actions">
-          <div class="pill" id="modePill"><strong>Free</strong><span>Ready</span></div>
+          <div class="pill" id="modePill"><strong>Free</strong> Ready</div>
           <button id="resetBtn">Reset</button>
         </div>
       </div>
@@ -246,8 +302,8 @@
 
         <div class="composer">
           <div style="flex:1">
-            <textarea id="chatInput" placeholder="Type… (Enter sends, Shift+Enter new line)"></textarea>
-            <div class="hint">Try: “build a landing page for a fitness coach” then “headline: …”, “add faq”, “price: 29”.</div>
+            <textarea id="chatInput" placeholder="Ask Simo anything… (Enter to send, Shift+Enter for new line)"></textarea>
+            <div class="hint">Example: “build a landing page for a yoga studio” then “headline: Find Your Flow”, “add faq”, “price: 39”</div>
           </div>
           <button class="primary" id="sendBtn">Send</button>
         </div>
@@ -255,21 +311,20 @@
     </section>
 
     <!-- RIGHT: Preview -->
-    <section class="card" aria-label="Preview">
+    <section class="card">
       <div class="topbar">
         <div>
-          <div class="previewTitle">Preview</div>
-          <div class="previewSub" id="previewSub">No HTML cached yet. Ask for a build.</div>
+          <div class="previewTitle">Live Preview</div>
         </div>
 
         <div class="proRow">
-          <label class="switch" title="Pro unlocks Save/Download/Library only (chat always works)">
+          <label class="switch">
             <input id="proToggle" type="checkbox" />
-            <span>Pro</span>
+            Pro
           </label>
 
           <div class="keyRow">
-            <input id="proKey" type="password" placeholder="Enter Pro key" />
+            <input id="proKey" type="text" placeholder="Enter Pro key" autocomplete="off" />
             <button id="verifyProBtn">Verify</button>
           </div>
         </div>
@@ -277,7 +332,7 @@
 
       <div class="previewWrap">
         <div class="previewHeader">
-          <div class="statusLine" id="statusLine">Status: Free. Chat works. Pro gates Save/Download/Library.</div>
+          <div class="statusLine" id="statusLine">Free mode active • Chat is unlimited • Pro unlocks Save / Download / Library</div>
           <div class="actions">
             <button id="downloadBtn" disabled>Download</button>
             <button id="saveBtn" disabled>Save</button>
@@ -287,6 +342,10 @@
 
         <div class="previewFrameWrap" id="previewFrameWrap">
           <iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
+        </div>
+
+        <div id="previewSub" style="font-size:0.9rem; color:var(--muted); text-align:center; padding:16px;">
+          No preview yet — ask Simo to build something.
         </div>
       </div>
     </section>
