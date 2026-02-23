@@ -2,6 +2,14 @@
   publish = "."
   functions = "netlify/functions"
 
+# IMPORTANT: This rule must be FIRST so your SPA redirect never intercepts function calls.
+[[redirects]]
+  from = "/.netlify/functions/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
+  force = true
+
+# SPA fallback (keep LAST)
 [[redirects]]
   from = "/*"
   to = "/index.html"
