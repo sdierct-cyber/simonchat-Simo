@@ -7,268 +7,260 @@
   <meta name="color-scheme" content="dark" />
   <style>
     :root{
-      --bg:#0b1020; --text:#eaf0ff; --muted:#a9b6d3;
+      --bg:#0b1020; --panel:#0f1730; --card:#101a34;
+      --text:#eaf0ff; --muted:#a9b6d3;
       --line:rgba(255,255,255,.10);
       --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a;
-      --bad:#ff4d4d;
+      --good:#39ff7a; --bad:#ff4d4d;
       --shadow:0 14px 34px rgba(0,0,0,.35);
-      --radius:18px;
-      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+      --r:18px;
     }
     *{box-sizing:border-box}
     html,body{height:100%}
     body{
-      margin:0; font-family:var(--sans); color:var(--text);
-      background: radial-gradient(1200px 700px at 20% 10%, #1a2a66 0%, rgba(26,42,102,0) 60%),
-                  radial-gradient(900px 600px at 90% 40%, #3b1a66 0%, rgba(59,26,102,0) 55%),
-                  linear-gradient(180deg, #070b18 0%, #0b1020 70%, #070b18 100%);
+      margin:0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background:
+        radial-gradient(1200px 700px at 10% 10%, rgba(42,102,255,.22), transparent 60%),
+        radial-gradient(900px 600px at 90% 15%, rgba(57,255,122,.14), transparent 55%),
+        radial-gradient(900px 600px at 50% 95%, rgba(167,139,250,.14), transparent 55%),
+        var(--bg);
+      color:var(--text);
+      overflow:hidden;
     }
-    .wrap{max-width:1200px; margin:0 auto; padding:18px}
-
-    /* Make the whole page layout stable vertically */
-    .page{
-      min-height: calc(100vh - 36px); /* wrap padding accounted */
+    .topbar{
+      height:68px;
       display:flex;
-      flex-direction:column;
-      gap:14px;
+      align-items:center;
+      justify-content:space-between;
+      padding:14px 18px;
+      border-bottom:1px solid var(--line);
+      background:rgba(10,16,34,.55);
+      backdrop-filter: blur(10px);
     }
-
-    .top{
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-      padding:14px 16px; border:1px solid var(--line); border-radius:var(--radius);
-      background:rgba(16,26,51,.55); backdrop-filter: blur(8px); box-shadow:var(--shadow);
+    .brand{
+      display:flex; gap:12px; align-items:center;
+      font-weight:800;
     }
-    .brand{display:flex; align-items:center; gap:10px}
     .logo{
-      width:38px; height:38px; border-radius:12px;
-      background:linear-gradient(135deg, rgba(42,102,255,.9), rgba(57,255,122,.55));
-      box-shadow: 0 0 22px rgba(42,102,255,.25);
+      width:38px; height:38px; border-radius:14px;
+      background:linear-gradient(135deg, rgba(42,102,255,.95), rgba(57,255,122,.85));
+      box-shadow: 0 14px 30px rgba(42,102,255,.25);
     }
-    .title{display:flex; flex-direction:column; line-height:1.05}
-    .title b{font-size:15px}
-    .title span{font-size:12px; color:var(--muted)}
-    .pills{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
+    .subtitle{font-weight:600; font-size:12px; color:var(--muted); margin-top:2px}
+    .right{
+      display:flex; align-items:center; gap:14px;
+      font-weight:700; color:var(--muted);
+    }
     .pill{
-      border:1px solid var(--line); border-radius:999px; padding:8px 12px;
-      background:rgba(255,255,255,.06);
-      display:flex; gap:10px; align-items:center;
-      user-select:none;
+      border:1px solid var(--line);
+      background:rgba(255,255,255,.05);
+      padding:10px 12px;
+      border-radius:999px;
+      display:flex; align-items:center; gap:10px;
+      box-shadow: var(--shadow);
     }
-    .pill strong{font-size:12px; letter-spacing:.2px}
-    .toggle{
-      width:44px; height:24px; border-radius:999px; position:relative;
-      background:rgba(255,255,255,.16); border:1px solid var(--line);
-      cursor:pointer;
+    .switch{
+      display:flex; align-items:center; gap:10px;
     }
-    .knob{
-      width:18px; height:18px; border-radius:999px; position:absolute; top:50%; left:3px;
-      transform:translateY(-50%);
-      background:rgba(255,255,255,.85);
-      transition: all .18s ease;
+    .switch input{
+      width:44px; height:24px; appearance:none; outline:none; cursor:pointer;
+      background: rgba(255,255,255,.12);
+      border:1px solid var(--line);
+      border-radius:999px;
+      position:relative;
+      transition:.18s ease;
     }
-    .toggle.on{
-      background:rgba(57,255,122,.22);
-      border-color: rgba(57,255,122,.45);
-      box-shadow: 0 0 18px rgba(57,255,122,.18);
+    .switch input:before{
+      content:"";
+      width:18px; height:18px;
+      border-radius:999px;
+      background: rgba(255,255,255,.85);
+      position:absolute; top:50%; left:3px;
+      transform: translateY(-50%);
+      transition:.18s ease;
     }
-    .toggle.on .knob{ left:22px; background: rgba(57,255,122,.95); }
-    .status{font-size:12px; color:var(--muted)}
-    .status.good{color: rgba(57,255,122,.9)}
-    .status.bad{color: rgba(255,77,77,.95)}
+    .switch input:checked{
+      background: rgba(57,255,122,.25);
+      border-color: rgba(57,255,122,.35);
+      box-shadow: 0 0 0 3px rgba(57,255,122,.10);
+    }
+    .switch input:checked:before{ left:22px; background: rgba(57,255,122,.95); }
+    .status{
+      display:flex; align-items:center; gap:10px;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: var(--muted);
+      box-shadow: 0 0 0 3px rgba(255,255,255,.06);
+    }
+    .status.ok .dot{ background: var(--good); box-shadow: 0 0 0 3px rgba(57,255,122,.12); }
+    .status.bad .dot{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,77,77,.12); }
 
-    /* IMPORTANT: make the grid fill remaining space */
-    .grid{
+    .main{
+      height: calc(100% - 68px);
       display:grid;
       grid-template-columns: 1.05fr .95fr;
       gap:14px;
-      flex:1;
-      min-height:0; /* critical for flex children sizing */
-    }
-    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
-
-    /* Card layout */
-    .card{
-      border:1px solid var(--line);
-      border-radius:var(--radius);
-      background:rgba(16,26,51,.55);
-      backdrop-filter: blur(8px);
-      box-shadow:var(--shadow);
-      overflow:hidden;
-
-      display:flex;
-      flex-direction:column;
-      min-height:0; /* critical */
-    }
-    .cardHead{
-      display:flex; justify-content:space-between; align-items:center;
-      padding:12px 14px; border-bottom:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-    }
-    .cardHead .h{font-weight:700; font-size:13px; color:#d9e5ff}
-    .cardHead .meta{font-size:12px; color:var(--muted)}
-
-    /* Chat body fills the available height in its card */
-    .chatBody{
-      flex:1;
-      min-height: 360px;
-      overflow:auto;
       padding:14px;
     }
-    .msg{margin:0 0 12px 0}
-    .msg .who{font-size:11px; color:var(--muted); margin-bottom:6px}
-    .bubble{
-      padding:10px 12px; border-radius:14px;
+    .panel{
       border:1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      white-space:pre-wrap;
+      border-radius: var(--r);
+      background: rgba(255,255,255,.04);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      display:flex; flex-direction:column;
+      min-height:0;
     }
-    .bubble.you{ background: rgba(42,102,255,.12); border-color: rgba(42,102,255,.25); }
-    .bubble.simo{ background: rgba(255,255,255,.06); }
+    .panelHead{
+      padding:12px 14px;
+      display:flex; align-items:center; justify-content:space-between;
+      border-bottom:1px solid var(--line);
+      background: rgba(16,26,52,.35);
+      font-weight:800;
+    }
+    .hint{font-weight:600; color:var(--muted); font-size:12px}
+
+    /* Chat */
+    #chatLog{
+      flex:1;
+      overflow:auto;
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+      min-height:0;
+    }
+    .msg .who{font-size:12px; color:var(--muted); margin:0 0 6px 6px; font-weight:700}
+    .bubble{
+      border:1px solid var(--line);
+      border-radius: 16px;
+      padding:12px 14px;
+      background: rgba(255,255,255,.04);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .you .bubble{ background: rgba(42,102,255,.12); border-color: rgba(42,102,255,.25); }
+    .simo .bubble{ background: rgba(255,255,255,.04); }
 
     .composer{
-      display:flex; gap:10px; padding:12px; border-top:1px solid var(--line);
-      background:rgba(0,0,0,.12);
-    }
-    textarea{
-      flex:1; resize:none; height:46px; max-height:120px;
-      border-radius:14px; padding:12px 12px;
-      border:1px solid var(--line);
-      background: rgba(7,11,24,.55);
-      color:var(--text);
-      outline:none;
-    }
-    .row{display:flex; gap:10px; align-items:center; flex-wrap:wrap}
-    .btn{
-      border:1px solid rgba(42,102,255,.35);
-      background: linear-gradient(180deg, var(--btn) 0%, var(--btn2) 100%);
-      color:white; border-radius:14px; padding:10px 14px;
-      cursor:pointer; font-weight:700;
-      box-shadow: 0 10px 22px rgba(42,102,255,.18);
-    }
-    .btn:disabled{opacity:.55; cursor:not-allowed}
-    .btn.ghost{
-      background: rgba(255,255,255,.06);
-      border:1px solid var(--line);
-      box-shadow:none;
-      font-weight:600;
-    }
-    .small{font-size:12px; color:var(--muted)}
-
-    .libList{padding:10px 14px; border-top:1px solid var(--line); display:none}
-    .libList.show{display:block}
-    .libItem{
-      display:flex; justify-content:space-between; gap:10px; align-items:center;
-      padding:8px 10px; border:1px solid var(--line); border-radius:14px;
-      background: rgba(255,255,255,.05);
-      margin-bottom:8px;
-    }
-    .libItem b{font-size:12px}
-    .libItem span{font-size:11px; color:var(--muted)}
-    .libItem button{padding:8px 10px; border-radius:12px}
-
-    /* PREVIEW: hidden until HTML exists (prevents white panel) */
-    .previewWrap{
-      flex:1;
-      min-height: 446px;
+      border-top:1px solid var(--line);
       padding:12px;
-      min-height:0; /* allow flex to size correctly */
+      display:flex; gap:10px; align-items:flex-end;
+      background: rgba(16,26,52,.25);
     }
-    .previewEmpty{
-      height:100%;
-      border:1px dashed rgba(255,255,255,.18);
-      border-radius: var(--radius);
-      display:flex; align-items:center; justify-content:center;
-      background: rgba(7,11,24,.25);
-      color: var(--muted);
-      padding:18px;
-      text-align:center;
+    #userInput{
+      flex:1;
+      min-height:44px;
+      max-height:140px;
+      resize:vertical;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background: rgba(0,0,0,.18);
+      color: var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
     }
-    iframe{
+    .btn{
+      height:44px;
+      padding:0 14px;
+      border-radius: 14px;
+      border:1px solid var(--line);
+      background: rgba(255,255,255,.06);
+      color: var(--text);
+      font-weight:800;
+      cursor:pointer;
+      transition:.15s ease;
+    }
+    .btn.primary{
+      background: linear-gradient(180deg, var(--btn), var(--btn2));
+      border-color: rgba(42,102,255,.4);
+      box-shadow: 0 16px 34px rgba(42,102,255,.22);
+    }
+    .btn:disabled{
+      opacity:.45;
+      cursor:not-allowed;
+      box-shadow:none;
+    }
+
+    /* Preview */
+    #previewFrame{
       width:100%;
       height:100%;
-      border:1px solid rgba(255,255,255,.12);
-      border-radius: var(--radius);
+      border:0;
       background: transparent;
-      display:none;
     }
-    iframe.show{display:block}
-    .previewEmpty.hide{display:none}
-
-    .kbd{font-family:var(--mono); font-size:11px; padding:2px 6px; border:1px solid var(--line); border-radius:8px; background:rgba(255,255,255,.06)}
+    .previewEmpty{
+      flex:1;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color: rgba(233,241,255,.55);
+      font-weight:700;
+      padding:24px;
+      text-align:center;
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="page">
-      <div class="top">
-        <div class="brand">
-          <div class="logo" aria-hidden="true"></div>
-          <div class="title">
-            <b>Simo</b>
-            <span>Chat + Build + Preview</span>
-          </div>
-        </div>
-        <div class="pills">
-          <div class="pill">
-            <strong>PRO</strong>
-            <div id="proToggle" class="toggle" role="switch" aria-checked="false" tabindex="0">
-              <div class="knob"></div>
-            </div>
-          </div>
-          <div class="pill">
-            <strong>Status</strong>
-            <span id="proStatus" class="status">Free</span>
-          </div>
-        </div>
+  <div class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <div style="font-size:18px">Simo</div>
+        <div class="subtitle">Chat + Build + Preview</div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="pill switch">
+        <span style="color:var(--text)">PRO</span>
+        <input id="proToggle" type="checkbox" />
       </div>
 
-      <div class="grid">
-        <!-- Chat -->
-        <div class="card">
-          <div class="cardHead">
-            <div class="h">Chat</div>
-            <div class="meta">Enter to send • <span class="kbd">Shift</span>+<span class="kbd">Enter</span> newline</div>
-          </div>
-
-          <div id="chatBody" class="chatBody"></div>
-
-          <div class="composer">
-            <textarea id="chatInput" placeholder="Tell Simo what you need…"></textarea>
-            <div class="row" style="flex-direction:column; align-items:stretch">
-              <button id="sendBtn" class="btn">Send</button>
-              <button id="resetBtn" class="btn ghost" title="Clear chat + preview">Reset</button>
-            </div>
-          </div>
-
-          <div class="cardHead" style="border-top:1px solid var(--line); border-bottom:none;">
-            <div class="row">
-              <button id="downloadBtn" class="btn ghost">Download</button>
-              <button id="saveBtn" class="btn ghost">Save</button>
-              <button id="libraryBtn" class="btn ghost">Library</button>
-            </div>
-            <div id="hint" class="small">Build something first (example: “build a landing page for a fitness coach”).</div>
-          </div>
-
-          <div id="libraryPanel" class="libList"></div>
-        </div>
-
-        <!-- Preview -->
-        <div class="card">
-          <div class="cardHead">
-            <div class="h">Preview</div>
-            <div class="meta">Updates automatically when HTML exists</div>
-          </div>
-          <div class="previewWrap">
-            <div id="previewEmpty" class="previewEmpty">
-              No preview yet. Ask for a build (example: “build a landing page for a fitness coach”).<br><br>
-              This stays dark on purpose — no white panel.
-            </div>
-            <iframe id="previewFrame" title="Preview"></iframe>
-          </div>
-        </div>
+      <div class="pill status ok" id="statusWrap">
+        <div class="dot"></div>
+        <div>Status</div>
+        <div id="status" style="color:var(--good)">Ready</div>
       </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <!-- Chat Panel -->
+    <div class="panel">
+      <div class="panelHead">
+        <div>Chat</div>
+        <div class="hint">Enter to send • Shift+Enter newline</div>
+      </div>
+
+      <div id="chatLog"></div>
+
+      <div class="composer">
+        <textarea id="userInput" placeholder="Type here…"></textarea>
+        <button class="btn" id="resetBtn" type="button">Reset</button>
+        <button class="btn primary" id="sendBtn" type="button">Send</button>
+
+        <button class="btn" id="saveBtn" type="button" disabled>Save</button>
+        <button class="btn" id="downloadBtn" type="button" disabled>Download</button>
+        <button class="btn" id="libraryBtn" type="button" disabled>Library</button>
+      </div>
+    </div>
+
+    <!-- Preview Panel -->
+    <div class="panel">
+      <div class="panelHead">
+        <div>Preview</div>
+        <div class="hint">Updates automatically when HTML exists</div>
+      </div>
+
+      <div class="previewEmpty" id="previewEmpty">
+        No HTML yet. Ask for a build (example: “build a landing page for a fitness coach”).
+      </div>
+
+      <iframe id="previewFrame" title="Preview" style="display:none"></iframe>
     </div>
   </div>
 
