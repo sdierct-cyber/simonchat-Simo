@@ -135,7 +135,7 @@
       const r = await fetch("/.netlify/functions/simon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: userText }),
+        body: JSON.stringify({ input: userText, lastHTML: state.lastHTML }),
         signal: ctrl.signal
       });
 
