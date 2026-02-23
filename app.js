@@ -45,8 +45,8 @@
 
     setModePill(state.pro ? "Unlocked" : "Ready", state.pro);
     setStatusLine(state.pro
-      ? "Status: Pro. Save/Download/Library unlocked."
-      : "Status: Free. Chat works. Pro gates Save/Download/Library."
+      ? "Pro mode active • Save/Download/Library unlocked"
+      : "Free mode active • Chat is unlimited • Pro unlocks Save / Download / Library"
     );
   }
 
@@ -72,11 +72,7 @@
 
     const has = typeof state.lastHtml === "string" && state.lastHtml.trim().length > 20;
 
-    if (sub){
-      sub.textContent = has
-        ? "Updated. Edit with: headline: … | cta: … | price: 29 | add/remove faq/pricing/testimonials"
-        : "No HTML cached yet. Ask for a build.";
-    }
+    if (sub) sub.style.display = has ? 'none' : 'block';
 
     if (!wrap || !frame) return;
 
@@ -208,23 +204,23 @@
         return;
       }
       setProUI(!!data.pro);
-      addMsg("Simo", data.pro ? "Pro verified. Unlocked." : "Key invalid. Staying Free.");
+      addMsg("Simo", data.pro ? "Pro unlocked! You can now save, download, and use library." : "Invalid key. Try again.");
     }catch(e){
-      addMsg("Simo", `Pro verify network error: ${e?.message || e}`);
+      addMsg("Simo", `Verify error: ${e?.message || e}`);
       setProUI(false);
     }
   }
 
   function onDownload(){
-    if (!state.pro) return addMsg("Simo", "Download is Pro. Verify Pro to unlock.");
-    if (!state.lastHtml) return addMsg("Simo", "Nothing to download yet. Build something first.");
+    if (!state.pro) return addMsg("Simo", "Download requires Pro. Verify a key.");
+    if (!state.lastHtml) return addMsg("Simo", "Nothing to download. Build first.");
     downloadFile("simo-build.html", state.lastHtml);
-    addMsg("Simo", "Downloaded: simo-build.html");
+    addMsg("Simo", "Downloaded simo-build.html");
   }
 
   function onSave(){
-    if (!state.pro) return addMsg("Simo", "Save is Pro. Verify Pro to unlock.");
-    if (!state.lastHtml) return addMsg("Simo", "Nothing to save yet. Build something first.");
+    if (!state.pro) return addMsg("Simo", "Save requires Pro. Verify a key.");
+    if (!state.lastHtml) return addMsg("Simo", "Nothing to save. Build first.");
 
     const title = prompt("Name this build:", `Build ${new Date().toLocaleString()}`) || "";
     const name = title.trim();
@@ -239,20 +235,20 @@
     });
     state.library = state.library.slice(0, 50);
     saveLibrary();
-    addMsg("Simo", `Saved to Library: ${name}`);
+    addMsg("Simo", `Saved: ${name}`);
   }
 
   function onLibrary(){
-    if (!state.pro) return addMsg("Simo", "Library is Pro. Verify Pro to unlock.");
+    if (!state.pro) return addMsg("Simo", "Library requires Pro. Verify a key.");
 
     loadLibrary();
     if (!state.library.length){
-      addMsg("Simo", "Library is empty. Save a build first.");
+      addMsg("Simo", "Library empty. Save something first.");
       return;
     }
 
     const lines = state.library.map((x, i) => `${i+1}) ${x.name}`).join("\n");
-    const pick = prompt(`Library:\n${lines}\n\nType a number to load:`) || "";
+    const pick = prompt(`Library:\n${lines}\n\nEnter number to load:`) || "";
     const n = parseInt(pick, 10);
     if (!Number.isFinite(n) || n < 1 || n > state.library.length) return;
 
@@ -280,8 +276,10 @@
     }
 
     $("proToggle")?.addEventListener("change", (e) => {
-      e.target.checked = state.pro;
-      addMsg("Simo", "Verify a Pro key to unlock Pro features.");
+      if (!state.pro) {
+        e.target.checked = false;
+        addMsg("Simo", "Verify a Pro key to unlock.");
+      }
     });
 
     setProUI(false);
