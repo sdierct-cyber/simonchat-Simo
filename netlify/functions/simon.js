@@ -1,183 +1,97 @@
 // netlify/functions/simon.js
-// Simo E bundle: best-friend tone lock + structured outputs + web search + image generation + free-limit gating
-// NOTE: Pro verification is handled by your separate /.netlify/functions/pro.
-// This function trusts the boolean "pro" passed by the UI.
-//
-// If you see "Unexpected end of input" again, it means the file did not paste fully.
+// Simo backend — STABLE deterministic builder
+// Always returns: { ok, reply, html }
 
-function json(statusCode, obj) {
+exports.handler = async (event) => {
+  try {
+    if (event.httpMethod !== "POST") {
+      return j(405, { ok: false, reply: "Use POST", html: "" });
+    }
+
+    const body = safeJSON(event.body) || {};
+    const input = String(body.input || "").trim();
+    const lastHTML = String(body.lastHTML || "").trim();
+
+    if (!input) {
+      return j(200, { ok: true, reply: "Say something. If you want a page, type: build a landing page for a fitness coach", html: "" });
+    }
+
+    const lower = input.toLowerCase();
+
+    // Build intent
+    if (lower.includes("build") && lower.includes("landing page")) {
+      const html = makeLanding({
+        headline: "Get Fit Without Guesswork",
+        cta: "Start Your Free Consultation",
+        price: "29",
+        includeFAQ: true,
+        includePricing: true,
+        includeTestimonials: true
+      });
+
+      return j(200, {
+        ok: true,
+        reply:
+          "Done. Built a landing page and updated the preview.\n\nEdits:\n- headline: …\n- cta: …\n- price: 29\n- add faq / remove faq\n- add pricing / remove pricing\n- add testimonials / remove testimonials",
+        html
+      });
+    }
+
+    // Simple chat (never blank)
+    if (lower === "hello" || lower === "hi" || lower === "hey") {
+      return j(200, { ok: true, reply: "Hey — build something or tweak a page?", html: "" });
+    }
+
+    // Edit commands
+    const cmd = parseCommand(input);
+    if (cmd.type !== "none") {
+      // If no previous html supplied, start from default
+      const base = lastHTML || makeLanding({
+        headline: "Get Fit Without Guesswork",
+        cta: "Start Your Free Consultation",
+        price: "29",
+        includeFAQ: true,
+        includePricing: true,
+        includeTestimonials: true
+      });
+
+      const updated = applyCommand(base, cmd);
+
+      return j(200, {
+        ok: true,
+        reply: replyFor(cmd),
+        html: updated
+      });
+    }
+
+    return j(200, {
+      ok: true,
+      reply: "If you want a page, say: build a landing page for a fitness coach. Or edit with: headline: … / cta: … / price: …",
+      html: ""
+    });
+  } catch (e) {
+    return j(200, { ok: false, reply: "Backend error. Try again.", html: "", error: String(e?.message || e) });
+  }
+};
+
+// ---------- Helpers ----------
+function j(statusCode, obj) {
   return {
     statusCode,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-store",
+      "Cache-Control": "no-store"
     },
-    body: JSON.stringify(obj),
+    body: JSON.stringify(obj)
   };
 }
 
-function pickAssistantText(responseJson) {
-  const out = responseJson?.output;
-  if (!Array.isArray(out)) return "";
-  let text = "";
-  for (const item of out) {
-    if (item?.type === "message" && item?.role === "assistant" && Array.isArray(item?.content)) {
-      for (const c of item.content) {
-        if (c?.type === "output_text" && typeof c?.text === "string") text += c.text;
-      }
-    }
-  }
-  return (text || "").trim();
+function safeJSON(s) {
+  try { return JSON.parse(s || "{}"); } catch { return null; }
 }
 
-function isProbablyHTML(s) {
-  if (!s) return false;
-  const t = String(s).trim();
-  return (
-    t.startsWith("<!doctype html") ||
-    t.startsWith("<html") ||
-    /<body[\s>]/i.test(t) ||
-    /<main[\s>]/i.test(t) ||
-    /<div[\s>]/i.test(t)
-  );
-}
-
-function wantsWebSearch(input) {
-  const t = String(input || "").toLowerCase();
-  return (
-    t.includes("search") ||
-    t.includes("look up") ||
-    t.includes("latest") ||
-    t.includes("current") ||
-    t.includes("news") ||
-    t.includes("sources") ||
-    t.includes("cite") ||
-    t.includes("references") ||
-    t.includes("with sources")
-  );
-}
-
-function wantsImage(input) {
-  const t = String(input || "").toLowerCase();
-  return (
-    t.includes("generate an image") ||
-    t.includes("create an image") ||
-    t.includes("make an image") ||
-    t.includes("book cover image") ||
-    t.includes("cover image") ||
-    t.includes("poster image") ||
-    t.includes("render an image")
-  );
-}
-
-function normalizeIP(headers) {
-  const xf = headers?.["x-forwarded-for"] || headers?.["X-Forwarded-For"];
-  if (!xf) return "anon";
-  return String(xf).split(",")[0].trim() || "anon";
-}
-
-// Best-effort in-memory usage counter (resets on cold starts)
-const MEMORY =
-  globalThis.__SIMO_MEMORY__ ||
-  (globalThis.__SIMO_MEMORY__ = {
-    usage: new Map(), // key -> {count, ts}
-  });
-
-function getUsage(key) {
-  const v = MEMORY.usage.get(key);
-  if (!v) return { count: 0, ts: Date.now() };
-  const age = Date.now() - v.ts;
-  if (age > 24 * 60 * 60 * 1000) return { count: 0, ts: Date.now() };
-  return v;
-}
-
-function bumpUsage(key) {
-  const v = getUsage(key);
-  const next = { count: (v.count || 0) + 1, ts: v.ts || Date.now() };
-  MEMORY.usage.set(key, next);
-  return next.count;
-}
-
-async function callOpenAI({ apiKey, payload }) {
-  const r = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const raw = await r.text();
-  let j;
-  try {
-    j = JSON.parse(raw);
-  } catch {
-    return { ok: false, status: r.status, error: "OpenAI returned non-JSON", raw: raw.slice(0, 800) };
-  }
-
-  if (!r.ok) {
-    return { ok: false, status: r.status, error: j?.error?.message || "OpenAI API error", details: j };
-  }
-  return { ok: true, status: r.status, json: j };
-}
-
-async function moderate({ apiKey, input }) {
-  const r = await fetch("https://api.openai.com/v1/moderations", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ model: "omni-moderation-latest", input }),
-  });
-
-  const raw = await r.text();
-  let j;
-  try {
-    j = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: "Moderation returned non-JSON", raw: raw.slice(0, 400) };
-  }
-
-  if (!r.ok) return { ok: false, error: j?.error?.message || "Moderation error" };
-
-  const res = j?.results?.[0];
-  return { ok: true, flagged: !!res?.flagged, detail: res };
-}
-
-async function generateImageBase64({ apiKey, prompt }) {
-  // If your account/model doesn’t support this, we fail soft.
-  const r = await fetch("https://api.openai.com/v1/images", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "gpt-image-1",
-      prompt,
-      size: "1024x1024",
-    }),
-  });
-
-  const raw = await r.text();
-  let j;
-  try {
-    j = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: "images non-json", raw: raw.slice(0, 800) };
-  }
-
-  if (!r.ok) return { ok: false, error: j?.error?.message || "images api error", details: j };
-
-  const b64 = j?.data?.[0]?.b64_json;
-  if (!b64) return { ok: false, error: "No b64_json returned from images API." };
-  return { ok: true, b64 };
-}
-
-function escapeHtml(s) {
-  return String(s || "")
+function escapeHTML(s) {
+  return String(s)
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -185,182 +99,217 @@ function escapeHtml(s) {
     .replaceAll("'", "&#039;");
 }
 
-function imageHTMLPage({ title, b64 }) {
-  const img = `data:image/png;base64,${b64}`;
+function parseCommand(input) {
+  const t = input.trim();
+  const lower = t.toLowerCase();
+
+  const m = t.match(/^([a-zA-Z ]+)\s*:\s*(.+)$/);
+  if (m) {
+    const key = m[1].trim().toLowerCase();
+    const val = m[2].trim();
+    if (key === "headline") return { type: "headline", value: val };
+    if (key === "cta") return { type: "cta", value: val };
+    if (key === "price") return { type: "price", value: val.replace(/[^0-9.]/g, "") || val };
+  }
+
+  if (lower === "add faq") return { type: "faq", value: true };
+  if (lower === "remove faq") return { type: "faq", value: false };
+
+  if (lower === "add pricing") return { type: "pricing", value: true };
+  if (lower === "remove pricing") return { type: "pricing", value: false };
+
+  if (lower === "add testimonials") return { type: "testimonials", value: true };
+  if (lower === "remove testimonials") return { type: "testimonials", value: false };
+
+  return { type: "none" };
+}
+
+function replyFor(cmd) {
+  if (cmd.type === "headline") return "Done. Updated headline.";
+  if (cmd.type === "cta") return "Done. Updated CTA.";
+  if (cmd.type === "price") return "Done. Updated price.";
+  if (cmd.type === "faq") return cmd.value ? "Done. Added FAQ." : "Done. Removed FAQ.";
+  if (cmd.type === "pricing") return cmd.value ? "Done. Added pricing." : "Done. Removed pricing.";
+  if (cmd.type === "testimonials") return cmd.value ? "Done. Added testimonials." : "Done. Removed testimonials.";
+  return "Done.";
+}
+
+// ---------- Template + Edits (SAFE, no fragile regex) ----------
+// We embed tiny markers then replace them with plain string replace.
+function applyCommand(html, cmd) {
+  let out = html;
+
+  if (cmd.type === "headline") {
+    out = out.replace("{{HEADLINE}}", escapeHTML(cmd.value));
+    return out;
+  }
+  if (cmd.type === "cta") {
+    out = out.replace("{{CTA}}", escapeHTML(cmd.value));
+    return out;
+  }
+  if (cmd.type === "price") {
+    out = out.replace("{{PRICE}}", escapeHTML(cmd.value));
+    return out;
+  }
+
+  if (cmd.type === "faq") {
+    out = out.replace("{{SHOW_FAQ}}", cmd.value ? "block" : "none");
+    return out;
+  }
+  if (cmd.type === "pricing") {
+    out = out.replace("{{SHOW_PRICING}}", cmd.value ? "block" : "none");
+    return out;
+  }
+  if (cmd.type === "testimonials") {
+    out = out.replace("{{SHOW_TESTIMONIALS}}", cmd.value ? "block" : "none");
+    return out;
+  }
+
+  return out;
+}
+
+function makeLanding(opts) {
+  const headline = escapeHTML(opts.headline || "Get Fit Without Guesswork");
+  const cta = escapeHTML(opts.cta || "Start Your Free Consultation");
+  const price = escapeHTML(opts.price || "29");
+
+  const showFAQ = opts.includeFAQ ? "block" : "none";
+  const showPricing = opts.includePricing ? "block" : "none";
+  const showTestimonials = opts.includeTestimonials ? "block" : "none";
+
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>${escapeHtml(title || "Generated Image")}</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Fitness Coach — Online Coaching</title>
 <style>
-  html,body{height:100%;margin:0}
-  body{display:flex;align-items:center;justify-content:center;background:#0b1020}
-  .frame{width:min(820px,92vw);aspect-ratio:1/1;border-radius:18px;overflow:hidden;
-         box-shadow:0 20px 60px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.14)}
-  img{width:100%;height:100%;object-fit:cover;display:block}
+  :root{
+    --bg:#0b0f14; --card:#101826; --muted:#93a4b8; --text:#eaf1ff;
+    --brand:#6ee7ff; --brand2:#a78bfa; --ok:#34d399;
+    --line:rgba(255,255,255,.10); --r:18px; --shadow: 0 18px 60px rgba(0,0,0,.45);
+    --max:1100px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--text);
+    font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:
+      radial-gradient(1200px 700px at 10% 10%, rgba(110,231,255,.18), transparent 60%),
+      radial-gradient(1100px 700px at 90% 15%, rgba(167,139,250,.16), transparent 55%),
+      radial-gradient(900px 600px at 50% 95%, rgba(52,211,153,.10), transparent 55%),
+      var(--bg);
+    line-height:1.5;
+  }
+  .wrap{max-width:var(--max); margin:0 auto; padding:28px}
+  .card{
+    border:1px solid var(--line);
+    background: rgba(255,255,255,.04);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    padding:18px;
+  }
+  header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 0 18px; border-bottom:1px solid var(--line);
+  }
+  .logo{
+    width:38px; height:38px; border-radius:14px;
+    background:linear-gradient(135deg, rgba(110,231,255,.95), rgba(167,139,250,.95));
+    box-shadow: 0 18px 40px rgba(110,231,255,.18);
+    margin-right:10px;
+  }
+  .brand{display:flex; align-items:center; font-weight:900}
+  h1{margin:0 0 10px; font-size:42px; line-height:1.1}
+  p{margin:0 0 12px; color: var(--muted)}
+  .btn{
+    display:inline-block;
+    padding:12px 14px;
+    border-radius: 14px;
+    border:1px solid rgba(110,231,255,.35);
+    background: linear-gradient(180deg, rgba(110,231,255,.22), rgba(167,139,250,.16));
+    font-weight:900;
+    text-decoration:none;
+  }
+  .grid{display:grid; grid-template-columns: 1.2fr .8fr; gap:16px; margin-top:18px}
+  .section{margin-top:14px}
+  .pricing{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+  .box{padding:16px; border-radius:14px; border:1px solid var(--line); background: rgba(0,0,0,.18)}
+  .price{font-size:34px; font-weight:950; margin:6px 0 10px}
+  .muted{color:var(--muted)}
+  @media (max-width: 900px){ .grid{grid-template-columns: 1fr} .pricing{grid-template-columns:1fr} h1{font-size:34px} }
 </style>
 </head>
 <body>
-  <div class="frame"><img alt="generated" src="${img}"></div>
+<div class="wrap">
+  <header>
+    <div class="brand"><div class="logo"></div>Fitness Coach</div>
+    <div class="muted">1:1 Online Coaching</div>
+  </header>
+
+  <div class="grid">
+    <div class="card">
+      <h1>{{HEADLINE}}</h1>
+      <p>Online coaching for strength, fat loss, and habits that stick—without confusing plans.</p>
+      <a class="btn" href="#lead">{{CTA}}</a>
+    </div>
+
+    <div class="card" id="lead">
+      <h2 style="margin:0 0 10px">Free consult</h2>
+      <p class="muted">Tell me your goal and schedule. I’ll suggest a plan.</p>
+      <form onsubmit="event.preventDefault(); alert('Submitted (demo).');">
+        <input required placeholder="Name" style="width:100%; padding:12px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text); margin:8px 0"/>
+        <input required placeholder="Email" type="email" style="width:100%; padding:12px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text); margin:8px 0"/>
+        <button class="btn" type="submit" style="width:100%; text-align:center; margin-top:10px">Request My Plan</button>
+      </form>
+      <p class="muted" style="font-size:12px; margin-top:10px">No spam. Just your plan.</p>
+    </div>
+  </div>
+
+  <div class="section card" style="display: {{SHOW_TESTIMONIALS}}">
+    <h2 style="margin-top:0">Real results</h2>
+    <p class="muted">“Down 12 lbs, stronger than ever.” — Alex</p>
+    <p class="muted">“Finally stuck to a routine.” — Jordan</p>
+    <p class="muted">“Energy up, cravings down.” — Sam</p>
+  </div>
+
+  <div class="section card" style="display: {{SHOW_PRICING}}">
+    <h2 style="margin-top:0">Pricing</h2>
+    <div class="pricing">
+      <div class="box">
+        <div class="muted" style="font-weight:800">Starter</div>
+        <div class="price">$ {{PRICE}} /mo</div>
+        <div class="muted">Weekly check-ins • Training plan • Habit coaching</div>
+      </div>
+      <div class="box" style="border-color: rgba(110,231,255,.35); box-shadow: 0 0 0 3px rgba(110,231,255,.10)">
+        <div class="muted" style="font-weight:800">1:1 Coaching</div>
+        <div class="price">$ ${Number(opts.price || 29) * 3} /mo</div>
+        <div class="muted">Everything + nutrition guidance + messaging support</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section card" style="display: {{SHOW_FAQ}}">
+    <h2 style="margin-top:0">FAQ</h2>
+    <p class="muted"><b>Beginners?</b> Yes—programs scale to your level.</p>
+    <p class="muted"><b>Need a gym?</b> No—home or gym plans.</p>
+    <p class="muted"><b>Results?</b> Stronger in 2–3 weeks, visible change 4–8 weeks.</p>
+  </div>
+
+  <footer class="muted" style="text-align:center; padding:18px 0">© ${new Date().getFullYear()} Fitness Coach • Built with Simo</footer>
+</div>
+
+<script>
+// Replace markers once on load (safe)
+document.body.innerHTML = document.body.innerHTML
+  .replace('{{HEADLINE}}', '${headline}')
+  .replace('{{CTA}}', '${cta}')
+  .replace('{{PRICE}}', '${price}')
+  .replace('{{SHOW_FAQ}}', '${showFAQ}')
+  .replace('{{SHOW_PRICING}}', '${showPricing}')
+  .replace('{{SHOW_TESTIMONIALS}}', '${showTestimonials}');
+</script>
+
 </body>
 </html>`;
 }
-
-function extractJsonObject(s) {
-  if (!s) return null;
-  const t = String(s).trim();
-  try {
-    return JSON.parse(t);
-  } catch {}
-  const first = t.indexOf("{");
-  const last = t.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    const maybe = t.slice(first, last + 1);
-    try {
-      return JSON.parse(maybe);
-    } catch {}
-  }
-  return null;
-}
-
-exports.handler = async (event) => {
-  if (event.httpMethod !== "POST") return json(405, { ok: false, error: "Use POST" });
-
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return json(500, { ok: false, error: "Missing OPENAI_API_KEY in Netlify env vars." });
-
-  let data = {};
-  try {
-    data = JSON.parse(event.body || "{}");
-  } catch {}
-
-  const input = String(data.input || "").trim();
-  const history = Array.isArray(data.history) ? data.history : [];
-  const pro = !!data.pro;
-
-  if (!input) return json(200, { ok: true, text: "Tell me what you want to build.", html: "" });
-
-  // Free limit gate (only affects free mode)
-  const FREE_LIMIT = Number(process.env.FREE_LIMIT || "25");
-  const ip = normalizeIP(event.headers || {});
-  const key = `ip:${ip}`;
-  const usage = getUsage(key);
-
-  if (!pro && usage.count >= FREE_LIMIT) {
-    return json(200, {
-      ok: true,
-      text: `You’ve hit the free limit (${FREE_LIMIT}). Upgrade to Pro to keep going and unlock web search + image generation.`,
-      html: "",
-      meta: { free_limit: FREE_LIMIT, used: usage.count },
-    });
-  }
-
-  // Moderation gate (fail soft if moderation fails)
-  const mod = await moderate({ apiKey, input });
-  if (mod.ok && mod.flagged) {
-    bumpUsage(key);
-    return json(200, { ok: true, text: "I can’t help with that request. Try rephrasing it in a safe way.", html: "" });
-  }
-
-  // Image tool path (Pro only)
-  if (wantsImage(input)) {
-    if (!pro) {
-      bumpUsage(key);
-      return json(200, { ok: true, text: "Image generation is Pro. Toggle Pro to unlock it, then try again.", html: "" });
-    }
-
-    const img = await generateImageBase64({ apiKey, prompt: input });
-    bumpUsage(key);
-
-    if (!img.ok) {
-      return json(200, { ok: true, text: `Image generation failed: ${img.error}`, html: "" });
-    }
-
-    const html = imageHTMLPage({ title: "Generated Image", b64: img.b64 });
-    return json(200, { ok: true, text: "Done. I generated the image and put it in the preview.", html });
-  }
-
-  const model = process.env.OPENAI_MODEL || "gpt-5.2";
-
-  const system =
-`You are Simo.
-
-You are NOT a motivational poster.
-You are NOT a therapist.
-You are the user’s best-friend vibe assistant + builder.
-
-Tone:
-- Calm, grounded, direct.
-- No clichés (“you’ve got this”, “every masterpiece starts somewhere”).
-- Validate briefly, then offer ONE practical next step.
-- Emotional support under 6 sentences unless asked.
-
-Builder:
-- If user asks to build/design/edit, return complete single-file HTML in "html".
-- If user is just chatting, html must be "".
-- Never include markdown fences in html.
-- Don’t use placeholders like [Your Name] unless user explicitly asked.
-
-If web search tool is available, use it only when the user asks for current info/sources/lookup.`;
-
-  const inputItems = [{ role: "system", content: system }];
-
-  for (const h of history.slice(-12)) {
-    const role = h?.role === "assistant" ? "assistant" : "user";
-    const content = String(h?.content || "").trim();
-    if (content) inputItems.push({ role, content });
-  }
-  inputItems.push({ role: "user", content: input });
-
-  const responseFormat = {
-    type: "json_schema",
-    name: "simo_reply",
-    strict: true,
-    schema: {
-      type: "object",
-      additionalProperties: false,
-      properties: {
-        reply: { type: "string" },
-        html: { type: "string" },
-      },
-      required: ["reply", "html"],
-    },
-  };
-
-  const tools = [];
-  if (pro && wantsWebSearch(input)) tools.push({ type: "web_search" });
-
-  const payload = {
-    model,
-    input: inputItems,
-    text: { format: responseFormat },
-    temperature: 0.7,
-    max_output_tokens: pro ? 1600 : 900,
-    truncation: "auto",
-    ...(tools.length ? { tools } : {}),
-  };
-
-  const res = await callOpenAI({ apiKey, payload });
-  bumpUsage(key);
-
-  if (!res.ok) {
-    // fail soft: do not throw, do not 502
-    const msg = res.error || "Backend error";
-    return json(200, { ok: true, text: `Backend error: ${msg}`, html: "" });
-  }
-
-  const outText = pickAssistantText(res.json);
-  const parsed = extractJsonObject(outText);
-
-  if (!parsed || typeof parsed !== "object") {
-    // If model somehow didn’t return JSON, show text only (no crash)
-    return json(200, { ok: true, text: outText || "Done.", html: "" });
-  }
-
-  const reply = String(parsed.reply || "").trim() || "Done.";
-  const html = String(parsed.html || "").trim();
-  const safeHtml = isProbablyHTML(html) ? html : "";
-
-  return json(200, { ok: true, text: reply, html: safeHtml });
-};
