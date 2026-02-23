@@ -1,10 +1,9 @@
-/* app.js — Simo UI controller (V1.3 FULL STABLE)
-   Guaranteed:
-   - Your typed text will ALWAYS show in chat (chatLog is hard-wired in index.html)
-   - Enter sends, Shift+Enter newline
-   - Backend JSON {reply, html} is parsed correctly (no raw JSON bubble)
-   - Preview iframe updates via srcdoc
-   - Pro toggle verifies key via /.netlify/functions/pro and gates buttons
+/* app.js — Simo UI controller (V1.4 DEBUG-SAFE + STABLE)
+   - Forces POST to /.netlify/functions/simon
+   - Forces JSON body { input, lastHTML }
+   - Never hides errors: prints backend error message in chat
+   - Preview updates whenever html exists
+   - Pro verify still uses /.netlify/functions/pro
 */
 
 (() => {
@@ -28,7 +27,6 @@
   const state = {
     pro: false,
     lastHTML: "",
-    lastReply: "",
     proKey: localStorage.getItem("PRO_KEY") || ""
   };
 
@@ -77,9 +75,9 @@
     state.pro = !!on;
     setStatus(on ? "Pro" : "Ready", true);
 
-    saveBtn.disabled = !on;
-    dlBtn.disabled = !on;
-    libBtn.disabled = !on;
+    if (saveBtn) saveBtn.disabled = !on;
+    if (dlBtn) dlBtn.disabled = !on;
+    if (libBtn) libBtn.disabled = !on;
   }
 
   async function verifyProKey(key) {
@@ -123,40 +121,35 @@
     }
   }
 
-  function safeJSON(text) {
-    try { return JSON.parse(text); } catch { return null; }
-  }
-
   async function callBackend(userText) {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 15000);
+    const payload = { input: userText, lastHTML: state.lastHTML };
 
-    try {
-      const r = await fetch("/.netlify/functions/simon", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: userText, lastHTML: state.lastHTML }),
-        signal: ctrl.signal
-      });
+    console.log("[SIMO] POST /.netlify/functions/simon payload:", payload);
 
-      const raw = await r.text();
-      const obj = safeJSON(raw);
+    const r = await fetch("/.netlify/functions/simon", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-      // Preferred: backend returns JSON with reply/html
-      if (obj && (typeof obj.reply === "string" || typeof obj.html === "string")) {
-        return { reply: (obj.reply || "").toString(), html: (obj.html || "").toString(), raw };
-      }
+    const text = await r.text();
+    console.log("[SIMO] STATUS", r.status, "RAW:", text.slice(0, 300));
 
-      // Fallback: backend returns pure HTML or pure text
-      const looksLikeHTML = raw.includes("<!doctype") || raw.includes("<html");
+    // Always try to parse JSON
+    let data = null;
+    try { data = JSON.parse(text); } catch {}
+
+    if (!data) {
+      // Not JSON — treat as error, show raw snippet
       return {
-        reply: looksLikeHTML ? "Done. I updated the preview on the right." : raw,
-        html: looksLikeHTML ? raw : "",
-        raw
+        ok: false,
+        reply: "Backend returned non-JSON response.",
+        html: "",
+        error: text.slice(0, 300)
       };
-    } finally {
-      clearTimeout(t);
     }
+
+    return data;
   }
 
   async function onSend() {
@@ -168,17 +161,26 @@
 
     try {
       setStatus("Thinking…", true);
+
       const res = await callBackend(text);
 
-      const reply = (res.reply || "").trim() || "Done.";
-      addMsg("Simo", reply);
-      state.lastReply = reply;
+      // If backend indicates error, show it clearly
+      if (!res.ok) {
+        addMsg("Simo", res.reply || "Backend error.");
+        if (res.error) addMsg("Simo", "Error details: " + String(res.error).slice(0, 220));
+        setStatus("Error", false);
+        return;
+      }
 
-      if (res.html && res.html.trim()) setPreviewHTML(res.html);
+      addMsg("Simo", (res.reply || "Done.").trim());
+
+      if (res.html && String(res.html).trim()) {
+        setPreviewHTML(res.html);
+      }
 
       setStatus(state.pro ? "Pro" : "Ready", true);
-    } catch {
-      addMsg("Simo", "Something failed. Try again.");
+    } catch (e) {
+      addMsg("Simo", "Request failed: " + String(e && e.message ? e.message : e));
       setStatus("Error", false);
     }
   }
@@ -190,64 +192,29 @@
     setStatus(state.pro ? "Pro" : "Ready", true);
   }
 
-  // Pro buttons (simple placeholders — won’t break anything)
-  function downloadHTML() {
-    if (!state.pro) return;
-    if (!state.lastHTML.trim()) return alert("No HTML to download yet.");
-    const blob = new Blob([state.lastHTML], { type: "text/html" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "simo-build.html";
-    a.click();
-    URL.revokeObjectURL(a.href);
+  // Buttons
+  if (sendBtn) sendBtn.addEventListener("click", onSend);
+  if (resetBtn) resetBtn.addEventListener("click", onReset);
+
+  if (input) {
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        onSend();
+      }
+    });
   }
 
-  function saveBuild() {
-    if (!state.pro) return;
-    if (!state.lastHTML.trim()) return alert("No HTML to save yet.");
-    const name = prompt("Save name:", "Build " + new Date().toLocaleString());
-    if (!name) return;
-    const items = JSON.parse(localStorage.getItem("SIMO_LIBRARY") || "[]");
-    items.unshift({ name, html: state.lastHTML, ts: Date.now() });
-    localStorage.setItem("SIMO_LIBRARY", JSON.stringify(items.slice(0, 50)));
-    alert("Saved.");
+  if (proToggle) {
+    proToggle.addEventListener("change", async () => {
+      if (proToggle.checked) {
+        const ok = await ensureProOn();
+        if (!ok) proToggle.checked = false;
+      } else {
+        setProUI(false);
+      }
+    });
   }
-
-  function openLibrary() {
-    if (!state.pro) return;
-    const items = JSON.parse(localStorage.getItem("SIMO_LIBRARY") || "[]");
-    if (!items.length) return alert("Library is empty.");
-    const list = items.map((x, i) => `${i + 1}. ${x.name}`).join("\n");
-    const pick = prompt("Choose a number:\n\n" + list);
-    const idx = parseInt(pick, 10) - 1;
-    if (!Number.isFinite(idx) || !items[idx]) return;
-    setPreviewHTML(items[idx].html || "");
-    addMsg("Simo", `Loaded: ${items[idx].name}`);
-  }
-
-  // Wiring
-  sendBtn.addEventListener("click", onSend);
-  resetBtn.addEventListener("click", onReset);
-
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      onSend();
-    }
-  });
-
-  proToggle.addEventListener("change", async () => {
-    if (proToggle.checked) {
-      const ok = await ensureProOn();
-      if (!ok) proToggle.checked = false;
-    } else {
-      setProUI(false);
-    }
-  });
-
-  dlBtn.addEventListener("click", downloadHTML);
-  saveBtn.addEventListener("click", saveBuild);
-  libBtn.addEventListener("click", openLibrary);
 
   // Boot
   setProUI(false);
