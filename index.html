@@ -1,269 +1,417 @@
-<!doctype html>
+// netlify/functions/simon.js
+// Simo backend (V1 STABLE) — always returns JSON: { reply, html }
+// No external API required. Deterministic builder + editor commands.
+
+exports.handler = async (event) => {
+  try {
+    if (event.httpMethod !== "POST") {
+      return json(405, { ok: false, error: "Use POST" });
+    }
+
+    const body = safeParse(event.body) || {};
+    const input = String(body.input || body.message || "").trim();
+
+    if (!input) {
+      return json(200, { ok: true, reply: "Say something and I’ll respond.", html: "" });
+    }
+
+    // Simple “brain” responses (keeps it from acting dead)
+    const lower = input.toLowerCase();
+
+    // You can store last build in client localStorage, but backend can still help with edits
+    // We'll generate based on commands.
+    const isBuild =
+      lower.startsWith("build ") ||
+      lower.includes("build a landing page") ||
+      lower.includes("landing page");
+
+    // ---------- COMMAND PARSER ----------
+    // Supported commands (user types):
+    // headline: ...
+    // cta: ...
+    // price: 29
+    // add faq / remove faq
+    // add testimonials / remove testimonials
+    // add pricing / remove pricing
+    const cmd = parseCommand(input);
+
+    // If user is asking to build, generate a full page
+    if (isBuild) {
+      const page = makeLanding({
+        headline: "Get Fit Without Guesswork",
+        subhead: "Online coaching that builds strength, burns fat, and makes the habits stick—without confusing plans.",
+        cta: "Start Your Free Consultation",
+        price: "29",
+        includeFAQ: true,
+        includePricing: true,
+        includeTestimonials: true,
+        coach: "Fitness Coach",
+        offer: "1:1 Online Coaching",
+      });
+
+      return json(200, {
+        ok: true,
+        reply:
+          "Done. I built a landing page and updated the preview on the right.\n\nTry edits like:\n- headline: …\n- cta: …\n- price: 29\n- add/remove faq\n- add/remove pricing\n- add/remove testimonials",
+        html: page,
+      });
+    }
+
+    // If user sent an edit command, return updated HTML built from the edit
+    if (cmd.type !== "none") {
+      // We need a base page. If the client passes lastHTML, use it.
+      // Otherwise generate a default base page and apply edits.
+      const baseHTML = String(body.lastHTML || "").trim() || makeLanding({
+        headline: "Get Fit Without Guesswork",
+        subhead: "Online coaching that builds strength, burns fat, and makes the habits stick—without confusing plans.",
+        cta: "Start Your Free Consultation",
+        price: "29",
+        includeFAQ: true,
+        includePricing: true,
+        includeTestimonials: true,
+        coach: "Fitness Coach",
+        offer: "1:1 Online Coaching",
+      });
+
+      const updated = applyEdit(baseHTML, cmd);
+
+      return json(200, {
+        ok: true,
+        reply: replyForCommand(cmd),
+        html: updated,
+      });
+    }
+
+    // Normal chat response (not blank, not “Done.”)
+    if (lower === "hello" || lower === "hi" || lower === "hey") {
+      return json(200, {
+        ok: true,
+        reply: "Hey — what are we doing today? Build something, fix something, or just talk?",
+        html: "",
+      });
+    }
+
+    return json(200, {
+      ok: true,
+      reply:
+        "Got it. If you want a page, say: “build a landing page for a fitness coach”.\nOr edit a build with: headline: … / cta: … / price: …",
+      html: "",
+    });
+  } catch (err) {
+    // Always return JSON (never empty, never crash the UI)
+    return json(200, {
+      ok: false,
+      reply: "Backend error, but I’m still here. Try again.",
+      html: "",
+      error: String(err && err.message ? err.message : err),
+    });
+  }
+};
+
+function json(statusCode, obj) {
+  return {
+    statusCode,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+    body: JSON.stringify(obj),
+  };
+}
+
+function safeParse(s) {
+  try {
+    return JSON.parse(s || "{}");
+  } catch {
+    return null;
+  }
+}
+
+function parseCommand(input) {
+  const t = input.trim();
+  const lower = t.toLowerCase();
+
+  // key:value commands
+  const m = t.match(/^([a-zA-Z ]+)\s*:\s*(.+)$/);
+  if (m) {
+    const key = m[1].trim().toLowerCase();
+    const val = m[2].trim();
+
+    if (key === "headline") return { type: "headline", value: val };
+    if (key === "cta") return { type: "cta", value: val };
+    if (key === "price") return { type: "price", value: val.replace(/[^0-9.]/g, "") || val };
+  }
+
+  // toggle blocks
+  if (lower === "add faq") return { type: "faq", value: true };
+  if (lower === "remove faq") return { type: "faq", value: false };
+
+  if (lower === "add pricing") return { type: "pricing", value: true };
+  if (lower === "remove pricing") return { type: "pricing", value: false };
+
+  if (lower === "add testimonials") return { type: "testimonials", value: true };
+  if (lower === "remove testimonials") return { type: "testimonials", value: false };
+
+  return { type: "none" };
+}
+
+function replyForCommand(cmd) {
+  switch (cmd.type) {
+    case "headline": return "Done. Updated the headline.";
+    case "cta": return "Done. Updated the CTA.";
+    case "price": return "Done. Updated the price.";
+    case "faq": return cmd.value ? "Done. Added FAQ." : "Done. Removed FAQ.";
+    case "pricing": return cmd.value ? "Done. Added pricing." : "Done. Removed pricing.";
+    case "testimonials": return cmd.value ? "Done. Added testimonials." : "Done. Removed testimonials.";
+    default: return "Done.";
+  }
+}
+
+// Applies edits by replacing marked placeholders in the HTML.
+// The template below includes markers like: <!--HEADLINE--> etc.
+function applyEdit(html, cmd) {
+  let out = html;
+
+  if (cmd.type === "headline") out = out.replace(/<!--HEADLINE-->[\s\S]*?<!--\/HEADLINE-->/, `<!--HEADLINE-->${escapeHtml(cmd.value)}<!--/HEADLINE-->`);
+  if (cmd.type === "cta") out = out.replace(/<!--CTA-->[\s\S]*?<!--\/CTA-->/, `<!--CTA-->${escapeHtml(cmd.value)}<!--/CTA-->`);
+  if (cmd.type === "price") out = out.replace(/<!--PRICE-->[\s\S]*?<!--\/PRICE-->/, `<!--PRICE-->${escapeHtml(cmd.value)}<!--/PRICE-->`);
+
+  if (cmd.type === "faq") out = toggleSection(out, "FAQ", cmd.value);
+  if (cmd.type === "pricing") out = toggleSection(out, "PRICING", cmd.value);
+  if (cmd.type === "testimonials") out = toggleSection(out, "TESTIMONIALS", cmd.value);
+
+  return out;
+}
+
+function toggleSection(html, name, on) {
+  const start = `<!--SECTION:${name}:START-->`;
+  const end = `<!--SECTION:${name}:END-->`;
+
+  const re = new RegExp(`${escapeReg(start)}([\\s\\S]*?)${escapeReg(end)}`, "m");
+  const m = html.match(re);
+  if (!m) return html;
+
+  const inner = m[1];
+  const hidden = `<!--HIDDEN:${name}:START-->${inner}<!--HIDDEN:${name}:END-->`;
+
+  // If turning OFF: wrap content as hidden
+  if (!on) {
+    // already hidden?
+    if (html.includes(`<!--HIDDEN:${name}:START-->`)) return html;
+    return html.replace(re, `${start}${hidden}${end}`);
+  }
+
+  // If turning ON: unhide if hidden exists
+  const reh = new RegExp(`<!--HIDDEN:${name}:START-->([\\s\\S]*?)<!--HIDDEN:${name}:END-->`, "m");
+  if (reh.test(html)) {
+    return html.replace(re, `${start}$1${end}`).replace(reh, "$1");
+  }
+  return html;
+}
+
+function escapeReg(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function makeLanding(opts) {
+  const {
+    headline, subhead, cta, price,
+    includeFAQ, includePricing, includeTestimonials,
+    coach, offer
+  } = opts;
+
+  // Markers allow reliable string edits with applyEdit()
+  const faq = `
+<!--SECTION:FAQ:START-->
+<section class="card">
+  <h2>FAQ</h2>
+  <details><summary>Is this good for beginners?</summary><p>Yes — plans are adjusted to your level and schedule.</p></details>
+  <details><summary>Do I need a gym?</summary><p>No. Gym or home programs are available.</p></details>
+  <details><summary>How fast will I see results?</summary><p>Most people feel stronger in 2–3 weeks and see visible change in 4–8 weeks.</p></details>
+</section>
+<!--SECTION:FAQ:END-->`;
+
+  const pricing = `
+<!--SECTION:PRICING:START-->
+<section class="card">
+  <h2>Pricing</h2>
+  <div class="pricing">
+    <div class="priceBox">
+      <div class="plan">Starter</div>
+      <div class="price">$<!--PRICE-->${escapeHtml(price)}<!--/PRICE-->/mo</div>
+      <ul>
+        <li>Weekly check-ins</li>
+        <li>Training plan</li>
+        <li>Habit coaching</li>
+      </ul>
+      <a class="btn" href="#lead">Choose Starter</a>
+    </div>
+    <div class="priceBox highlight">
+      <div class="plan">1:1 Coaching</div>
+      <div class="price">$${escapeHtml(String(Number(price || 29) * 3))}/mo</div>
+      <ul>
+        <li>Everything in Starter</li>
+        <li>Nutrition guidance</li>
+        <li>Messaging support</li>
+      </ul>
+      <a class="btn" href="#lead">Go 1:1</a>
+    </div>
+  </div>
+</section>
+<!--SECTION:PRICING:END-->`;
+
+  const testimonials = `
+<!--SECTION:TESTIMONIALS:START-->
+<section class="card">
+  <h2>Real results</h2>
+  <div class="grid3">
+    <div class="quote">“Down 12 lbs, stronger than ever. Simple plan, no confusion.” <span>— Alex</span></div>
+    <div class="quote">“I finally stuck to a routine. Weekly check-ins kept me honest.” <span>— Jordan</span></div>
+    <div class="quote">“My energy is up, cravings are down. This actually feels sustainable.” <span>— Sam</span></div>
+  </div>
+</section>
+<!--SECTION:TESTIMONIALS:END-->`;
+
+  const html = `<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Simo</title>
-  <meta name="color-scheme" content="dark" />
-  <style>
-    :root{
-      --bg:#0b1020; --panel:#0f1730; --card:#101a34;
-      --text:#eaf0ff; --muted:#a9b6d3;
-      --line:rgba(255,255,255,.10);
-      --btn:#2a66ff; --btn2:#1f4dd6;
-      --good:#39ff7a; --bad:#ff4d4d;
-      --shadow:0 14px 34px rgba(0,0,0,.35);
-      --r:18px;
-    }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      background:
-        radial-gradient(1200px 700px at 10% 10%, rgba(42,102,255,.22), transparent 60%),
-        radial-gradient(900px 600px at 90% 15%, rgba(57,255,122,.14), transparent 55%),
-        radial-gradient(900px 600px at 50% 95%, rgba(167,139,250,.14), transparent 55%),
-        var(--bg);
-      color:var(--text);
-      overflow:hidden;
-    }
-    .topbar{
-      height:68px;
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      padding:14px 18px;
-      border-bottom:1px solid var(--line);
-      background:rgba(10,16,34,.55);
-      backdrop-filter: blur(10px);
-    }
-    .brand{
-      display:flex; gap:12px; align-items:center;
-      font-weight:800;
-    }
-    .logo{
-      width:38px; height:38px; border-radius:14px;
-      background:linear-gradient(135deg, rgba(42,102,255,.95), rgba(57,255,122,.85));
-      box-shadow: 0 14px 30px rgba(42,102,255,.25);
-    }
-    .subtitle{font-weight:600; font-size:12px; color:var(--muted); margin-top:2px}
-    .right{
-      display:flex; align-items:center; gap:14px;
-      font-weight:700; color:var(--muted);
-    }
-    .pill{
-      border:1px solid var(--line);
-      background:rgba(255,255,255,.05);
-      padding:10px 12px;
-      border-radius:999px;
-      display:flex; align-items:center; gap:10px;
-      box-shadow: var(--shadow);
-    }
-    .switch{
-      display:flex; align-items:center; gap:10px;
-    }
-    .switch input{
-      width:44px; height:24px; appearance:none; outline:none; cursor:pointer;
-      background: rgba(255,255,255,.12);
-      border:1px solid var(--line);
-      border-radius:999px;
-      position:relative;
-      transition:.18s ease;
-    }
-    .switch input:before{
-      content:"";
-      width:18px; height:18px;
-      border-radius:999px;
-      background: rgba(255,255,255,.85);
-      position:absolute; top:50%; left:3px;
-      transform: translateY(-50%);
-      transition:.18s ease;
-    }
-    .switch input:checked{
-      background: rgba(57,255,122,.25);
-      border-color: rgba(57,255,122,.35);
-      box-shadow: 0 0 0 3px rgba(57,255,122,.10);
-    }
-    .switch input:checked:before{ left:22px; background: rgba(57,255,122,.95); }
-    .status{
-      display:flex; align-items:center; gap:10px;
-    }
-    .dot{
-      width:10px; height:10px; border-radius:999px;
-      background: var(--muted);
-      box-shadow: 0 0 0 3px rgba(255,255,255,.06);
-    }
-    .status.ok .dot{ background: var(--good); box-shadow: 0 0 0 3px rgba(57,255,122,.12); }
-    .status.bad .dot{ background: var(--bad); box-shadow: 0 0 0 3px rgba(255,77,77,.12); }
-
-    .main{
-      height: calc(100% - 68px);
-      display:grid;
-      grid-template-columns: 1.05fr .95fr;
-      gap:14px;
-      padding:14px;
-    }
-    .panel{
-      border:1px solid var(--line);
-      border-radius: var(--r);
-      background: rgba(255,255,255,.04);
-      box-shadow: var(--shadow);
-      overflow:hidden;
-      display:flex; flex-direction:column;
-      min-height:0;
-    }
-    .panelHead{
-      padding:12px 14px;
-      display:flex; align-items:center; justify-content:space-between;
-      border-bottom:1px solid var(--line);
-      background: rgba(16,26,52,.35);
-      font-weight:800;
-    }
-    .hint{font-weight:600; color:var(--muted); font-size:12px}
-
-    /* Chat */
-    #chatLog{
-      flex:1;
-      overflow:auto;
-      padding:14px;
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      min-height:0;
-    }
-    .msg .who{font-size:12px; color:var(--muted); margin:0 0 6px 6px; font-weight:700}
-    .bubble{
-      border:1px solid var(--line);
-      border-radius: 16px;
-      padding:12px 14px;
-      background: rgba(255,255,255,.04);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-    .you .bubble{ background: rgba(42,102,255,.12); border-color: rgba(42,102,255,.25); }
-    .simo .bubble{ background: rgba(255,255,255,.04); }
-
-    .composer{
-      border-top:1px solid var(--line);
-      padding:12px;
-      display:flex; gap:10px; align-items:flex-end;
-      background: rgba(16,26,52,.25);
-    }
-    #userInput{
-      flex:1;
-      min-height:44px;
-      max-height:140px;
-      resize:vertical;
-      border-radius: 14px;
-      border:1px solid var(--line);
-      background: rgba(0,0,0,.18);
-      color: var(--text);
-      padding:12px 12px;
-      outline:none;
-      font-size:14px;
-    }
-    .btn{
-      height:44px;
-      padding:0 14px;
-      border-radius: 14px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.06);
-      color: var(--text);
-      font-weight:800;
-      cursor:pointer;
-      transition:.15s ease;
-    }
-    .btn.primary{
-      background: linear-gradient(180deg, var(--btn), var(--btn2));
-      border-color: rgba(42,102,255,.4);
-      box-shadow: 0 16px 34px rgba(42,102,255,.22);
-    }
-    .btn:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-      box-shadow:none;
-    }
-
-    /* Preview */
-    #previewFrame{
-      width:100%;
-      height:100%;
-      border:0;
-      background: transparent;
-    }
-    .previewEmpty{
-      flex:1;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      color: rgba(233,241,255,.55);
-      font-weight:700;
-      padding:24px;
-      text-align:center;
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(coach)} — ${escapeHtml(offer)}</title>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#101826; --muted:#93a4b8; --text:#eaf1ff;
+    --brand:#6ee7ff; --brand2:#a78bfa; --ok:#34d399;
+    --line:rgba(255,255,255,.10); --r:18px; --shadow: 0 18px 60px rgba(0,0,0,.45);
+    --max:1100px;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--text);
+    font-family: ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:
+      radial-gradient(1200px 700px at 10% 10%, rgba(110,231,255,.18), transparent 60%),
+      radial-gradient(1100px 700px at 90% 15%, rgba(167,139,250,.16), transparent 55%),
+      radial-gradient(900px 600px at 50% 95%, rgba(52,211,153,.10), transparent 55%),
+      var(--bg);
+    line-height:1.5;
+  }
+  a{color:inherit}
+  .wrap{max-width:var(--max); margin:0 auto; padding:28px}
+  header{
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    padding:14px 0 18px; border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:center; gap:12px; font-weight:900}
+  .logo{
+    width:38px; height:38px; border-radius:14px;
+    background:linear-gradient(135deg, rgba(110,231,255,.95), rgba(167,139,250,.95));
+    box-shadow: 0 18px 40px rgba(110,231,255,.18);
+  }
+  .pill{
+    padding:10px 12px; border-radius:999px; border:1px solid var(--line);
+    background: rgba(255,255,255,.04);
+    color: var(--muted); font-weight:700;
+  }
+  .hero{
+    padding:28px 0 8px;
+    display:grid; grid-template-columns: 1.2fr .8fr; gap:18px;
+  }
+  .card{
+    border:1px solid var(--line);
+    background: rgba(255,255,255,.04);
+    border-radius: var(--r);
+    box-shadow: var(--shadow);
+    padding:18px;
+  }
+  h1{margin:0 0 10px; font-size:42px; line-height:1.1}
+  p{margin:0 0 12px; color: var(--muted)}
+  .btn{
+    display:inline-block;
+    padding:12px 14px;
+    border-radius: 14px;
+    border:1px solid rgba(110,231,255,.35);
+    background: linear-gradient(180deg, rgba(110,231,255,.22), rgba(167,139,250,.16));
+    font-weight:900;
+    text-decoration:none;
+  }
+  .points{display:grid; gap:10px; margin-top:14px}
+  .pt{display:flex; gap:10px; align-items:flex-start; color: var(--muted)}
+  .dot{width:10px; height:10px; border-radius:99px; background: var(--ok); margin-top:6px}
+  .grid3{display:grid; grid-template-columns: repeat(3, 1fr); gap:12px}
+  .quote{padding:14px; border-radius:14px; border:1px solid var(--line); background: rgba(0,0,0,.18); color: var(--muted)}
+  .quote span{color: var(--text); font-weight:800}
+  .pricing{display:grid; grid-template-columns: 1fr 1fr; gap:12px}
+  .priceBox{padding:16px; border-radius:14px; border:1px solid var(--line); background: rgba(0,0,0,.18)}
+  .priceBox.highlight{border-color: rgba(110,231,255,.35); box-shadow: 0 0 0 3px rgba(110,231,255,.10)}
+  .plan{color: var(--muted); font-weight:800}
+  .price{font-size:34px; font-weight:950; margin:6px 0 10px}
+  ul{margin:0; padding-left:18px; color: var(--muted)}
+  details{border:1px solid var(--line); border-radius:14px; padding:12px 12px; background: rgba(0,0,0,.18); margin:10px 0}
+  summary{cursor:pointer; font-weight:900; color: var(--text)}
+  footer{padding:18px 0; color: var(--muted); text-align:center}
+  @media (max-width: 900px){
+    .hero{grid-template-columns: 1fr}
+    .grid3{grid-template-columns: 1fr}
+    .pricing{grid-template-columns: 1fr}
+    h1{font-size:34px}
+  }
+</style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">
-      <div class="logo"></div>
-      <div>
-        <div style="font-size:18px">Simo</div>
-        <div class="subtitle">Chat + Build + Preview</div>
-      </div>
-    </div>
+  <div class="wrap">
+    <header>
+      <div class="brand"><div class="logo"></div>${escapeHtml(coach)}</div>
+      <div class="pill">${escapeHtml(offer)}</div>
+    </header>
 
-    <div class="right">
-      <div class="pill switch">
-        <span style="color:var(--text)">PRO</span>
-        <input id="proToggle" type="checkbox" />
+    <section class="hero">
+      <div class="card">
+        <h1><!--HEADLINE-->${escapeHtml(headline)}<!--/HEADLINE--></h1>
+        <p>${escapeHtml(subhead)}</p>
+        <a class="btn" href="#lead"><!--CTA-->${escapeHtml(cta)}<!--/CTA--></a>
+
+        <div class="points">
+          <div class="pt"><div class="dot"></div><div>Training plan tailored to your schedule</div></div>
+          <div class="pt"><div class="dot"></div><div>Habit system that makes consistency easy</div></div>
+          <div class="pt"><div class="dot"></div><div>Weekly check-ins + accountability</div></div>
+        </div>
       </div>
 
-      <div class="pill status ok" id="statusWrap">
-        <div class="dot"></div>
-        <div>Status</div>
-        <div id="status" style="color:var(--good)">Ready</div>
+      <div class="card" id="lead">
+        <h2 style="margin:0 0 10px">Free consult</h2>
+        <p>Tell me your goal and your schedule. I’ll suggest the best plan.</p>
+        <form onsubmit="event.preventDefault(); alert('Submitted (demo).');">
+          <input required placeholder="Name" style="width:100%; padding:12px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text); margin:8px 0"/>
+          <input required placeholder="Email" type="email" style="width:100%; padding:12px; border-radius:14px; border:1px solid var(--line); background:rgba(0,0,0,.18); color:var(--text); margin:8px 0"/>
+          <button class="btn" type="submit" style="width:100%; text-align:center; margin-top:10px">Request My Plan</button>
+        </form>
+        <p style="margin-top:10px; font-size:12px">No spam. Just your plan.</p>
       </div>
-    </div>
+    </section>
+
+    ${includeTestimonials ? testimonials : ""}
+    ${includePricing ? pricing : ""}
+    ${includeFAQ ? faq : ""}
+
+    <footer>© ${new Date().getFullYear()} ${escapeHtml(coach)} • Built with Simo</footer>
   </div>
-
-  <div class="main">
-    <!-- Chat Panel -->
-    <div class="panel">
-      <div class="panelHead">
-        <div>Chat</div>
-        <div class="hint">Enter to send • Shift+Enter newline</div>
-      </div>
-
-      <div id="chatLog"></div>
-
-      <div class="composer">
-        <textarea id="userInput" placeholder="Type here…"></textarea>
-        <button class="btn" id="resetBtn" type="button">Reset</button>
-        <button class="btn primary" id="sendBtn" type="button">Send</button>
-
-        <button class="btn" id="saveBtn" type="button" disabled>Save</button>
-        <button class="btn" id="downloadBtn" type="button" disabled>Download</button>
-        <button class="btn" id="libraryBtn" type="button" disabled>Library</button>
-      </div>
-    </div>
-
-    <!-- Preview Panel -->
-    <div class="panel">
-      <div class="panelHead">
-        <div>Preview</div>
-        <div class="hint">Updates automatically when HTML exists</div>
-      </div>
-
-      <div class="previewEmpty" id="previewEmpty">
-        No HTML yet. Ask for a build (example: “build a landing page for a fitness coach”).
-      </div>
-
-      <iframe id="previewFrame" title="Preview" style="display:none"></iframe>
-    </div>
-  </div>
-
-  <script defer src="./app.js"></script>
 </body>
-</html>
+</html>`;
+
+  // If user asked to exclude sections initially:
+  let out = html;
+  if (!includeFAQ) out = applyEdit(out, { type: "faq", value: false });
+  if (!includePricing) out = applyEdit(out, { type: "pricing", value: false });
+  if (!includeTestimonials) out = applyEdit(out, { type: "testimonials", value: false });
+  return out;
+}
