@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build"
+  command = "echo 'No build needed - simple HTML site'"
   publish = "."
   functions = "netlify/functions"
 
