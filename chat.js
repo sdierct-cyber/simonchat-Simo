@@ -48,7 +48,7 @@ sendBtn.addEventListener("click", async () => {
 
   // Check Pro key
   if (userText.toUpperCase().includes("SIMO-PRO-2026") || userText.toUpperCase().includes("KEY")) {
-    const res = await fetch("/.netlify/functions/verify-pro", {
+    const response = await fetch("/.netlify/functions/pro", {
       method: "POST",
       body: JSON.stringify({ key: userText.toUpperCase().replace(/[^A-Z0-9-]/g, "") })
     });
