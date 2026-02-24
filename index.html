@@ -3,152 +3,155 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>simonchat.ai • Simo</title>
+  <title>Simo • Chat + Builder</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: system-ui, -apple-system, sans-serif; }
-    .chat-scroll { scrollbar-width: thin; scrollbar-color: #334155 #1e2937; }
+    body { font-family: system-ui, sans-serif; }
+    .chat-scroll { scrollbar-width: thin; scrollbar-color: #475569 #0f172a; }
     .chat-scroll::-webkit-scrollbar { width: 6px; }
     .chat-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-    #preview-area { box-shadow: 0 10px 30px -10px rgb(0 0 0 / 0.3); }
+    .disabled { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
   </style>
 </head>
-<body class="bg-[#0f172a] text-slate-100 overflow-hidden">
-  <div class="flex h-screen">
-    <!-- LEFT CHAT -->
-    <div class="flex-1 flex flex-col border-r border-slate-800 bg-[#0f172a]">
-      <!-- Top bar -->
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-xl">S</div>
-          <div>
-            <div class="font-bold text-xl">Simo</div>
-          </div>
-        </div>
-        <div id="left-badge" 
-             class="px-6 py-1.5 bg-slate-700 text-slate-300 rounded-3xl text-sm font-medium">
-          Free Ready
-        </div>
+<body class="bg-[#0f172a] text-slate-100 h-screen overflow-hidden flex">
+  <!-- Left: Chat -->
+  <div class="flex-1 flex flex-col border-r border-slate-800">
+    <!-- Header -->
+    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-md">S</div>
+        <span class="text-xl font-bold">Simo</span>
       </div>
-
-      <!-- Messages -->
-      <div id="chat-messages" class="flex-1 p-6 overflow-y-auto chat-scroll space-y-4 bg-[#0f172a]"></div>
-
-      <!-- Input + Buttons -->
-      <div class="p-6 border-t border-slate-800 bg-[#0f172a]">
-        <div class="flex gap-3">
-          <input id="user-input" type="text" placeholder="Ask Simo anything..."
-                 class="flex-1 bg-[#1e2937] border border-slate-600 rounded-3xl px-6 py-4 text-base focus:outline-none focus:border-blue-500">
-          <button onclick="sendMessage()" 
-                  class="bg-blue-600 hover:bg-blue-500 px-10 rounded-3xl font-medium">Send</button>
-        </div>
-        <div class="mt-5 flex gap-3 justify-center">
-          <button onclick="savePreview()" 
-                  class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-3xl text-sm font-medium">Save</button>
-          <button onclick="downloadPreview()" 
-                  class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-3xl text-sm font-medium">Download</button>
-          <button onclick="openLibrary()" 
-                  class="flex-1 bg-slate-700 hover:bg-slate-600 py-3 rounded-3xl text-sm font-medium">Library</button>
-        </div>
+      <div id="left-badge" class="px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium">
+        Free Ready
       </div>
     </div>
 
-    <!-- RIGHT LIVE PREVIEW -->
-    <div class="flex-1 flex flex-col bg-[#0f172a]">
-      <div class="px-6 py-4 border-b border-slate-800 flex items-center justify-between">
-        <h2 class="font-semibold text-lg">Live Preview</h2>
-        <div id="right-badge" 
-             class="px-6 py-1.5 bg-slate-700 text-slate-300 rounded-3xl text-sm font-medium">
-          Free mode active
-        </div>
+    <!-- Messages -->
+    <div id="messages" class="flex-1 p-5 overflow-y-auto chat-scroll space-y-5"></div>
+
+    <!-- Input area -->
+    <div class="p-5 border-t border-slate-800">
+      <div class="flex gap-3 mb-4">
+        <input id="input" type="text" placeholder="Ask Simo anything..."
+               class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-6 py-3.5 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 text-base">
+        <button onclick="send()" class="bg-blue-600 hover:bg-blue-500 px-9 rounded-full font-medium min-w-[100px]">Send</button>
       </div>
-      <div id="preview-area" class="flex-1 bg-white rounded-tl-3xl p-8 overflow-auto"></div>
+      <div class="flex gap-3">
+        <button id="save-btn" onclick="save()" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-full text-sm font-medium disabled">Save</button>
+        <button id="dl-btn" onclick="download()" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-full text-sm font-medium disabled">Download</button>
+        <button id="lib-btn" onclick="library()" class="flex-1 py-3 bg-slate-700 hover:bg-slate-600 rounded-full text-sm font-medium disabled">Library</button>
+      </div>
     </div>
   </div>
 
+  <!-- Right: Preview -->
+  <div class="flex-1 flex flex-col">
+    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
+      <span class="text-lg font-semibold">Live Preview</span>
+      <div id="right-badge" class="px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium">
+        Free mode active
+      </div>
+    </div>
+    <div id="preview" class="flex-1 bg-white"></div>
+  </div>
+
   <script>
-    let isPro = false;
-    const messagesDiv = document.getElementById('chat-messages');
-    const input = document.getElementById('user-input');
+    let pro = false;
+    const messages = document.getElementById('messages');
+    const input = document.getElementById('input');
+    const preview = document.getElementById('preview');
     const leftBadge = document.getElementById('left-badge');
     const rightBadge = document.getElementById('right-badge');
-    const previewArea = document.getElementById('preview-area');
+    const saveBtn = document.getElementById('save-btn');
+    const dlBtn = document.getElementById('dl-btn');
+    const libBtn = document.getElementById('lib-btn');
 
-    function addMessage(sender, text) {
+    function addMsg(sender, txt) {
       const div = document.createElement('div');
       div.className = sender === 'Simo' 
-        ? 'max-w-[80%] bg-slate-800 p-4 rounded-3xl rounded-tl-none' 
-        : 'max-w-[80%] ml-auto bg-blue-600 p-4 rounded-3xl rounded-tr-none';
-      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-      messagesDiv.appendChild(div);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        ? 'max-w-[80%] bg-slate-800 p-4 rounded-3xl rounded-tl-none'
+        : 'max-w-[80%] ml-auto bg-blue-600 p-4 rounded-3xl rounded-tr-none text-white';
+      div.innerHTML = `<strong>${sender}:</strong> ${txt}`;
+      messages.appendChild(div);
+      messages.scrollTop = messages.scrollHeight;
     }
 
-    function sendMessage() {
-      const text = input.value.trim();
-      if (!text) return;
+    function togglePro(active) {
+      pro = active;
+      if (active) {
+        leftBadge.textContent = 'Pro Active';
+        leftBadge.className = 'px-5 py-1.5 bg-emerald-600 text-white rounded-full text-sm font-medium';
+        rightBadge.textContent = 'Pro Active';
+        rightBadge.className = 'px-5 py-1.5 bg-emerald-600 text-white rounded-full text-sm font-medium';
+        [saveBtn, dlBtn, libBtn].forEach(b => b.classList.remove('disabled'));
+      } else {
+        leftBadge.textContent = 'Free Ready';
+        leftBadge.className = 'px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium';
+        rightBadge.textContent = 'Free mode active';
+        rightBadge.className = 'px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium';
+        [saveBtn, dlBtn, libBtn].forEach(b => b.classList.add('disabled'));
+      }
+    }
 
-      addMessage('You', text);
+    function send() {
+      const txt = input.value.trim();
+      if (!txt) return;
+      addMsg('You', txt);
       input.value = '';
 
       setTimeout(() => {
-        if (text.toUpperCase() === 'SIMO-PRO-2026') {
-          isPro = true;
-          leftBadge.textContent = 'Pro Active';
-          leftBadge.className = 'px-6 py-1.5 bg-emerald-600 text-white rounded-3xl text-sm font-medium';
-          rightBadge.textContent = 'Pro Active';
-          rightBadge.className = 'px-6 py-1.5 bg-emerald-600 text-white rounded-3xl text-sm font-medium';
-          addMessage('Simo', '🔓 Pro unlocked! Everything is now active. ✨');
-          updatePreview('Pro features enabled — type "build something" to see it live');
-        } else if (!isPro) {
-          addMessage('Simo', 'Hey! I\'m Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.');
+        if (txt.toUpperCase() === 'SIMO-PRO-2026') {
+          addMsg('Simo', 'Pro unlocked! Everything is now active.');
+          togglePro(true);
+          // Keep preview empty/white after unlock — wait for build request
+        } else if (!pro) {
+          addMsg('Simo', "Hey! I'm Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.");
         } else {
-          addMessage('Simo', 'Generating your request in real-time...');
-          if (text.toLowerCase().includes('build') || text.toLowerCase().includes('show') || text.toLowerCase().includes('make')) {
-            updatePreview(text);
+          addMsg('Simo', 'Working on it...');
+          if (txt.toLowerCase().includes('build') || txt.toLowerCase().includes('preview') || txt.toLowerCase().includes('show')) {
+            renderPreview(txt);
           } else {
-            addMessage('Simo', `Understood! ${text}. What else can I build for you?`);
+            addMsg('Simo', `Got your request: ${txt}. What would you like to build next?`);
           }
         }
-      }, 600);
+      }, 700);
     }
 
-    function updatePreview(request) {
-      previewArea.innerHTML = `
-        <div class="h-full flex flex-col items-center justify-center text-center bg-gradient-to-br from-slate-50 to-white">
-          <div class="max-w-md">
-            <h1 class="text-4xl font-bold text-slate-900 mb-4">${request || 'Your Simo Build'}</h1>
-            <p class="text-slate-600 text-lg mb-8">Live preview powered by Simo Pro</p>
-            <div class="bg-white border border-slate-200 rounded-2xl p-8 shadow-xl">
-              <div class="w-16 h-16 bg-emerald-500 rounded-2xl mx-auto mb-6 flex items-center justify-center text-4xl">🚀</div>
-              <h2 class="text-2xl font-semibold text-slate-900 mb-2">Beautiful. Fast. Yours.</h2>
-              <p class="text-slate-500">This is exactly what you asked for.</p>
+    function renderPreview(prompt) {
+      preview.innerHTML = `
+        <div class="h-full p-10 bg-gradient-to-br from-gray-50 to-white flex items-center justify-center">
+          <div class="max-w-2xl text-center">
+            <h1 class="text-5xl font-bold text-gray-900 mb-6">${prompt || 'Simo Creation'}</h1>
+            <p class="text-xl text-gray-700 mb-10">This is your live preview — clean, modern, ready to use.</p>
+            <div class="inline-block bg-white p-8 rounded-3xl shadow-2xl border border-gray-200">
+              <div class="w-20 h-20 bg-blue-500 rounded-2xl mx-auto mb-6 flex items-center justify-center text-5xl">🚀</div>
+              <h2 class="text-3xl font-semibold text-gray-900 mb-4">Perfect Build</h2>
+              <p class="text-gray-600 text-lg">Exactly what you asked for.</p>
             </div>
           </div>
         </div>
       `;
     }
 
-    function savePreview() { alert('✅ Saved to your Library (Pro feature)'); }
-    function downloadPreview() { 
-      const html = previewArea.innerHTML;
-      const blob = new Blob([`<html><body>${html}</body></html>`], {type: 'text/html'});
+    function save() { if (pro) alert('Saved to Library!'); }
+    function download() {
+      if (!pro) return;
+      const content = preview.innerHTML;
+      const full = `<!DOCTYPE html><html><head><title>Simo Build</title></head><body>${content}</body></html>`;
+      const blob = new Blob([full], {type: 'text/html'});
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = url;
-      a.download = 'simo-build.html';
-      a.click();
+      a.href = url; a.download = 'simo-preview.html'; a.click();
     }
-    function openLibrary() { alert('📚 Library opened (Pro feature)'); }
+    function library() { if (pro) alert('Library opened — your saved builds.'); }
 
-    // Enter key
-    input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+    input.addEventListener('keypress', e => { if (e.key === 'Enter') send(); });
 
-    // START — exact match to your screenshot
-    window.onload = () => {
-      addMessage('Simo', "Hey! I'm Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.");
-      previewArea.innerHTML = '<div class="h-full flex items-center justify-center text-slate-400 text-xl">Empty preview — unlock Pro and start building</div>';
-    };
+    // Init
+    addMsg('Simo', "Hey! I'm Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.");
+    togglePro(false); // force free start
+    preview.innerHTML = ''; // pure white empty
   </script>
 </body>
 </html>
