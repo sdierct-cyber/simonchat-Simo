@@ -1,13 +1,9 @@
 [build]
-  publish = "."
+  command = "npm run build"      # this runs your build step
+  publish = "."                  # your index.html is in the root folder
   functions = "netlify/functions"
 
-[[redirects]]
-  from = "/.netlify/functions/*"
-  to = "/.netlify/functions/:splat"
-  status = 200
-  force = true
-
+# This makes it a single-page app (SPA) so chat works on every URL
 [[redirects]]
   from = "/*"
   to = "/index.html"
