@@ -1,4 +1,4 @@
-let messages = []; // conversation history
+let messages = []; // keeps conversation history
 let isPro = false;
 
 const chatBox = document.getElementById("chat-box");
@@ -7,7 +7,7 @@ const sendBtn = document.getElementById("send-button");
 const proToggle = document.getElementById("pro-toggle");
 const previewArea = document.getElementById("preview-area");
 
-// Normal size text box + glow when Pro
+// Normal size text box + green glow when Pro is on
 function updateProUI() {
   if (proToggle) {
     proToggle.style.boxShadow = isPro ? "0 0 20px #22c55e" : "none";
@@ -19,7 +19,7 @@ function updateProUI() {
   });
 }
 
-// Beautiful preview that matches user intent
+// Beautiful preview that matches what the user asked for
 function showBeautifulPreview(html) {
   previewArea.innerHTML = `
     <div style="background:white;border-radius:16px;overflow:hidden;box-shadow:0 10px 30px rgba(0,0,0,0.1);">
@@ -28,9 +28,9 @@ function showBeautifulPreview(html) {
   `;
 }
 
-// Add message (keeps history)
-function addMessage(sender, text, type = "normal") {
-  messages.push({ sender, text, type });
+// Add message to chat (keeps full history)
+function addMessage(sender, text) {
+  messages.push({ sender, text });
   const div = document.createElement("div");
   div.className = sender === "Simo" ? "simo-message" : "user-message";
   div.innerHTML = `<strong>${sender}:</strong> ${text}`;
@@ -46,13 +46,14 @@ sendBtn.addEventListener("click", async () => {
   addMessage("You", userText);
   input.value = "";
 
-  // Check Pro key
+  // Pro key check (uses your existing pro.js file)
   if (userText.toUpperCase().includes("SIMO-PRO-2026") || userText.toUpperCase().includes("KEY")) {
     const response = await fetch("/.netlify/functions/pro", {
       method: "POST",
       body: JSON.stringify({ key: userText.toUpperCase().replace(/[^A-Z0-9-]/g, "") })
     });
-    const data = await res.json();
+    const data = await response.json();   // ← fixed typo here
+
     if (data.valid) {
       isPro = true;
       updateProUI();
@@ -61,33 +62,32 @@ sendBtn.addEventListener("click", async () => {
     }
   }
 
-  // Normal chat with Simo (Grok-style)
+  // Normal chat with Simo (Grok-style — helpful and trustworthy)
   addMessage("Simo", "Thinking…");
   const simoResponse = await getSimoResponse(userText);
   chatBox.lastChild.remove(); // remove "Thinking…"
   addMessage("Simo", simoResponse);
 
-  // If user asked to build something, create beautiful preview
+  // If user wants to build something, show beautiful preview
   if (userText.toLowerCase().includes("build") || userText.toLowerCase().includes("landing") || userText.toLowerCase().includes("page")) {
     const previewHTML = generateBeautifulPreview(userText);
     showBeautifulPreview(previewHTML);
   }
 });
 
-// Grok-style Simo response (smart, helpful, truthful)
+// Simo’s smart responses (feels like Grok)
 async function getSimoResponse(userText) {
-  // You can replace this with your real LLM API call (OpenAI, Grok, Claude, etc.)
-  // For now a smart placeholder that feels like Grok
+  // Replace this later with your real LLM API if you want
   if (userText.toLowerCase().includes("hello") || userText.toLowerCase().includes("hi")) {
     return "Hey! I'm Simo, your friendly AI builder. What are we creating today? 😊";
   }
   if (userText.toLowerCase().includes("how are you")) {
     return "I'm doing great, thanks for asking! Ready to build something awesome with you.";
   }
-  return `Got it! You want a ${userText}. Here's a clean version I built for you. Anything to change?`;
+  return `Got it! You want a ${userText}. Here's a clean, beautiful version I built for you. Anything to change?`;
 }
 
-// Beautiful Tailwind preview based on user intent
+// Beautiful preview that matches user intent
 function generateBeautifulPreview(userIntent) {
   return `
     <div style="font-family:system-ui;padding:40px;background:linear-gradient(135deg,#f3e7e9,#e6f0fa);min-height:600px;">
@@ -100,15 +100,17 @@ function generateBeautifulPreview(userIntent) {
   `;
 }
 
-// Pro toggle click (glows green when on)
-if (proToggle) proToggle.addEventListener("click", () => {
-  if (!isPro) {
-    input.value = "SIMO-PRO-2026";
-    sendBtn.click();
-  }
-});
+// Pro toggle button glows green
+if (proToggle) {
+  proToggle.addEventListener("click", () => {
+    if (!isPro) {
+      input.value = "SIMO-PRO-2026";
+      sendBtn.click();
+    }
+  });
+}
 
-// Load saved history on start
+// Start the chat
 window.onload = () => {
   updateProUI();
   addMessage("Simo", "Hi! I'm Simo — your trustworthy AI builder. What are we making today? Type anything.");
