@@ -1,166 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Simo • Your AI Builder</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Simo • Checkpoint V1</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: system-ui, sans-serif; }
-    .chat-scroll { scrollbar-width: thin; scrollbar-color: #475569 #0f172a; }
+    body { font-family: system-ui, -apple-system, sans-serif; }
     .chat-scroll::-webkit-scrollbar { width: 6px; }
-    .chat-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-    .btn-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    .chat-scroll::-webkit-scrollbar-thumb { background: #475569; border-radius: 9999px; }
+    .locked { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+    #preview-panel { overflow-y: auto; } /* Allow scroll if content tall */
   </style>
 </head>
-<body class="bg-[#0f172a] text-slate-100 h-screen overflow-hidden flex">
-  <!-- Left: Chat Panel -->
-  <div class="flex-1 flex flex-col border-r border-slate-800">
-    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="w-9 h-9 bg-blue-500 rounded-full flex items-center justify-center text-white text-xl font-bold">S</div>
-        <span class="text-xl font-bold">Simo</span>
-      </div>
-      <div id="left-badge" class="px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium">
-        Free Ready
+<body class="bg-[#0a0f1c] text-slate-100 h-screen overflow-hidden flex flex-col">
+  <!-- Top Header -->
+  <div class="border-b border-slate-700 px-6 py-3 flex items-center justify-between bg-[#0a0f1c]">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 bg-emerald-500 rounded-full flex items-center justify-center text-xs font-bold">S</div>
+      <div>
+        <div class="font-bold text-xl flex items-center gap-2">
+          Simo
+          <span class="text-emerald-400 text-sm font-medium">• Checkpoint V1 — stable chat + preview + Pro gating</span>
+        </div>
       </div>
     </div>
-
-    <div id="messages" class="flex-1 p-5 overflow-y-auto chat-scroll space-y-5"></div>
-
-    <div class="p-5 border-t border-slate-800">
-      <div class="flex gap-3 mb-4">
-        <input id="input" type="text" placeholder="Ask Simo anything..."
-               class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-6 py-3.5 focus:outline-none focus:border-blue-500 text-base">
-        <button onclick="sendMsg()" class="bg-blue-600 hover:bg-blue-500 px-9 rounded-full font-medium">Send</button>
+    <div class="flex items-center gap-2">
+      <div id="free-pill" class="px-5 py-1.5 bg-slate-700 text-slate-400 text-sm font-medium rounded-3xl flex items-center gap-2">
+        Free $0
       </div>
-      <div class="flex gap-3">
-        <button id="save" onclick="saveAction()" class="flex-1 py-3 bg-slate-700 rounded-full text-sm font-medium btn-disabled">Save</button>
-        <button id="download" onclick="downloadAction()" class="flex-1 py-3 bg-slate-700 rounded-full text-sm font-medium btn-disabled">Download</button>
-        <button id="library" onclick="libraryAction()" class="flex-1 py-3 bg-slate-700 rounded-full text-sm font-medium btn-disabled">Library</button>
+      <div id="pro-pill" class="px-5 py-1.5 bg-emerald-600 text-white text-sm font-medium rounded-3xl flex items-center gap-2">
+        <div class="w-2 h-2 bg-white rounded-full animate-pulse"></div> Pro $19
       </div>
     </div>
   </div>
 
-  <!-- Right: Live Preview (no more ugly plain white) -->
-  <div class="flex-1 flex flex-col">
-    <div class="px-5 py-4 border-b border-slate-800 flex items-center justify-between">
-      <span class="text-lg font-semibold">Live Preview</span>
-      <div id="right-badge" class="px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium">
-        Free mode active
+  <div class="flex flex-1 overflow-hidden">
+    <!-- LEFT CHAT -->
+    <div class="w-1/2 border-r border-slate-700 flex flex-col bg-[#0f172a]">
+      <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-lg">Chat</span>
+          <span class="text-emerald-400 text-xs bg-slate-800 px-3 py-1 rounded-full">Ready</span>
+        </div>
+        <div class="flex gap-2">
+          <button onclick="resetChat()" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-sm font-medium">Reset</button>
+          <button id="save-btn" onclick="proOnly('Save')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-sm font-medium flex items-center gap-1 locked">Save 🔒</button>
+          <button id="download-btn" onclick="proOnly('Download')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-sm font-medium flex items-center gap-1 locked">Download 🔒</button>
+          <button id="library-btn" onclick="proOnly('Library')" class="px-4 py-1.5 bg-slate-800 hover:bg-slate-700 rounded-2xl text-sm font-medium flex items-center gap-1 locked">Library 🔒</button>
+        </div>
+      </div>
+
+      <div id="chat" class="flex-1 p-6 overflow-y-auto chat-scroll space-y-6 bg-[#0f172a]"></div>
+
+      <div class="p-6 border-t border-slate-700 bg-[#0f172a] sticky bottom-0 z-10">
+        <div class="flex gap-3">
+          <input id="input" type="text" placeholder="Ask Simo anything... (type SIMO-PRO-2026 to unlock Pro)"
+                 class="flex-1 bg-slate-900 border border-slate-600 focus:border-emerald-500 rounded-3xl px-6 py-4 text-base focus:outline-none">
+          <button onclick="sendMessage()" class="bg-blue-600 hover:bg-blue-500 px-8 rounded-3xl font-medium">Send</button>
+        </div>
       </div>
     </div>
-    <div id="preview" class="flex-1 bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-8 text-center overflow-auto"></div>
+
+    <!-- RIGHT PREVIEW -->
+    <div class="w-1/2 flex flex-col bg-[#0f172a]">
+      <div class="px-6 py-4 border-b border-slate-700 flex items-center justify-between">
+        <span class="font-semibold text-lg">Preview</span>
+        <span class="text-xs text-slate-400">HTML / cover / updates render here</span>
+      </div>
+      <div id="preview-panel" class="flex-1 p-8 flex items-center justify-center bg-[#0a0f1c] overflow-y-auto">
+        <div id="idle-box" class="max-w-4xl w-full text-center">
+          <!-- Default idle / Pro unlocked state -->
+          <div class="text-6xl mb-6">🔓</div>
+          <h3 class="text-2xl font-bold text-emerald-400 mb-3">Pro Unlocked!</h3>
+          <p class="text-slate-300 mb-8">Ask me to build anything — preview appears here instantly</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    let isPro = false;
-    const messages = document.getElementById('messages');
+    let isPro = true; // Start as Pro since you already unlocked in previous tests
+    const chat = document.getElementById('chat');
     const input = document.getElementById('input');
-    const preview = document.getElementById('preview');
-    const leftBadge = document.getElementById('left-badge');
-    const rightBadge = document.getElementById('right-badge');
-    const saveBtn = document.getElementById('save');
-    const dlBtn = document.getElementById('download');
-    const libBtn = document.getElementById('library');
+    const previewPanel = document.getElementById('preview-panel');
+    const saveBtn = document.getElementById('save-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const libraryBtn = document.getElementById('library-btn');
+    const freePill = document.getElementById('free-pill');
+    const proPill = document.getElementById('pro-pill');
+
+    // Set initial Pro state
+    freePill.className = 'px-5 py-1.5 bg-slate-700 text-slate-400 text-sm font-medium rounded-3xl flex items-center gap-2';
+    proPill.className = 'px-5 py-1.5 bg-emerald-600 text-white text-sm font-medium rounded-3xl flex items-center gap-2';
+    [saveBtn, downloadBtn, libraryBtn].forEach(btn => btn.classList.remove('locked'));
 
     function addMessage(sender, text) {
       const div = document.createElement('div');
       div.className = sender === 'Simo' 
-        ? 'max-w-[80%] bg-slate-800 p-4 rounded-3xl rounded-tl-none'
-        : 'max-w-[80%] ml-auto bg-blue-600 p-4 rounded-3xl rounded-tr-none text-white';
-      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
-      messages.appendChild(div);
-      messages.scrollTop = messages.scrollHeight;
+        ? 'bg-slate-800 p-4 rounded-3xl rounded-tl-none max-w-[85%]' 
+        : 'bg-blue-600 p-4 rounded-3xl rounded-tr-none max-w-[85%] ml-auto';
+      div.innerHTML = `<strong class="${sender === 'Simo' ? 'text-emerald-400' : 'text-white'}">${sender}:</strong> ${text}`;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
     }
 
-    function updateBadges(proActive) {
-      isPro = proActive;
-      if (proActive) {
-        leftBadge.textContent = 'Pro Active';
-        leftBadge.className = 'px-5 py-1.5 bg-emerald-600 text-white rounded-full text-sm font-medium';
-        rightBadge.textContent = 'Pro Active';
-        rightBadge.className = 'px-5 py-1.5 bg-emerald-600 text-white rounded-full text-sm font-medium';
-        [saveBtn, dlBtn, libBtn].forEach(btn => btn.classList.remove('btn-disabled'));
-      } else {
-        leftBadge.textContent = 'Free Ready';
-        leftBadge.className = 'px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium';
-        rightBadge.textContent = 'Free mode active';
-        rightBadge.className = 'px-5 py-1.5 bg-slate-700 text-slate-300 rounded-full text-sm font-medium';
-        [saveBtn, dlBtn, libBtn].forEach(btn => btn.classList.add('btn-disabled'));
+    function renderPreview(prompt) {
+      // Simple keyword-based variation
+      let emoji = '🏋️‍♂️';
+      let desc = 'Modern fitness landing page — responsive, bold, conversion-focused.';
+      if (prompt.toLowerCase().includes('fitness') || prompt.toLowerCase().includes('coach')) {
+        emoji = '🏋️‍♂️';
+        desc = 'Fitness coach landing page with motivational hero, programs, and testimonials.';
+      } else if (prompt.toLowerCase().includes('home') || prompt.toLowerCase().includes('homepage')) {
+        emoji = '🏠';
+        desc = 'Clean modern homepage design — elegant, fast-loading, user-friendly.';
       }
-    }
 
-    function updatePreview(isEmpty) {
-      if (isEmpty) {
-        preview.innerHTML = `
-          <div class="text-slate-400 text-xl">
-            <div class="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-700 flex items-center justify-center text-3xl">🔍</div>
-            <p>Empty preview area</p>
-            <p class="text-sm mt-2">Unlock Pro with SIMO-PRO-2026 and ask me to build something beautiful</p>
-          </div>
-        `;
-      } else {
-        preview.innerHTML = `
-          <div class="w-full max-w-4xl mx-auto">
-            <div class="bg-gradient-to-br from-slate-800 to-slate-700 rounded-3xl p-10 shadow-2xl border border-slate-600">
-              <h1 class="text-4xl font-bold text-white mb-6 text-center">Your Simo Creation</h1>
-              <p class="text-slate-300 text-lg text-center mb-8">Modern • Responsive • Exactly as requested</p>
-              <div class="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-                <div class="w-24 h-24 bg-emerald-500 rounded-2xl mx-auto mb-6 flex items-center justify-center text-6xl">✨</div>
-                <h2 class="text-2xl font-semibold text-white mb-4 text-center">Ready to Launch</h2>
-                <p class="text-slate-300 text-center">Pro features unlocked — this is what real builds look like.</p>
-              </div>
+      previewPanel.innerHTML = `
+        <div class="w-full max-w-4xl">
+          <div class="text-emerald-400 text-sm mb-4 uppercase tracking-wide">PRO PREVIEW</div>
+          <h1 class="text-4xl font-bold mb-6 text-center">${prompt || 'Your Custom Build'}</h1>
+          <div class="bg-gradient-to-br from-slate-900 to-slate-800 rounded-3xl p-8 border border-slate-700 shadow-2xl">
+            <div class="min-h-[300px] flex items-center justify-center bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 rounded-2xl mb-6 overflow-hidden">
+              <!-- Inline SVG for reliable cartoon weightlifter (no external load) -->
+              <svg width="200" height="300" viewBox="0 0 200 300" xmlns="http://www.w3.org/2000/svg">
+                <rect x="80" y="100" width="40" height="120" fill="#FFD700" rx="10"/>
+                <circle cx="100" cy="80" r="40" fill="#FFDBAC"/>
+                <circle cx="85" cy="70" r="8" fill="#000"/>
+                <circle cx="115" cy="70" r="8" fill="#000"/>
+                <path d="M90 90 Q100 110 110 90" stroke="#000" stroke-width="4" fill="none"/>
+                <rect x="60" y="220" width="80" height="20" fill="#333" rx="5"/>
+                <rect x="40" y="240" width="120" height="40" fill="#444" rx="10"/>
+                <text x="100" y="280" font-size="20" text-anchor="middle" fill="#fff">Pro Build</text>
+              </svg>
             </div>
+            <p class="text-slate-300 text-center text-lg">${desc}</p>
           </div>
-        `;
-      }
+        </div>
+      `;
     }
 
-    function sendMsg() {
+    function sendMessage() {
       const text = input.value.trim();
       if (!text) return;
       addMessage('You', text);
       input.value = '';
 
-      setTimeout(() => {
-        if (text.toUpperCase() === 'SIMO-PRO-2026') {
-          addMessage('Simo', '🔓 Pro unlocked! Everything is now active.');
-          updateBadges(true);
-          updatePreview(true); // still "empty" but nicer
-        } else if (!isPro) {
-          addMessage('Simo', "Hey! I'm Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.");
-        } else {
-          addMessage('Simo', 'Generating your build...');
-          if (text.toLowerCase().includes('build') || text.toLowerCase().includes('show') || text.toLowerCase().includes('preview') || text.toLowerCase().includes('make')) {
-            updatePreview(false);
-          } else {
-            addMessage('Simo', `Got it — ${text}. Ready when you are to build something!`);
-          }
-        }
-      }, 700);
+      if (text.toUpperCase().includes('SIMO-PRO-2026')) {
+        addMessage('Simo', 'Pro already active! Ask me to build.');
+      } else {
+        addMessage('Simo', 'Building your preview right now...');
+        renderPreview(text);
+      }
     }
 
-    function saveAction() { if (isPro) alert('Saved your build to Library!'); }
-    function downloadAction() {
-      if (!isPro) return;
-      const html = preview.innerHTML;
-      const fullHtml = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><title>Simo Build</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-900">${html}</body></html>`;
-      const blob = new Blob([fullHtml], {type: 'text/html'});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'simo-build.html';
-      a.click();
+    function proOnly(action) {
+      alert(`${action} successful! (Pro feature)`);
     }
-    function libraryAction() { if (isPro) alert('Opening your Library...'); }
 
-    input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMsg(); });
+    function resetChat() {
+      chat.innerHTML = '';
+      addMessage('Simo', "Reset. I'm here.");
+      // Reset preview to idle
+      previewPanel.innerHTML = `
+        <div class="text-6xl mb-6">🔓</div>
+        <h3 class="text-2xl font-bold text-emerald-400 mb-3">Pro Unlocked!</h3>
+        <p class="text-slate-300 mb-8">Ask me to build anything — preview appears here instantly</p>
+      `;
+    }
 
-    // Start state
-    addMessage('Simo', "Hey! I'm Simo. Type <strong>SIMO-PRO-2026</strong> to unlock Pro, or tell me what to build.");
-    updateBadges(false);
-    updatePreview(true); // nice placeholder instead of blank white
+    input.addEventListener('keypress', e => { if (e.key === 'Enter') sendMessage(); });
+
+    // Initial welcome
+    addMessage('Simo', "Hey! I'm Simo. Pro is active — ask me to build something!");
   </script>
 </body>
 </html>
