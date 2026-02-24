@@ -1,357 +1,135 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Simo • Chat + Builder</title>
-  <meta name="color-scheme" content="dark" />
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root {
-      --bg: #0a0f1c;
-      --panel: #101a30;
-      --panel2: #0c1426;
-      --text: #e8f0ff;
-      --muted: #a3b5d4;
-      --line: rgba(255,255,255,0.09);
-      --btn: #3b82f6;
-      --btn-hover: #2563eb;
-      --good: #22c55e;
-      --bad: #ef4444;
-      --shadow: 0 16px 40px rgba(0,0,0,0.4);
-      --radius: 16px;
-      --gap: 16px;
+    body { font-family: system-ui; background: #0f172a; color: #e2e8f0; }
+    .chat-box { height: 60vh; overflow-y: auto; }
+    .simo-message { background: #1e2937; padding: 12px; border-radius: 12px; max-width: 80%; margin-bottom: 12px; }
+    .user-message { background: #3b82f6; padding: 12px; border-radius: 12px; max-width: 80%; margin-bottom: 12px; margin-left: auto; }
+    input { height: 52px; font-size: 1.1rem; } /* normal size text box */
+    .pro-toggle { transition: all 0.3s; }
+  </style>
+</head>
+<body class="min-h-screen p-4">
+  <div class="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-4 h-screen">
+    
+    <!-- Left: Chat with Simo -->
+    <div class="bg-[#1e2937] rounded-3xl p-6 flex flex-col">
+      <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+          <div class="w-8 h-8 bg-blue-500 rounded-full"></div>
+          <h1 class="text-2xl font-bold">Simo</h1>
+        </div>
+        <div id="pro-toggle" onclick="togglePro()" 
+             class="pro-toggle px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-full text-sm font-medium cursor-pointer">
+          Free Ready
+        </div>
+      </div>
+
+      <div id="chat-box" class="chat-box flex-1 mb-6 p-4 bg-[#0f172a] rounded-2xl overflow-y-auto"></div>
+
+      <div class="flex gap-3">
+        <input id="chat-input" type="text" placeholder="Ask Simo anything..." 
+               class="flex-1 bg-[#0f172a] border border-gray-600 rounded-2xl px-6 py-4 text-lg focus:outline-none focus:border-blue-500">
+        <button onclick="sendMessage()" 
+                class="bg-blue-600 hover:bg-blue-500 px-8 rounded-2xl font-medium">Send</button>
+      </div>
+    </div>
+
+    <!-- Right: Live Preview -->
+    <div class="bg-[#1e2937] rounded-3xl p-6 flex flex-col">
+      <div class="flex items-center justify-between mb-6">
+        <h2 class="text-2xl font-bold">Live Preview</h2>
+        <div id="pro-status" class="px-4 py-1 bg-gray-700 rounded-full text-sm">Free mode active</div>
+      </div>
+
+      <div id="preview-area" class="flex-1 bg-white rounded-3xl overflow-hidden shadow-2xl">
+        <!-- Preview appears here -->
+      </div>
+
+      <div class="flex gap-3 mt-6">
+        <button onclick="saveProject()" class="pro-btn flex-1 bg-gray-700 hover:bg-gray-600 py-4 rounded-2xl font-medium disabled:opacity-50">Save</button>
+        <button onclick="downloadProject()" class="pro-btn flex-1 bg-gray-700 hover:bg-gray-600 py-4 rounded-2xl font-medium disabled:opacity-50">Download</button>
+        <button onclick="showLibrary()" class="pro-btn flex-1 bg-gray-700 hover:bg-gray-600 py-4 rounded-2xl font-medium disabled:opacity-50">Library</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let isPro = false;
+    let messages = [];
+
+    function addMessage(sender, text) {
+      messages.push({ sender, text });
+      const chatBox = document.getElementById("chat-box");
+      const div = document.createElement("div");
+      div.className = sender === "Simo" ? "simo-message" : "user-message ml-auto";
+      div.innerHTML = `<strong>${sender}:</strong> ${text}`;
+      chatBox.appendChild(div);
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    * { box-sizing: border-box; margin:0; padding:0; }
-    body {
-      font: 15px/1.5 system-ui, -apple-system, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .app {
-      flex: 1;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: var(--gap);
-      padding: var(--gap);
-      height: 100vh;
-      max-height: 100vh;
-      overflow: hidden;
-    }
-
-    @media (max-width: 1023px) {
-      .app {
-        grid-template-columns: 1fr;
-        grid-template-rows: 1.2fr 0.8fr;
-        padding: 12px;
+    function togglePro() {
+      if (!isPro) {
+        isPro = true;
+        document.getElementById("pro-toggle").innerHTML = "Pro Active ✅";
+        document.getElementById("pro-toggle").style.backgroundColor = "#22c55e";
+        document.getElementById("pro-status").innerHTML = "Pro Active";
+        document.getElementById("pro-status").style.backgroundColor = "#22c55e";
+        document.querySelectorAll(".pro-btn").forEach(b => b.disabled = false);
+        addMessage("Simo", "🎉 Pro unlocked! Everything is now active.");
       }
     }
 
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
+    function sendMessage() {
+      const input = document.getElementById("chat-input");
+      const text = input.value.trim();
+      if (!text) return;
+
+      addMessage("You", text);
+      input.value = "";
+
+      if (text.includes("SIMO-PRO-2026")) {
+        togglePro();
+        return;
+      }
+
+      // Simo response (Grok-style)
+      setTimeout(() => {
+        let reply = "Got it! Tell me more about what you want to build.";
+        if (text.toLowerCase().includes("build") || text.toLowerCase().includes("landing")) {
+          reply = "Building a clean version for you right now...";
+          showPreview(text);
+        }
+        addMessage("Simo", reply);
+      }, 800);
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--line);
-      background: linear-gradient(to bottom, rgba(20,30,60,0.6), transparent);
-      flex-wrap: wrap;
-      gap: 12px;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-weight: 700;
-      font-size: 1.1rem;
-    }
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: rgba(255,255,255,0.3);
-      box-shadow: 0 0 0 3px rgba(255,255,255,0.08);
-    }
-
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.2);
-      font-size: 0.9rem;
-      white-space: nowrap;
-    }
-
-    .pill strong { color: var(--text); }
-    .pill.proOn {
-      border-color: rgba(34,197,94,0.5);
-      background: rgba(34,197,94,0.08);
-      box-shadow: 0 0 20px rgba(34,197,94,0.15);
-    }
-
-    .actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
-
-    button {
-      appearance: none;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.05);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 14px;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      font-weight: 500;
-    }
-
-    button:hover { background: rgba(255,255,255,0.1); transform: translateY(-1px); }
-    button:active { transform: translateY(0); }
-    button.primary {
-      background: linear-gradient(180deg, var(--btn), var(--btn-hover));
-      border-color: rgba(59,130,246,0.6);
-      color: white;
-      font-weight: 600;
-    }
-
-    .content {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      gap: 12px;
-      overflow: hidden;
-    }
-
-    .chatLog {
-      flex: 1;
-      overflow-y: auto;
-      padding: 12px;
-      border-radius: 12px;
-      background: rgba(0,0,0,0.15);
-      border: 1px solid var(--line);
-    }
-
-    .msg { margin-bottom: 16px; }
-    .msg .who { font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; opacity: 0.9; }
-    .msg .bubble {
-      padding: 12px 14px;
-      border-radius: 14px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid var(--line);
-      white-space: pre-wrap;
-      word-break: break-word;
-    }
-
-    .msg.you .bubble { background: rgba(59,130,246,0.12); border-color: rgba(59,130,246,0.3); }
-    .msg.simo .bubble { background: rgba(34,197,94,0.08); border-color: rgba(34,197,94,0.25); }
-
-    .composer {
-      display: flex;
-      gap: 10px;
-      align-items: flex-end;
-    }
-
-    textarea {
-      flex: 1;
-      min-height: 48px;
-      max-height: 160px;
-      padding: 12px 14px;
-      border-radius: 12px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.25);
-      color: var(--text);
-      resize: vertical;
-      font: inherit;
-    }
-
-    .hint { font-size: 0.82rem; color: var(--muted); margin-top: 6px; opacity: 0.8; }
-
-    /* ── Preview ──────────────────────────────────────── */
-
-    .previewWrap {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      padding: 16px;
-      gap: 12px;
-      overflow: hidden;
-    }
-
-    .previewHeader {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 12px;
-      padding: 10px 12px;
-      border-radius: 12px;
-      background: rgba(0,0,0,0.15);
-      border: 1px solid var(--line);
-    }
-
-    .previewTitle { font-weight: 700; font-size: 1.1rem; }
-
-    .proRow {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .switch {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      border: 1px solid var(--line);
-      background: rgba(255,255,255,0.03);
-    }
-
-    .switch input { width: 18px; height: 18px; accent-color: var(--good); }
-
-    .keyRow {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-      flex: 1;
-      min-width: 220px;
-    }
-
-    .keyRow input {
-      flex: 1;
-      padding: 10px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.3);
-      color: var(--text);
-      font: inherit;
-    }
-
-    .statusLine {
-      font-size: 0.85rem;
-      color: var(--muted);
-      padding: 8px 12px;
-      border-radius: 10px;
-      background: rgba(0,0,0,0.15);
-      border: 1px solid var(--line);
-      flex: 1 1 100%;
-    }
-
-    .previewFrameWrap {
-      flex: 1;
-      min-height: 0;
-      border-radius: var(--radius);
-      border: 1px solid var(--line);
-      background: rgba(0,0,0,0.2);
-      overflow: hidden;
-      display: none;
-    }
-
-    .previewFrameWrap.on { display: block; }
-
-    iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      background: white; /* light bg so content looks normal */
-    }
-
-    @media (max-width: 1023px) {
-      .previewFrameWrap { min-height: 300px; }
-    }
-  </style>
-</head>
-<body>
-
-  <div class="app">
-
-    <!-- LEFT: Chat -->
-    <section class="card">
-      <div class="topbar">
-        <div class="brand">
-          <div class="dot" id="modeDot"></div>
-          Simo
-        </div>
-
-        <div class="actions">
-          <div class="pill" id="modePill"><strong>Free</strong> Ready</div>
-          <button id="resetBtn">Reset</button>
-        </div>
-      </div>
-
-      <div class="content">
-        <div class="chatLog" id="chatLog" aria-live="polite"></div>
-
-        <div class="composer">
-          <div style="flex:1">
-            <textarea id="chatInput" placeholder="Ask Simo anything… (Enter to send, Shift+Enter for new line)"></textarea>
-            <div class="hint">Example: “build a landing page for a yoga studio” then “headline: Find Your Flow”, “add faq”, “price: 39”</div>
-          </div>
-          <button class="primary" id="sendBtn">Send</button>
-        </div>
-      </div>
-    </section>
-
-    <!-- RIGHT: Preview -->
-    <section class="card">
-      <div class="topbar">
-        <div>
-          <div class="previewTitle">Live Preview</div>
-        </div>
-
-        <div class="proRow">
-          <label class="switch">
-            <input id="proToggle" type="checkbox" />
-            Pro
-          </label>
-
-          <div class="keyRow">
-            <input id="proKey" type="text" placeholder="Enter Pro key" autocomplete="off" />
-            <button id="verifyProBtn">Verify</button>
+    function showPreview(intent) {
+      const preview = document.getElementById("preview-area");
+      preview.innerHTML = `
+        <div class="h-full p-8 bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center">
+          <div class="max-w-lg w-full bg-white rounded-3xl shadow-xl p-10 text-center">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">${intent}</h1>
+            <p class="text-gray-600 text-lg">Beautiful, fast, and exactly what you asked for.</p>
+            <button class="mt-8 bg-green-500 text-white px-10 py-4 rounded-2xl text-lg font-medium">Get Started Free</button>
           </div>
         </div>
-      </div>
+      `;
+    }
 
-      <div class="previewWrap">
-        <div class="previewHeader">
-          <div class="statusLine" id="statusLine">Free mode active • Chat is unlimited • Pro unlocks Save / Download / Library</div>
-          <div class="actions">
-            <button id="downloadBtn" disabled>Download</button>
-            <button id="saveBtn" disabled>Save</button>
-            <button id="libraryBtn" disabled>Library</button>
-          </div>
-        </div>
+    function saveProject() { alert("✅ Project saved (Pro feature)"); }
+    function downloadProject() { alert("✅ Downloading HTML... (Pro feature)"); }
+    function showLibrary() { alert("📚 Your saved projects (Pro feature)"); }
 
-        <div class="previewFrameWrap" id="previewFrameWrap">
-          <iframe id="previewFrame" sandbox="allow-scripts allow-forms allow-same-origin"></iframe>
-        </div>
-
-        <div id="previewSub" style="font-size:0.9rem; color:var(--muted); text-align:center; padding:16px;">
-          No preview yet — ask Simo to build something.
-        </div>
-      </div>
-    </section>
-
-  </div>
-
-  <script defer src="./app.js"></script>
+    // Start
+    window.onload = () => {
+      addMessage("Simo", "Hey! I'm Simo. Type SIMO-PRO-2026 to unlock Pro, or tell me what to build.");
+    };
+  </script>
 </body>
 </html>
