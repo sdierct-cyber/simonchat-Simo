@@ -747,4 +747,42 @@
     applyTierUI();
     if (announce) systemMsg(state.tier === "pro" ? "Pro mode enabled." : "Free mode enabled.");
   }
-})();
+// === PRO KEY CHECK - ADDED BY GROK FOR SIMO ===
+async function handleProKey(message) {
+  const text = message.toUpperCase().trim();
+  if (text.includes("KEY") || text.includes("-") || text.includes("PRO")) {
+    
+    const key = text.replace(/[^A-Z0-9-]/g, "");   // clean the key
+    
+    // Send to our Netlify function
+    const response = await fetch("/.netlify/functions/verify-pro", {
+      method: "POST",
+      body: JSON.stringify({ key: key })
+    });
+    
+    const data = await response.json();
+    
+    if (data.valid === true) {
+      // Unlock the UI
+      document.getElementById("pro-status").innerHTML = "✅ Pro Active";
+      document.querySelectorAll("#save-btn, #download-btn, #library-btn").forEach(btn => {
+        btn.disabled = false;
+        btn.style.backgroundColor = "#22c55e";
+      });
+      addMessage("Simo", "🎉 Pro unlocked forever! Save, Download and Library are ready.", "success");
+    } else {
+      addMessage("Simo", "❌ Invalid key. Try again.\n\nTest key: SIMO-PRO-2026", "error");
+    }
+    return true;
+  }
+  return false;
+}
+
+// Add this to your send message function (look for where you do sendMessage or form submit)
+document.getElementById("send-button").addEventListener("click", async () => {
+  const input = document.getElementById("chat-input").value;
+  if (input) {
+    await handleProKey(input);   // ← This line makes the key work
+    // your existing chat code continues below...
+  }
+});
