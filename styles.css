@@ -1,16 +1,29 @@
+/* ==================== styles.css (UPDATED) ==================== */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body { font-family: system-ui, -apple-system, sans-serif; }
+body { font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
 .pro-glow {
-    box-shadow: 0 0 40px 10px rgb(168 85 247 / 0.6),
-                0 0 80px 20px rgb(236 72 153 / 0.4);
+    box-shadow: 0 0 40px 10px rgb(168 85 247 / 0.6), 0 0 80px 20px rgb(236 72 153 / 0.4);
     animation: proPulse 2s infinite alternate;
 }
 @keyframes proPulse {
     from { box-shadow: 0 0 30px 5px rgb(168 85 247 / 0.5); }
-    to   { box-shadow: 0 0 60px 20px rgb(236 72 153 / 0.8); }
+    to { box-shadow: 0 0 60px 20px rgb(236 72 153 / 0.8); }
 }
+
 .message { max-width: 75%; }
-.simo-bubble { background: linear-gradient(135deg, #6b21a8, #db2777); }
+.simo-bubble { background: linear-gradient(135deg, #6b21a8, #db2777); color: white; }
+.user-bubble { background: #27272a; color: white; }
+
+#dropZone:hover { border-color: rgb(168 85 247); }
+:root {
+    --accent-from: #a855f7;
+    --accent-to: #ec4899;
+}
+
+.simo-bubble {
+    background: linear-gradient(135deg, var(--accent-from), var(--accent-to)) !important;
+}
