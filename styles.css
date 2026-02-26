@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body { font-family: system-ui, -apple-system, sans-serif; }
+.pro-glow {
+    box-shadow: 0 0 40px 10px rgb(168 85 247 / 0.6),
+                0 0 80px 20px rgb(236 72 153 / 0.4);
+    animation: proPulse 2s infinite alternate;
+}
+@keyframes proPulse {
+    from { box-shadow: 0 0 30px 5px rgb(168 85 247 / 0.5); }
+    to   { box-shadow: 0 0 60px 20px rgb(236 72 153 / 0.8); }
+}
+.message { max-width: 75%; }
+.simo-bubble { background: linear-gradient(135deg, #6b21a8, #db2777); }
