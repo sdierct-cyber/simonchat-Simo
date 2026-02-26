@@ -1,131 +1,107 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
-  <meta charset="UTF-8">
-  <title>Simo • Final</title>
-  <script src="https://cdn.tailwindcss.com"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simo — Your Best Friend AI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script src="app.js" defer></script>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col">
+<body class="bg-zinc-950 text-white font-sans">
+    <div class="flex h-screen">
+        <!-- Sidebar -->
+        <div id="sidebar" class="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+            <div class="p-6 flex items-center gap-3 border-b border-zinc-800">
+                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-3xl">🤖</div>
+                <div>
+                    <h1 class="text-3xl font-bold tracking-tighter">Simo</h1>
+                    <p class="text-emerald-400 text-sm">Your Best Friend</p>
+                </div>
+            </div>
+            
+            <div class="p-4">
+                <button onclick="togglePro()" id="proBtn"
+                    class="w-full py-4 px-6 rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-purple-500/50 hover:scale-105 transition-all">
+                    <span>⭐ PRO MODE</span>
+                    <i class="fas fa-star"></i>
+                </button>
+            </div>
 
-  <header class="bg-gray-900 p-4 flex justify-between items-center border-b border-gray-800">
-    <div class="flex items-center gap-3">
-      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-xl font-bold">S</div>
-      <div class="text-xl font-bold text-blue-400">Simo</div>
-    </div>
-    <div id="status" class="px-4 py-1 bg-blue-700 text-sm rounded-full">Free • 8 left</div>
-  </header>
+            <nav class="flex-1 overflow-y-auto p-4 space-y-1" id="featureList">
+                <!-- Populated by JS from full list -->
+            </nav>
 
-  <div class="flex border-b border-gray-800">
-    <button id="chatTab" class="flex-1 p-3 bg-blue-700 font-medium">Chat</button>
-    <button id="previewTab" class="flex-1 p-3 bg-gray-800 font-medium">Preview</button>
-  </div>
-
-  <div class="flex-1 flex overflow-hidden">
-    <div id="chatPanel" class="flex-1 flex flex-col">
-      <div id="messages" class="flex-1 p-4 overflow-y-auto"></div>
-      <div class="p-4 bg-gray-900 border-t border-gray-800">
-        <div class="flex">
-          <input id="input" type="text" placeholder="Ask Simo..." class="flex-1 bg-gray-800 border border-gray-700 rounded-l-lg px-4 py-2 focus:outline-none focus:border-blue-500">
-          <button id="sendBtn" class="bg-blue-600 px-6 py-2 rounded-r-lg">Send</button>
+            <div class="p-4 border-t border-zinc-800">
+                <button onclick="showSettings()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-zinc-800">
+                    <i class="fas fa-cog"></i> Settings & Voice
+                </button>
+                <button onclick="showSignup()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-zinc-800 mt-2">
+                    <i class="fas fa-user-plus"></i> Easy Signup
+                </button>
+            </div>
         </div>
-      </div>
-    </div>
 
-    <div id="previewPanel" class="flex-1 bg-gray-900 p-8 overflow-y-auto hidden">
-      <div id="previewContent" class="max-w-4xl mx-auto text-center">
-        <div class="text-9xl mb-8">🚀</div>
-        <h1 class="text-5xl font-bold text-blue-400 mb-6">Preview Area</h1>
-        <p class="text-xl text-gray-400">Generated content appears here.</p>
-      </div>
-      <div class="mt-12 text-center">
-        <button id="downloadBtn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold text-xl px-12 py-6 rounded-xl">
-          Download Export
+        <!-- Main Chat + Content Area -->
+        <div class="flex-1 flex flex-col">
+            <header class="h-16 border-b border-zinc-800 px-6 flex items-center justify-between bg-zinc-950">
+    <div class="flex items-center gap-4">
+        <div id="currentFeature" class="font-semibold text-xl">Chat with Simo</div>
+    </div>
+    
+    <div class="flex items-center gap-4">
+        <button onclick="startNewChat()" 
+                class="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-full text-sm font-medium flex items-center gap-2">
+            <i class="fas fa-plus"></i> New Chat
         </button>
-      </div>
+        
+        <button onclick="confirmClearHistory()" 
+                class="px-5 py-2 bg-red-900/40 hover:bg-red-900/60 rounded-full text-sm font-medium flex items-center gap-2 text-red-300">
+            <i class="fas fa-trash-alt"></i> Clear History
+        </button>
+        
+        <div onclick="toggleTheme()" class="cursor-pointer px-2">
+            <i class="fas fa-moon text-2xl"></i>
+        </div>
+        
+        <div class="flex items-center gap-3 cursor-pointer" onclick="showProfile()">
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">👦</div>
+            <span id="username" class="font-medium">You</span>
+        </div>
     </div>
-  </div>
+</header>
 
-<script>
-let count = 0;
-const limit = 8;
-let pro = false;
+            <!-- Chat Window -->
+            <div id="chatArea" class="flex-1 overflow-y-auto p-6 space-y-8">
+                <!-- Messages added by JS -->
+            </div>
 
-const msgs = document.getElementById('messages');
-const inp = document.getElementById('input');
-const btn = document.getElementById('sendBtn');
-const st = document.getElementById('status');
+            <!-- Input -->
+            <div class="p-6 border-t border-zinc-800 bg-zinc-900">
+                <div class="flex gap-4">
+                    <input id="userInput" type="text" placeholder="Talk to your best friend Simo..." 
+                           class="flex-1 bg-zinc-800 rounded-3xl px-8 py-5 focus:outline-none focus:ring-4 focus:ring-purple-500/30 text-lg">
+                    <button onclick="sendMessage()" 
+                            class="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-3xl flex items-center justify-center text-3xl hover:scale-110 transition">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+                <div class="text-center text-xs text-zinc-500 mt-4">Free mode • Preview everything • Pro unlocks downloads & 3D export</div>
+            </div>
+        </div>
+    </div>
 
-document.getElementById('chatTab').onclick = () => {
-  document.getElementById('chatPanel').style.display = 'flex';
-  document.getElementById('previewPanel').style.display = 'none';
-};
+    <!-- Modals (Image Upload, 3D, Settings, etc.) -->
+    <div id="modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+        <div id="modalContent" class="bg-zinc-900 rounded-3xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+            <!-- Dynamic content loaded by JS -->
+        </div>
+    </div>
 
-document.getElementById('previewTab').onclick = () => {
-  document.getElementById('chatPanel').style.display = 'none';
-  document.getElementById('previewPanel').style.display = 'block';
-};
-
-function add(sender, text) {
-  const d = document.createElement('div');
-  d.className = sender === 'You' ? 'ml-auto bg-blue-700 p-4 rounded-2xl max-w-[80%]' : 'bg-gray-800 p-4 rounded-2xl max-w-[80%]';
-  d.innerHTML = `<strong>${sender}:</strong> ${text}`;
-  msgs.appendChild(d);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-function send() {
-  const t = inp.value.trim();
-  if (!t) return;
-  add('You', t);
-  inp.value = '';
-  count++;
-  if (!pro) {
-    st.innerText = `Free • ${limit - count} left`;
-    if (count >= limit) st.classList.add('bg-orange-600');
-  }
-  setTimeout(() => {
-    add('Simo', `Got "${t}"...`);
-    if (t.toLowerCase().includes('build') || t.toLowerCase().includes('create')) {
-      document.getElementById('previewContent').innerHTML = `<div class="text-9xl mb-8">🚀</div><h1 class="text-5xl font-bold text-blue-400">${t}</h1><p class="text-xl mt-6">Preview ready.</p>`;
-    }
-    if (!pro && count >= limit) {
-      setTimeout(() => {
-        add('Simo', "Free limit reached ❤️ Upgrade for unlimited?");
-        const up = document.createElement('button');
-        up.textContent = "Upgrade to Pro";
-        up.className = "mt-4 bg-blue-600 px-6 py-3 rounded-xl block mx-auto";
-        up.onclick = () => {
-          pro = true;
-          st.innerText = "Pro • Unlimited";
-          st.classList.remove('bg-blue-700');
-          st.classList.add('bg-emerald-600');
-          add('Simo', "Pro active! No limits now.");
-        };
-        msgs.appendChild(up);
-        msgs.scrollTop = msgs.scrollHeight;
-      }, 1000);
-    }
-  }, 500);
-}
-
-btn.onclick = send;
-inp.onkeypress = e => { if (e.key === 'Enter') send(); };
-
-document.getElementById('downloadBtn').onclick = () => {
-  const c = document.getElementById('previewContent').innerHTML || '<h1>Your Creation</h1>';
-  const f = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Simo Export</title><script src="https://cdn.tailwindcss.com"></script></head><body class="bg-gray-900 text-white p-12">${c}</body></html>`;
-  const b = new Blob([f], {type: 'text/html'});
-  const u = URL.createObjectURL(b);
-  const a = document.createElement('a');
-  a.href = u;
-  a.download = 'simo-export.html';
-  a.click();
-  URL.revokeObjectURL(u);
-  alert('Downloaded!');
-};
-
-add('Simo', 'Hey! What would you like to create today?');
-</script>
-
+    <script>
+        // Tailwind script already loaded via CDN
+    </script>
 </body>
 </html>
