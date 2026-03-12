@@ -282,7 +282,7 @@ body::before{
   background:linear-gradient(135deg,#f6d365,#fda085);
   color:#201300;
   border:1px solid rgba(255,255,255,.18);
-  box-shadow:0 6px 18px rgba(255,180,60,.35);
+  box-shadow:0 8px 22px rgba(255,185,70,.35);
 }
 
 .team-pill{
