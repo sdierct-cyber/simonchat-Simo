@@ -75,7 +75,7 @@ app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["PERMANENT_SESSION_LIFETIME"] = dt.timedelta(days=31)
 
 FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "50"))
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000").rstrip("/")
+BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000").strip().rstrip("/")
 
 # -----------------------------
 # Publish config
@@ -129,15 +129,15 @@ def init_db():
 # -----------------------------
 # Stripe
 # -----------------------------
-STRIPE_MODE = os.getenv("STRIPE_MODE", "test")
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_MODE = os.getenv("STRIPE_MODE", "test").strip().lower()
+STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
+STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
+STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
 
-PRICE_SINGLE_MONTHLY = os.getenv("STRIPE_PRICE_SINGLE_MONTHLY", "")
-PRICE_SINGLE_YEARLY = os.getenv("STRIPE_PRICE_SINGLE_YEARLY", "")
-PRICE_TEAM_MONTHLY = os.getenv("STRIPE_PRICE_TEAM_MONTHLY", "")
-PRICE_TEAM_YEARLY = os.getenv("STRIPE_PRICE_TEAM_YEARLY", "")
+PRICE_SINGLE_MONTHLY = os.getenv("STRIPE_PRICE_SINGLE_MONTHLY", "").strip()
+PRICE_SINGLE_YEARLY = os.getenv("STRIPE_PRICE_SINGLE_YEARLY", "").strip()
+PRICE_TEAM_MONTHLY = os.getenv("STRIPE_PRICE_TEAM_MONTHLY", "").strip()
+PRICE_TEAM_YEARLY = os.getenv("STRIPE_PRICE_TEAM_YEARLY", "").strip()
 
 stripe.api_key = STRIPE_SECRET_KEY
 
@@ -1424,10 +1424,40 @@ body {
 
 
 # -----------------------------
+# Debug routes
+# -----------------------------
+@app.get("/health")
+def health():
+    return jsonify({
+        "ok": True,
+        "message": "Simo is alive",
+        "base_url": BASE_URL,
+    })
+
+
+@app.get("/debug-routes")
+def debug_routes():
+    return jsonify({
+        "ok": True,
+        "message": "This is the live app.py",
+        "base_url": BASE_URL,
+        "google_callback": f"{BASE_URL}/auth/google/callback",
+        "request_host_url": request.host_url,
+        "request_url_root": request.url_root,
+        "google_configured": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
+    })
+
+
+# -----------------------------
 # UI
 # -----------------------------
 @app.get("/")
 def home():
+    return render_template("landing.html")
+
+
+@app.get("/app")
+def simo_app():
     plan, _, is_team = get_plan()
     return render_template(
         "index.html",
@@ -1438,8 +1468,6 @@ def home():
         is_team=is_team,
         user_email=session.get("user_email"),
     )
-
-
 # -----------------------------
 # API: status / me
 # -----------------------------
@@ -1675,12 +1703,12 @@ def billing_success():
     plan_key = request.args.get("plan", "")
     plan = PLAN_AFTER_SUCCESS.get(plan_key, "free")
     set_plan(plan)
-    return redirect(url_for("home"))
+    return redirect(url_for("simo_app"))
 
 
 @app.get("/billing/cancel")
 def billing_cancel():
-    return redirect(url_for("home"))
+   return redirect(url_for("simo_app"))
 
 
 # -----------------------------
@@ -1701,7 +1729,7 @@ def login():
 @app.get("/auth/google/callback")
 def google_callback():
     if "google" not in oauth._clients:
-        return redirect(url_for("home"))
+        return redirect(url_for("simo_app"))
 
     token = oauth.google.authorize_access_token()
 
