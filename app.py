@@ -1447,6 +1447,21 @@ def debug_routes():
         "google_configured": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
     })
 
+@app.get("/debug-force-pro")
+def debug_force_pro():
+    email = (session.get("user_email") or "").strip().lower()
+    if not email:
+        return jsonify({"ok": False, "error": "No logged in user."}), 400
+
+    save_user_plan(email, "single")
+    session["plan"] = "single"
+
+    return jsonify({
+        "ok": True,
+        "message": "User upgraded to Pro.",
+        "email": email,
+        "plan": "single",
+    })
 
 # -----------------------------
 # UI
