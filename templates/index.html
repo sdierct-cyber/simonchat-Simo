@@ -335,11 +335,13 @@
         </div>
       </div>
 
-      <button id="proBtn" class="proBtn" type="button">
-        <span class="star">⭐</span>
-        <span class="label">UPGRADE</span>
-        <span class="star">⭐</span>
-      </button>
+      {% if plan == "free" %}
+<button id="proBtn" class="proBtn" type="button">
+  <span class="star">⭐</span>
+  <span class="label">UPGRADE</span>
+  <span class="star">⭐</span>
+</button>
+{% endif %}
 
       <div class="sideBlock">
         <button class="sideItem" type="button" data-prompt="I want to upload an image for analysis.">
