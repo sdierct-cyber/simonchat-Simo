@@ -394,35 +394,29 @@
         </div>
 
         <div class="actions">
-          <button id="newChatBtn" class="pill" type="button">＋ New Chat</button>
+  <button id="newChatBtn" class="pill" type="button">＋ New Chat</button>
 
-         {% if user_email %}
-  <a class="pill" id="logoutBtn" href="/logout" style="text-decoration:none">Logout</a>
+  {% if user_email %}
+    <a class="pill" id="logoutBtn" href="/logout" style="text-decoration:none">Logout</a>
 
-  {% if plan == "single" %}
-    <div class="pill plan-pill pro-pill">⭐ Simo Pro</div>
-  {% elif plan == "team" %}
-    <div class="pill plan-pill team-pill">👥 Team Pro</div>
+    {% if plan == "single" %}
+      <div class="pill plan-pill pro-pill">⭐ Simo Pro</div>
+    {% elif plan == "team" %}
+      <div class="pill plan-pill team-pill">👥 Team Pro</div>
+    {% else %}
+      <div class="pill plan-pill free-pill">Free</div>
+    {% endif %}
+
+    <button id="youBtn" class="pill" type="button">
+      🙂 {{ user_email }}
+    </button>
   {% else %}
-    <div class="pill plan-pill free-pill">Free</div>
+    <a class="pill" id="signinBtn" href="/login" style="text-decoration:none">Sign in</a>
+    <button id="youBtn" class="pill" type="button">🙂 You</button>
   {% endif %}
 
-  <button id="youBtn" class="pill" type="button">
-    🙂 {{ user_email }}
-  </button>
-{% endif %}
-
-              {% if plan == "team" %}
-                <span class="planBadge team">PRO TEAM</span>
-              {% endif %}
-            </button>
-          {% else %}
-            <a class="pill" id="signinBtn" href="/login" style="text-decoration:none">Sign in</a>
-            <button id="youBtn" class="pill" type="button">🙂 You</button>
-          {% endif %}
-
-          <button id="clearBtn" class="pill danger" type="button">🗑 Clear History</button>
-        </div>
+  <button id="clearBtn" class="pill danger" type="button">🗑 Clear History</button>
+</div>
       </header>
 
       <div class="statusRow">
