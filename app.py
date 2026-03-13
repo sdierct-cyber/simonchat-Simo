@@ -1759,7 +1759,6 @@ def google_callback():
         session["user_email"] = email
         ensure_user_record(email)
 
-        # Check Stripe subscription first
         pro_active = False
         try:
             customers = stripe.Customer.list(email=email).data
