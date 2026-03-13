@@ -428,13 +428,24 @@
           <span class="softTag">🖼 Image aware</span>
         </div>
        <div class="right">
-  <span class="softTag">Plan: <b id="topPlanLabel">{{ plan }}</b></span>
+  <span class="softTag">
+  Plan:
+  <b id="topPlanLabel">
+    {% if plan == "single" %}
+      Pro
+    {% elif plan == "team" %}
+      Team
+    {% else %}
+      Free
+    {% endif %}
+  </b>
+</span>
 
   {% if plan == "free" %}
     <span class="softTag">Free Daily Limit: <b>{{ free_limit }}</b></span>
   {% else %}
-    <span class="softTag">Unlimited Messages</span>
-  {% endif %}
+  <span class="softTag">Unlimited</span>
+{% endif %}
 
 </div>
 
