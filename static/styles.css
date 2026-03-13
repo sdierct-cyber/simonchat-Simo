@@ -1004,3 +1004,313 @@ input, textarea, select{
     height:160px;
   }
 }
+
+/* =========================================================
+   SIMO MOBILE POLISH PATCH
+   Append-only patch for phone/tablet responsiveness
+   ========================================================= */
+
+.main,
+.chatWrap,
+.chatMessages,
+.topbar,
+.actions,
+.statusRow,
+.dashboardStrip,
+.welcomeCard,
+.composer,
+.inputWrap,
+.chatInput {
+  min-width: 0;
+}
+
+.chatWrap,
+.chatMessages {
+  width: 100%;
+}
+
+/* Tablet */
+@media (max-width: 1100px) {
+  .app {
+    grid-template-columns: 260px minmax(0, 1fr);
+  }
+
+  .dashboardStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 10px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 820px) {
+  .app {
+    display: block;
+  }
+
+  .side {
+    width: 100%;
+    max-width: none;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    padding-bottom: 14px;
+  }
+
+  .sideBlock {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .sideFooter {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .main {
+    width: 100%;
+    max-width: 100%;
+    padding: 14px;
+  }
+
+  .topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .topbarLeft {
+    width: 100%;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .actions {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: flex-start;
+  }
+
+  .actions .pill,
+  .actions a.pill,
+  .actions button.pill,
+  .actions .plan-pill {
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+
+  .statusRow {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .statusRow .left,
+  .statusRow .right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .dashboardStrip {
+    grid-template-columns: 1fr;
+  }
+
+  .dashCard {
+    width: 100%;
+  }
+
+  .welcomeCard {
+    padding: 16px;
+  }
+
+  .welcomeTop {
+    align-items: flex-start;
+  }
+
+  .quickChips {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quickChip {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .chatWrap {
+    width: 100%;
+    padding: 0;
+  }
+
+  .chatMessages {
+    width: 100%;
+    min-height: 280px;
+  }
+
+  .composer {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    flex-wrap: nowrap;
+  }
+
+  .inputWrap {
+    flex: 1 1 auto;
+    min-width: 0;
+    width: auto;
+  }
+
+  .chatInput {
+    width: 100%;
+    min-width: 0;
+    font-size: 16px; /* prevents iPhone zoom */
+  }
+
+  #chatInput {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .roundBtn {
+    flex: 0 0 auto;
+  }
+
+  .footerNote {
+    width: 100%;
+    text-align: left;
+  }
+
+  .modal {
+    padding: 14px;
+  }
+
+  .modalCard,
+  .modalCard.wide {
+    width: 100%;
+    max-width: 100%;
+    max-height: 88vh;
+    border-radius: 18px;
+  }
+
+  .tiers.two {
+    grid-template-columns: 1fr;
+  }
+
+  .tierBtns,
+  .setButtons,
+  .libraryTopActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tierBtns > *,
+  .setButtons > *,
+  .libraryTopActions > * {
+    width: 100%;
+  }
+
+  #builderPreviewFrame {
+    height: 420px !important;
+  }
+
+  #builderHtmlView {
+    min-height: 220px !important;
+  }
+}
+
+/* Small phones */
+@media (max-width: 560px) {
+  body {
+    overflow-x: hidden;
+  }
+
+  .brand {
+    padding: 14px;
+  }
+
+  .name {
+    font-size: 18px;
+  }
+
+  .tag,
+  .brandAlive {
+    font-size: 12px;
+  }
+
+  .title {
+    font-size: 18px;
+  }
+
+  .titleMini {
+    font-size: 11px;
+  }
+
+  .simoPresence {
+    font-size: 11px;
+    padding: 7px 10px;
+  }
+
+  .actions {
+    gap: 8px;
+  }
+
+  .actions .pill,
+  .actions a.pill,
+  .actions button.pill,
+  .actions .plan-pill {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .softTag {
+    font-size: 11px;
+    padding: 6px 10px;
+  }
+
+  .dashValue {
+    font-size: 16px;
+  }
+
+  .welcomeTitle {
+    font-size: 16px;
+  }
+
+  .welcomeSub {
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  .composer {
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .roundBtn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .chatInput,
+  #chatInput {
+    font-size: 16px;
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .chatMessages {
+    min-height: 220px;
+  }
+
+  #builderPreviewFrame {
+    height: 340px !important;
+  }
+}
