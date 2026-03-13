@@ -5,7 +5,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Simo — Your Best Friend AI</title>
+<title>Simo — The AI That Chats, Analyzes Images, and Builds Websites</title>
+<meta name="description" content="Simo is an AI assistant that chats naturally, analyzes images, and helps build websites and projects.">
 
 <style>
 
@@ -59,6 +60,7 @@ border-radius:10px;
 font-size:16px;
 cursor:pointer;
 text-decoration:none;
+display:inline-block;
 }
 
 .btn-primary{
@@ -71,10 +73,38 @@ background:#1f2937;
 color:white;
 }
 
+.launch-badge{
+display:inline-block;
+margin-bottom:24px;
+padding:10px 16px;
+border-radius:999px;
+background:#121826;
+border:1px solid rgba(255,255,255,.08);
+font-size:14px;
+opacity:.9;
+}
+
 .trust{
 margin-top:20px;
 opacity:.7;
 font-size:15px;
+}
+
+.social-proof{
+text-align:center;
+padding:30px 20px 10px;
+max-width:900px;
+margin:auto;
+}
+
+.social-proof h2{
+font-size:34px;
+margin-bottom:15px;
+}
+
+.social-proof p{
+opacity:.75;
+font-size:18px;
 }
 
 .features{
@@ -125,10 +155,95 @@ font-size:32px;
 margin:20px 0;
 }
 
+.seo-links{
+padding:40px 20px 10px;
+max-width:1000px;
+margin:auto;
+text-align:center;
+}
+
+.seo-links h2{
+font-size:34px;
+margin-bottom:16px;
+}
+
+.seo-links p{
+opacity:.75;
+margin-bottom:24px;
+font-size:18px;
+}
+
+.seo-link-grid{
+display:flex;
+justify-content:center;
+gap:16px;
+flex-wrap:wrap;
+}
+
+.seo-link-grid a{
+background:#121826;
+color:#8fb3ff;
+text-decoration:none;
+padding:14px 18px;
+border-radius:10px;
+display:inline-block;
+}
+
+.more-coming{
+padding:80px 20px;
+text-align:center;
+max-width:900px;
+margin:auto;
+}
+
+.more-coming h2{
+font-size:36px;
+margin-bottom:20px;
+}
+
+.more-coming p{
+opacity:.75;
+font-size:18px;
+margin-bottom:40px;
+}
+
+.more-grid{
+display:flex;
+justify-content:center;
+gap:40px;
+flex-wrap:wrap;
+}
+
+.more-card{
+background:#121826;
+padding:30px;
+border-radius:12px;
+width:240px;
+}
+
+.more-card p{
+opacity:.7;
+}
+
 footer{
 text-align:center;
 padding:40px;
-opacity:.6;
+opacity:.7;
+}
+
+.footer-links{
+margin-top:14px;
+}
+
+.footer-links a{
+color:#8fb3ff;
+text-decoration:none;
+margin:0 10px;
+font-size:15px;
+}
+
+.footer-links a:hover{
+text-decoration:underline;
 }
 
 </style>
@@ -150,7 +265,9 @@ opacity:.6;
 
 <section class="hero">
 
-<h1>Your AI Workspace for Chatting, Building, and Creating</h1>
+<div class="launch-badge">🚀 Early Launch — Looking for our first 100 testers</div>
+
+<h1>Simo — The AI That Chats, Analyzes Images, and Builds Websites</h1>
 
 <p>
 Chat with Simo, generate websites and ideas, analyze images, and turn concepts into real projects in one place.
@@ -166,6 +283,18 @@ Chat with Simo, generate websites and ideas, analyze images, and turn concepts i
 
 <p class="trust">
 Live now with AI chat, image analysis, website building, and Pro upgrades.
+</p>
+
+</section>
+
+
+
+<section class="social-proof">
+
+<h2>Built for Early Testers and Builders</h2>
+
+<p>
+Simo is designed for people exploring ideas, testing products, building websites, and using AI as a creative workspace.
 </p>
 
 </section>
@@ -231,6 +360,8 @@ Upload photos and images and let Simo help you understand, analyze, and explore 
 
 <p>Explore Simo</p>
 
+<a href="/app" class="btn btn-secondary">Start Free</a>
+
 </div>
 
 
@@ -247,7 +378,7 @@ Upload photos and images and let Simo help you understand, analyze, and explore 
 
 <p>Priority features</p>
 
-<a href="/upgrade" class="btn btn-primary">Upgrade</a>
+<a href="/app" class="btn btn-primary">Upgrade in App</a>
 
 </div>
 
@@ -256,38 +387,66 @@ Upload photos and images and let Simo help you understand, analyze, and explore 
 
 </section>
 
-<section style="padding:80px 20px; text-align:center; max-width:900px; margin:auto;">
 
-<h2 style="font-size:36px; margin-bottom:20px;">More Features Coming Soon</h2>
 
-<p style="opacity:.75; font-size:18px; margin-bottom:40px;">
+<section class="seo-links">
+
+<h2>Explore What Simo Can Do</h2>
+
+<p>
+Learn more about Simo's AI tools, website building, and ChatGPT alternative features.
+</p>
+
+<div class="seo-link-grid">
+<a href="/ai-tools">AI Tools</a>
+<a href="/chatgpt-alternative">ChatGPT Alternative</a>
+<a href="/ai-website-builder">AI Website Builder</a>
+</div>
+
+</section>
+
+
+
+<section class="more-coming">
+
+<h2>More Features Coming Soon</h2>
+
+<p>
 Simo is evolving quickly. We're actively expanding the platform with new tools and capabilities.
 </p>
 
-<div style="display:flex; justify-content:center; gap:40px; flex-wrap:wrap;">
+<div class="more-grid">
 
-<div style="background:#121826; padding:30px; border-radius:12px; width:240px;">
+<div class="more-card">
 <h3>Voice Interaction</h3>
-<p style="opacity:.7;">Talk with Simo using voice and microphone support.</p>
+<p>Talk with Simo using voice and microphone support.</p>
 </div>
 
-<div style="background:#121826; padding:30px; border-radius:12px; width:240px;">
+<div class="more-card">
 <h3>Theme Customization</h3>
-<p style="opacity:.7;">Personalize your workspace with custom themes and layouts.</p>
+<p>Personalize your workspace with custom themes and layouts.</p>
 </div>
 
-<div style="background:#121826; padding:30px; border-radius:12px; width:240px;">
+<div class="more-card">
 <h3>Persistent Memory</h3>
-<p style="opacity:.7;">Simo will remember your projects, ideas, and conversations.</p>
+<p>Simo will remember your projects, ideas, and conversations.</p>
 </div>
 
 </div>
 
 </section>
 
+
+
 <footer>
 
-© 2026 Simo AI — Built to help you create, explore, and build faster.
+<div>© 2026 Simo AI — Built to help you create, explore, and build faster.</div>
+
+<div class="footer-links">
+<a href="/ai-tools">AI Tools</a>
+<a href="/chatgpt-alternative">ChatGPT Alternative</a>
+<a href="/ai-website-builder">AI Website Builder</a>
+</div>
 
 </footer>
 
