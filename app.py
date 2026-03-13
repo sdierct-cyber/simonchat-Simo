@@ -1447,6 +1447,15 @@ def debug_routes():
         "google_configured": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
     })
 
+
+# -----------------------------
+# AI Tools SEO Page
+# -----------------------------
+@app.get("/ai-tools")
+def ai_tools():
+    return render_template("ai-tools.html")
+
+
 @app.get("/debug-force-pro")
 def debug_force_pro():
     email = (session.get("user_email") or "").strip().lower()
