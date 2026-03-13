@@ -427,11 +427,16 @@
           <span class="softTag">🧠 Builder enabled</span>
           <span class="softTag">🖼 Image aware</span>
         </div>
-        <div class="right">
-          <span class="softTag">Plan: <b id="topPlanLabel">{{ plan }}</b></span>
-          <span class="softTag">Free Daily Limit: <b>{{ free_limit }}</b></span>
-        </div>
-      </div>
+       <div class="right">
+  <span class="softTag">Plan: <b id="topPlanLabel">{{ plan }}</b></span>
+
+  {% if plan == "free" %}
+    <span class="softTag">Free Daily Limit: <b>{{ free_limit }}</b></span>
+  {% else %}
+    <span class="softTag">Unlimited Messages</span>
+  {% endif %}
+
+</div>
 
       <section class="dashboardStrip">
         <div class="dashCard">
