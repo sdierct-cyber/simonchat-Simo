@@ -1909,11 +1909,6 @@ def ai_website_builder():
     return render_template("ai-website-builder.html")
 
 
-@app.get("/ai-image-analysis")
-def ai_image_analysis():
-    return render_template("ai-image-analysis.html")
-
-
 init_db()
 
 if __name__ == "__main__":
