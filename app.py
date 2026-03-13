@@ -1758,48 +1758,35 @@ def google_callback():
     if email:
         session["user_email"] = email
         ensure_user_record(email)
-        row = get_user_record(email)
-        if row and row.get("plan") in ("free", "single", "team"):
-            session["plan"] = row["plan"]
+
+        # Check Stripe subscription first
+        pro_active = False
+        try:
+            customers = stripe.Customer.list(email=email).data
+            if customers:
+                customer_id = customers[0].id
+                subs = stripe.Subscription.list(
+                    customer=customer_id,
+                    status="active"
+                ).data
+                if subs:
+                    pro_active = True
+        except Exception as e:
+            print("Stripe check failed:", e)
+
+        if pro_active:
+            session["plan"] = "single"
+            save_user_plan(email, "single")
         else:
-            session["plan"] = "free"
+            row = get_user_record(email)
+            if row and row.get("plan") in ("free", "single", "team"):
+                session["plan"] = row["plan"]
+            else:
+                session["plan"] = "free"
 
     session.pop("oauth_nonce", None)
     return redirect(url_for("home"))
-if email:
-    session["user_email"] = email
-    ensure_user_record(email)
 
-    # Check Stripe subscription first
-    pro_active = False
-    try:
-        import stripe
-        stripe.api_key = STRIPE_SECRET_KEY
-
-        customers = stripe.Customer.list(email=email).data
-        if customers:
-            customer_id = customers[0].id
-            subs = stripe.Subscription.list(
-                customer=customer_id,
-                status="active"
-            ).data
-
-            if subs:
-                pro_active = True
-    except Exception as e:
-        print("Stripe check failed:", e)
-
-    if pro_active:
-        session["plan"] = "single"
-    else:
-        row = get_user_record(email)
-        if row and row.get("plan") in ("free", "single", "team"):
-            session["plan"] = row["plan"]
-        else:
-            session["plan"] = "free"
-
-session.pop("oauth_nonce", None)
-return redirect(url_for("home"))
 
 @app.get("/logout")
 def logout():
@@ -1809,7 +1796,6 @@ def logout():
     clear_last_image_memory()
     clear_last_builder_memory()
     return redirect(url_for("home"))
-
 
 # -----------------------------
 # Image upload (vision + history + memory)
