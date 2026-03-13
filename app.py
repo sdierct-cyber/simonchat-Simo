@@ -1894,6 +1894,28 @@ def api_image():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Vision error: {str(e)}"}), 500
 
+# -----------------------------
+# SEO / marketing pages
+# -----------------------------
+@app.get("/ai-tools")
+def ai_tools():
+    return render_template("ai-tools.html")
+
+
+@app.get("/chatgpt-alternative")
+def chatgpt_alternative():
+    return render_template("chatgpt-alternative.html")
+
+
+@app.get("/ai-website-builder")
+def ai_website_builder():
+    return render_template("ai-website-builder.html")
+
+
+@app.get("/ai-image-analysis")
+def ai_image_analysis():
+    return render_template("ai-image-analysis.html")
+
 init_db()
 
 if __name__ == "__main__":
