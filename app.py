@@ -1448,14 +1448,6 @@ def debug_routes():
     })
 
 
-# -----------------------------
-# AI Tools SEO Page
-# -----------------------------
-@app.get("/ai-tools")
-def ai_tools():
-    return render_template("ai-tools.html")
-
-
 @app.get("/debug-force-pro")
 def debug_force_pro():
     email = (session.get("user_email") or "").strip().lower()
@@ -1471,6 +1463,7 @@ def debug_force_pro():
         "email": email,
         "plan": "single",
     })
+
 
 # -----------------------------
 # UI
@@ -1492,6 +1485,8 @@ def simo_app():
         is_team=is_team,
         user_email=session.get("user_email"),
     )
+
+
 # -----------------------------
 # API: status / me
 # -----------------------------
@@ -1732,7 +1727,7 @@ def billing_success():
 
 @app.get("/billing/cancel")
 def billing_cancel():
-   return redirect(url_for("simo_app"))
+    return redirect(url_for("simo_app"))
 
 
 # -----------------------------
@@ -1804,6 +1799,7 @@ def logout():
     clear_last_image_memory()
     clear_last_builder_memory()
     return redirect(url_for("home"))
+
 
 # -----------------------------
 # Image upload (vision + history + memory)
@@ -1894,6 +1890,7 @@ def api_image():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Vision error: {str(e)}"}), 500
 
+
 # -----------------------------
 # SEO / marketing pages
 # -----------------------------
@@ -1915,6 +1912,7 @@ def ai_website_builder():
 @app.get("/ai-image-analysis")
 def ai_image_analysis():
     return render_template("ai-image-analysis.html")
+
 
 init_db()
 
