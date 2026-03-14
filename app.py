@@ -3462,69 +3462,74 @@ SEO_PAGES = {
         "footer_text": "Brand voice help, AI chat, and messaging support in one place."
     },
 
-    "ai-business-name-generator": {
-        "meta_title": "AI Business Name Generator | Simo",
-        "meta_description": "Generate business name ideas for startups, brands, apps, and projects with Simo.",
-        "eyebrow": "AI Business Naming",
-        "hero_title": "AI Business Name Generator",
-        "hero_description": "Simo helps you brainstorm business names by generating ideas, exploring styles, and refining the strongest directions.",
-        "example_prompt": "Give me business name ideas for an AI company that chats naturally, analyzes images, and builds websites.",
-        "example_output": "Simo can help generate naming directions across different tones, then refine the strongest options into something more distinctive.",
-        "benefits_title": "Why use Simo for business naming",
-        "benefits_lead": "A strong business name should fit the brand, feel memorable, and support the direction of the company. Simo helps with that.",
+       "ai-business-name-generator": {
+        ...
+        "footer_text": "Business naming, AI chat, and brand direction help in one place."
+    },
+
+    "ai-copywriter": {
+        "meta_title": "AI Copywriter | Simo",
+        "meta_description": "Use Simo as an AI copywriter for website copy, marketing messaging, product descriptions, and launch content.",
+        "eyebrow": "AI Copywriting",
+        "hero_title": "AI Copywriter",
+        "hero_description": "Simo helps you write stronger copy for websites, launches, products, and promotional messaging without starting from scratch.",
+        "example_prompt": "Write homepage copy for Simo, an AI that chats, analyzes images, and helps build websites.",
+        "example_output": "Simo can help create copy that is clearer, stronger, and more aligned with what users actually care about so the message lands better.",
+        "benefits_title": "Why use Simo as an AI copywriter",
+        "benefits_lead": "Copywriting often comes down to positioning, tone, structure, and clarity. Simo helps you shape all of that faster.",
         "pills": [
-            "Business names",
-            "Startup naming",
-            "Brand ideas",
-            "Naming directions"
+            "Homepage copy",
+            "Launch messaging",
+            "Product copy",
+            "Website writing"
         ],
         "features": [
             {
-                "title": "Generate many business name options",
-                "text": "Use Simo to brainstorm naming ideas for startups, websites, products, and brands."
+                "title": "Write better copy for websites",
+                "text": "Use Simo to improve homepage messaging, feature explanations, product summaries, and CTA language."
             },
             {
-                "title": "Explore different naming tones",
-                "text": "Ask for premium, modern, simple, creative, or category-based name directions."
+                "title": "Find stronger positioning",
+                "text": "Simo can help explain what your offer does and why it matters in a way that feels cleaner and more useful."
             },
             {
-                "title": "Refine the strongest options",
-                "text": "Simo can help narrow ideas down into clearer and more memorable final choices."
+                "title": "Refine copy by tone and audience",
+                "text": "Ask Simo for more premium, simple, persuasive, founder-friendly, or creator-focused copy depending on your goal."
             }
         ],
-        "how_it_works_lead": "Describe the business, choose a tone, and keep refining until the strongest names stand out.",
+        "how_it_works_lead": "Share what you are writing, ask for copy in the tone you want, and keep refining until it feels right.",
         "steps": [
             {
-                "title": "Describe the business",
-                "text": "Tell Simo what the company or product does."
+                "title": "Describe the offer or page",
+                "text": "Tell Simo what product, website, or message you need help writing."
             },
             {
-                "title": "Generate name ideas",
-                "text": "Ask for multiple directions and different naming styles."
+                "title": "Generate the copy",
+                "text": "Ask for homepage copy, feature copy, launch text, or promotional writing."
             },
             {
-                "title": "Refine the best options",
-                "text": "Compare the strongest names and keep improving them."
+                "title": "Refine for clarity and impact",
+                "text": "Keep improving the copy until it matches your audience and feels more effective."
             }
         ],
         "faqs": [
             {
-                "q": "Can Simo generate startup and business names?",
-                "a": "Yes. Simo is useful for startup, app, product, and business naming."
+                "q": "Can Simo help with homepage copy?",
+                "a": "Yes. Simo can help write and improve homepage and landing page copy."
             },
             {
-                "q": "Can Simo create more premium-sounding business names?",
-                "a": "Yes. You can ask for different brand tones and naming styles."
+                "q": "Can Simo help with product launches too?",
+                "a": "Yes. Simo is useful for launch messaging, promotional text, and product positioning."
             },
             {
-                "q": "Can Simo help compare the strongest names?",
-                "a": "Yes. Simo can help narrow options down and improve them."
+                "q": "What kinds of copy can Simo help with?",
+                "a": "Simo can help with website copy, launch copy, product descriptions, messaging ideas, and other marketing writing."
             }
         ],
-        "cta_title": "Generate better business names with Simo",
-        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
+        "cta_title": "Write better copy with Simo",
+        "cta_text": "Use Simo to create clearer, stronger, and more effective copy faster.",
         "cta_button": "Try Simo Free",
-        "footer_text": "Business naming, AI chat, and brand direction help in one place."
+        "footer_text": "AI copywriting, chat, and creative support in one place."
     }
 }
 
