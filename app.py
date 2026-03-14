@@ -1448,22 +1448,22 @@ def debug_routes():
     })
 
 
-@app.get("/debug-force-pro")
-def debug_force_pro():
-    email = (session.get("user_email") or "").strip().lower()
-    if not email:
-        return jsonify({"ok": False, "error": "No logged in user."}), 400
+if not IS_PRODUCTION:
+    @app.get("/debug-force-pro")
+    def debug_force_pro():
+        email = (session.get("user_email") or "").strip().lower()
+        if not email:
+            return jsonify({"ok": False, "error": "No logged in user."}), 400
 
-    save_user_plan(email, "single")
-    session["plan"] = "single"
+        save_user_plan(email, "single")
+        session["plan"] = "single"
 
-    return jsonify({
-        "ok": True,
-        "message": "User upgraded to Pro.",
-        "email": email,
-        "plan": "single",
-    })
-
+        return jsonify({
+            "ok": True,
+            "message": "User upgraded to Pro.",
+            "email": email,
+            "plan": "single",
+        })
 
 # -----------------------------
 # UI
@@ -1899,17 +1899,375 @@ def ai_tools():
     return render_template("ai-tools.html")
 
 
-@app.get("/chatgpt-alternative")
-def chatgpt_alternative():
-    return render_template("chatgpt-alternative.html")
-
-
-@app.get("/ai-website-builder")
-def ai_website_builder():
-    return render_template("ai-website-builder.html")
-
-
 init_db()
+
+SEO_PAGES = {
+    "ai-website-builder": {
+        "meta_title": "Free AI Website Builder | Simo",
+        "meta_description": "Create websites faster with Simo, an AI assistant that chats naturally and helps generate websites, pages, and ideas in seconds.",
+        "eyebrow": "AI Website Builder",
+        "hero_title": "Free AI Website Builder",
+        "hero_description": "Simo helps you generate website ideas, landing page copy, layouts, and starter content faster so you can go from blank page to working concept in minutes.",
+        "example_prompt": "Build me a modern bakery landing page with a hero section, menu highlights, testimonials, and a strong call to action.",
+        "example_output": "Simo can help you structure the page, write persuasive copy, suggest sections, improve messaging, and support your build workflow so your site comes together much faster.",
+        "benefits_title": "Why use Simo as your AI website builder",
+        "benefits_lead": "Simo is built to help creators, founders, and builders move faster with websites, landing pages, and project ideas.",
+        "pills": [
+            "Landing pages",
+            "Site copy help",
+            "Fast brainstorming",
+            "Simple workflow"
+        ],
+        "features": [
+            {
+                "title": "Generate website ideas faster",
+                "text": "Use Simo to brainstorm page layouts, headlines, sections, offers, and calls to action when you do not want to start from scratch."
+            },
+            {
+                "title": "Improve your website messaging",
+                "text": "Simo can help refine wording, positioning, and structure so your site is clearer, stronger, and easier for visitors to understand."
+            },
+            {
+                "title": "Go from concept to launch faster",
+                "text": "Whether you are building a startup page, portfolio, business site, or niche tool page, Simo helps speed up the creative process."
+            }
+        ],
+        "how_it_works_lead": "Use Simo to describe what you want, refine the result, and continue shaping your page or concept step by step.",
+        "steps": [
+            {
+                "title": "Describe your website idea",
+                "text": "Tell Simo what kind of website you want to create, who it is for, and what style or sections you need."
+            },
+            {
+                "title": "Refine the content",
+                "text": "Ask for stronger headlines, clearer copy, better structure, or additional sections until the concept feels right."
+            },
+            {
+                "title": "Keep building with confidence",
+                "text": "Use the output as your launch pad for website creation, iteration, and polishing."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help with landing pages?",
+                "a": "Yes. Simo can help you brainstorm, structure, and improve landing pages for businesses, startups, portfolios, and creative projects."
+            },
+            {
+                "q": "Is Simo only for developers?",
+                "a": "No. Simo is designed to be useful for non-technical founders, creators, students, and anyone who wants help shaping a website idea."
+            },
+            {
+                "q": "Can I use Simo for different types of sites?",
+                "a": "Yes. You can use Simo for business pages, portfolios, personal brands, startup sites, niche offers, and more."
+            }
+        ],
+        "cta_title": "Start building your website idea with Simo",
+        "cta_text": "Use Simo to brainstorm, refine, and move faster on your next website or landing page.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI chat, image analysis, and website help in one place."
+    },
+
+    "image-analyzer": {
+        "meta_title": "AI Image Analyzer | Simo",
+        "meta_description": "Analyze images with Simo. Get help understanding visuals, screenshots, design ideas, and image-based questions in one place.",
+        "eyebrow": "AI Image Analysis",
+        "hero_title": "AI Image Analyzer",
+        "hero_description": "Simo helps you understand images, screenshots, visuals, and design references so you can ask questions and get useful guidance faster.",
+        "example_prompt": "Analyze this screenshot and tell me what is going wrong with the form submission.",
+        "example_output": "Simo can help identify visible issues, explain what the screen shows, point out likely causes, and help you decide the best next step.",
+        "benefits_title": "Why use Simo for image analysis",
+        "benefits_lead": "Simo combines natural conversation with image understanding, so you can ask follow-up questions instead of using a one-step tool.",
+        "pills": [
+            "Screenshot help",
+            "Visual understanding",
+            "Design feedback",
+            "Follow-up questions"
+        ],
+        "features": [
+            {
+                "title": "Understand screenshots faster",
+                "text": "Use Simo to review UI screenshots, form errors, layouts, and visual states so you can quickly understand what is happening."
+            },
+            {
+                "title": "Ask follow-up questions naturally",
+                "text": "Instead of receiving a single flat result, you can keep asking questions and digging deeper into the same image or context."
+            },
+            {
+                "title": "Useful for creators and builders",
+                "text": "Simo can help with designs, interfaces, mockups, references, diagrams, and everyday visual troubleshooting."
+            }
+        ],
+        "how_it_works_lead": "Upload or share an image, ask what you want to know, and continue the conversation naturally.",
+        "steps": [
+            {
+                "title": "Share an image or screenshot",
+                "text": "Bring in a screenshot, visual, design reference, or other image you want help understanding."
+            },
+            {
+                "title": "Ask a direct question",
+                "text": "Ask what is happening, what stands out, what may be wrong, or what changes might help."
+            },
+            {
+                "title": "Go deeper with follow-ups",
+                "text": "Keep refining the discussion with additional questions based on the image and prior answers."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo analyze screenshots?",
+                "a": "Yes. Simo can help you interpret screenshots, interface states, visible messages, and other on-screen details."
+            },
+            {
+                "q": "Can I ask follow-up questions about the same image?",
+                "a": "Yes. That is one of the strengths of using Simo instead of a one-shot tool."
+            },
+            {
+                "q": "Is Simo useful for design feedback too?",
+                "a": "Yes. You can use Simo to discuss layouts, visuals, style direction, and what might improve a design."
+            }
+        ],
+        "cta_title": "Use Simo to understand images faster",
+        "cta_text": "Analyze screenshots, ask questions, and keep the conversation going with Simo.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI chat, image analysis, and creative help in one place."
+    },
+
+    "chatgpt-alternative": {
+        "meta_title": "ChatGPT Alternative | Simo",
+        "meta_description": "Looking for a ChatGPT alternative? Simo combines AI chat, image analysis, and website help in one platform.",
+        "eyebrow": "AI Chat Alternative",
+        "hero_title": "A ChatGPT Alternative with More Creative Utility",
+        "hero_description": "Simo is an AI assistant built for people who want natural conversation plus help with images, websites, ideas, and projects all in one place.",
+        "example_prompt": "Help me come up with a launch tagline, improve my product description, and then help me build the landing page.",
+        "example_output": "Simo is designed to support a fuller workflow, not just isolated answers, so you can continue from ideas into execution more smoothly.",
+        "benefits_title": "Why people explore Simo as an AI alternative",
+        "benefits_lead": "Simo is designed for users who want a best-friend style AI experience combined with practical creative assistance.",
+        "pills": [
+            "Natural chat",
+            "Image help",
+            "Website support",
+            "Project guidance"
+        ],
+        "features": [
+            {
+                "title": "More than conversation",
+                "text": "Simo supports natural AI chat while also helping with images, website ideas, positioning, and project thinking."
+            },
+            {
+                "title": "Built for creators and founders",
+                "text": "Whether you are launching a product, improving a page, or exploring an idea, Simo is built to be useful across real workflows."
+            },
+            {
+                "title": "Simple all-in-one experience",
+                "text": "Instead of jumping between separate tools, Simo brings several useful AI capabilities together in one place."
+            }
+        ],
+        "how_it_works_lead": "Start with a question, keep refining the conversation, and use Simo across multiple types of tasks.",
+        "steps": [
+            {
+                "title": "Ask naturally",
+                "text": "Start with a question, task, idea, or challenge in plain language."
+            },
+            {
+                "title": "Expand the workflow",
+                "text": "Move from brainstorming into editing, image analysis, or website-related help without switching tools."
+            },
+            {
+                "title": "Keep building momentum",
+                "text": "Continue the conversation until your idea, content, or project is stronger and clearer."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "What makes Simo different?",
+                "a": "Simo combines conversational AI with image understanding and website-related creative help in one platform."
+            },
+            {
+                "q": "Can Simo help with more than simple chat?",
+                "a": "Yes. Simo is meant to support broader creative and practical tasks, including image discussion and website workflow help."
+            },
+            {
+                "q": "Who is Simo for?",
+                "a": "Simo is useful for founders, creators, students, builders, and curious users who want an AI assistant that feels more versatile."
+            }
+        ],
+        "cta_title": "Try a more versatile AI experience",
+        "cta_text": "Use Simo for conversation, creative help, image understanding, and project support.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "A flexible AI assistant for chat, images, and creative work."
+    },
+
+    "resume-builder": {
+        "meta_title": "AI Resume Builder | Simo",
+        "meta_description": "Use Simo to improve resume wording, structure, and presentation so you can create a stronger resume faster.",
+        "eyebrow": "AI Resume Help",
+        "hero_title": "AI Resume Builder",
+        "hero_description": "Simo helps you improve resume wording, organize experience, refine bullet points, and present your skills more clearly.",
+        "example_prompt": "Rewrite my resume bullet points to sound stronger and more results-focused for a customer service role.",
+        "example_output": "Simo can help sharpen wording, strengthen descriptions, and improve how your experience is presented so your resume reads more clearly and professionally.",
+        "benefits_title": "Why use Simo for resume help",
+        "benefits_lead": "A stronger resume often comes down to clearer wording, better structure, and more confident positioning.",
+        "pills": [
+            "Resume wording",
+            "Bullet point help",
+            "Clearer structure",
+            "Stronger presentation"
+        ],
+        "features": [
+            {
+                "title": "Improve wording and clarity",
+                "text": "Use Simo to rewrite vague resume lines into clearer, stronger descriptions that communicate your value better."
+            },
+            {
+                "title": "Organize your experience",
+                "text": "Simo can help you group experience, refine sections, and improve the overall structure of your resume."
+            },
+            {
+                "title": "Adapt for different opportunities",
+                "text": "You can ask Simo to help tailor your resume language for different roles, industries, or goals."
+            }
+        ],
+        "how_it_works_lead": "Share your resume content, ask what kind of role you want, and refine the wording step by step.",
+        "steps": [
+            {
+                "title": "Paste your resume details",
+                "text": "Share your current bullet points, experience, or summary so Simo has a starting point."
+            },
+            {
+                "title": "Ask for improvements",
+                "text": "Request stronger wording, clearer structure, better tone, or more professional phrasing."
+            },
+            {
+                "title": "Refine for your target role",
+                "text": "Continue adjusting the content so it fits the role or direction you want to pursue."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo rewrite resume bullet points?",
+                "a": "Yes. Simo can help make resume bullet points clearer, stronger, and easier for employers to understand."
+            },
+            {
+                "q": "Can Simo help with resume summaries too?",
+                "a": "Yes. You can ask Simo to improve your summary, skills presentation, and overall resume language."
+            },
+            {
+                "q": "Is Simo useful if I am changing careers?",
+                "a": "Yes. Simo can help you reposition your experience so it speaks more clearly to a new direction."
+            }
+        ],
+        "cta_title": "Strengthen your resume with Simo",
+        "cta_text": "Use Simo to rewrite, refine, and improve your resume content faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Resume help, AI chat, and practical writing support in one place."
+    },
+
+    "business-plan-generator": {
+        "meta_title": "AI Business Plan Generator | Simo",
+        "meta_description": "Use Simo to brainstorm, outline, and improve business plans, startup ideas, positioning, and launch strategy.",
+        "eyebrow": "AI Business Planning",
+        "hero_title": "AI Business Plan Generator",
+        "hero_description": "Simo helps you brainstorm business ideas, shape your positioning, outline your model, and organize your plan more clearly.",
+        "example_prompt": "Help me create a simple business plan for an AI-powered driveway and garage rental platform.",
+        "example_output": "Simo can support your thinking around the problem, solution, audience, value proposition, business model, launch path, and messaging so your plan becomes clearer and more actionable.",
+        "benefits_title": "Why use Simo for business planning",
+        "benefits_lead": "Business plans become much easier when you can brainstorm, organize, and refine the idea in conversation.",
+        "pills": [
+            "Startup ideas",
+            "Plan outlines",
+            "Positioning help",
+            "Launch thinking"
+        ],
+        "features": [
+            {
+                "title": "Clarify the business idea",
+                "text": "Use Simo to define the problem, audience, value proposition, and what makes your idea worth pursuing."
+            },
+            {
+                "title": "Organize the plan faster",
+                "text": "Simo can help you structure a business plan into clear sections so you are not staring at a blank page."
+            },
+            {
+                "title": "Refine strategy and messaging",
+                "text": "Improve how you explain the idea, its market fit, and the path to launch so the business feels more real and coherent."
+            }
+        ],
+        "how_it_works_lead": "Start with the core idea, talk through the sections, and keep refining until the plan feels solid.",
+        "steps": [
+            {
+                "title": "Describe the business idea",
+                "text": "Share what you want to build, who it helps, and why it matters."
+            },
+            {
+                "title": "Build out the structure",
+                "text": "Use Simo to shape sections like problem, solution, audience, positioning, and growth ideas."
+            },
+            {
+                "title": "Refine the final direction",
+                "text": "Keep improving the plan until it is clearer, stronger, and easier to act on."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help brainstorm startup ideas?",
+                "a": "Yes. Simo can help you shape rough concepts into clearer and more structured business ideas."
+            },
+            {
+                "q": "Can Simo help outline a business plan?",
+                "a": "Yes. Simo can help organize your plan into useful sections and improve how the idea is explained."
+            },
+            {
+                "q": "Is Simo useful for early-stage founders?",
+                "a": "Yes. Simo is especially useful when you are still shaping the concept and want help getting traction on the thinking."
+            }
+        ],
+        "cta_title": "Build your business plan with Simo",
+        "cta_text": "Use Simo to brainstorm, structure, and strengthen your next startup or business idea.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI planning, creative help, and practical project support in one place."
+    }
+}
+
+
+@app.route("/<slug>")
+def seo_landing_page(slug):
+    page = SEO_PAGES.get(slug)
+    if not page:
+        abort(404)
+
+    base_url = os.getenv("BASE_URL", "https://simonchat.ai").rstrip("/")
+    canonical_url = f"{base_url}/{slug}"
+
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": page["hero_title"],
+        "description": page["meta_description"],
+        "url": canonical_url,
+        "isPartOf": {
+            "@type": "WebSite",
+            "name": "Simo",
+            "url": base_url
+        },
+        "about": {
+            "@type": "SoftwareApplication",
+            "name": "Simo",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web",
+            "offers": {
+                "@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            }
+        }
+    }
+
+    return render_template(
+        "seo_landing.html",
+        canonical_url=canonical_url,
+        schema_json=json.dumps(schema),
+        **page
+    )
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1" if not IS_PRODUCTION else "0.0.0.0")
