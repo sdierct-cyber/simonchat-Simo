@@ -75,6 +75,7 @@
   const buyTeamYearly = $("buyTeamYearly");
 
   const welcomeCard = $("welcomeCard");
+  const chatWrap = $("chatWrap");
 
   const dashEmail = $("dashEmail");
   const dashPlan = $("dashPlan");
@@ -88,7 +89,7 @@
   const SETTINGS_KEY = "simo_user_settings_v3";
   const LIBRARY_KEY = "simo_builder_library_v3";
   const LAST_PREVIEW_KEY = "simo_last_preview_v3";
-  const WELCOME_DISMISSED_KEY = "simo_welcome_dismissed_v3";
+  const WELCOME_DISMISSED_KEY = "simo_welcome_dismissed_v4";
 
   let isSending = false;
   let pendingImage = null;
@@ -160,27 +161,6 @@
     return "simo-project";
   }
 
-  function scrollChatToBottom() {
-    if (!chatEl) return;
-    chatEl.scrollTop = chatEl.scrollHeight;
-  }
-
-  function openModal(el) {
-    if (!el) return;
-    el.classList.remove("hidden");
-    el.setAttribute("aria-hidden", "false");
-  }
-
-  function closeModal(el) {
-    if (!el) return;
-    el.classList.add("hidden");
-    el.setAttribute("aria-hidden", "true");
-  }
-
-  function closeAllModals() {
-    [proModal, settingsModal, accountModal, builderPreviewModal, libraryModal].forEach(closeModal);
-  }
-
   function formatNow() {
     return new Date().toLocaleTimeString([], {
       hour: "numeric",
@@ -236,6 +216,36 @@
     if (dashBuildCount) {
       const items = getLibrary();
       dashBuildCount.textContent = String(items.length);
+    }
+  }
+
+  // -----------------------------
+  // Welcome behavior
+  // -----------------------------
+  function hideWelcomeCard(persist = true) {
+    if (!welcomeCard) return;
+    welcomeCard.classList.add("hidden");
+    if (persist) {
+      try {
+        localStorage.setItem(WELCOME_DISMISSED_KEY, "1");
+      } catch {}
+    }
+  }
+
+  function showWelcomeCard(clearPersist = false) {
+    if (!welcomeCard) return;
+    welcomeCard.classList.remove("hidden");
+    if (clearPersist) {
+      try {
+        localStorage.removeItem(WELCOME_DISMISSED_KEY);
+      } catch {}
+    }
+  }
+
+  function maybeHideWelcomeAfterConversationStarts() {
+    if (!chatEl || !welcomeCard) return;
+    if (chatEl.children.length > 0) {
+      hideWelcomeCard(true);
     }
   }
 
@@ -304,6 +314,33 @@
   // -----------------------------
   // Chat UI
   // -----------------------------
+  function scrollChatToBottom(force = false) {
+    if (!chatEl) return;
+
+    requestAnimationFrame(() => {
+      try {
+        if (chatWrap) {
+          chatWrap.scrollTop = chatWrap.scrollHeight;
+        }
+
+        chatEl.scrollTop = chatEl.scrollHeight;
+
+        const last = chatEl.lastElementChild;
+        if (last) {
+          last.scrollIntoView({
+            block: "end",
+            behavior: force ? "auto" : "smooth"
+          });
+        }
+      } catch {
+        if (chatWrap) {
+          chatWrap.scrollTop = chatWrap.scrollHeight;
+        }
+        chatEl.scrollTop = chatEl.scrollHeight;
+      }
+    });
+  }
+
   function appendMessage(role, text, opts = {}) {
     if (!chatEl) return null;
 
@@ -326,7 +363,10 @@
 
     msg.innerHTML = html;
     chatEl.appendChild(msg);
+
+    maybeHideWelcomeAfterConversationStarts();
     scrollChatToBottom();
+
     return msg;
   }
 
@@ -364,6 +404,7 @@
     if (!chatEl) return;
     chatEl.innerHTML = "";
     chatHistory = [];
+    scrollChatToBottom(true);
   }
 
   // -----------------------------
@@ -436,6 +477,7 @@
           inputEl.value = prompt;
           inputEl.focus();
         }
+        hideWelcomeCard(true);
         setStatus("Prompt loaded.");
       });
     });
@@ -465,6 +507,7 @@
       if (imageName) imageName.textContent = pendingImage.name;
       if (imageStage) imageStage.classList.remove("hidden");
 
+      hideWelcomeCard(true);
       setStatus("Image ready to send.");
     } catch {
       setStatus("Could not read that image.");
@@ -843,6 +886,8 @@
     let builderReturned = false;
 
     try {
+      hideWelcomeCard(true);
+
       if (text) {
         appendMessage("user", text, pendingImage ? { imageUrl: pendingImage.dataUrl } : {});
         pushHistory("user", text);
@@ -884,7 +929,6 @@
         if (inputEl) inputEl.focus();
         setStatus(`Builder preview ready at ${formatNow()}.`);
 
-        // Refresh dashboard in background, but don't let it hang the UI state
         refreshUsageStatus().catch(() => {});
         return;
       }
@@ -896,7 +940,6 @@
       clearStagedImage();
       if (inputEl) inputEl.focus();
 
-      // Refresh usage, but don't allow a slow/failing refresh to leave the UI stuck
       const latestStatus = await refreshUsageStatus();
       if (!latestStatus) {
         setStatus(`Simo replied at ${formatNow()}.`);
@@ -913,7 +956,6 @@
       if (sendBtn) sendBtn.disabled = false;
       scrollChatToBottom();
 
-      // Final safeguard so the footer never stays stuck on a transient sending/thinking state
       const currentStatus = (statusLine?.textContent || "").trim().toLowerCase();
       const looksTransient =
         currentStatus === "" ||
@@ -952,6 +994,22 @@
   // -----------------------------
   // Modal wiring
   // -----------------------------
+  function openModal(el) {
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.setAttribute("aria-hidden", "false");
+  }
+
+  function closeModal(el) {
+    if (!el) return;
+    el.classList.add("hidden");
+    el.setAttribute("aria-hidden", "true");
+  }
+
+  function closeAllModals() {
+    [proModal, settingsModal, accountModal, builderPreviewModal, libraryModal].forEach(closeModal);
+  }
+
   function wireModals() {
     proBtn?.addEventListener("click", () => openModal(proModal));
     closeProModal?.addEventListener("click", () => closeModal(proModal));
@@ -1045,12 +1103,17 @@
       }
     });
 
+    inputEl?.addEventListener("focus", () => {
+      hideWelcomeCard(true);
+      scrollChatToBottom();
+    });
+
     newChatBtn?.addEventListener("click", () => {
       if (!confirm("Start a new chat?")) return;
       clearChatUI();
       clearStagedImage();
       if (inputEl) inputEl.value = "";
-      if (welcomeCard) welcomeCard.classList.remove("hidden");
+      showWelcomeCard(true);
       setStatus("New chat started.");
     });
 
@@ -1058,6 +1121,7 @@
       if (!confirm("Clear current chat history?")) return;
       clearChatUI();
       clearStagedImage();
+      showWelcomeCard(true);
       setStatus("Chat cleared.");
     });
 
@@ -1086,6 +1150,7 @@
     });
 
     document.addEventListener("dragover", (e) => e.preventDefault());
+
     document.addEventListener("drop", async (e) => {
       e.preventDefault();
       const file = Array.from(e.dataTransfer?.files || []).find((f) => f.type?.startsWith("image/"));
@@ -1129,6 +1194,10 @@
       if (file) importLibraryFromFile(file);
       if (importLibraryFile) importLibraryFile.value = "";
     });
+
+    window.addEventListener("resize", () => {
+      scrollChatToBottom(true);
+    });
   }
 
   // -----------------------------
@@ -1163,14 +1232,15 @@
   function initWelcomeState() {
     const dismissed = localStorage.getItem(WELCOME_DISMISSED_KEY) === "1";
 
-    if (dismissed && welcomeCard && chatEl?.children?.length) {
-      welcomeCard.classList.add("hidden");
+    if (dismissed) {
+      hideWelcomeCard(false);
+    } else if (welcomeCard) {
+      showWelcomeCard(false);
     }
 
     if (welcomeCard) {
       welcomeCard.addEventListener("dblclick", () => {
-        welcomeCard.classList.add("hidden");
-        localStorage.setItem(WELCOME_DISMISSED_KEY, "1");
+        hideWelcomeCard(true);
         setStatus("Welcome card hidden.");
       });
     }
@@ -1195,6 +1265,8 @@
     await refreshAccountUI();
     await refreshUsageStatus();
     updateDashboardCards(null, null);
+
+    scrollChatToBottom(true);
 
     rotateStatus();
     setInterval(rotateStatus, 5000);
