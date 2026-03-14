@@ -2162,72 +2162,1371 @@ SEO_PAGES = {
         "footer_text": "Resume help, AI chat, and practical writing support in one place."
     },
 
-    "business-plan-generator": {
-        "meta_title": "AI Business Plan Generator | Simo",
-        "meta_description": "Use Simo to brainstorm, outline, and improve business plans, startup ideas, positioning, and launch strategy.",
-        "eyebrow": "AI Business Planning",
-        "hero_title": "AI Business Plan Generator",
-        "hero_description": "Simo helps you brainstorm business ideas, shape your positioning, outline your model, and organize your plan more clearly.",
-        "example_prompt": "Help me create a simple business plan for an AI-powered driveway and garage rental platform.",
-        "example_output": "Simo can support your thinking around the problem, solution, audience, value proposition, business model, launch path, and messaging so your plan becomes clearer and more actionable.",
-        "benefits_title": "Why use Simo for business planning",
-        "benefits_lead": "Business plans become much easier when you can brainstorm, organize, and refine the idea in conversation.",
+            "ai-landing-page-generator": {
+        "meta_title": "AI Landing Page Generator | Simo",
+        "meta_description": "Use Simo to brainstorm, write, and improve landing pages faster with AI-powered website and copy help.",
+        "eyebrow": "AI Landing Page Help",
+        "hero_title": "AI Landing Page Generator",
+        "hero_description": "Simo helps you create landing page ideas, headlines, sections, offers, and calls to action faster so you can move from concept to launch with less friction.",
+        "example_prompt": "Create a landing page for an AI app that helps users analyze images and build websites.",
+        "example_output": "Simo can help structure the page, sharpen the messaging, improve the hero section, and guide the overall landing page flow so it feels more polished and launch-ready.",
+        "benefits_title": "Why use Simo for landing pages",
+        "benefits_lead": "Strong landing pages usually need clear positioning, persuasive copy, and better structure. Simo helps with all three.",
         "pills": [
-            "Startup ideas",
-            "Plan outlines",
-            "Positioning help",
-            "Launch thinking"
+            "Hero sections",
+            "Landing page copy",
+            "CTA ideas",
+            "Page structure"
         ],
         "features": [
             {
-                "title": "Clarify the business idea",
-                "text": "Use Simo to define the problem, audience, value proposition, and what makes your idea worth pursuing."
+                "title": "Write stronger landing page copy",
+                "text": "Use Simo to improve headlines, subheadings, value propositions, and calls to action so your landing page is clearer and more persuasive."
             },
             {
-                "title": "Organize the plan faster",
-                "text": "Simo can help you structure a business plan into clear sections so you are not staring at a blank page."
+                "title": "Structure the page faster",
+                "text": "Simo can help organize the hero, features, testimonials, pricing, and CTA sections so you are not starting from a blank page."
             },
             {
-                "title": "Refine strategy and messaging",
-                "text": "Improve how you explain the idea, its market fit, and the path to launch so the business feels more real and coherent."
+                "title": "Refine your positioning",
+                "text": "Use Simo to clarify who the page is for, what problem it solves, and why visitors should care."
             }
         ],
-        "how_it_works_lead": "Start with the core idea, talk through the sections, and keep refining until the plan feels solid.",
+        "how_it_works_lead": "Describe your product or idea, ask for a landing page direction, and keep refining until the page feels stronger.",
         "steps": [
             {
-                "title": "Describe the business idea",
-                "text": "Share what you want to build, who it helps, and why it matters."
+                "title": "Describe the offer",
+                "text": "Tell Simo what your product, service, or business does and who it is for."
             },
             {
-                "title": "Build out the structure",
-                "text": "Use Simo to shape sections like problem, solution, audience, positioning, and growth ideas."
+                "title": "Generate the landing page direction",
+                "text": "Ask for sections, headlines, messaging, and offers that fit the audience and goal."
             },
             {
-                "title": "Refine the final direction",
-                "text": "Keep improving the plan until it is clearer, stronger, and easier to act on."
+                "title": "Refine and improve",
+                "text": "Keep improving the copy and structure until the page feels launch-ready."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help write landing page headlines?",
+                "a": "Yes. Simo can help generate and improve headlines, supporting text, and calls to action."
+            },
+            {
+                "q": "Can Simo help with landing page structure too?",
+                "a": "Yes. Simo can suggest the best order of sections and improve overall page flow."
+            },
+            {
+                "q": "Is this useful for startups and small businesses?",
+                "a": "Yes. Simo is especially useful for founders and creators who need help shaping landing pages quickly."
+            }
+        ],
+        "cta_title": "Build your landing page faster with Simo",
+        "cta_text": "Use Simo to improve your landing page copy, structure, and positioning in one place.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI chat, image analysis, and landing page support in one place."
+    },
+
+    "ai-product-description-generator": {
+        "meta_title": "AI Product Description Generator | Simo",
+        "meta_description": "Use Simo to write and improve product descriptions for websites, offers, and online products faster.",
+        "eyebrow": "AI Product Writing",
+        "hero_title": "AI Product Description Generator",
+        "hero_description": "Simo helps you write stronger product descriptions by improving clarity, benefits, positioning, and overall presentation.",
+        "example_prompt": "Write a product description for an AI assistant that chats, analyzes images, and helps build websites.",
+        "example_output": "Simo can help create clear product descriptions that explain what the offer does, who it helps, and why it matters without sounding flat or generic.",
+        "benefits_title": "Why use Simo for product descriptions",
+        "benefits_lead": "A strong product description can improve understanding, conversions, and how polished your offer feels.",
+        "pills": [
+            "Clear benefits",
+            "Better product copy",
+            "Stronger positioning",
+            "Faster writing"
+        ],
+        "features": [
+            {
+                "title": "Turn features into benefits",
+                "text": "Simo helps rewrite feature-heavy product text into benefit-driven language that is easier for customers to understand."
+            },
+            {
+                "title": "Improve clarity and polish",
+                "text": "Use Simo to make product descriptions smoother, clearer, and more persuasive."
+            },
+            {
+                "title": "Adapt for different audiences",
+                "text": "You can ask Simo to make the description more premium, casual, direct, technical, or creator-focused depending on your needs."
+            }
+        ],
+        "how_it_works_lead": "Share what your product does, who it helps, and the tone you want, then refine the result step by step.",
+        "steps": [
+            {
+                "title": "Describe the product",
+                "text": "Tell Simo what your product is, what it does, and what makes it useful."
+            },
+            {
+                "title": "Generate product copy",
+                "text": "Ask for a product description in the style or tone you want."
+            },
+            {
+                "title": "Refine the wording",
+                "text": "Improve clarity, strength, emotion, or positioning until it feels right."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write descriptions for digital products?",
+                "a": "Yes. Simo works well for apps, tools, software, websites, and online offers."
+            },
+            {
+                "q": "Can Simo rewrite existing product descriptions?",
+                "a": "Yes. You can paste an existing description and ask Simo to improve it."
+            },
+            {
+                "q": "Can Simo help with tone too?",
+                "a": "Yes. You can ask for more premium, friendly, direct, or conversion-focused wording."
+            }
+        ],
+        "cta_title": "Write stronger product descriptions with Simo",
+        "cta_text": "Use Simo to create clearer, better-positioned product copy faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Product copy, AI chat, and creative help in one place."
+    },
+
+    "ai-marketing-copy-generator": {
+        "meta_title": "AI Marketing Copy Generator | Simo",
+        "meta_description": "Generate marketing copy with Simo for websites, product pages, launches, and campaigns.",
+        "eyebrow": "AI Marketing Copy",
+        "hero_title": "AI Marketing Copy Generator",
+        "hero_description": "Simo helps you brainstorm and write stronger marketing copy for websites, launches, social posts, and product messaging.",
+        "example_prompt": "Write launch copy for an AI platform called Simo that chats naturally, analyzes images, and builds websites.",
+        "example_output": "Simo can help create stronger launch messaging, promotional language, feature framing, and campaign direction so your marketing feels more focused and compelling.",
+        "benefits_title": "Why use Simo for marketing copy",
+        "benefits_lead": "Good marketing copy needs clarity, rhythm, positioning, and persuasion. Simo helps you shape all of it faster.",
+        "pills": [
+            "Launch copy",
+            "Ad angles",
+            "Website messaging",
+            "Promo writing"
+        ],
+        "features": [
+            {
+                "title": "Write clearer promotional messaging",
+                "text": "Use Simo to improve how your offer is explained and promoted across websites, posts, and campaigns."
+            },
+            {
+                "title": "Find better marketing angles",
+                "text": "Simo can help brainstorm different ways to frame the same product depending on your audience and goals."
+            },
+            {
+                "title": "Move faster on campaigns",
+                "text": "Instead of struggling with blank-page syndrome, use Simo to generate a starting point and refine from there."
+            }
+        ],
+        "how_it_works_lead": "Describe what you are promoting, what audience you want to reach, and the style you want to use.",
+        "steps": [
+            {
+                "title": "Define the offer",
+                "text": "Explain what you are launching or promoting and what outcome you want from the copy."
+            },
+            {
+                "title": "Generate the marketing direction",
+                "text": "Ask Simo for taglines, ads, launch copy, email copy, or promotional text."
+            },
+            {
+                "title": "Refine the final message",
+                "text": "Improve tone, strength, clarity, and positioning until the copy feels right."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help with launch copy?",
+                "a": "Yes. Simo can help write and improve launch copy for products, websites, and announcements."
+            },
+            {
+                "q": "Can Simo help with ad copy too?",
+                "a": "Yes. Simo can help brainstorm shorter promotional angles and ad-style messaging."
+            },
+            {
+                "q": "Can I use Simo for different tones?",
+                "a": "Yes. You can ask for premium, direct, playful, professional, or more emotional marketing copy."
+            }
+        ],
+        "cta_title": "Create stronger marketing copy with Simo",
+        "cta_text": "Use Simo to brainstorm, write, and improve your promotional messaging faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI marketing help, copy generation, and creative support in one place."
+    },
+
+    "ai-pitch-generator": {
+        "meta_title": "AI Pitch Generator | Simo",
+        "meta_description": "Use Simo to shape pitches for startups, products, ideas, and offers with clearer messaging and structure.",
+        "eyebrow": "AI Pitch Help",
+        "hero_title": "AI Pitch Generator",
+        "hero_description": "Simo helps you explain your idea more clearly by improving your pitch, sharpening the message, and organizing the structure.",
+        "example_prompt": "Help me pitch Simo as an all-in-one AI that chats, analyzes images, and builds websites.",
+        "example_output": "Simo can help simplify your idea, strengthen the value proposition, and make the pitch more memorable for users, customers, or investors.",
+        "benefits_title": "Why use Simo for pitching ideas",
+        "benefits_lead": "The strongest pitches are usually simple, clear, and easy to repeat. Simo helps you get there faster.",
+        "pills": [
+            "Startup pitches",
+            "Product positioning",
+            "Clear messaging",
+            "Stronger framing"
+        ],
+        "features": [
+            {
+                "title": "Clarify the idea quickly",
+                "text": "Simo helps reduce confusion by shaping your pitch into a clearer, easier-to-understand explanation."
+            },
+            {
+                "title": "Improve the value proposition",
+                "text": "Use Simo to explain what makes your idea useful, different, and worth attention."
+            },
+            {
+                "title": "Adapt the pitch by audience",
+                "text": "Ask Simo to shape your pitch for users, investors, partners, or general audiences."
+            }
+        ],
+        "how_it_works_lead": "Share your idea, explain your audience, and refine the pitch until it feels confident and strong.",
+        "steps": [
+            {
+                "title": "Describe the idea",
+                "text": "Tell Simo what you are building and why it matters."
+            },
+            {
+                "title": "Generate a pitch direction",
+                "text": "Ask for a short pitch, longer pitch, one-liner, or positioning statement."
+            },
+            {
+                "title": "Refine for impact",
+                "text": "Make the pitch simpler, stronger, cleaner, or more memorable depending on your goal."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help write startup pitches?",
+                "a": "Yes. Simo can help shape startup and product pitches for many different audiences."
+            },
+            {
+                "q": "Can Simo make my pitch more concise?",
+                "a": "Yes. You can ask Simo to make it shorter, sharper, and easier to repeat."
+            },
+            {
+                "q": "Can I use Simo for investor-style pitches too?",
+                "a": "Yes. Simo can help improve framing, structure, and explanation for early-stage business ideas."
+            }
+        ],
+        "cta_title": "Shape a stronger pitch with Simo",
+        "cta_text": "Use Simo to clarify, organize, and improve the way you explain your idea.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Pitch help, AI chat, and practical idea support in one place."
+    },
+
+    "ai-brainstorming-tool": {
+        "meta_title": "AI Brainstorming Tool | Simo",
+        "meta_description": "Brainstorm ideas faster with Simo for products, websites, startups, content, and creative projects.",
+        "eyebrow": "AI Brainstorming",
+        "hero_title": "AI Brainstorming Tool",
+        "hero_description": "Simo helps you break through blank-page moments by generating ideas, directions, names, angles, and next steps faster.",
+        "example_prompt": "Help me brainstorm ideas for growing an AI startup that can chat, analyze images, and build websites.",
+        "example_output": "Simo can help generate options, compare directions, expand ideas, and continue the discussion so your thinking gains momentum instead of stalling.",
+        "benefits_title": "Why use Simo for brainstorming",
+        "benefits_lead": "Great brainstorming often comes from momentum and follow-up questions, not just one answer. Simo helps keep that momentum going.",
+        "pills": [
+            "Idea generation",
+            "Creative thinking",
+            "Startup brainstorming",
+            "Project planning"
+        ],
+        "features": [
+            {
+                "title": "Generate more ideas faster",
+                "text": "Use Simo to brainstorm names, product angles, website ideas, messaging directions, features, and growth concepts."
+            },
+            {
+                "title": "Ask follow-up questions naturally",
+                "text": "Instead of a one-shot tool, Simo lets you keep refining the same idea and go deeper in conversation."
+            },
+            {
+                "title": "Useful across many projects",
+                "text": "Simo can help with business ideas, creative work, branding, product strategy, writing, and more."
+            }
+        ],
+        "how_it_works_lead": "Start with a rough thought, ask for more directions, and keep refining until the idea becomes clearer.",
+        "steps": [
+            {
+                "title": "Start with the seed idea",
+                "text": "Share the rough concept, problem, or area you want to brainstorm."
+            },
+            {
+                "title": "Generate possibilities",
+                "text": "Ask Simo for options, categories, styles, or different ways to think about the same thing."
+            },
+            {
+                "title": "Refine the strongest path",
+                "text": "Pick the best direction and keep expanding it until it becomes more real and actionable."
             }
         ],
         "faqs": [
             {
                 "q": "Can Simo help brainstorm startup ideas?",
-                "a": "Yes. Simo can help you shape rough concepts into clearer and more structured business ideas."
+                "a": "Yes. Simo is useful for brainstorming startup ideas, features, branding angles, and launch paths."
             },
             {
-                "q": "Can Simo help outline a business plan?",
-                "a": "Yes. Simo can help organize your plan into useful sections and improve how the idea is explained."
+                "q": "Can Simo help with creative projects too?",
+                "a": "Yes. Simo can help brainstorm writing, websites, branding, visual concepts, and project direction."
             },
             {
-                "q": "Is Simo useful for early-stage founders?",
-                "a": "Yes. Simo is especially useful when you are still shaping the concept and want help getting traction on the thinking."
+                "q": "What makes Simo good for brainstorming?",
+                "a": "Simo supports natural follow-up conversation, which helps ideas evolve instead of ending after one answer."
             }
         ],
-        "cta_title": "Build your business plan with Simo",
-        "cta_text": "Use Simo to brainstorm, structure, and strengthen your next startup or business idea.",
+        "cta_title": "Break through blank-page moments with Simo",
+        "cta_text": "Use Simo to generate ideas, directions, and next steps faster.",
         "cta_button": "Try Simo Free",
-        "footer_text": "AI planning, creative help, and practical project support in one place."
+        "footer_text": "Brainstorming help, AI chat, and creative support in one place."
+    },
+
+    "ai-startup-idea-generator": {
+        "meta_title": "AI Startup Idea Generator | Simo",
+        "meta_description": "Generate startup ideas and refine business concepts with Simo using conversational AI and practical planning help.",
+        "eyebrow": "AI Startup Ideas",
+        "hero_title": "AI Startup Idea Generator",
+        "hero_description": "Simo helps you brainstorm startup ideas, shape business concepts, and turn rough thoughts into clearer opportunities.",
+        "example_prompt": "Give me startup ideas around AI, real estate, and productivity that could become real businesses.",
+        "example_output": "Simo can help generate startup concepts, compare opportunities, shape positioning, and guide the thinking toward ideas that feel more real and useful.",
+        "benefits_title": "Why use Simo for startup ideas",
+        "benefits_lead": "The best startup ideas usually need more than inspiration. They need clearer structure, audience thinking, and follow-up refinement.",
+        "pills": [
+            "Startup concepts",
+            "Business ideas",
+            "Audience thinking",
+            "Positioning help"
+        ],
+        "features": [
+            {
+                "title": "Generate business ideas faster",
+                "text": "Use Simo to brainstorm startup opportunities across AI, software, services, marketplaces, and creative businesses."
+            },
+            {
+                "title": "Evaluate ideas more clearly",
+                "text": "Simo can help compare different startup concepts and think through who they help and why they matter."
+            },
+            {
+                "title": "Refine into something stronger",
+                "text": "Go from rough idea to more structured concept by discussing value proposition, audience, and launch path."
+            }
+        ],
+        "how_it_works_lead": "Share the types of industries, problems, or interests you care about, then refine the best idea step by step.",
+        "steps": [
+            {
+                "title": "Choose a direction",
+                "text": "Tell Simo what topics, industries, or types of problems interest you."
+            },
+            {
+                "title": "Generate startup ideas",
+                "text": "Ask for different concepts, variations, and possible business models."
+            },
+            {
+                "title": "Develop the strongest one",
+                "text": "Take the best concept and keep refining it until it feels worth pursuing."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate startup ideas in specific industries?",
+                "a": "Yes. You can ask for startup ideas in AI, real estate, productivity, education, creator tools, and many more categories."
+            },
+            {
+                "q": "Can Simo help evaluate which idea is strongest?",
+                "a": "Yes. Simo can help compare ideas based on audience, practicality, and positioning."
+            },
+            {
+                "q": "Can Simo help after the idea stage too?",
+                "a": "Yes. Simo can also help with business plans, pitches, messaging, and landing page thinking."
+            }
+        ],
+        "cta_title": "Generate startup ideas with Simo",
+        "cta_text": "Use Simo to brainstorm, compare, and refine business concepts faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Startup ideas, planning help, and AI support in one place."
+    },
+
+    "ai-writing-assistant": {
+        "meta_title": "AI Writing Assistant | Simo",
+        "meta_description": "Use Simo as an AI writing assistant for clearer wording, stronger structure, and faster idea-to-draft progress.",
+        "eyebrow": "AI Writing Help",
+        "hero_title": "AI Writing Assistant",
+        "hero_description": "Simo helps with writing tasks by improving wording, structure, flow, and clarity across many types of content.",
+        "example_prompt": "Help me rewrite this paragraph so it sounds more polished, clear, and professional.",
+        "example_output": "Simo can help improve sentence flow, reduce awkward phrasing, strengthen tone, and make your writing easier to read and understand.",
+        "benefits_title": "Why use Simo as a writing assistant",
+        "benefits_lead": "Writing gets easier when you can refine ideas in conversation instead of struggling alone with every sentence.",
+        "pills": [
+            "Rewrite help",
+            "Clarity improvements",
+            "Stronger structure",
+            "Better flow"
+        ],
+        "features": [
+            {
+                "title": "Improve wording quickly",
+                "text": "Use Simo to rewrite weak, awkward, or unclear sentences into stronger and smoother writing."
+            },
+            {
+                "title": "Refine tone and structure",
+                "text": "Simo can help make writing sound more polished, professional, warm, direct, or creative depending on your goal."
+            },
+            {
+                "title": "Use it across many writing tasks",
+                "text": "Simo is helpful for emails, product copy, resumes, ideas, website text, and many other writing situations."
+            }
+        ],
+        "how_it_works_lead": "Paste what you have, ask how you want it improved, and refine the writing step by step.",
+        "steps": [
+            {
+                "title": "Paste your draft",
+                "text": "Share the paragraph, sentence, message, or text you want help improving."
+            },
+            {
+                "title": "Ask for the style you want",
+                "text": "Tell Simo whether you want it clearer, stronger, more polished, more concise, or more persuasive."
+            },
+            {
+                "title": "Refine the final result",
+                "text": "Keep adjusting tone and clarity until the writing feels right."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo rewrite paragraphs?",
+                "a": "Yes. Simo can help rewrite short and long pieces of text for clarity, strength, and better flow."
+            },
+            {
+                "q": "Can Simo help with professional writing?",
+                "a": "Yes. Simo can help make writing sound more polished and professional."
+            },
+            {
+                "q": "Can Simo help with creative writing too?",
+                "a": "Yes. Simo can also help brainstorm and refine more creative styles of writing."
+            }
+        ],
+        "cta_title": "Improve your writing with Simo",
+        "cta_text": "Use Simo to rewrite, polish, and strengthen your writing faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "AI writing help, conversation, and practical support in one place."
+    },
+
+        "ai-email-writer": {
+        "meta_title": "AI Email Writer | Simo",
+        "meta_description": "Use Simo to write clearer, stronger emails for work, business, follow-ups, and everyday communication.",
+        "eyebrow": "AI Email Help",
+        "hero_title": "AI Email Writer",
+        "hero_description": "Simo helps you write emails faster by improving tone, structure, clarity, and overall wording for many different situations.",
+        "example_prompt": "Write a professional follow-up email after a product demo.",
+        "example_output": "Simo can help draft emails that feel clearer, more polished, and more effective without sounding robotic or awkward.",
+        "benefits_title": "Why use Simo for emails",
+        "benefits_lead": "Emails are easier when you can quickly improve tone, clarity, and structure in conversation.",
+        "pills": [
+            "Professional emails",
+            "Follow-up messages",
+            "Clear wording",
+            "Better tone"
+        ],
+        "features": [
+            {
+                "title": "Write emails faster",
+                "text": "Use Simo to draft emails for work, business, customer follow-ups, and personal communication without staring at a blank screen."
+            },
+            {
+                "title": "Improve clarity and tone",
+                "text": "Simo can make emails sound more professional, warm, direct, confident, or polished depending on what you need."
+            },
+            {
+                "title": "Useful for many situations",
+                "text": "Use Simo for outreach, follow-ups, thank-you emails, scheduling messages, and customer communication."
+            }
+        ],
+        "how_it_works_lead": "Describe the situation, say what tone you want, and refine the email until it feels right.",
+        "steps": [
+            {
+                "title": "Describe the situation",
+                "text": "Tell Simo who the email is for and what you want to say."
+            },
+            {
+                "title": "Generate the draft",
+                "text": "Ask for the email in a professional, friendly, direct, or persuasive style."
+            },
+            {
+                "title": "Refine the wording",
+                "text": "Adjust the tone and details until the email sounds exactly how you want."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write professional emails?",
+                "a": "Yes. Simo can help draft professional emails for work, outreach, and follow-up situations."
+            },
+            {
+                "q": "Can Simo improve an email I already wrote?",
+                "a": "Yes. You can paste your draft and ask Simo to rewrite or polish it."
+            },
+            {
+                "q": "Can Simo make an email more concise?",
+                "a": "Yes. Simo can shorten, simplify, or strengthen email wording."
+            }
+        ],
+        "cta_title": "Write better emails with Simo",
+        "cta_text": "Use Simo to draft, rewrite, and improve emails faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Email writing, AI chat, and practical wording help in one place."
+    },
+
+    "ai-bio-generator": {
+        "meta_title": "AI Bio Generator | Simo",
+        "meta_description": "Generate bios for social profiles, personal brands, businesses, and websites with Simo.",
+        "eyebrow": "AI Bio Writing",
+        "hero_title": "AI Bio Generator",
+        "hero_description": "Simo helps you write stronger bios for personal brands, websites, businesses, and profiles by improving clarity, tone, and positioning.",
+        "example_prompt": "Write a short bio for a founder building an AI platform called Simo.",
+        "example_output": "Simo can help create bios that sound more polished, memorable, and aligned with how you want to present yourself or your brand.",
+        "benefits_title": "Why use Simo for bios",
+        "benefits_lead": "A strong bio can shape first impressions quickly. Simo helps make that easier.",
+        "pills": [
+            "Personal bios",
+            "Founder bios",
+            "Brand bios",
+            "Profile writing"
+        ],
+        "features": [
+            {
+                "title": "Write bios for many uses",
+                "text": "Use Simo for website bios, social bios, founder bios, and brand introductions."
+            },
+            {
+                "title": "Adjust tone and length",
+                "text": "Simo can make bios shorter, warmer, more premium, more professional, or more creator-focused."
+            },
+            {
+                "title": "Improve positioning",
+                "text": "Use Simo to make your bio clearer about who you are, what you do, and why people should care."
+            }
+        ],
+        "how_it_works_lead": "Describe yourself or your brand, choose a tone, and refine the bio until it feels right.",
+        "steps": [
+            {
+                "title": "Share the basics",
+                "text": "Tell Simo who the bio is about and what you want it to communicate."
+            },
+            {
+                "title": "Generate the bio",
+                "text": "Ask for a short, medium, or more polished version depending on where you will use it."
+            },
+            {
+                "title": "Refine the final version",
+                "text": "Adjust tone, confidence, warmth, and style until the bio fits."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write bios for founders and creators?",
+                "a": "Yes. Simo works well for founder bios, creator bios, and personal brand bios."
+            },
+            {
+                "q": "Can Simo make a bio shorter?",
+                "a": "Yes. Simo can shorten bios for social profiles or one-line intros."
+            },
+            {
+                "q": "Can Simo make a bio sound more professional?",
+                "a": "Yes. Simo can refine bios to sound more polished and intentional."
+            }
+        ],
+        "cta_title": "Create a stronger bio with Simo",
+        "cta_text": "Use Simo to write bios that feel clearer, stronger, and more polished.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Bio writing, AI chat, and personal brand help in one place."
+    },
+
+    "ai-slogan-generator": {
+        "meta_title": "AI Slogan Generator | Simo",
+        "meta_description": "Generate slogans, taglines, and brand lines with Simo for products, businesses, and websites.",
+        "eyebrow": "AI Slogan Help",
+        "hero_title": "AI Slogan Generator",
+        "hero_description": "Simo helps you generate slogans and taglines that are clearer, stronger, and more memorable for brands, products, and launches.",
+        "example_prompt": "Give me tagline ideas for an AI platform that chats, analyzes images, and builds websites.",
+        "example_output": "Simo can help brainstorm short and memorable slogans while refining tone, clarity, and brand direction.",
+        "benefits_title": "Why use Simo for slogans",
+        "benefits_lead": "A great slogan is simple, memorable, and aligned with your offer. Simo helps you get there faster.",
+        "pills": [
+            "Taglines",
+            "Brand slogans",
+            "Launch messaging",
+            "Creative naming help"
+        ],
+        "features": [
+            {
+                "title": "Generate many options quickly",
+                "text": "Use Simo to brainstorm multiple tagline directions instead of getting stuck on one idea."
+            },
+            {
+                "title": "Refine by tone",
+                "text": "Ask Simo for slogans that feel premium, playful, modern, minimal, or bold."
+            },
+            {
+                "title": "Fit slogans to your brand",
+                "text": "Simo can help shape taglines that connect more clearly with your audience and positioning."
+            }
+        ],
+        "how_it_works_lead": "Share what your product or brand does, then ask for slogan ideas in the tone you want.",
+        "steps": [
+            {
+                "title": "Describe the brand or offer",
+                "text": "Tell Simo what the product does and how you want it to feel."
+            },
+            {
+                "title": "Generate slogan ideas",
+                "text": "Ask for multiple short and memorable options."
+            },
+            {
+                "title": "Refine the strongest ones",
+                "text": "Keep shaping the best options until one stands out."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate taglines for startups?",
+                "a": "Yes. Simo is useful for startup taglines, product slogans, and brand lines."
+            },
+            {
+                "q": "Can Simo make slogans shorter and punchier?",
+                "a": "Yes. Simo can make slogan ideas cleaner, simpler, and more memorable."
+            },
+            {
+                "q": "Can I ask for different tones?",
+                "a": "Yes. You can ask for premium, fun, serious, bold, or modern slogan ideas."
+            }
+        ],
+        "cta_title": "Generate better taglines with Simo",
+        "cta_text": "Use Simo to create slogans and brand lines that feel stronger and more memorable.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Slogan generation, AI chat, and branding help in one place."
+    },
+
+    "ai-tagline-generator": {
+        "meta_title": "AI Tagline Generator | Simo",
+        "meta_description": "Generate taglines for brands, products, AI tools, and businesses with Simo.",
+        "eyebrow": "AI Tagline Writing",
+        "hero_title": "AI Tagline Generator",
+        "hero_description": "Simo helps you create stronger taglines by clarifying what your product does and turning that into short, memorable phrasing.",
+        "example_prompt": "Create tagline ideas for Simo, an all-in-one AI assistant.",
+        "example_output": "Simo can help turn complex product ideas into short taglines that feel clearer and more marketable.",
+        "benefits_title": "Why use Simo for taglines",
+        "benefits_lead": "A strong tagline can make your product easier to understand and easier to remember.",
+        "pills": [
+            "Product taglines",
+            "Brand lines",
+            "Clear messaging",
+            "Fast idea generation"
+        ],
+        "features": [
+            {
+                "title": "Turn complex ideas into simple lines",
+                "text": "Simo helps condense what your product does into short and memorable wording."
+            },
+            {
+                "title": "Explore different directions",
+                "text": "Ask for minimalist, premium, direct, emotional, or category-focused tagline ideas."
+            },
+            {
+                "title": "Useful for launches and directories",
+                "text": "Simo is especially useful when you need a tagline for product pages, directories, profiles, or brand assets."
+            }
+        ],
+        "how_it_works_lead": "Describe your product, choose a tone, and refine the best tagline ideas.",
+        "steps": [
+            {
+                "title": "Explain the product",
+                "text": "Tell Simo what your business, product, or website does."
+            },
+            {
+                "title": "Generate tagline options",
+                "text": "Ask for multiple short lines in the tone you want."
+            },
+            {
+                "title": "Refine the winner",
+                "text": "Keep improving the best option until it feels clear and memorable."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write taglines for AI tools?",
+                "a": "Yes. Simo is useful for AI tools, startups, creators, and online businesses."
+            },
+            {
+                "q": "Can Simo generate multiple tagline styles?",
+                "a": "Yes. You can ask for different tones and brand directions."
+            },
+            {
+                "q": "Can Simo help with short directory taglines too?",
+                "a": "Yes. Simo can help create shorter tagline versions for product submissions and listings."
+            }
+        ],
+        "cta_title": "Create stronger taglines with Simo",
+        "cta_text": "Use Simo to generate and refine tagline ideas faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Tagline writing, AI chat, and brand messaging help in one place."
+    },
+
+    "ai-name-generator": {
+        "meta_title": "AI Name Generator | Simo",
+        "meta_description": "Brainstorm names for startups, apps, websites, brands, and projects with Simo.",
+        "eyebrow": "AI Naming Help",
+        "hero_title": "AI Name Generator",
+        "hero_description": "Simo helps you brainstorm names for products, startups, brands, websites, and projects by generating ideas and refining the strongest ones.",
+        "example_prompt": "Give me name ideas for an AI platform that helps people chat, analyze images, and build websites.",
+        "example_output": "Simo can help generate names across different styles, then narrow them down based on tone, memorability, and positioning.",
+        "benefits_title": "Why use Simo for naming",
+        "benefits_lead": "Naming gets easier when you can brainstorm multiple directions and refine them in conversation.",
+        "pills": [
+            "Startup names",
+            "App names",
+            "Brand names",
+            "Project naming"
+        ],
+        "features": [
+            {
+                "title": "Generate many naming directions",
+                "text": "Use Simo to brainstorm modern, premium, playful, simple, or category-based naming ideas."
+            },
+            {
+                "title": "Refine the strongest names",
+                "text": "Simo can help compare names and improve the ones with the most potential."
+            },
+            {
+                "title": "Useful for many projects",
+                "text": "Use Simo for startup names, app names, website names, product names, and personal brand ideas."
+            }
+        ],
+        "how_it_works_lead": "Describe what you are naming, say how you want it to feel, and refine the strongest ideas.",
+        "steps": [
+            {
+                "title": "Describe the project",
+                "text": "Tell Simo what the product, startup, or brand is about."
+            },
+            {
+                "title": "Generate name ideas",
+                "text": "Ask for naming directions based on the tone and style you want."
+            },
+            {
+                "title": "Refine the best ones",
+                "text": "Keep narrowing and improving until the right name starts to stand out."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate startup names?",
+                "a": "Yes. Simo is useful for startup names, app names, product names, and brand ideas."
+            },
+            {
+                "q": "Can Simo make names sound more premium or modern?",
+                "a": "Yes. You can ask for different tones and naming styles."
+            },
+            {
+                "q": "Can Simo help compare name options?",
+                "a": "Yes. Simo can help weigh memorability, fit, and overall direction."
+            }
+        ],
+        "cta_title": "Find better names with Simo",
+        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Naming help, AI chat, and brand idea support in one place."
+    },
+
+    "ai-website-copy-generator": {
+        "meta_title": "AI Website Copy Generator | Simo",
+        "meta_description": "Generate website copy for homepages, landing pages, and product sites with Simo.",
+        "eyebrow": "AI Website Copy",
+        "hero_title": "AI Website Copy Generator",
+        "hero_description": "Simo helps you write clearer website copy for homepages, feature sections, product pages, and calls to action.",
+        "example_prompt": "Write homepage copy for Simo, an AI that chats naturally, analyzes images, and helps build websites.",
+        "example_output": "Simo can help write website copy that is clearer, better structured, and more aligned with what visitors care about.",
+        "benefits_title": "Why use Simo for website copy",
+        "benefits_lead": "Website copy often determines whether visitors understand your offer quickly. Simo helps improve that.",
+        "pills": [
+            "Homepage copy",
+            "Feature sections",
+            "CTA wording",
+            "Stronger messaging"
+        ],
+        "features": [
+            {
+                "title": "Write clearer homepage copy",
+                "text": "Use Simo to improve headings, value propositions, supporting text, and calls to action."
+            },
+            {
+                "title": "Improve conversion-focused wording",
+                "text": "Simo can help make website messaging stronger, simpler, and easier to understand."
+            },
+            {
+                "title": "Useful for many website types",
+                "text": "Use Simo for startup sites, portfolios, product sites, service pages, and niche landing pages."
+            }
+        ],
+        "how_it_works_lead": "Describe the page you need, generate the copy, and keep refining until it feels stronger.",
+        "steps": [
+            {
+                "title": "Describe the website or page",
+                "text": "Tell Simo what kind of site or page you are writing."
+            },
+            {
+                "title": "Generate website copy",
+                "text": "Ask for a homepage, features section, CTA block, or page messaging."
+            },
+            {
+                "title": "Refine for impact",
+                "text": "Adjust tone, clarity, and structure until the copy feels right."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write homepage copy?",
+                "a": "Yes. Simo is useful for homepage and landing page copywriting."
+            },
+            {
+                "q": "Can Simo improve website messaging I already have?",
+                "a": "Yes. You can paste existing text and ask Simo to rewrite it."
+            },
+            {
+                "q": "Can Simo help with CTA wording too?",
+                "a": "Yes. Simo can help improve calls to action and visitor-facing messaging."
+            }
+        ],
+        "cta_title": "Write stronger website copy with Simo",
+        "cta_text": "Use Simo to generate and improve website messaging faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Website copy, AI chat, and launch support in one place."
+    },
+
+    "ai-social-media-caption-generator": {
+        "meta_title": "AI Social Media Caption Generator | Simo",
+        "meta_description": "Generate captions for social media posts, launches, promotions, and personal brand content with Simo.",
+        "eyebrow": "AI Caption Writing",
+        "hero_title": "AI Social Media Caption Generator",
+        "hero_description": "Simo helps you write captions for social posts by improving tone, hooks, clarity, and overall messaging.",
+        "example_prompt": "Write a caption announcing the launch of Simo on social media.",
+        "example_output": "Simo can help create captions that feel more polished, engaging, and aligned with the message you want to share.",
+        "benefits_title": "Why use Simo for captions",
+        "benefits_lead": "A strong caption can make social posts more engaging and more effective. Simo helps you get there faster.",
+        "pills": [
+            "Launch captions",
+            "Promo posts",
+            "Brand content",
+            "Stronger hooks"
+        ],
+        "features": [
+            {
+                "title": "Write better social captions",
+                "text": "Use Simo to create captions for launches, promotions, updates, and everyday posting."
+            },
+            {
+                "title": "Adjust tone for different platforms",
+                "text": "Simo can make captions more professional, more casual, more founder-focused, or more promotional."
+            },
+            {
+                "title": "Improve hooks and clarity",
+                "text": "Use Simo to make captions more attention-grabbing without making them feel forced."
+            }
+        ],
+        "how_it_works_lead": "Describe the post, choose the tone, and refine the caption until it feels right.",
+        "steps": [
+            {
+                "title": "Describe the post",
+                "text": "Tell Simo what the post is about and what kind of reaction you want."
+            },
+            {
+                "title": "Generate caption options",
+                "text": "Ask for one caption or multiple versions in different styles."
+            },
+            {
+                "title": "Refine the best version",
+                "text": "Keep adjusting clarity, tone, and length until the caption works."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write launch captions?",
+                "a": "Yes. Simo is useful for launch announcements, product updates, and promotional posts."
+            },
+            {
+                "q": "Can Simo make captions shorter?",
+                "a": "Yes. Simo can shorten, simplify, or tighten captions for different platforms."
+            },
+            {
+                "q": "Can Simo generate multiple caption styles?",
+                "a": "Yes. You can ask for founder-style, casual, direct, or hype-style captions."
+            }
+        ],
+        "cta_title": "Write better captions with Simo",
+        "cta_text": "Use Simo to generate social media captions that feel clearer and more engaging.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Caption writing, AI chat, and launch messaging help in one place."
+    },
+
+    "ai-ad-copy-generator": {
+        "meta_title": "AI Ad Copy Generator | Simo",
+        "meta_description": "Generate ad copy and promotional messaging with Simo for launches, products, and campaigns.",
+        "eyebrow": "AI Ad Writing",
+        "hero_title": "AI Ad Copy Generator",
+        "hero_description": "Simo helps you create stronger ad copy by improving hooks, clarity, and messaging for products, offers, and promotions.",
+        "example_prompt": "Write ad copy for Simo, an AI assistant that chats, analyzes images, and builds websites.",
+        "example_output": "Simo can help brainstorm ad angles and turn them into clearer, more useful promotional copy.",
+        "benefits_title": "Why use Simo for ad copy",
+        "benefits_lead": "Good ad copy needs clarity, hooks, and audience fit. Simo helps shape all three faster.",
+        "pills": [
+            "Ad angles",
+            "Promo copy",
+            "Product ads",
+            "Stronger hooks"
+        ],
+        "features": [
+            {
+                "title": "Generate ad ideas quickly",
+                "text": "Use Simo to brainstorm multiple ad directions instead of relying on one single idea."
+            },
+            {
+                "title": "Improve clarity and audience fit",
+                "text": "Simo can help make ad messaging simpler, stronger, and better aligned with what the audience cares about."
+            },
+            {
+                "title": "Use it across campaigns",
+                "text": "Simo is useful for launches, products, paid ads, promotional tests, and growth experiments."
+            }
+        ],
+        "how_it_works_lead": "Describe the offer, say what audience you want to reach, and refine the strongest copy ideas.",
+        "steps": [
+            {
+                "title": "Describe the product or campaign",
+                "text": "Tell Simo what you are advertising and who the audience is."
+            },
+            {
+                "title": "Generate ad copy",
+                "text": "Ask for short or longer ad-style copy in the tone you want."
+            },
+            {
+                "title": "Refine the strongest version",
+                "text": "Improve the hook, angle, and clarity until it feels more effective."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help write product ads?",
+                "a": "Yes. Simo is useful for product and promotional ad copy."
+            },
+            {
+                "q": "Can Simo create different ad angles?",
+                "a": "Yes. You can ask for multiple hooks and promotional directions."
+            },
+            {
+                "q": "Can Simo make ad copy shorter?",
+                "a": "Yes. Simo can tighten and simplify ad text."
+            }
+        ],
+        "cta_title": "Generate stronger ad copy with Simo",
+        "cta_text": "Use Simo to create clearer and more effective promotional messaging faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Ad copy, AI chat, and promotional writing support in one place."
+    },
+
+    "ai-about-us-generator": {
+        "meta_title": "AI About Us Generator | Simo",
+        "meta_description": "Write About Us page content for websites, businesses, and brands with Simo.",
+        "eyebrow": "AI About Page Help",
+        "hero_title": "AI About Us Generator",
+        "hero_description": "Simo helps you write stronger About Us page content by improving story, clarity, positioning, and brand voice.",
+        "example_prompt": "Write About Us page content for Simo, an AI platform designed to chat, analyze images, and build websites.",
+        "example_output": "Simo can help shape About page content that sounds more human, polished, and aligned with your brand direction.",
+        "benefits_title": "Why use Simo for About pages",
+        "benefits_lead": "An About page helps people understand who you are and why you built what you built. Simo helps you tell that story better.",
+        "pills": [
+            "About page writing",
+            "Brand story",
+            "Founder story",
+            "Website messaging"
+        ],
+        "features": [
+            {
+                "title": "Write a clearer brand story",
+                "text": "Use Simo to explain your mission, your direction, and the reason behind your business or project."
+            },
+            {
+                "title": "Improve tone and flow",
+                "text": "Simo can make About page writing feel warmer, clearer, more premium, or more personal."
+            },
+            {
+                "title": "Useful for many websites",
+                "text": "Use Simo for startup sites, business sites, creator pages, and brand pages."
+            }
+        ],
+        "how_it_works_lead": "Describe your brand or project, share the story, and refine the writing until it feels right.",
+        "steps": [
+            {
+                "title": "Share the background",
+                "text": "Tell Simo what the brand or website is about and why it exists."
+            },
+            {
+                "title": "Generate About page content",
+                "text": "Ask for a polished About Us section in the tone you want."
+            },
+            {
+                "title": "Refine the final story",
+                "text": "Adjust the writing until it sounds clearer and more aligned with your brand."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write About Us page copy?",
+                "a": "Yes. Simo is useful for About pages, founder stories, and brand story writing."
+            },
+            {
+                "q": "Can Simo make my About page sound more professional?",
+                "a": "Yes. Simo can improve tone, clarity, and polish."
+            },
+            {
+                "q": "Can Simo make About page text more personal?",
+                "a": "Yes. You can ask Simo for a warmer or more story-driven style."
+            }
+        ],
+        "cta_title": "Write a better About page with Simo",
+        "cta_text": "Use Simo to create clearer and more compelling About Us content.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "About page writing, AI chat, and brand storytelling help in one place."
+    },
+
+    "ai-mission-statement-generator": {
+        "meta_title": "AI Mission Statement Generator | Simo",
+        "meta_description": "Generate mission statements for brands, businesses, startups, and websites with Simo.",
+        "eyebrow": "AI Mission Writing",
+        "hero_title": "AI Mission Statement Generator",
+        "hero_description": "Simo helps you create mission statements that are clearer, more purposeful, and better aligned with your brand or business direction.",
+        "example_prompt": "Write a mission statement for Simo, an AI that helps people chat, analyze images, and build websites.",
+        "example_output": "Simo can help turn broad ideas into mission statements that sound more focused, meaningful, and intentional.",
+        "benefits_title": "Why use Simo for mission statements",
+        "benefits_lead": "A good mission statement should be clear, grounded, and easy to understand. Simo helps make that easier.",
+        "pills": [
+            "Mission statements",
+            "Brand clarity",
+            "Business positioning",
+            "Stronger purpose language"
+        ],
+        "features": [
+            {
+                "title": "Clarify your purpose",
+                "text": "Use Simo to define what your brand or business is trying to do and why it matters."
+            },
+            {
+                "title": "Improve wording and focus",
+                "text": "Simo can help make mission statements simpler, stronger, and easier to communicate."
+            },
+            {
+                "title": "Useful for many brands and projects",
+                "text": "Use Simo for startups, small businesses, creator brands, personal projects, and websites."
+            }
+        ],
+        "how_it_works_lead": "Describe your brand, explain the purpose, and refine the mission statement until it feels right.",
+        "steps": [
+            {
+                "title": "Describe the mission",
+                "text": "Tell Simo what your business or project is trying to accomplish."
+            },
+            {
+                "title": "Generate mission statement options",
+                "text": "Ask for short, medium, or more polished versions."
+            },
+            {
+                "title": "Refine the final wording",
+                "text": "Adjust the statement until it feels clear, authentic, and useful."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo write mission statements for startups?",
+                "a": "Yes. Simo is useful for startup, business, and brand mission statement writing."
+            },
+            {
+                "q": "Can Simo make a mission statement shorter?",
+                "a": "Yes. Simo can simplify and tighten the wording."
+            },
+            {
+                "q": "Can Simo make it sound more premium or inspiring?",
+                "a": "Yes. You can ask for different tones and levels of polish."
+            }
+        ],
+        "cta_title": "Create a clearer mission statement with Simo",
+        "cta_text": "Use Simo to write mission statements that feel stronger and more intentional.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Mission statements, AI chat, and brand writing help in one place."
+    },
+
+    "ai-headline-generator": {
+        "meta_title": "AI Headline Generator | Simo",
+        "meta_description": "Generate headlines for websites, landing pages, launches, and marketing content with Simo.",
+        "eyebrow": "AI Headline Writing",
+        "hero_title": "AI Headline Generator",
+        "hero_description": "Simo helps you write stronger headlines for websites, product pages, launches, and marketing content by improving clarity and impact.",
+        "example_prompt": "Give me homepage headline ideas for Simo, an AI that chats, analyzes images, and builds websites.",
+        "example_output": "Simo can help brainstorm clearer and more compelling headlines that make the offer easier to understand.",
+        "benefits_title": "Why use Simo for headlines",
+        "benefits_lead": "A strong headline can change how quickly people understand your offer. Simo helps you improve that fast.",
+        "pills": [
+            "Homepage headlines",
+            "Launch headings",
+            "Marketing hooks",
+            "Stronger clarity"
+        ],
+        "features": [
+            {
+                "title": "Generate many headline options",
+                "text": "Use Simo to brainstorm multiple headline directions instead of settling too early."
+            },
+            {
+                "title": "Improve clarity and impact",
+                "text": "Simo can make headlines simpler, sharper, and more aligned with your audience."
+            },
+            {
+                "title": "Useful for many pages",
+                "text": "Use Simo for homepages, landing pages, ads, launches, and marketing content."
+            }
+        ],
+        "how_it_works_lead": "Describe the offer, ask for headline directions, and refine the strongest one.",
+        "steps": [
+            {
+                "title": "Describe the page or offer",
+                "text": "Tell Simo what the headline is for and what message it should communicate."
+            },
+            {
+                "title": "Generate headline ideas",
+                "text": "Ask for multiple options in the style you want."
+            },
+            {
+                "title": "Refine the best headline",
+                "text": "Keep shaping the best one until it feels clearer and stronger."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate homepage headlines?",
+                "a": "Yes. Simo is useful for homepage and landing page headline writing."
+            },
+            {
+                "q": "Can Simo make headlines shorter and stronger?",
+                "a": "Yes. Simo can simplify and tighten headline wording."
+            },
+            {
+                "q": "Can I ask for different styles of headlines?",
+                "a": "Yes. You can ask for premium, bold, direct, simple, or more emotional headlines."
+            }
+        ],
+        "cta_title": "Generate stronger headlines with Simo",
+        "cta_text": "Use Simo to brainstorm and improve headlines faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Headline writing, AI chat, and website messaging help in one place."
+    },
+
+    "ai-value-proposition-generator": {
+        "meta_title": "AI Value Proposition Generator | Simo",
+        "meta_description": "Create stronger value propositions for products, startups, and websites with Simo.",
+        "eyebrow": "AI Value Proposition Help",
+        "hero_title": "AI Value Proposition Generator",
+        "hero_description": "Simo helps you clarify what your product does, who it helps, and why it matters so your value proposition becomes stronger.",
+        "example_prompt": "Help me define the value proposition for Simo, an all-in-one AI platform.",
+        "example_output": "Simo can help turn broad product ideas into clearer value propositions that feel easier to explain and market.",
+        "benefits_title": "Why use Simo for value propositions",
+        "benefits_lead": "A strong value proposition helps people understand your offer quickly. Simo helps you shape that faster.",
+        "pills": [
+            "Product clarity",
+            "Positioning help",
+            "Startup messaging",
+            "Stronger offers"
+        ],
+        "features": [
+            {
+                "title": "Clarify what your product does",
+                "text": "Use Simo to define the main value of your offer in simpler and more understandable language."
+            },
+            {
+                "title": "Improve market positioning",
+                "text": "Simo can help explain why your product is useful and who it is really for."
+            },
+            {
+                "title": "Useful across launches and pages",
+                "text": "Use Simo for homepage messaging, product descriptions, investor pitches, and startup positioning."
+            }
+        ],
+        "how_it_works_lead": "Describe the product, define the audience, and refine the value proposition until it feels clear and strong.",
+        "steps": [
+            {
+                "title": "Explain the product",
+                "text": "Tell Simo what the offer does and what problem it solves."
+            },
+            {
+                "title": "Generate value proposition directions",
+                "text": "Ask for concise positioning statements or clearer product framing."
+            },
+            {
+                "title": "Refine the strongest version",
+                "text": "Keep improving the wording until it feels sharper and more useful."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help define a startup value proposition?",
+                "a": "Yes. Simo is useful for startup and product positioning work."
+            },
+            {
+                "q": "Can Simo make my value proposition clearer?",
+                "a": "Yes. Simo can simplify and sharpen the explanation."
+            },
+            {
+                "q": "Can Simo help with homepage positioning too?",
+                "a": "Yes. Value proposition work is especially useful for homepage and landing page messaging."
+            }
+        ],
+        "cta_title": "Clarify your value proposition with Simo",
+        "cta_text": "Use Simo to create product messaging that feels clearer and stronger.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Value proposition help, AI chat, and startup messaging support in one place."
+    },
+
+    "ai-brand-voice-generator": {
+        "meta_title": "AI Brand Voice Generator | Simo",
+        "meta_description": "Define and refine brand voice for websites, startups, and businesses with Simo.",
+        "eyebrow": "AI Brand Voice Help",
+        "hero_title": "AI Brand Voice Generator",
+        "hero_description": "Simo helps you shape a clearer brand voice by refining tone, style, personality, and messaging direction.",
+        "example_prompt": "Help me define the brand voice for Simo as a best-friend AI that is warm, practical, and non-judgmental.",
+        "example_output": "Simo can help turn broad brand ideas into clearer voice directions that can be applied across your website and messaging.",
+        "benefits_title": "Why use Simo for brand voice",
+        "benefits_lead": "A consistent brand voice helps everything feel more coherent. Simo helps define that faster.",
+        "pills": [
+            "Tone direction",
+            "Brand style",
+            "Messaging consistency",
+            "Voice clarity"
+        ],
+        "features": [
+            {
+                "title": "Define the voice clearly",
+                "text": "Use Simo to describe how your brand should sound and what emotional tone it should carry."
+            },
+            {
+                "title": "Make messaging more consistent",
+                "text": "Simo can help align your homepage, copy, and content with the same brand voice."
+            },
+            {
+                "title": "Useful for many brands and products",
+                "text": "Use Simo for startups, products, creator brands, and business websites."
+            }
+        ],
+        "how_it_works_lead": "Describe how you want the brand to feel, then refine the voice until it becomes more usable and clear.",
+        "steps": [
+            {
+                "title": "Describe the intended feel",
+                "text": "Tell Simo how you want your brand to sound and what audience it should connect with."
+            },
+            {
+                "title": "Generate voice directions",
+                "text": "Ask for a brand voice description, tone guide, or messaging direction."
+            },
+            {
+                "title": "Refine for consistency",
+                "text": "Adjust the wording until the voice feels distinct and usable."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo help define a startup brand voice?",
+                "a": "Yes. Simo is useful for startup and product voice direction."
+            },
+            {
+                "q": "Can Simo make a brand voice more premium or warm?",
+                "a": "Yes. You can ask for different tones and brand personalities."
+            },
+            {
+                "q": "Can Simo help apply brand voice to website copy too?",
+                "a": "Yes. Brand voice work can support homepage and broader messaging improvements."
+            }
+        ],
+        "cta_title": "Define your brand voice with Simo",
+        "cta_text": "Use Simo to shape brand messaging that feels more coherent and intentional.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Brand voice help, AI chat, and messaging support in one place."
+    },
+
+    "ai-business-name-generator": {
+        "meta_title": "AI Business Name Generator | Simo",
+        "meta_description": "Generate business name ideas for startups, brands, apps, and projects with Simo.",
+        "eyebrow": "AI Business Naming",
+        "hero_title": "AI Business Name Generator",
+        "hero_description": "Simo helps you brainstorm business names by generating ideas, exploring styles, and refining the strongest directions.",
+        "example_prompt": "Give me business name ideas for an AI company that chats naturally, analyzes images, and builds websites.",
+        "example_output": "Simo can help generate naming directions across different tones, then refine the strongest options into something more distinctive.",
+        "benefits_title": "Why use Simo for business naming",
+        "benefits_lead": "A strong business name should fit the brand, feel memorable, and support the direction of the company. Simo helps with that.",
+        "pills": [
+            "Business names",
+            "Startup naming",
+            "Brand ideas",
+            "Naming directions"
+        ],
+        "features": [
+            {
+                "title": "Generate many business name options",
+                "text": "Use Simo to brainstorm naming ideas for startups, websites, products, and brands."
+            },
+            {
+                "title": "Explore different naming tones",
+                "text": "Ask for premium, modern, simple, creative, or category-based name directions."
+            },
+            {
+                "title": "Refine the strongest options",
+                "text": "Simo can help narrow ideas down into clearer and more memorable final choices."
+            }
+        ],
+        "how_it_works_lead": "Describe the business, choose a tone, and keep refining until the strongest names stand out.",
+        "steps": [
+            {
+                "title": "Describe the business",
+                "text": "Tell Simo what the company or product does."
+            },
+            {
+                "title": "Generate name ideas",
+                "text": "Ask for multiple directions and different naming styles."
+            },
+            {
+                "title": "Refine the best options",
+                "text": "Compare the strongest names and keep improving them."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate startup and business names?",
+                "a": "Yes. Simo is useful for startup, app, product, and business naming."
+            },
+            {
+                "q": "Can Simo create more premium-sounding business names?",
+                "a": "Yes. You can ask for different brand tones and naming styles."
+            },
+            {
+                "q": "Can Simo help compare the strongest names?",
+                "a": "Yes. Simo can help narrow options down and improve them."
+            }
+        ],
+        "cta_title": "Generate better business names with Simo",
+        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
+        "cta_button": "Try Simo Free",
+        "footer_text": "Business naming, AI chat, and brand direction help in one place."
     }
 }
-
 
 @app.route("/<slug>")
 def seo_landing_page(slug):
