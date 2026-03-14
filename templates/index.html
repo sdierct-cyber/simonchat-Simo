@@ -75,15 +75,15 @@
 
     .welcomeCard {
       position: relative;
-      margin: 14px 0 12px;
-      padding: 18px 18px 16px;
-      border-radius: 22px;
-      border: 1px solid rgba(255,255,255,.10);
+      margin: 8px 0 8px;
+      padding: 12px 14px 10px;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,.08);
       background:
-        linear-gradient(180deg, rgba(21,28,48,.88), rgba(11,17,31,.82));
+        linear-gradient(180deg, rgba(21,28,48,.80), rgba(11,17,31,.76));
       box-shadow:
-        0 20px 50px rgba(0,0,0,.28),
-        inset 0 1px 0 rgba(255,255,255,.05);
+        0 12px 28px rgba(0,0,0,.20),
+        inset 0 1px 0 rgba(255,255,255,.04);
       overflow: hidden;
     }
 
@@ -92,8 +92,8 @@
       position: absolute;
       inset: 0;
       background:
-        radial-gradient(circle at top left, rgba(90,147,255,.18), transparent 34%),
-        radial-gradient(circle at bottom right, rgba(185,117,255,.16), transparent 34%);
+        radial-gradient(circle at top left, rgba(90,147,255,.16), transparent 32%),
+        radial-gradient(circle at bottom right, rgba(185,117,255,.14), transparent 32%);
       pointer-events: none;
     }
 
@@ -103,43 +103,44 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 8px;
       flex-wrap: wrap;
-      margin-bottom: 10px;
+      margin-bottom: 6px;
     }
 
     .welcomeTitle {
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       color: #eef3ff;
       letter-spacing: .2px;
+      line-height: 1.2;
     }
 
     .welcomeSub {
       position: relative;
       z-index: 1;
-      color: rgba(226,235,255,.82);
-      font-size: 14px;
-      line-height: 1.55;
-      margin-bottom: 14px;
-      max-width: 820px;
+      color: rgba(226,235,255,.78);
+      font-size: 13px;
+      line-height: 1.4;
+      margin-bottom: 10px;
+      max-width: 760px;
     }
 
     .quickChips {
       position: relative;
       z-index: 1;
       display: flex;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
     }
 
     .quickChip {
       border: 1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.05);
+      background: rgba(255,255,255,.045);
       color: #e6eeff;
       border-radius: 999px;
-      padding: 10px 14px;
-      font-size: 13px;
+      padding: 8px 12px;
+      font-size: 12px;
       cursor: pointer;
       transition: transform .16s ease, background .16s ease, border-color .16s ease;
       backdrop-filter: blur(8px);
@@ -197,13 +198,13 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
+      gap: 10px;
       flex-wrap: wrap;
-      margin: 0 0 10px;
-      padding: 10px 12px;
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 16px;
-      background: rgba(255,255,255,.035);
+      margin: 0 0 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(255,255,255,.07);
+      border-radius: 14px;
+      background: rgba(255,255,255,.03);
       backdrop-filter: blur(6px);
     }
 
@@ -226,50 +227,51 @@
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      padding: 7px 11px;
+      padding: 6px 10px;
       border-radius: 999px;
-      background: rgba(255,255,255,.05);
-      border: 1px solid rgba(255,255,255,.08);
+      background: rgba(255,255,255,.045);
+      border: 1px solid rgba(255,255,255,.07);
       color: #dfe8ff;
-      font-size: 12px;
+      font-size: 11px;
       white-space: nowrap;
     }
 
     .dashboardStrip {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin: 0 0 12px;
+      gap: 10px;
+      margin: 0 0 8px;
     }
 
     .dashCard {
-      padding: 14px;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.08);
-      background: rgba(255,255,255,.04);
-      box-shadow: 0 10px 28px rgba(0,0,0,.14);
+      padding: 10px 12px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.07);
+      background: rgba(255,255,255,.035);
+      box-shadow: 0 8px 20px rgba(0,0,0,.12);
       min-width: 0;
     }
 
     .dashLabel {
-      font-size: 11px;
-      letter-spacing: .35px;
+      font-size: 10px;
+      letter-spacing: .32px;
       text-transform: uppercase;
-      color: rgba(208,220,255,.72);
-      margin-bottom: 6px;
+      color: rgba(208,220,255,.68);
+      margin-bottom: 4px;
     }
 
     .dashValue {
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 800;
       color: #f1f6ff;
       word-break: break-word;
+      line-height: 1.2;
     }
 
     .dashSub {
-      margin-top: 6px;
-      font-size: 12px;
-      color: rgba(208,220,255,.74);
+      margin-top: 4px;
+      font-size: 11px;
+      color: rgba(208,220,255,.70);
     }
 
     .composerAura {
@@ -297,11 +299,7 @@
     }
 
     .heroHint {
-      color: rgba(201,214,255,.72);
-      font-size: 12px;
-      margin-top: 10px;
-      position: relative;
-      z-index: 1;
+      display: none;
     }
 
     .libraryTopActions {
@@ -318,8 +316,8 @@
     }
 
     @media (max-width: 820px) {
-      .welcomeTitle { font-size: 16px; }
-      .welcomeSub { font-size: 13px; }
+      .welcomeTitle { font-size: 15px; }
+      .welcomeSub { font-size: 12px; }
       .quickChip { width: 100%; text-align: left; }
       .dashboardStrip {
         grid-template-columns: 1fr;
@@ -499,8 +497,7 @@
         </div>
 
         <div class="welcomeSub">
-          Talk naturally, upload images, build pages, explore ideas, and keep momentum going.
-          This version is designed to feel warmer, more premium, and more like a real product.
+          Talk naturally, upload images, build pages, and explore ideas with Simo.
         </div>
 
         <div class="quickChips">
