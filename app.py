@@ -3531,7 +3531,7 @@ SEO_PAGES = {
         "cta_button": "Try Simo Free",
         "footer_text": "AI copywriting, chat, and creative support in one place."
     }
-}
+},
 
 @app.route("/<slug>")
 def seo_landing_page(slug):
