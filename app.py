@@ -3462,8 +3462,68 @@ SEO_PAGES = {
         "footer_text": "Brand voice help, AI chat, and messaging support in one place."
     },
 
-       "ai-business-name-generator": {
-        ...
+          "ai-business-name-generator": {
+        "meta_title": "AI Business Name Generator | Simo",
+        "meta_description": "Generate business name ideas for startups, brands, apps, and projects with Simo.",
+        "eyebrow": "AI Business Naming",
+        "hero_title": "AI Business Name Generator",
+        "hero_description": "Simo helps you brainstorm business names by generating ideas, exploring styles, and refining the strongest directions.",
+        "example_prompt": "Give me business name ideas for an AI company that chats naturally, analyzes images, and builds websites.",
+        "example_output": "Simo can help generate naming directions across different tones, then refine the strongest options into something more distinctive.",
+        "benefits_title": "Why use Simo for business naming",
+        "benefits_lead": "A strong business name should fit the brand, feel memorable, and support the direction of the company. Simo helps with that.",
+        "pills": [
+            "Business names",
+            "Startup naming",
+            "Brand ideas",
+            "Naming directions"
+        ],
+        "features": [
+            {
+                "title": "Generate many business name options",
+                "text": "Use Simo to brainstorm naming ideas for startups, websites, products, and brands."
+            },
+            {
+                "title": "Explore different naming tones",
+                "text": "Ask for premium, modern, simple, creative, or category-based name directions."
+            },
+            {
+                "title": "Refine the strongest options",
+                "text": "Simo can help narrow ideas down into clearer and more memorable final choices."
+            }
+        ],
+        "how_it_works_lead": "Describe the business, choose a tone, and keep refining until the strongest names stand out.",
+        "steps": [
+            {
+                "title": "Describe the business",
+                "text": "Tell Simo what the company or product does."
+            },
+            {
+                "title": "Generate name ideas",
+                "text": "Ask for multiple directions and different naming styles."
+            },
+            {
+                "title": "Refine the best options",
+                "text": "Compare the strongest names and keep improving them."
+            }
+        ],
+        "faqs": [
+            {
+                "q": "Can Simo generate startup and business names?",
+                "a": "Yes. Simo is useful for startup, app, product, and business naming."
+            },
+            {
+                "q": "Can Simo create more premium-sounding business names?",
+                "a": "Yes. You can ask for different brand tones and naming styles."
+            },
+            {
+                "q": "Can Simo help compare the strongest names?",
+                "a": "Yes. Simo can help narrow options down and improve them."
+            }
+        ],
+        "cta_title": "Generate better business names with Simo",
+        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
+        "cta_button": "Try Simo Free",
         "footer_text": "Business naming, AI chat, and brand direction help in one place."
     },
 
@@ -3531,7 +3591,7 @@ SEO_PAGES = {
         "cta_button": "Try Simo Free",
         "footer_text": "AI copywriting, chat, and creative support in one place."
     }
-},
+}
 
 @app.route("/<slug>")
 def seo_landing_page(slug):
