@@ -3590,7 +3590,7 @@ def api_delete_build():
 # Main
 # =========================================================
 if __name__ == "__main__":
-    host = os.getenv("HOST", "127.0.0.1")
-    port = int(os.getenv("PORT", "5000"))
-    debug = env_bool("FLASK_DEBUG", True)
+    host = "0.0.0.0"
+    port = int(os.getenv("PORT", "10000"))
+    debug = env_bool("FLASK_DEBUG", False)
     app.run(host=host, port=port, debug=debug)
