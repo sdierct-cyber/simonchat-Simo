@@ -1,793 +1,246 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Simo — Your Best Friend</title>
-  <meta name="color-scheme" content="dark" />
-  <link rel="stylesheet" href="/static/styles.css" />
-
-  <style>
-    .simoPresence {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,.12);
-      background: rgba(255,255,255,.05);
-      color: #dfe8ff;
-      font-size: 12px;
-      letter-spacing: .2px;
-      backdrop-filter: blur(8px);
-      box-shadow: 0 6px 24px rgba(0,0,0,.18);
-    }
-
-    .simoDot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #56f0a9;
-      box-shadow:
-        0 0 0 0 rgba(86,240,169,.7),
-        0 0 14px rgba(86,240,169,.8);
-      animation: simoPulse 1.9s infinite;
-      flex: 0 0 auto;
-    }
-
-    @keyframes simoPulse {
-      0% { box-shadow: 0 0 0 0 rgba(86,240,169,.65), 0 0 14px rgba(86,240,169,.8); }
-      70% { box-shadow: 0 0 0 10px rgba(86,240,169,0), 0 0 18px rgba(86,240,169,.9); }
-      100% { box-shadow: 0 0 0 0 rgba(86,240,169,0), 0 0 14px rgba(86,240,169,.8); }
-    }
-
-    .aliveWrap {
-      position: relative;
-      overflow: hidden;
-    }
-
-    .aliveWrap::before {
-      content: "";
-      position: absolute;
-      inset: -20% auto auto -10%;
-      width: 280px;
-      height: 280px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle, rgba(91,139,255,.16) 0%, rgba(91,139,255,0) 68%);
-      pointer-events: none;
-      filter: blur(14px);
-    }
-
-    .aliveWrap::after {
-      content: "";
-      position: absolute;
-      right: -80px;
-      top: 16px;
-      width: 240px;
-      height: 240px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle, rgba(171,112,255,.14) 0%, rgba(171,112,255,0) 70%);
-      pointer-events: none;
-      filter: blur(18px);
-    }
-
-    .welcomeCard {
-      position: relative;
-      margin: 8px 0 8px;
-      padding: 12px 14px 10px;
-      border-radius: 18px;
-      border: 1px solid rgba(255,255,255,.08);
-      background:
-        linear-gradient(180deg, rgba(21,28,48,.80), rgba(11,17,31,.76));
-      box-shadow:
-        0 12px 28px rgba(0,0,0,.20),
-        inset 0 1px 0 rgba(255,255,255,.04);
-      overflow: hidden;
-    }
-
-    .welcomeCard::before {
-      content: "";
-      position: absolute;
-      inset: 0;
-      background:
-        radial-gradient(circle at top left, rgba(90,147,255,.16), transparent 32%),
-        radial-gradient(circle at bottom right, rgba(185,117,255,.14), transparent 32%);
-      pointer-events: none;
-    }
-
-    .welcomeTop {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      flex-wrap: wrap;
-      margin-bottom: 6px;
-    }
-
-    .welcomeTitle {
-      font-size: 16px;
-      font-weight: 700;
-      color: #eef3ff;
-      letter-spacing: .2px;
-      line-height: 1.2;
-    }
-
-    .welcomeSub {
-      position: relative;
-      z-index: 1;
-      color: rgba(226,235,255,.78);
-      font-size: 13px;
-      line-height: 1.4;
-      margin-bottom: 10px;
-      max-width: 760px;
-    }
-
-    .quickChips {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .quickChip {
-      border: 1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.045);
-      color: #e6eeff;
-      border-radius: 999px;
-      padding: 8px 12px;
-      font-size: 12px;
-      cursor: pointer;
-      transition: transform .16s ease, background .16s ease, border-color .16s ease;
-      backdrop-filter: blur(8px);
-    }
-
-    .quickChip:hover {
-      transform: translateY(-1px);
-      background: rgba(255,255,255,.08);
-      border-color: rgba(255,255,255,.18);
-    }
-
-    .topbarLeft {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .titleStack {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .titleMini {
-      font-size: 12px;
-      color: rgba(220,230,255,.72);
-      letter-spacing: .35px;
-      text-transform: uppercase;
-    }
-
-    .brandAlive {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      margin-top: 6px;
-      font-size: 12px;
-      color: rgba(216,228,255,.82);
-    }
-
-    .miniSpark {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 18px;
-      height: 18px;
-      border-radius: 50%;
-      background: rgba(95,146,255,.14);
-      border: 1px solid rgba(140,172,255,.18);
-      box-shadow: 0 0 16px rgba(95,146,255,.18);
-      font-size: 11px;
-    }
-
-    .statusRow {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin: 0 0 8px;
-      padding: 8px 10px;
-      border: 1px solid rgba(255,255,255,.07);
-      border-radius: 14px;
-      background: rgba(255,255,255,.03);
-      backdrop-filter: blur(6px);
-    }
-
-    .statusRow .left,
-    .statusRow .right {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      color: #dfe8ff;
-      font-size: 13px;
-    }
-
-    .statusRow .right {
-      justify-content: flex-end;
-      margin-left: auto;
-    }
-
-    .softTag {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.045);
-      border: 1px solid rgba(255,255,255,.07);
-      color: #dfe8ff;
-      font-size: 11px;
-      white-space: nowrap;
-    }
-
-    .dashboardStrip {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 10px;
-      margin: 0 0 8px;
-    }
-
-    .dashCard {
-      padding: 10px 12px;
-      border-radius: 16px;
-      border: 1px solid rgba(255,255,255,.07);
-      background: rgba(255,255,255,.035);
-      box-shadow: 0 8px 20px rgba(0,0,0,.12);
-      min-width: 0;
-    }
-
-    .dashLabel {
-      font-size: 10px;
-      letter-spacing: .32px;
-      text-transform: uppercase;
-      color: rgba(208,220,255,.68);
-      margin-bottom: 4px;
-    }
-
-    .dashValue {
-      font-size: 15px;
-      font-weight: 800;
-      color: #f1f6ff;
-      word-break: break-word;
-      line-height: 1.2;
-    }
-
-    .dashSub {
-      margin-top: 4px;
-      font-size: 11px;
-      color: rgba(208,220,255,.70);
-    }
-
-    .composerAura {
-      position: relative;
-    }
-
-    .composerAura::before {
-      content: "";
-      position: absolute;
-      left: 50%;
-      bottom: -10px;
-      transform: translateX(-50%);
-      width: min(720px, 90%);
-      height: 38px;
-      border-radius: 999px;
-      background: radial-gradient(circle, rgba(82,129,255,.20) 0%, rgba(82,129,255,0) 70%);
-      filter: blur(16px);
-      pointer-events: none;
-      z-index: 0;
-    }
-
-    .composerAura > * {
-      position: relative;
-      z-index: 1;
-    }
-
-    .heroHint {
-      display: none;
-    }
-
-    .libraryTopActions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 980px) {
-      .dashboardStrip {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-    }
-
-    @media (max-width: 820px) {
-      .welcomeTitle { font-size: 15px; }
-      .welcomeSub { font-size: 12px; }
-      .quickChip { width: 100%; text-align: left; }
-      .dashboardStrip {
-        grid-template-columns: 1fr;
-      }
-    }
-  </style>
+  <link rel="stylesheet" href="/static/styles.css?v=phase50" />
 </head>
-
 <body>
-  <div class="app aliveWrap" id="appRoot">
-    <aside class="side">
-      <div class="brand">
-        <div class="logo">🤖</div>
-        <div>
-          <div class="name">Simo</div>
-          <div class="tag">Your Best Friend</div>
-          <div class="brandAlive">
-            <span class="miniSpark">✦</span>
-            <span>Warm, smart, and ready</span>
-          </div>
-        </div>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-card">
+        <div style="font-size:34px; margin-bottom:10px;">🤖</div>
+        <div style="font-size:18px; font-weight:700;">Simo</div>
+        <div class="muted" style="margin-top:6px;">Your Best Friend</div>
+        <div class="muted tiny" style="margin-top:10px;">Warm, smart, and ready</div>
       </div>
 
-      {% if plan == "free" %}
-      <button id="proBtn" class="proBtn" type="button">
-        <span class="star">⭐</span>
-        <span class="label">UPGRADE</span>
-        <span class="star">⭐</span>
-      </button>
-      {% endif %}
-
-      <div class="sideBlock">
-        <button class="sideItem" type="button" data-prompt="I want to upload an image for analysis.">
-          <div class="sideTitle">Image Upload & Analysis</div>
-          <div class="sideSub">Upload any photo — Simo describes & helps</div>
-        </button>
-
-        <button class="sideItem" type="button" data-prompt="Help me write a business plan for my startup.">
-          <div class="sideTitle">Business Plans & Startups</div>
-          <div class="sideSub">Full plans generated instantly</div>
-        </button>
-
-        <button class="sideItem" type="button" data-prompt="Help me track a stock portfolio and explain risk.">
-          <div class="sideTitle">Stock Market & Portfolios</div>
-          <div class="sideSub">General insights + tracking ideas</div>
-        </button>
-
-        <button class="sideItem" type="button" data-prompt="Build me a premium landing page for my business.">
-          <div class="sideTitle">AI Website Builder</div>
-          <div class="sideSub">Generate premium landing pages instantly</div>
-        </button>
-
-        <button class="sideItem" type="button" data-prompt="Show me a 3D preview of a sports car model.">
-          <div class="sideTitle">3D Rendering & Rotate</div>
-          <div class="sideSub">360° viewer + mockups (Team plan)</div>
-        </button>
-
-        <button id="builderLibrarySideBtn" class="sideItem" type="button">
-          <div class="sideTitle">Builder Library</div>
-          <div class="sideSub">Open saved websites and reload past builds</div>
-        </button>
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Image Upload & Analysis</div>
+        <div class="muted">Upload any photo — Simo describes & helps</div>
       </div>
 
-      <div class="sideFooter">
-        <button id="settingsBtn" class="ghostBtn" type="button">⚙ Settings & Voice</button>
-        <button id="signupBtn" class="ghostBtn" type="button">👤 Easy Signup</button>
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Business Plans & Startups</div>
+        <div class="muted">Full plans generated instantly</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Stock Market & Portfolios</div>
+        <div class="muted">General insights + tracking ideas</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">AI Website Builder</div>
+        <div class="muted">Generate premium landing pages instantly</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">3D Rendering & Rotate</div>
+        <div class="muted">Viewer stays honest — only verified 3D opens</div>
+      </div>
+
+      <div class="side-card" id="builderLibraryCard">
+        <div style="font-weight:700; margin-bottom:8px;">Builder Library</div>
+        <div class="muted">Open saved websites and reload past builds</div>
+      </div>
+
+      <div style="margin-top:16px; display:grid; gap:12px;">
+        <button id="settingsBtn" class="pill" type="button">Settings & Voice</button>
+        <button id="signupBtn" class="pill" type="button">Easy Signup</button>
+        <button id="openLibraryBtn" class="pill" type="button">Open Library</button>
+        <button id="reopenLastPreviewBtn" class="pill hidden" type="button">Reopen Last Preview</button>
       </div>
     </aside>
 
     <main class="main">
-      <header class="topbar">
-        <div class="topbarLeft">
-          <div class="titleStack">
-            <div class="title">Chat with Simo</div>
-            <div class="titleMini">Your all-in-one best-friend AI</div>
-          </div>
+      <section class="hero-card topbar">
+        <div>
+          <div style="font-size:18px; font-weight:700;">What do you want to build today?</div>
+          <div class="muted" style="margin-top:6px;">Talk, design, create, and build — all in one place</div>
+        </div>
 
-          <div class="simoPresence" aria-label="Simo status">
-            <span class="simoDot"></span>
+        <div class="topbar-actions">
+          <div class="online-pill">
+            <span class="dot"></span>
             <span>Simo is online</span>
           </div>
-        </div>
 
-        <div class="actions">
-          <button id="newChatBtn" class="pill" type="button">＋ New Chat</button>
-
-          {% if user_email %}
-            <a class="pill" id="logoutBtn" href="/logout" style="text-decoration:none">Logout</a>
-
-            {% if plan == "single" %}
-              <div class="pill plan-pill pro-pill">⭐ Simo Pro</div>
-            {% elif plan == "team" %}
-              <div class="pill plan-pill team-pill">👥 Team Pro</div>
-            {% else %}
-              <div class="pill plan-pill free-pill">Free</div>
-            {% endif %}
-
-            <button id="youBtn" class="pill" type="button">
-              🙂 {{ user_email }}
-            </button>
-          {% else %}
-            <a class="pill" id="signinBtn" href="/login" style="text-decoration:none">Sign in</a>
-            <button id="youBtn" class="pill" type="button">🙂 You</button>
-          {% endif %}
-
-          <button id="clearBtn" class="pill danger" type="button">🗑 Clear History</button>
-        </div>
-      </header>
-
-      <div class="statusRow">
-        <div class="left">
-          <span class="softTag">⚡ Ready for chat</span>
-          <span class="softTag">🧠 Builder enabled</span>
-          <span class="softTag">🖼 Image aware</span>
-        </div>
-
-        <div class="right">
-          <span class="softTag">
-            Plan:
-            <b id="topPlanLabel">
-              {% if plan == "single" %}
-                Pro
-              {% elif plan == "team" %}
-                Team
-              {% else %}
-                Free
-              {% endif %}
-            </b>
-          </span>
-
-          {% if plan == "free" %}
-            <span class="softTag">Free Daily Limit: <b>{{ free_limit }}</b></span>
-          {% else %}
-            <span class="softTag">Unlimited</span>
-          {% endif %}
-        </div>
-      </div>
-
-      <section class="dashboardStrip">
-        <div class="dashCard">
-          <div class="dashLabel">Account</div>
-          <div class="dashValue" id="dashEmail">{{ user_email or 'Guest' }}</div>
-          <div class="dashSub">Logged-in workspace status</div>
-        </div>
-
-        <div class="dashCard">
-          <div class="dashLabel">Plan</div>
-          <div class="dashValue" id="dashPlan">
-            {% if plan == "single" %}
-              Pro
-            {% elif plan == "team" %}
-              Team
-            {% else %}
-              Free
-            {% endif %}
-          </div>
-          <div class="dashSub">Free / Pro / Team</div>
-        </div>
-
-        <div class="dashCard">
-          <div class="dashLabel">Usage Today</div>
-          <div class="dashValue" id="dashUsage">--</div>
-          <div class="dashSub">Daily message usage</div>
-        </div>
-
-        <div class="dashCard">
-          <div class="dashLabel">Builder Library</div>
-          <div class="dashValue" id="dashBuildCount">0</div>
-          <div class="dashSub">Saved local builds</div>
+          <button id="upgradeBtn" class="pill" type="button">Upgrade</button>
+          <button id="newChatBtn" class="pill" type="button">+ New Chat</button>
+          <button id="loginBtn" class="pill" type="button">Sign in</button>
+          <button id="logoutBtn" class="pill" type="button">Logout</button>
+          <button id="profileBtn" class="pill" type="button">🙂 You</button>
+          <button id="clearHistoryBtn" class="pill" type="button">🗑 Clear History</button>
         </div>
       </section>
 
-      <section class="welcomeCard" id="welcomeCard">
-        <div class="welcomeTop">
-          <div class="welcomeTitle">Welcome back — Simo’s ready.</div>
-          <div class="softTag">✨ Premium & alive</div>
+      <section class="hero-card">
+        <div class="chip-row">
+          <div class="chip">⚡ Ready for chat</div>
+          <div class="chip">🧠 Builder enabled</div>
+          <div class="chip">🖼️ Image aware</div>
+          <div class="chip">🧊 3D viewer ready</div>
         </div>
 
-        <div class="welcomeSub">
-          Talk naturally, upload images, build pages, and explore ideas with Simo.
-        </div>
-
-        <div class="quickChips">
-          <button class="quickChip" type="button" data-prompt="Help me build a premium landing page for my business.">Build a landing page</button>
-          <button class="quickChip" type="button" data-prompt="Analyze this image and tell me what you see.">Analyze an image</button>
-          <button class="quickChip" type="button" data-prompt="Help me write a business plan for my startup.">Write a business plan</button>
-          <button class="quickChip" type="button" data-prompt="Make Simo feel more premium and alive.">Improve Simo’s vibe</button>
-        </div>
-
-        <div class="heroHint">
-          Tip: the chips above feed directly into chat just like the sidebar shortcuts.
-        </div>
-      </section>
-
-      <section class="chatWrap" id="chatWrap">
-        <div id="chatMessages" class="chatMessages"></div>
-      </section>
-
-      <section id="imageStage" class="imageStage hidden" aria-live="polite">
-        <div id="imageDropZone" class="imageDropZone">
-          <div class="imageStageTop">
-            <div class="imageStageTitle">Image ready to send</div>
-            <button id="removeImageBtn" class="miniDangerBtn" type="button">Remove</button>
+        <div class="stats">
+          <div class="stat-card">
+            <div class="tiny muted">ACCOUNT</div>
+            <div id="accountValue" style="font-size:18px; font-weight:700; margin-top:6px;">Guest</div>
+            <div id="userEmail" class="muted tiny" style="margin-top:6px;"></div>
+            <div class="muted" style="margin-top:6px;">Logged-in workspace status</div>
           </div>
 
-          <div class="imageStageBody">
-            <div class="imagePreviewWrap">
-              <img id="imagePreview" class="imagePreview" alt="Selected preview" />
-            </div>
+          <div class="stat-card">
+            <div class="tiny muted">PLAN</div>
+            <div id="planValue" style="font-size:18px; font-weight:700; margin-top:6px;">Free</div>
+            <div id="proBadge" class="muted tiny" data-pro="false" style="margin-top:6px;">Free</div>
+            <div class="muted" style="margin-top:6px;">Free / Pro / Team</div>
+          </div>
 
-            <div class="imageMeta">
-              <div id="imageName" class="imageName">No image selected</div>
-              <div class="imageHint">
-                Paste, drag & drop, or use the image button to attach a photo before sending.
+          <div class="stat-card">
+            <div class="tiny muted">USAGE TODAY</div>
+            <div id="usageTodayValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
+            <div class="muted" style="margin-top:6px;">Daily message usage</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="tiny muted">BUILDER LIBRARY</div>
+            <div id="libraryCountValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
+            <div class="muted" style="margin-top:6px;">Saved local builds</div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="hero-card"
+        style="
+          padding:20px 22px;
+          margin-top:14px;
+          position:relative;
+          overflow:hidden;
+          background:
+            radial-gradient(circle at top right, rgba(110,168,255,.10), transparent 24%),
+            linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025));
+          border:1px solid rgba(255,255,255,.08);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.04),
+            0 10px 30px rgba(0,0,0,.12);
+        "
+      >
+        <div
+          style="
+            position:absolute;
+            top:-60px;
+            right:-40px;
+            width:180px;
+            height:180px;
+            border-radius:999px;
+            background:radial-gradient(circle, rgba(110,168,255,.10), transparent 68%);
+            pointer-events:none;
+          "
+        ></div>
+
+        <div style="position:relative; z-index:1;">
+          <div style="font-size:14px; font-weight:700; margin-bottom:12px; letter-spacing:.01em;">
+            Start with one of these:
+          </div>
+
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <button class="chip" type="button" data-simo-starter="build" style="cursor:pointer;">Build a website</button>
+            <button class="chip" type="button" data-simo-starter="business" style="cursor:pointer;">Create a business idea</button>
+            <button class="chip" type="button" data-simo-starter="design" style="cursor:pointer;">Design something</button>
+            <button class="chip" type="button" data-simo-starter="image" style="cursor:pointer;">Analyze an image</button>
+            <button class="chip" type="button" data-simo-starter="chat" style="cursor:pointer;">Just chat</button>
+          </div>
+
+          <div class="muted tiny" style="margin-top:12px;">
+            Click one to load a starter prompt into the composer. Nothing auto-sends.
+          </div>
+
+          <div
+            id="simoHintCard"
+            style="
+              margin-top:14px;
+              padding:14px 16px;
+              border-radius:14px;
+              background:
+                linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+              border:1px solid rgba(255,255,255,.10);
+              box-shadow:
+                inset 0 1px 0 rgba(255,255,255,.05),
+                0 10px 28px rgba(0,0,0,.10);
+              position:relative;
+              overflow:hidden;
+            "
+          >
+            <div
+              style="
+                position:absolute;
+                inset:0;
+                background:
+                  radial-gradient(circle at top left, rgba(110,168,255,.10), transparent 30%);
+                pointer-events:none;
+              "
+            ></div>
+
+            <div style="position:relative; z-index:1;">
+              <div
+                style="
+                  font-size:13px;
+                  font-weight:700;
+                  margin-bottom:7px;
+                  display:flex;
+                  align-items:center;
+                  gap:8px;
+                "
+              >
+                <span
+                  style="
+                    width:8px;
+                    height:8px;
+                    border-radius:999px;
+                    background:#6ea8ff;
+                    box-shadow:0 0 12px rgba(110,168,255,.6);
+                    display:inline-block;
+                    flex:0 0 auto;
+                  "
+                ></span>
+                <span>Best first move</span>
+              </div>
+
+              <div id="simoHintText" class="muted tiny" style="line-height:1.6;">
+                New here? Start with <strong>Build a website</strong> or <strong>Create a business idea</strong>.
+                You can send the starter as-is or edit it first before pressing send.
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      <footer class="composer composerAura" id="composer">
-        <input id="imagePick" type="file" accept="image/*" class="hidden" />
+      <section class="chat-wrap" id="chat">
+        <div id="chatMessages"></div>
+      </section>
 
-        <button id="imgBtn" class="roundBtn" type="button" title="Upload image">🖼</button>
+      <section class="composer-wrap">
+        <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼</button>
+        <input id="imageInput" type="file" accept="image/*" hidden />
+        <textarea id="chatInput" placeholder="What do you want to build today?"></textarea>
+        <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
+      </section>
 
-        <div class="inputWrap">
-          <input
-            id="chatInput"
-            class="chatInput"
-            placeholder="Talk to your best friend Simo..."
-            autocomplete="off"
-          />
-        </div>
-
-        <button id="micBtn" class="roundBtn" type="button" title="Voice (coming soon)">🎙</button>
-        <button id="sendBtn" class="roundBtn send" type="button" title="Send">➤</button>
-      </footer>
-
-      <div class="footerNote">
-        <span id="statusLine">Loading…</span>
-      </div>
+      <div id="loadingHint">Ready.</div>
     </main>
   </div>
 
-  <!-- Upgrade Modal -->
-  <div id="proModal" class="modal hidden" aria-hidden="true">
-    <div class="modalCard">
-      <div class="modalTop">
-        <div class="modalTitle">Upgrade</div>
-        <button id="closeProModal" class="xBtn" type="button">✕</button>
-      </div>
-
-      <div class="modalBody">
-        <div class="pillRow">
-          <span class="chip">Stripe: <b id="stripeMode">{{ stripe_mode }}</b></span>
-          <span class="chip">Plan: <b id="planState">{{ plan }}</b></span>
-          <span class="chip">Team: <b id="teamState">{{ 'YES' if is_team else 'NO' }}</b></span>
-        </div>
-
-        <p class="muted">
-          Free mode includes up to <b>{{ free_limit }}</b> messages/day.
-          Upgrade to remove limits and unlock downloads, saved builds, publishing, and team features.
-        </p>
-
-        <div class="tiers two">
-          <div class="tierCard hot">
-            <div class="tierName">Simo Pro (Single)</div>
-            <div class="tierPrice">$9.99/mo • $99/yr</div>
-            <ul class="tierList">
-              <li>More daily usage</li>
-              <li>Priority improvements</li>
-              <li>Faster feature rollouts</li>
-            </ul>
-            <div class="tierBtns">
-              <button id="buySingleMonthly" class="buyBtn" type="button">Pro Monthly</button>
-              <button id="buySingleYearly" class="buyBtn ghost" type="button">Pro Yearly</button>
-            </div>
-          </div>
-
-          <div class="tierCard">
-            <div class="tierName">Simo Pro Team (10)</div>
-            <div class="tierPrice">$29/mo • $299/yr</div>
-            <ul class="tierList">
-              <li>Team 3D preview</li>
-              <li>Shared team tools next</li>
-              <li>Publishing + collaboration growth</li>
-            </ul>
-            <div class="tierBtns">
-              <button id="buyTeamMonthly" class="buyBtn" type="button">Team Monthly</button>
-              <button id="buyTeamYearly" class="buyBtn ghost" type="button">Team Yearly</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="tiny muted">
-          Upgrade to unlock downloads, saved builds, publishing, and team features.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settings Modal -->
-  <div id="settingsModal" class="modal hidden" aria-hidden="true">
-    <div class="modalCard wide">
-      <div class="modalTop">
-        <div class="modalTitle">Settings & Voice</div>
-        <button id="closeSettings" class="xBtn" type="button">✕</button>
-      </div>
-
-      <div class="modalBody">
-        <div class="setRow">
-          <div class="setLeft">
-            <div class="setTitle">Voice (coming soon)</div>
-            <div class="setSub">This will enable spoken responses later.</div>
-          </div>
-          <label class="switch">
-            <input id="setVoice" type="checkbox" />
-            <span class="slider"></span>
-          </label>
-        </div>
-
-        <div class="setRow">
-          <div class="setLeft">
-            <div class="setTitle">Voice style</div>
-            <div class="setSub">Friendly, calm, direct, or hype.</div>
-          </div>
-          <select id="setStyle" class="select">
-            <option value="friendly">Friendly (default)</option>
-            <option value="calm">Calm</option>
-            <option value="direct">Direct</option>
-            <option value="hype">Hype</option>
-          </select>
-        </div>
-
-        <div class="setRow">
-          <div class="setLeft">
-            <div class="setTitle">Language</div>
-            <div class="setSub">Controls response preference.</div>
-          </div>
-          <select id="setLang" class="select">
-            <option value="en">English</option>
-            <option value="es">Spanish</option>
-            <option value="sq">Albanian</option>
-            <option value="it">Italian</option>
-          </select>
-        </div>
-
-        <div class="setRow">
-          <div class="setLeft">
-            <div class="setTitle">Theme</div>
-            <div class="setSub">Choose the vibe you want.</div>
-          </div>
-          <select id="setTheme" class="select">
-            <option value="default">Default</option>
-            <option value="ocean">Ocean Blue</option>
-            <option value="emerald">Emerald</option>
-            <option value="sunset">Sunset</option>
-          </select>
-        </div>
-
-        <div class="setButtons">
-          <button id="saveSettings" class="buyBtn" type="button">Save Settings</button>
-          <button id="resetSettings" class="buyBtn ghost" type="button">Reset</button>
-        </div>
-
-        <div class="tiny muted">
-          Settings are stored locally for now. Next step: save them per signed-in user.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Account Modal -->
-  <div id="accountModal" class="modal hidden" aria-hidden="true">
-    <div class="modalCard">
-      <div class="modalTop">
-        <div class="modalTitle">Account</div>
-        <button id="closeAccount" class="xBtn" type="button">✕</button>
-      </div>
-      <div class="modalBody">
-        <div class="muted">Email</div>
-        <div id="accEmail" class="accValue">—</div>
-        <div style="height:10px"></div>
-        <div class="muted">Plan</div>
-        <div id="accPlan" class="accValue">—</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Builder Preview Modal -->
-  <div id="builderPreviewModal" class="modal hidden" aria-hidden="true">
-    <div class="modalCard wide" style="max-width:1100px;">
-      <div class="modalTop">
-        <div class="modalTitle">Builder Preview</div>
-        <button id="closeBuilderPreviewBtn" class="xBtn" type="button">✕</button>
-      </div>
-
-      <div class="modalBody">
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:12px;">
-          <button id="showHtmlBtn" class="buyBtn ghost" type="button">Show HTML</button>
-          <button id="openBuilderNewTabBtn" class="buyBtn ghost" type="button">Open in New Tab</button>
-          <button id="publishBuildBtn" class="buyBtn ghost" type="button">Publish</button>
-        </div>
-
-        <div
-          id="builderHtmlWrap"
-          class="hidden"
-          style="margin-bottom:12px; border:1px solid rgba(255,255,255,.12); border-radius:16px; overflow:hidden;"
-        >
-          <textarea
-            id="builderHtmlView"
-            spellcheck="false"
-            style="width:100%; min-height:240px; background:#07101c; color:#dbe7ff; border:0; padding:16px; resize:vertical; font-family:Consolas, monospace; font-size:13px;"
-          ></textarea>
-        </div>
-
-        <div style="border:1px solid rgba(255,255,255,.12); border-radius:18px; overflow:hidden; background:#09111d;">
-          <iframe
-            id="builderPreviewFrame"
-            sandbox="allow-scripts allow-same-origin"
-            style="width:100%; height:520px; border:0; background:white;"
-            title="Builder Preview"
-          ></iframe>
-        </div>
-
-        <div style="display:flex; gap:12px; flex-wrap:wrap; margin-top:16px;">
-          <button id="downloadHtmlBtn" class="buyBtn" type="button">Download HTML</button>
-          <button id="saveBuildBtn" class="buyBtn" type="button">Save Build</button>
-          <button id="openLibraryBtn" class="buyBtn ghost" type="button">Open Library</button>
-          <button id="closeBuilderPreviewFooterBtn" class="buyBtn ghost" type="button">Close</button>
-        </div>
-
-        <div class="tiny muted" style="margin-top:10px;">
-          Preview, download, save, publish, and library controls are active for this build.
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Builder Library Modal -->
-  <div id="libraryModal" class="modal hidden" aria-hidden="true">
-    <div class="modalCard wide" style="max-width:980px;">
-      <div class="modalTop">
-        <div class="modalTitle">Builder Library</div>
-        <button id="closeLibraryBtn" class="xBtn" type="button">✕</button>
-      </div>
-
-      <div class="modalBody">
-        <div class="libraryTopActions">
-          <button id="exportLibraryBtn" class="buyBtn ghost" type="button">Export Library</button>
-          <button id="importLibraryBtn" class="buyBtn ghost" type="button">Import Library</button>
-          <input id="importLibraryFile" type="file" accept=".json,application/json" class="hidden" />
-        </div>
-
-        <div id="libraryEmpty" class="muted">No saved builds yet.</div>
-        <div id="libraryList" style="display:flex; flex-direction:column; gap:14px;"></div>
-      </div>
-    </div>
-  </div>
-
   <script>
-    window.SIMO_BOOT = {
-      stripePk: "{{ stripe_pk|e }}",
-      freeLimit: {{ free_limit }},
-      plan: "{{ plan|e }}",
-      isTeam: {{ 'true' if is_team else 'false' }},
-      stripeMode: "{{ stripe_mode|e }}",
-      userEmail: "{{ (user_email or '')|e }}"
-    };
+    window.SIMO_BOOT = {{ simo_boot_json | safe }};
   </script>
-  <script defer src="/static/script.js"></script>
+
+  <script src="/static/3dviewer.js?v=phase50"></script>
+  <script src="/static/script.js?v=phase50"></script>
+  <script src="/static/phase28-safe-addon.js?v=phase28safe1"></script>
+  <script src="/static/phase29b-safe-addon.js?v=phase29b1"></script>
 </body>
 </html>

@@ -1,12 +1,10 @@
 import os
-import re
-import io
-import base64
 import json
+import re
+import base64
 import sqlite3
-import datetime as dt
 import secrets
-from urllib.parse import quote
+import datetime as dt
 
 from flask import (
     Flask,
@@ -22,6 +20,7 @@ from flask import (
 )
 from dotenv import load_dotenv
 from werkzeug.middleware.proxy_fix import ProxyFix
+from werkzeug.utils import secure_filename
 
 import stripe
 from authlib.integrations.flask_client import OAuth
@@ -30,6 +29,9 @@ from openai import OpenAI
 load_dotenv()
 
 
+# =========================================================
+# Helpers
+# =========================================================
 def env_bool(name: str, default: bool = False) -> bool:
     val = os.getenv(name)
     if val is None:
@@ -38,7 +40,7 @@ def env_bool(name: str, default: bool = False) -> bool:
 
 
 def resolve_path(base_root: str, path_value: str, default_name: str) -> str:
-    raw = (path_value or default_name).strip()
+    raw = (path_value or default_name or "").strip()
     if not raw:
         raw = default_name
     if os.path.isabs(raw):
@@ -46,130 +48,1596 @@ def resolve_path(base_root: str, path_value: str, default_name: str) -> str:
     return os.path.join(base_root, raw)
 
 
-app = Flask(__name__, static_folder="static", template_folder="templates")
+def utcnow() -> dt.datetime:
+    return dt.datetime.utcnow()
 
-# -----------------------------
-# Deployment / runtime config
-# -----------------------------
-APP_ENV = os.getenv("APP_ENV", os.getenv("FLASK_ENV", "development")).strip().lower()
-IS_PRODUCTION = APP_ENV == "production"
-TRUST_PROXY = env_bool("TRUST_PROXY", True)
 
-if TRUST_PROXY:
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+def utcnow_z() -> str:
+    return utcnow().isoformat() + "Z"
 
-# -----------------------------
-# Core config
-# -----------------------------
-app.secret_key = os.getenv("SECRET_KEY", "may-the-lord-protect-all-who-love-him")
 
-SESSION_COOKIE_SECURE = env_bool("SESSION_COOKIE_SECURE", IS_PRODUCTION)
-SESSION_COOKIE_SAMESITE = os.getenv(
-    "SESSION_COOKIE_SAMESITE",
-    "Lax" if not IS_PRODUCTION else "Lax"
-).strip()
+def allowed_image(filename: str) -> bool:
+    if not filename:
+        return False
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+    return ext in {"png", "jpg", "jpeg", "webp", "gif"}
 
-app.config["SESSION_COOKIE_SAMESITE"] = SESSION_COOKIE_SAMESITE
-app.config["SESSION_COOKIE_SECURE"] = SESSION_COOKIE_SECURE
-app.config["SESSION_COOKIE_HTTPONLY"] = True
-app.config["PERMANENT_SESSION_LIFETIME"] = dt.timedelta(days=31)
 
-FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "50"))
-BASE_URL = os.getenv("BASE_URL", "http://127.0.0.1:5000").strip().rstrip("/")
+def sanitize_key(text: str) -> str:
+    raw = str(text or "").strip().lower()
+    out = []
+    prev_underscore = False
+    for ch in raw:
+        if ch.isalnum():
+            out.append(ch)
+            prev_underscore = False
+        else:
+            if not prev_underscore:
+                out.append("_")
+                prev_underscore = True
+    return "".join(out).strip("_")
 
-# -----------------------------
-# Publish config
-# -----------------------------
-PUBLISHED_DIR = resolve_path(
-    app.root_path,
-    os.getenv("PUBLISHED_SITES_DIR", ""),
-    "published_sites",
-)
+
+def slugify(text: str) -> str:
+    raw = str(text or "").strip().lower()
+    out = []
+    prev_dash = False
+
+    for ch in raw:
+        if ch.isalnum():
+            out.append(ch)
+            prev_dash = False
+        else:
+            if not prev_dash:
+                out.append("-")
+                prev_dash = True
+
+    slug = "".join(out).strip("-")
+    return slug[:80] or "simo-build"
+
+
+def is_hosted_model_url(url: str) -> bool:
+    if not url:
+        return False
+    lowered = url.strip().lower()
+    return (
+        (lowered.startswith("http://") or lowered.startswith("https://"))
+        and (".glb" in lowered or ".gltf" in lowered)
+    )
+
+
+def is_local_model_url(url: str) -> bool:
+    if not url:
+        return False
+    lowered = url.strip().lower()
+    return lowered.startswith("/static/models/") and (".glb" in lowered or ".gltf" in lowered)
+
+
+def is_any_model_url(url: str) -> bool:
+    return is_hosted_model_url(url) or is_local_model_url(url)
+
+
+def normalize_model_url(url: str) -> str:
+    raw = str(url or "").strip().rstrip("),.; ")
+    if not raw:
+        return ""
+
+    lowered = raw.lower()
+    if lowered.startswith("http://") or lowered.startswith("https://"):
+        return raw
+    if lowered.startswith("/static/models/"):
+        return raw
+    if lowered.startswith("static/models/"):
+        return "/" + raw.lstrip("/")
+
+    if lowered.endswith(".glb") or lowered.endswith(".gltf"):
+        filename = os.path.basename(raw.replace("\\", "/"))
+        return f"/static/models/{filename}"
+
+    return raw
+
+
+def prettify_model_name(name: str) -> str:
+    raw = str(name or "").strip()
+    if not raw:
+        return "3D model"
+    return raw.replace("_", " ").replace("-", " ").strip().title()
+
+
+def safe_json_loads(raw: str, fallback):
+    try:
+        return json.loads(raw)
+    except Exception:
+        return fallback
+
+
+def clean_choice_label(label: str, object_name: str = "") -> str:
+    text = prettify_model_name(label or "")
+    obj = prettify_model_name(object_name or "")
+
+    if not text:
+        return obj or "3D Model"
+
+    low = text.lower()
+    obj_low = obj.lower()
+
+    if obj and low == obj_low:
+        return obj
+
+    if "fallback" in low:
+        return f"{obj} Fallback" if obj else "Fallback"
+
+    return text
+
+
+def parse_labeled_env_choices(value: str, object_name: str):
+    raw = str(value or "").strip()
+    if not raw:
+        return []
+
+    out = []
+    parts = [p.strip() for p in raw.split("|") if p.strip()]
+    pretty_obj = prettify_model_name(object_name)
+
+    for idx, part in enumerate(parts, start=1):
+        label = f"{pretty_obj} Option {idx}"
+        url = part
+
+        if "::" in part:
+            maybe_label, maybe_url = part.split("::", 1)
+            maybe_label = str(maybe_label or "").strip()
+            maybe_url = normalize_model_url(maybe_url)
+            if maybe_label:
+                label = maybe_label
+            url = maybe_url
+
+        url = normalize_model_url(url)
+        if url and is_any_model_url(url):
+            out.append(
+                {
+                    "label": clean_choice_label(label, object_name),
+                    "url": url,
+                    "source": "candidate",
+                    "verified": False,
+                    "tier": "candidate",
+                    "style": "default",
+                }
+            )
+
+    return out
+
+
+def parse_phase39_multi_env_choices(object_name: str):
+    key = sanitize_key(object_name).upper()
+    env_name = f"SIMO_3D_MULTI_{key}"
+    raw = str(os.getenv(env_name, "") or "").strip()
+    if not raw:
+        return []
+
+    out = []
+    chunks = [c.strip() for c in raw.split(",") if c.strip()]
+    pretty_obj = prettify_model_name(object_name)
+
+    for idx, chunk in enumerate(chunks, start=1):
+        parts = [str(p or "").strip() for p in chunk.split("|")]
+
+        file_or_url = parts[0] if len(parts) > 0 else ""
+        label = parts[1] if len(parts) > 1 and parts[1] else f"{pretty_obj} Option {idx}"
+        tier = (parts[2] if len(parts) > 2 and parts[2] else "verified").strip().lower()
+        style = (parts[3] if len(parts) > 3 and parts[3] else "default").strip().lower()
+
+        url = normalize_model_url(file_or_url)
+        if not url or not is_any_model_url(url):
+            continue
+
+        source = tier if tier in {"verified", "candidate", "fallback", "concept"} else "candidate"
+        verified = source == "verified"
+
+        out.append(
+            {
+                "label": clean_choice_label(label, object_name),
+                "url": url,
+                "source": source,
+                "verified": verified,
+                "tier": source,
+                "style": style,
+            }
+        )
+
+    return out
+
+
+def extract_html_document(text: str) -> str:
+    raw = str(text or "").strip()
+    if not raw:
+        return ""
+
+    lowered = raw.lower()
+    doctype_index = lowered.find("<!doctype html")
+    html_index = lowered.find("<html")
+
+    if doctype_index != -1:
+        return raw[doctype_index:].strip()
+
+    if html_index != -1:
+        return raw[html_index:].strip()
+
+    return ""
+
+
+def title_from_prompt(user_text: str) -> str:
+    text = str(user_text or "").strip()
+    if not text:
+        return "Simo Website"
+
+    cleaned = text.replace("\n", " ").strip()
+    if len(cleaned) > 60:
+        cleaned = cleaned[:60].rstrip() + "..."
+    return cleaned.title()
+
+
+def detect_business_type(user_text: str) -> str:
+    text = str(user_text or "").strip().lower()
+    if not text:
+        return "general"
+
+    mapping = [
+        ("bakery", ["bakery", "bread", "pastry", "cake", "dessert", "croissant", "sourdough"]),
+        ("portfolio", ["portfolio", "personal brand", "designer portfolio", "developer portfolio", "creative portfolio", "resume site"]),
+        ("saas", ["saas", "software", "startup", "app", "platform", "ai tool", "dashboard"]),
+        ("agency", ["agency", "marketing agency", "creative agency", "studio", "consulting"]),
+        ("restaurant", ["restaurant", "cafe", "coffee", "bistro", "food truck", "menu"]),
+        ("real_estate", ["real estate", "realtor", "property", "listing"]),
+        ("fitness", ["fitness", "gym", "coach", "trainer", "wellness"]),
+        ("ecommerce", ["shop", "store", "ecommerce", "product page", "brand"]),
+    ]
+
+    for label, keywords in mapping:
+        if any(k in text for k in keywords):
+            return label
+
+    return "general"
+
+
+def build_fallback_html(user_text: str) -> str:
+    kind = detect_business_type(user_text)
+    page_title = title_from_prompt(user_text)
+
+    if kind == "bakery":
+        brand = "Golden Crust Bakery"
+        sub = "Freshly baked breads, pastries, cakes, and sweet moments made daily."
+        cards = [
+            ("Artisan Bread", "Crusty, warm, handcrafted loaves baked each morning."),
+            ("Signature Cakes", "Beautiful custom cakes for birthdays, weddings, and celebrations."),
+            ("Butter Pastries", "Croissants, danishes, muffins, and flaky favorites."),
+            ("Warm Cookies", "Soft, chewy, small-batch treats everyone remembers."),
+        ]
+        section_two_title = "Why People Come Back"
+        section_two_text = "We blend old-world baking traditions with modern presentation and warm neighborhood service."
+        cta = "Order Fresh Today"
+    elif kind == "portfolio":
+        brand = "Ava Carter Portfolio"
+        sub = "A polished digital portfolio for showcasing work, services, case studies, and contact."
+        cards = [
+            ("Featured Work", "Highlight signature projects with visuals and clear results."),
+            ("About", "Tell your story with confidence and personality."),
+            ("Services", "Present what you do in a clean, premium way."),
+            ("Contact", "Make it easy for clients or collaborators to reach out."),
+        ]
+        section_two_title = "Built To Impress"
+        section_two_text = "This layout is designed to look premium, clear, and professional on desktop and mobile."
+        cta = "View Projects"
+    elif kind == "saas":
+        brand = "NovaFlow"
+        sub = "A modern SaaS landing page designed to explain value fast and drive signups."
+        cards = [
+            ("Fast Setup", "Get started in minutes with an onboarding flow users can follow."),
+            ("Smart Automation", "Reduce repetitive work with powerful workflow logic."),
+            ("Live Insights", "See trends, activity, and growth from one dashboard."),
+            ("Team Ready", "Collaborate across teams with a polished workspace."),
+        ]
+        section_two_title = "Why It Converts"
+        section_two_text = "Clear hierarchy, premium styling, and a confident call-to-action help turn visitors into users."
+        cta = "Start Free"
+    elif kind == "agency":
+        brand = "Northline Creative"
+        sub = "A premium agency landing page built to showcase services, case studies, and confidence."
+        cards = [
+            ("Brand Strategy", "Sharper positioning for products and businesses."),
+            ("Web Design", "Beautiful websites built for clarity and conversion."),
+            ("Content Systems", "Messaging and assets that support growth."),
+            ("Launch Support", "Practical rollout help from concept to live site."),
+        ]
+        section_two_title = "Creative With Direction"
+        section_two_text = "This page structure helps visitors understand your offer quickly and trust your brand faster."
+        cta = "Book A Call"
+    elif kind == "restaurant":
+        brand = "Luna Table"
+        sub = "A stylish restaurant page for reservations, menu highlights, and atmosphere."
+        cards = [
+            ("Chef Specials", "Feature the dishes people talk about first."),
+            ("Reservations", "Help guests book quickly and confidently."),
+            ("Events", "Promote private dining, tastings, and special nights."),
+            ("Atmosphere", "Use elegant visuals and copy to set the tone."),
+        ]
+        section_two_title = "Designed To Feel Inviting"
+        section_two_text = "The layout balances warmth, confidence, and easy navigation so guests know exactly where to go next."
+        cta = "Reserve A Table"
+    elif kind == "fitness":
+        brand = "Elevate Fitness"
+        sub = "A strong, clean fitness page for coaches, gyms, programs, and member signups."
+        cards = [
+            ("Programs", "Show structured training paths people can understand fast."),
+            ("Coaching", "Present your expertise and one-on-one guidance."),
+            ("Results", "Highlight momentum, transformations, and testimonials."),
+            ("Membership", "Drive simple action with strong CTA placement."),
+        ]
+        section_two_title = "Built For Action"
+        section_two_text = "The structure is made to motivate, guide, and convert visitors without clutter."
+        cta = "Join Now"
+    elif kind == "ecommerce":
+        brand = "Velora Studio"
+        sub = "A clean ecommerce-style landing page built to feature products and drive sales."
+        cards = [
+            ("Best Sellers", "Spotlight the products visitors should see first."),
+            ("Brand Story", "Give the store a stronger identity and emotional pull."),
+            ("Fast Shipping", "Reassure buyers with clear service messaging."),
+            ("Easy Checkout", "Guide customers from interest to purchase smoothly."),
+        ]
+        section_two_title = "Built To Sell Cleanly"
+        section_two_text = "A polished hierarchy and clean card layout help products feel more premium and easier to trust."
+        cta = "Shop Now"
+    else:
+        brand = "Simo Studio"
+        sub = "A modern responsive website generated inside Simo with clean sections, strong layout, and premium styling."
+        cards = [
+            ("Modern Layout", "A polished structure that feels clean and intentional."),
+            ("Responsive Design", "Built to adapt smoothly across desktop and mobile."),
+            ("Clear Messaging", "Simple hierarchy that helps visitors understand the offer."),
+            ("Strong CTA", "A focused call-to-action that gives the page momentum."),
+        ]
+        section_two_title = "A Better Starting Point"
+        section_two_text = "When AI output is inconsistent, Simo can still deliver a clean, preview-ready page instead of a blank result."
+        cta = "Get Started"
+
+    card_html = "\n".join(
+        [
+            f"""
+        <div class=\"card\">
+          <h3>{title}</h3>
+          <p>{desc}</p>
+        </div>
+        """.strip()
+            for title, desc in cards
+        ]
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"UTF-8\" />
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />
+  <title>{brand}</title>
+  <style>
+    :root {{
+      --bg: #0b1020;
+      --bg2: #121a31;
+      --text: #eef4ff;
+      --muted: #b8c6e3;
+      --line: rgba(255,255,255,.10);
+      --card: rgba(255,255,255,.06);
+      --blue: #6ea8ff;
+      --purple: #b982ff;
+      --pink: #ff9acb;
+      --shadow: 0 20px 60px rgba(0,0,0,.30);
+    }}
+    * {{ box-sizing: border-box; }}
+    html, body {{ margin: 0; padding: 0; }}
+    body {{
+      font-family: Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(110,168,255,.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(185,130,255,.16), transparent 28%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+      color: var(--text);
+      line-height: 1.5;
+    }}
+    .wrap {{
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+    }}
+    header {{
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      backdrop-filter: blur(10px);
+      background: rgba(7,12,24,.60);
+      border-bottom: 1px solid var(--line);
+    }}
+    .nav {{
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 18px 0;
+    }}
+    .brand {{
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: .2px;
+    }}
+    .nav-links {{
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+    }}
+    .nav-links a {{
+      color: var(--muted);
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 14px;
+    }}
+    .hero {{
+      padding: 82px 0 58px;
+    }}
+    .hero-grid {{
+      display: grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap: 26px;
+      align-items: center;
+    }}
+    .eyebrow {{
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.06);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 18px;
+    }}
+    h1 {{
+      font-size: clamp(40px, 7vw, 68px);
+      line-height: 1.03;
+      margin: 0 0 16px;
+      letter-spacing: -1.4px;
+    }}
+    .hero p {{
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 18px;
+      max-width: 700px;
+    }}
+    .actions {{
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+    }}
+    .btn {{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 48px;
+      padding: 0 18px;
+      border-radius: 999px;
+      text-decoration: none;
+      font-weight: 700;
+      border: 1px solid var(--line);
+    }}
+    .btn-primary {{
+      color: white;
+      background: linear-gradient(135deg, var(--blue), var(--purple));
+      box-shadow: var(--shadow);
+    }}
+    .btn-secondary {{
+      color: var(--text);
+      background: rgba(255,255,255,.05);
+    }}
+    .hero-card {{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }}
+    .hero-card-top {{
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 18px;
+      color: var(--muted);
+      font-size: 13px;
+    }}
+    .stat-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 14px;
+    }}
+    .stat {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      padding: 16px;
+    }}
+    .stat strong {{
+      display: block;
+      font-size: 24px;
+      margin-bottom: 6px;
+    }}
+    .section {{
+      padding: 24px 0 64px;
+    }}
+    .section h2 {{
+      font-size: 34px;
+      margin: 0 0 10px;
+      letter-spacing: -.5px;
+    }}
+    .section-intro {{
+      color: var(--muted);
+      margin: 0 0 26px;
+      max-width: 780px;
+    }}
+    .cards {{
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 18px;
+    }}
+    .card {{
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 24px;
+      padding: 22px;
+      box-shadow: var(--shadow);
+    }}
+    .card h3 {{
+      margin: 0 0 10px;
+      font-size: 20px;
+    }}
+    .card p {{
+      margin: 0;
+      color: var(--muted);
+    }}
+    .feature-band {{
+      margin-top: 10px;
+      background: linear-gradient(135deg, rgba(110,168,255,.12), rgba(185,130,255,.12));
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      padding: 26px;
+      box-shadow: var(--shadow);
+    }}
+    .feature-band p {{
+      color: var(--muted);
+      margin: 10px 0 0;
+      max-width: 760px;
+    }}
+    footer {{
+      padding: 28px 0 42px;
+      color: var(--muted);
+      border-top: 1px solid var(--line);
+      margin-top: 18px;
+    }}
+    @media (max-width: 940px) {{
+      .hero-grid {{
+        grid-template-columns: 1fr;
+      }}
+      .cards {{
+        grid-template-columns: repeat(2, minmax(0,1fr));
+      }}
+    }}
+    @media (max-width: 640px) {{
+      .nav {{
+        align-items: flex-start;
+        flex-direction: column;
+      }}
+      .cards {{
+        grid-template-columns: 1fr;
+      }}
+      .hero {{
+        padding-top: 56px;
+      }}
+    }}
+  </style>
+</head>
+<body>
+  <header>
+    <div class=\"wrap nav\">
+      <div class=\"brand\">{brand}</div>
+      <nav class=\"nav-links\">
+        <a href=\"#features\">Features</a>
+        <a href=\"#about\">About</a>
+        <a href=\"#contact\">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class=\"wrap\">
+    <section class=\"hero\">
+      <div class=\"hero-grid\">
+        <div>
+          <div class=\"eyebrow\">Built inside Simo • Preview-ready HTML</div>
+          <h1>{brand}</h1>
+          <p>{sub}</p>
+          <div class=\"actions\">
+            <a class=\"btn btn-primary\" href=\"#contact\">{cta}</a>
+            <a class=\"btn btn-secondary\" href=\"#features\">Explore More</a>
+          </div>
+        </div>
+
+        <aside class=\"hero-card\">
+          <div class=\"hero-card-top\">
+            <span>Project</span>
+            <span>{page_title}</span>
+          </div>
+          <div class=\"stat-grid\">
+            <div class=\"stat\">
+              <strong>Modern</strong>
+              <span>Polished premium visual style</span>
+            </div>
+            <div class=\"stat\">
+              <strong>Responsive</strong>
+              <span>Designed for desktop and mobile</span>
+            </div>
+            <div class=\"stat\">
+              <strong>Clear</strong>
+              <span>Simple hierarchy and strong sections</span>
+            </div>
+            <div class=\"stat\">
+              <strong>Ready</strong>
+              <span>Safe fallback when AI output fails</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id=\"features\" class=\"section\">
+      <h2>Highlights</h2>
+      <p class=\"section-intro\">A strong homepage starts with clean layout, confident messaging, and sections that feel intentional.</p>
+      <div class=\"cards\">
+        {card_html}
+      </div>
+    </section>
+
+    <section id=\"about\" class=\"section\">
+      <div class=\"feature-band\">
+        <h2>{section_two_title}</h2>
+        <p>{section_two_text}</p>
+      </div>
+    </section>
+
+    <section id=\"contact\" class=\"section\">
+      <h2>Let’s Connect</h2>
+      <p class=\"section-intro\">This section gives your visitors a clear next step and keeps the page feeling complete and trustworthy.</p>
+      <div class=\"actions\">
+        <a class=\"btn btn-primary\" href=\"mailto:hello@example.com\">hello@example.com</a>
+        <a class=\"btn btn-secondary\" href=\"tel:+15551234567\">(555) 123-4567</a>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class=\"wrap\">© 2026 {brand} — Generated by Simo.</div>
+  </footer>
+</body>
+</html>"""
+
+
+def normalize_builder_html(html: str, fallback_prompt: str = "") -> str:
+    extracted = extract_html_document(html)
+    if extracted:
+        return extracted
+    return build_fallback_html(fallback_prompt or html or "Simo Website")
+
+
+def normalize_whitespace(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "")).strip()
+
+
+def safe_text_list(value):
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value:
+        text = normalize_whitespace(item)
+        if text:
+            out.append(text)
+    return out[:24]
+
+
+def unique_text_list(items):
+    out = []
+    seen = set()
+    for item in items or []:
+        text = normalize_whitespace(item)
+        if not text:
+            continue
+        key = text.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(text)
+    return out
+
+
+def detect_html_sections(html: str):
+    raw = str(html or "").lower()
+    found = []
+
+    section_patterns = [
+        ("hero", [r"class=[\"'][^\"']*hero", r"id=[\"']hero[\"']", r"<hero"]),
+        ("features", [r"id=[\"']features[\"']", r"class=[\"'][^\"']*features", r"highlights"]),
+        ("about", [r"id=[\"']about[\"']", r"class=[\"'][^\"']*about"]),
+        ("services", [r"id=[\"']services[\"']", r"class=[\"'][^\"']*services"]),
+        ("pricing", [r"id=[\"']pricing[\"']", r"class=[\"'][^\"']*pricing"]),
+        ("testimonials", [r"id=[\"']testimonials[\"']", r"class=[\"'][^\"']*testimonials", r"testimonial"]),
+        ("faq", [r"id=[\"']faq[\"']", r"class=[\"'][^\"']*faq"]),
+        ("contact", [r"id=[\"']contact[\"']", r"class=[\"'][^\"']*contact", r"mailto:"]),
+        ("footer", [r"<footer", r"class=[\"'][^\"']*footer"]),
+        ("navbar", [r"<nav", r"class=[\"'][^\"']*nav"]),
+        ("gallery", [r"id=[\"']gallery[\"']", r"class=[\"'][^\"']*gallery"]),
+        ("cta", [r"class=[\"'][^\"']*cta", r"call to action"]),
+    ]
+
+    for section_name, patterns in section_patterns:
+        if any(re.search(pattern, raw) for pattern in patterns):
+            found.append(section_name)
+
+    return unique_text_list(found)
+
+
+def detect_builder_edit_intents(user_text: str):
+    text = normalize_whitespace(user_text).lower()
+    intents = []
+
+    intent_keywords = {
+        "style": [
+            "darker", "lighter", "luxury", "luxurious", "premium", "modern", "minimal",
+            "bold", "cleaner", "sleeker", "softer", "warmer", "cooler", "elegant",
+            "futuristic", "glow", "gradient", "dark mode", "light mode"
+        ],
+        "layout": [
+            "layout", "spacing", "align", "center", "left align", "right align",
+            "wider", "narrower", "bigger", "smaller", "rearrange", "balance",
+            "more breathing room", "more padding", "tighten", "compact"
+        ],
+        "structure": [
+            "add section", "new section", "remove section", "remove", "add a", "add an",
+            "hero", "pricing", "testimonials", "faq", "contact form", "footer",
+            "navbar", "header", "cards", "gallery", "features", "services"
+        ],
+        "content": [
+            "rewrite", "copy", "headline", "subheadline", "text", "content",
+            "wording", "messaging", "tagline", "cta text", "button text"
+        ],
+        "cta": [
+            "cta", "call to action", "button", "buttons", "conversion", "signup",
+            "book a call", "reserve", "start free", "shop now"
+        ],
+        "animation": [
+            "animate", "animation", "animations", "motion", "hover", "microinteraction",
+            "transition", "parallax"
+        ],
+        "enhancement": [
+            "enhance", "upgrade", "improve", "polish", "refine", "take it further",
+            "push it further", "make it better", "full upgrade"
+        ],
+        "theme": [
+            "color", "colors", "palette", "font", "fonts", "typography", "theme"
+        ],
+    }
+
+    for intent_name, keywords in intent_keywords.items():
+        if any(keyword in text for keyword in keywords):
+            intents.append(intent_name)
+
+    if not intents and text:
+        if len(text.split()) <= 16:
+            intents.append("edit")
+
+    return unique_text_list(intents)
+
+
+def compact_builder_html_for_history(html: str) -> str:
+    normalized = normalize_builder_html(html or "", "")
+    title_match = re.search(r"<title>(.*?)</title>", normalized, flags=re.IGNORECASE | re.DOTALL)
+    title = normalize_whitespace(title_match.group(1)) if title_match else "Untitled"
+    sections = detect_html_sections(normalized)
+    section_text = ", ".join(sections[:8]) if sections else "none detected"
+    return f"[Builder HTML generated: {title}; sections: {section_text}]"
+
+
+def compact_history_content(role: str, content: str) -> str:
+    text = str(content or "").strip()
+    if not text:
+        return ""
+    if role == "assistant":
+        extracted = extract_html_document(text)
+        if extracted:
+            return compact_builder_html_for_history(extracted)
+    return text
+
+
+def infer_builder_meta(user_text: str, html: str, previous_meta=None):
+    previous_meta = previous_meta if isinstance(previous_meta, dict) else {}
+    text = normalize_whitespace(user_text)
+    intents = detect_builder_edit_intents(text)
+    sections = detect_html_sections(html)
+
+    existing_styles = safe_text_list(previous_meta.get("style_tags", []))
+    style_additions = []
+
+    lower = text.lower()
+    style_map = {
+        "dark": ["dark", "darker", "dark mode"],
+        "light": ["light", "lighter", "light mode"],
+        "premium": ["premium", "luxury", "luxurious", "high-end", "elegant"],
+        "modern": ["modern", "sleek", "clean", "minimal"],
+        "bold": ["bold", "dramatic"],
+        "animated": ["animation", "animations", "motion", "hover", "microinteraction"],
+    }
+
+    for label, keywords in style_map.items():
+        if any(keyword in lower for keyword in keywords):
+            style_additions.append(label)
+
+    style_tags = unique_text_list(existing_styles + style_additions)
+
+    last_intent = intents[0] if intents else str(previous_meta.get("last_intent", "") or "").strip()
+    mode_hint = str(previous_meta.get("mode_hint", "") or "").strip()
+    if "style" in intents or "theme" in intents:
+        mode_hint = "visual"
+    elif "structure" in intents or "layout" in intents:
+        mode_hint = "layout"
+    elif "content" in intents or "cta" in intents:
+        mode_hint = "content"
+    elif "enhancement" in intents or "animation" in intents:
+        mode_hint = "upgrade"
+
+    return {
+        "last_intent": last_intent,
+        "intent_tags": intents,
+        "sections": sections,
+        "style_tags": style_tags,
+        "mode_hint": mode_hint,
+        "updated_at": utcnow_z(),
+    }
+
+
+def builder_owner_key() -> str:
+    email = (session.get("user_email") or "").strip().lower()
+    if email:
+        return f"user:{email}"
+
+    anon = session.get("anon_id")
+    if not anon:
+        anon = secrets.token_hex(16)
+        session["anon_id"] = anon
+        session.modified = True
+    return f"anon:{anon}"
+
+
+def get_builder_db_state(owner_key: str):
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM builder_state WHERE owner_key = ?", (owner_key,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def get_builder_session_state():
+    owner_key = builder_owner_key()
+    row = get_builder_db_state(owner_key)
+
+    if not row:
+        return {
+            "active": False,
+            "prompt": "",
+            "origin_prompt": "",
+            "html": "",
+            "title": "",
+            "mode": "",
+            "preset": "",
+            "revision": 0,
+            "turn_count": 0,
+            "last_request_kind": "",
+            "updated_at": "",
+            "history": [],
+            "meta": {},
+        }
+
+    meta = safe_json_loads(row["builder_meta"] or "{}", {})
+    if not isinstance(meta, dict):
+        meta = {}
+
+    history = safe_json_loads(row["builder_history"] or "[]", [])
+    if not isinstance(history, list):
+        history = []
+
+    return {
+        "active": bool(int(row["builder_active"] or 0)),
+        "prompt": str(row["builder_last_prompt"] or "").strip(),
+        "origin_prompt": str(row["builder_origin_prompt"] or "").strip(),
+        "html": str(row["builder_last_html"] or "").strip(),
+        "title": str(row["builder_last_title"] or "").strip(),
+        "mode": str(row["builder_last_mode"] or "").strip(),
+        "preset": str(row["builder_last_preset"] or "").strip(),
+        "revision": int(row["builder_revision"] or 0),
+        "turn_count": int(row["builder_turn_count"] or 0),
+        "last_request_kind": str(row["builder_last_request_kind"] or "").strip(),
+        "updated_at": str(row["builder_updated_at"] or "").strip(),
+        "history": history,
+        "meta": meta,
+    }
+
+
+def save_builder_db_state(state: dict):
+    owner_key = builder_owner_key()
+    now = utcnow().isoformat()
+
+    builder_meta = state.get("meta", {})
+    if not isinstance(builder_meta, dict):
+        builder_meta = {}
+
+    builder_history = state.get("history", [])
+    if not isinstance(builder_history, list):
+        builder_history = []
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id FROM builder_state WHERE owner_key = ?", (owner_key,))
+    row = cur.fetchone()
+
+    payload = (
+        owner_key,
+        1 if state.get("active") else 0,
+        str(state.get("prompt", "") or ""),
+        str(state.get("origin_prompt", "") or ""),
+        str(state.get("html", "") or ""),
+        str(state.get("title", "") or ""),
+        str(state.get("mode", "") or ""),
+        str(state.get("preset", "") or ""),
+        int(state.get("revision", 0) or 0),
+        int(state.get("turn_count", 0) or 0),
+        str(state.get("last_request_kind", "") or ""),
+        str(state.get("updated_at", "") or ""),
+        json.dumps(builder_meta),
+        json.dumps(builder_history),
+        now,
+    )
+
+    if row:
+        cur.execute(
+            """
+            UPDATE builder_state
+            SET builder_active = ?,
+                builder_last_prompt = ?,
+                builder_origin_prompt = ?,
+                builder_last_html = ?,
+                builder_last_title = ?,
+                builder_last_mode = ?,
+                builder_last_preset = ?,
+                builder_revision = ?,
+                builder_turn_count = ?,
+                builder_last_request_kind = ?,
+                builder_updated_at = ?,
+                builder_meta = ?,
+                builder_history = ?,
+                updated_at = ?
+            WHERE owner_key = ?
+            """,
+            (
+                payload[1],
+                payload[2],
+                payload[3],
+                payload[4],
+                payload[5],
+                payload[6],
+                payload[7],
+                payload[8],
+                payload[9],
+                payload[10],
+                payload[11],
+                payload[12],
+                payload[13],
+                payload[14],
+                owner_key,
+            ),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO builder_state (
+                owner_key,
+                builder_active,
+                builder_last_prompt,
+                builder_origin_prompt,
+                builder_last_html,
+                builder_last_title,
+                builder_last_mode,
+                builder_last_preset,
+                builder_revision,
+                builder_turn_count,
+                builder_last_request_kind,
+                builder_updated_at,
+                builder_meta,
+                builder_history,
+                created_at,
+                updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            payload + (now,),
+        )
+
+    conn.commit()
+    conn.close()
+
+
+def push_builder_history(entry: dict, existing_history=None):
+    history = existing_history if isinstance(existing_history, list) else []
+    history.append(entry)
+    return history[-12:]
+
+
+def extract_mode_and_preset(user_text: str):
+    text = str(user_text or "")
+    mode_match = re.search(r"(?im)^mode\s*:\s*(.+?)\s*$", text)
+    preset_match = re.search(r"(?im)^style\s*:\s*(.+?)\s*$", text)
+
+    mode = normalize_whitespace(mode_match.group(1)) if mode_match else ""
+    preset = normalize_whitespace(preset_match.group(1)) if preset_match else ""
+    return mode, preset
+
+
+def strip_mode_and_preset_lines(user_text: str) -> str:
+    text = str(user_text or "")
+    text = re.sub(r"(?im)^mode\s*:\s*.+?$", "", text)
+    text = re.sub(r"(?im)^style\s*:\s*.+?$", "", text)
+    text = text.replace("[[SIMO_PHASE28_AUGMENTED]]", "")
+    return text.strip()
+
+
+def builder_state_summary(prior_state: dict) -> str:
+    if not isinstance(prior_state, dict):
+        return ""
+
+    parts = []
+    if prior_state.get("title"):
+        parts.append(f"title={prior_state.get('title')}")
+    if prior_state.get("revision"):
+        parts.append(f"revision={prior_state.get('revision')}")
+    if prior_state.get("turn_count"):
+        parts.append(f"turns={prior_state.get('turn_count')}")
+    if prior_state.get("last_request_kind"):
+        parts.append(f"last_kind={prior_state.get('last_request_kind')}")
+    return ", ".join(parts)
+
+
+def should_reset_builder_context(user_text: str) -> bool:
+    text = normalize_whitespace(user_text).lower()
+    if not text:
+        return False
+
+    reset_phrases = [
+        "start over",
+        "reset builder",
+        "clear builder",
+        "new build from scratch",
+        "new website from scratch",
+        "forget the last website",
+        "ignore the previous build",
+        "wipe the builder",
+        "reset the website",
+        "reset this build",
+        "scrap this build",
+    ]
+    return any(p in text for p in reset_phrases)
+
+
+def save_builder_session_state(user_text: str, html: str, mode: str = "", preset: str = "", request_kind: str = ""):
+    previous_state = get_builder_session_state()
+
+    normalized_html = normalize_builder_html(html, user_text)
+    clean_prompt = strip_mode_and_preset_lines(user_text)
+    extracted_mode, extracted_preset = extract_mode_and_preset(user_text)
+
+    previous_meta = previous_state.get("meta", {})
+    if not isinstance(previous_meta, dict):
+        previous_meta = {}
+
+    previous_revision = int(previous_state.get("revision", 0) or 0)
+    previous_turn_count = int(previous_state.get("turn_count", 0) or 0)
+    previous_origin_prompt = str(previous_state.get("origin_prompt", "") or "").strip()
+    previous_history = previous_state.get("history", [])
+    if not isinstance(previous_history, list):
+        previous_history = []
+
+    builder_meta = infer_builder_meta(clean_prompt, normalized_html, previous_meta=previous_meta)
+    revision = previous_revision + 1
+    turn_count = previous_turn_count + 1
+    now_z = utcnow_z()
+    origin_prompt = previous_origin_prompt or clean_prompt
+
+    builder_meta["revision"] = revision
+    builder_meta["turn_count"] = turn_count
+    builder_meta["last_request_kind"] = request_kind or ""
+    builder_meta["origin_prompt"] = origin_prompt
+    builder_meta["updated_at"] = now_z
+
+    history = push_builder_history(
+        {
+            "revision": revision,
+            "turn_count": turn_count,
+            "request_kind": request_kind or "",
+            "prompt": clean_prompt,
+            "title": title_from_prompt(clean_prompt),
+            "mode": mode or extracted_mode,
+            "preset": preset or extracted_preset,
+            "saved_at": now_z,
+            "intent_tags": builder_meta.get("intent_tags", []),
+            "sections": builder_meta.get("sections", []),
+        },
+        existing_history=previous_history,
+    )
+
+    save_builder_db_state(
+        {
+            "active": True,
+            "prompt": clean_prompt,
+            "origin_prompt": origin_prompt,
+            "html": normalized_html,
+            "title": title_from_prompt(clean_prompt),
+            "mode": mode or extracted_mode,
+            "preset": preset or extracted_preset,
+            "revision": revision,
+            "turn_count": turn_count,
+            "last_request_kind": request_kind or "",
+            "updated_at": now_z,
+            "meta": builder_meta,
+            "history": history,
+        }
+    )
+
+    session["builder_active"] = True
+    session["builder_last_title"] = title_from_prompt(clean_prompt)
+    session.modified = True
+
+    return normalized_html
+
+
+def clear_builder_session_state():
+    owner_key = builder_owner_key()
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM builder_state WHERE owner_key = ?", (owner_key,))
+    conn.commit()
+    conn.close()
+
+    session.pop("builder_active", None)
+    session.pop("builder_last_title", None)
+    session.modified = True
+
+
+def detect_builder_upgrade_request(user_text: str) -> bool:
+    text = normalize_whitespace(user_text).lower()
+    if not text:
+        return False
+
+    phrases = [
+        "enhance this",
+        "enhance it",
+        "upgrade this",
+        "upgrade it",
+        "make it premium",
+        "make this premium",
+        "make it more premium",
+        "make it more modern",
+        "make it luxurious",
+        "make it more luxurious",
+        "make it cleaner",
+        "make it better",
+        "improve this",
+        "improve it",
+        "polish this",
+        "polish it",
+        "refine this",
+        "refine it",
+        "take it further",
+        "push it further",
+        "make it look better",
+        "make the design better",
+        "full upgrade",
+        "upgrade the design",
+        "make it darker",
+        "make it lighter",
+        "add animations",
+        "more animations",
+    ]
+    return any(p in text for p in phrases)
+
+
+def is_builder_followup_request(user_text: str) -> bool:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+
+    if not get_builder_session_state().get("active"):
+        return False
+
+    if should_reset_builder_context(text):
+        return False
+
+    if detect_builder_upgrade_request(text):
+        return True
+
+    followup_phrases = [
+        "make it",
+        "change it",
+        "update it",
+        "edit it",
+        "tweak it",
+        "revise it",
+        "redo it",
+        "fix it",
+        "improve it",
+        "add a",
+        "add an",
+        "add ",
+        "remove ",
+        "use ",
+        "switch ",
+        "turn it",
+        "move ",
+        "replace ",
+        "make the",
+        "change the",
+        "update the",
+        "edit the",
+        "fix the",
+        "keep the",
+        "instead of",
+        "more modern",
+        "more premium",
+        "more luxurious",
+        "more minimal",
+        "more bold",
+        "dark mode",
+        "lighter",
+        "bigger",
+        "smaller",
+        "center ",
+        "left align",
+        "right align",
+        "new section",
+        "cta",
+        "hero",
+        "pricing",
+        "testimonials",
+        "faq",
+        "contact form",
+        "navbar",
+        "footer",
+        "button",
+        "headline",
+        "colors",
+        "fonts",
+        "spacing",
+        "layout",
+    ]
+
+    if any(text.startswith(p) for p in followup_phrases):
+        return True
+
+    if len(text.split()) <= 22 and any(
+        token in text
+        for token in [
+            "section",
+            "hero",
+            "cta",
+            "pricing",
+            "testimonial",
+            "testimonials",
+            "faq",
+            "footer",
+            "navbar",
+            "headline",
+            "subheadline",
+            "button",
+            "color",
+            "colors",
+            "font",
+            "fonts",
+            "layout",
+            "spacing",
+            "card",
+            "cards",
+            "background",
+            "premium",
+            "modern",
+            "luxury",
+            "animation",
+            "animate",
+        ]
+    ):
+        return True
+
+    return False
+
+
+def builder_request_kind(user_text: str) -> str:
+    if detect_builder_upgrade_request(user_text):
+        return "enhance"
+    if is_builder_followup_request(user_text):
+        return "edit"
+    return "build"
+
+
+def build_builder_mode_context(user_text: str, prior_state: dict) -> str:
+    mode, preset = extract_mode_and_preset(user_text)
+    mode = mode or prior_state.get("mode", "")
+    preset = preset or prior_state.get("preset", "")
+
+    parts = []
+    if mode:
+        parts.append(f"Builder mode preference: {mode}.")
+    if preset:
+        parts.append(f"Visual preset preference: {preset}.")
+    return "\n".join(parts).strip()
+
+
+def build_builder_meta_context(prior_state: dict) -> str:
+    meta = prior_state.get("meta", {})
+    if not isinstance(meta, dict):
+        meta = {}
+
+    lines = []
+
+    summary = builder_state_summary(prior_state)
+    if summary:
+        lines.append(f"Current builder state: {summary}.")
+
+    last_intent = str(meta.get("last_intent", "") or "").strip()
+    if last_intent:
+        lines.append(f"Last detected edit intent: {last_intent}.")
+
+    mode_hint = str(meta.get("mode_hint", "") or "").strip()
+    if mode_hint:
+        lines.append(f"Current editing mode tendency: {mode_hint}.")
+
+    sections = safe_text_list(meta.get("sections", []))
+    if sections:
+        lines.append("Current page sections detected: " + ", ".join(sections) + ".")
+
+    style_tags = safe_text_list(meta.get("style_tags", []))
+    if style_tags:
+        lines.append("Current visual/style direction detected: " + ", ".join(style_tags) + ".")
+
+    return "\n".join(lines).strip()
+
+
+def build_intent_specific_edit_guidance(user_text: str, request_kind: str, prior_state: dict) -> str:
+    intents = detect_builder_edit_intents(user_text)
+    meta = prior_state.get("meta", {}) if isinstance(prior_state.get("meta", {}), dict) else {}
+    existing_sections = safe_text_list(meta.get("sections", []))
+
+    lines = []
+
+    if request_kind == "enhance":
+        lines.append(
+            "This is a full enhancement request. Strengthen the design in a meaningful way, not with a tiny cosmetic tweak."
+        )
+        lines.append(
+            "Improve spacing, typography, hierarchy, card treatment, CTA clarity, section rhythm, and overall polish while keeping the same project direction."
+        )
+
+    if "style" in intents or "theme" in intents:
+        lines.append(
+            "Treat visual styling seriously: colors, contrast, typography, surfaces, depth, and polish should feel intentional and premium."
+        )
+
+    if "layout" in intents:
+        lines.append(
+            "You may improve alignment, spacing, section balance, container widths, and visual rhythm to make the page feel more refined."
+        )
+
+    if "structure" in intents:
+        if existing_sections:
+            lines.append(
+                "Preserve the useful existing sections unless the requested structural change clearly calls for removing or reshaping one."
+            )
+        lines.append(
+            "You may add, remove, or rearrange sections when that better fulfills the request."
+        )
+
+    if "content" in intents:
+        lines.append(
+            "Upgrade copy quality where helpful: headlines, supporting text, CTA wording, and section messaging should feel cleaner and more convincing."
+        )
+
+    if "cta" in intents:
+        lines.append(
+            "Make the call-to-action treatment stronger and clearer, with better emphasis and more confident wording."
+        )
+
+    if "animation" in intents:
+        lines.append(
+            "Use tasteful motion cues only. Keep them preview-safe, subtle, and compatible with a simple HTML preview."
+        )
+
+    if not lines:
+        lines.append(
+            "Apply the requested edit while preserving the strongest parts of the current page and improving the result where helpful."
+        )
+
+    return "\n".join(lines).strip()
+
+
+def build_builder_edit_prompt(user_text: str, prior_state: dict, request_kind: str) -> str:
+    clean_request = strip_mode_and_preset_lines(user_text)
+    prior_prompt = prior_state.get("prompt", "")
+    prior_html = normalize_builder_html(prior_state.get("html", ""), prior_prompt or clean_request)
+    mode_context = build_builder_mode_context(user_text, prior_state)
+    meta_context = build_builder_meta_context(prior_state)
+    intent_guidance = build_intent_specific_edit_guidance(user_text, request_kind, prior_state)
+
+    if request_kind == "enhance":
+        intent_block = (
+            "The user wants a full upgrade of the current page.\n"
+            "You may improve styles, hierarchy, layout, sections, spacing, CTA treatment, visual polish, and tasteful motion cues if useful.\n"
+            "Do not restart with a totally unrelated design. Evolve the current page into a clearly stronger premium version."
+        )
+    else:
+        intent_block = (
+            "The user wants changes applied to the current page.\n"
+            "Preserve the good parts of the current build unless the requested change clearly benefits from a better section layout or stronger design structure.\n"
+            "You are allowed to improve both design and layout when it helps fulfill the request better."
+        )
+
+    extra_parts = []
+    if mode_context:
+        extra_parts.append(mode_context)
+    if meta_context:
+        extra_parts.append(meta_context)
+    if intent_guidance:
+        extra_parts.append(intent_guidance)
+
+    extra = "\n".join(extra_parts).strip()
+
+    return (
+        f"{intent_block}\n\n"
+        f"{extra}\n\n"
+        f"Original build request:\n{prior_state.get('origin_prompt') or prior_prompt or '(none)'}\n\n"
+        f"Most recent build request:\n{prior_prompt or '(none)'}\n\n"
+        f"Current HTML to edit:\n{prior_html}\n\n"
+        f"New request:\n{clean_request}"
+    )
+
+
+def generate_builder_html(user_text: str, client, prior_state: dict = None) -> str:
+    prior_state = prior_state or {}
+    request_kind = builder_request_kind(user_text)
+    clean_user_text = strip_mode_and_preset_lines(user_text)
+    mode_context = build_builder_mode_context(user_text, prior_state)
+    meta_context = build_builder_meta_context(prior_state)
+    intent_guidance = build_intent_specific_edit_guidance(user_text, request_kind, prior_state)
+
+    if client:
+        system_user_text = clean_user_text
+        extra_parts = [part for part in [mode_context, meta_context, intent_guidance] if part]
+        if extra_parts:
+            system_user_text = "\n\n".join(extra_parts + [clean_user_text])
+
+        messages = [{"role": "system", "content": builder_system_prompt(system_user_text)}]
+
+        if prior_state.get("prompt") or prior_state.get("html"):
+            messages.append(
+                {
+                    "role": "user",
+                    "content": build_builder_edit_prompt(user_text, prior_state, request_kind),
+                }
+            )
+        else:
+            direct_request = clean_user_text
+            if extra_parts:
+                direct_request = "\n\n".join(extra_parts + [f"User request:\n{clean_user_text}"])
+            messages.append({"role": "user", "content": direct_request})
+
+        raw = ""
+        try:
+            resp = client.responses.create(
+                model=OPENAI_MODEL,
+                input=messages,
+            )
+            raw = extract_first_text_from_openai_response(resp)
+        except Exception:
+            try:
+                resp = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                )
+                raw = extract_first_text_from_openai_response(resp)
+            except Exception:
+                raw = ""
+
+        html = extract_html_document(raw)
+        if html:
+            return html
+
+    fallback_prompt = clean_user_text
+    if prior_state.get("prompt"):
+        if request_kind == "enhance":
+            fallback_prompt = f"{prior_state.get('prompt', '')}. Full upgrade request: {clean_user_text}"
+        else:
+            fallback_prompt = f"{prior_state.get('prompt', '')}. Update request: {clean_user_text}"
+    return build_fallback_html(fallback_prompt)
+
+
+# =========================================================
+# Paths / env
+# =========================================================
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+
+TEMPLATES_DIR = resolve_path(BASE_DIR, os.getenv("TEMPLATES_DIR"), "templates")
+STATIC_DIR = resolve_path(BASE_DIR, os.getenv("STATIC_DIR"), "static")
+UPLOAD_DIR = resolve_path(BASE_DIR, os.getenv("UPLOAD_DIR"), "uploads")
+PUBLISHED_DIR = resolve_path(BASE_DIR, os.getenv("PUBLISHED_DIR"), "published")
+DB_PATH = resolve_path(BASE_DIR, os.getenv("DB_PATH"), "simo.db")
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(PUBLISHED_DIR, exist_ok=True)
 
-# -----------------------------
-# SQLite user storage
-# -----------------------------
-DB_PATH = resolve_path(
-    app.root_path,
-    os.getenv("SIMO_DB_PATH", ""),
-    "simo.db",
+APP_SECRET = os.getenv("FLASK_SECRET_KEY") or os.getenv("SECRET_KEY") or secrets.token_hex(32)
+BASE_URL = (os.getenv("BASE_URL") or "").strip().rstrip("/")
+
+OPENAI_API_KEY = (os.getenv("OPENAI_API_KEY") or "").strip()
+OPENAI_MODEL = (os.getenv("OPENAI_MODEL") or "gpt-4o-mini").strip()
+
+STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+STRIPE_PUBLISHABLE_KEY = (os.getenv("STRIPE_PUBLISHABLE_KEY") or "").strip()
+STRIPE_PRICE_ID = (os.getenv("STRIPE_PRICE_ID") or "").strip()
+STRIPE_WEBHOOK_SECRET = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
+
+GOOGLE_CLIENT_ID = (os.getenv("GOOGLE_CLIENT_ID") or "").strip()
+GOOGLE_CLIENT_SECRET = (os.getenv("GOOGLE_CLIENT_SECRET") or "").strip()
+
+FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "50"))
+
+if STRIPE_SECRET_KEY:
+    stripe.api_key = STRIPE_SECRET_KEY
+
+
+# =========================================================
+# App
+# =========================================================
+app = Flask(
+    __name__,
+    template_folder=TEMPLATES_DIR,
+    static_folder=STATIC_DIR,
+    static_url_path="/static",
 )
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+
+app.secret_key = APP_SECRET
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
+
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    MAX_CONTENT_LENGTH=20 * 1024 * 1024,
+)
+
+if env_bool("SESSION_COOKIE_SECURE", False):
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 
-def db_connect():
-    conn = sqlite3.connect(DB_PATH, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL;")
-    conn.execute("PRAGMA foreign_keys=ON;")
-    return conn
-
-
-def init_db():
-    conn = db_connect()
-    try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                email TEXT PRIMARY KEY,
-                plan TEXT NOT NULL DEFAULT 'free',
-                stripe_customer_id TEXT,
-                stripe_subscription_id TEXT,
-                created_at_utc TEXT,
-                updated_at_utc TEXT
-            )
-            """
-        )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-# -----------------------------
-# Stripe
-# -----------------------------
-STRIPE_MODE = os.getenv("STRIPE_MODE", "test").strip().lower()
-STRIPE_SECRET_KEY = os.getenv("STRIPE_SECRET_KEY", "").strip()
-STRIPE_PUBLISHABLE_KEY = os.getenv("STRIPE_PUBLISHABLE_KEY", "").strip()
-STRIPE_WEBHOOK_SECRET = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
-
-PRICE_SINGLE_MONTHLY = os.getenv("STRIPE_PRICE_SINGLE_MONTHLY", "").strip()
-PRICE_SINGLE_YEARLY = os.getenv("STRIPE_PRICE_SINGLE_YEARLY", "").strip()
-PRICE_TEAM_MONTHLY = os.getenv("STRIPE_PRICE_TEAM_MONTHLY", "").strip()
-PRICE_TEAM_YEARLY = os.getenv("STRIPE_PRICE_TEAM_YEARLY", "").strip()
-
-stripe.api_key = STRIPE_SECRET_KEY
-
-PRICE_MAP = {
-    "single_monthly": PRICE_SINGLE_MONTHLY,
-    "single_yearly": PRICE_SINGLE_YEARLY,
-    "team_monthly": PRICE_TEAM_MONTHLY,
-    "team_yearly": PRICE_TEAM_YEARLY,
-}
-
-PLAN_AFTER_SUCCESS = {
-    "single_monthly": "single",
-    "single_yearly": "single",
-    "team_monthly": "team",
-    "team_yearly": "team",
-}
-
-# -----------------------------
-# OpenAI
-# -----------------------------
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini").strip()
-
-oa_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
-
-# -----------------------------
-# OAuth (Google)
-# -----------------------------
-GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "").strip()
-GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "").strip()
-
+# =========================================================
+# OAuth
+# =========================================================
 oauth = OAuth(app)
+
 if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
     oauth.register(
         name="google",
@@ -179,3462 +1647,1950 @@ if GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET:
         client_kwargs={"scope": "openid email profile"},
     )
 
-# -----------------------------
-# Helpers
-# -----------------------------
-def utc_now():
-    return dt.datetime.now(dt.timezone.utc)
+
+# =========================================================
+# DB
+# =========================================================
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
-def utc_day_key() -> str:
-    return utc_now().strftime("%Y-%m-%d")
+def init_db():
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            name TEXT,
+            google_sub TEXT,
+            pro INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS usage_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_key TEXT,
+            day_key TEXT,
+            count INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT,
+            UNIQUE(user_key, day_key)
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS published_pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE,
+            title TEXT,
+            html TEXT,
+            source_text TEXT,
+            owner_email TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS builder_state (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            owner_key TEXT UNIQUE,
+            builder_active INTEGER DEFAULT 0,
+            builder_last_prompt TEXT,
+            builder_origin_prompt TEXT,
+            builder_last_html TEXT,
+            builder_last_title TEXT,
+            builder_last_mode TEXT,
+            builder_last_preset TEXT,
+            builder_revision INTEGER DEFAULT 0,
+            builder_turn_count INTEGER DEFAULT 0,
+            builder_last_request_kind TEXT,
+            builder_updated_at TEXT,
+            builder_meta TEXT,
+            builder_history TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
+    conn.commit()
+    conn.close()
 
 
-def get_user_record(email: str):
+def upsert_user(email: str, name: str = "", google_sub: str = ""):
     email = (email or "").strip().lower()
-    if not email:
-        return None
+    name = (name or "").strip()
+    google_sub = (google_sub or "").strip()
 
-    conn = db_connect()
-    try:
-        row = conn.execute(
+    if not email:
+        return
+
+    now = utcnow().isoformat()
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id FROM users WHERE email = ?", (email,))
+    row = cur.fetchone()
+
+    if row:
+        cur.execute(
             """
-            SELECT email, plan, stripe_customer_id, stripe_subscription_id, created_at_utc, updated_at_utc
-            FROM users
+            UPDATE users
+            SET name = ?, google_sub = ?, updated_at = ?
             WHERE email = ?
             """,
-            (email,),
-        ).fetchone()
-        return dict(row) if row else None
-    finally:
-        conn.close()
-
-
-def ensure_user_record(email: str):
-    email = (email or "").strip().lower()
-    if not email:
-        return
-
-    now = utc_now().isoformat()
-    conn = db_connect()
-    try:
-        existing = conn.execute("SELECT email FROM users WHERE email = ?", (email,)).fetchone()
-        if existing:
-            return
-        conn.execute(
+            (name, google_sub, now, email),
+        )
+    else:
+        cur.execute(
             """
-            INSERT INTO users (email, plan, stripe_customer_id, stripe_subscription_id, created_at_utc, updated_at_utc)
-            VALUES (?, 'free', NULL, NULL, ?, ?)
+            INSERT INTO users (email, name, google_sub, pro, created_at, updated_at)
+            VALUES (?, ?, ?, 0, ?, ?)
             """,
-            (email, now, now),
+            (email, name, google_sub, now, now),
         )
-        conn.commit()
-    finally:
-        conn.close()
+
+    conn.commit()
+    conn.close()
 
 
-def save_user_plan(email: str, plan: str, stripe_customer_id: str = None, stripe_subscription_id: str = None):
+def get_user_by_email(email: str):
+    email = (email or "").strip().lower()
+    if not email:
+        return None
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def set_user_pro(email: str, is_pro: bool):
     email = (email or "").strip().lower()
     if not email:
         return
 
-    if plan not in ("free", "single", "team"):
-        plan = "free"
+    now = utcnow().isoformat()
 
-    now = utc_now().isoformat()
-    conn = db_connect()
-    try:
-        existing = conn.execute("SELECT email FROM users WHERE email = ?", (email,)).fetchone()
-        if existing:
-            conn.execute(
-                """
-                UPDATE users
-                SET plan = ?,
-                    stripe_customer_id = COALESCE(?, stripe_customer_id),
-                    stripe_subscription_id = COALESCE(?, stripe_subscription_id),
-                    updated_at_utc = ?
-                WHERE email = ?
-                """,
-                (plan, stripe_customer_id, stripe_subscription_id, now, email),
-            )
-        else:
-            conn.execute(
-                """
-                INSERT INTO users (email, plan, stripe_customer_id, stripe_subscription_id, created_at_utc, updated_at_utc)
-                VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                (email, plan, stripe_customer_id, stripe_subscription_id, now, now),
-            )
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def get_plan():
-    email = (session.get("user_email") or "").strip().lower()
-
-    if email:
-        row = get_user_record(email)
-        if row and row.get("plan") in ("free", "single", "team"):
-            session["plan"] = row["plan"]
-
-    plan = session.get("plan", "free")
-    if plan not in ("free", "single", "team"):
-        plan = "free"
-        session["plan"] = "free"
-
-    is_team = plan == "team"
-    is_paid = plan in ("single", "team")
-    return plan, is_paid, is_team
-
-
-def set_plan(plan: str):
-    if plan not in ("free", "single", "team"):
-        plan = "free"
-
-    session["plan"] = plan
-
-    email = (session.get("user_email") or "").strip().lower()
-    if email:
-        save_user_plan(email, plan)
-
-
-def bump_daily_usage():
-    day = utc_day_key()
-    if session.get("day_utc") != day:
-        session["day_utc"] = day
-        session["used_today"] = 0
-    session["used_today"] = int(session.get("used_today", 0)) + 1
-
-
-def usage_status():
-    day = utc_day_key()
-    if session.get("day_utc") != day:
-        session["day_utc"] = day
-        session["used_today"] = 0
-
-    used = int(session.get("used_today", 0))
-    plan, is_paid, is_team = get_plan()
-    return {
-        "ok": True,
-        "day_utc": day,
-        "free_daily_limit": FREE_DAILY_LIMIT,
-        "used_today": used,
-        "stripe_mode": STRIPE_MODE,
-        "plan": plan,
-        "is_paid": is_paid,
-        "is_team": is_team,
-        "email": session.get("user_email"),
-    }
-
-
-def friendly_system_prompt(settings: dict):
-    style = (settings or {}).get("style", "friendly")
-    language = (settings or {}).get("language", "en")
-
-    base = (
-        "You are Simo — a non-judgmental, child-friendly best-friend assistant. "
-        "Be warm, practical, and emotionally aware, but avoid obvious therapy-speak. "
-        "If user asks for step-by-step, provide clear steps. "
-        "Ask at most ONE helpful follow-up question if needed."
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE users
+        SET pro = ?, updated_at = ?
+        WHERE email = ?
+        """,
+        (1 if is_pro else 0, now, email),
     )
-
-    if language and language != "en":
-        base += f" Respond in language: {language}."
-    if style and style != "friendly":
-        base += f" Tone style: {style}."
-    return base
+    conn.commit()
+    conn.close()
 
 
-def safe_history_from_list(history, limit=16):
-    safe_hist = []
-    if not isinstance(history, list):
-        return safe_hist
-
-    for m in history[-limit:]:
-        if not isinstance(m, dict):
-            continue
-        role = m.get("role")
-        content = m.get("content")
-        if role in ("user", "assistant") and isinstance(content, str):
-            safe_hist.append({"role": role, "content": content})
-    return safe_hist
+def current_user_email() -> str:
+    return (session.get("user_email") or "").strip().lower()
 
 
-def get_last_image_memory():
-    mem = session.get("last_image_analysis")
-    if not isinstance(mem, dict):
-        return None
-
-    image_prompt = (mem.get("prompt") or "").strip()
-    image_answer = (mem.get("answer") or "").strip()
-    if not image_answer:
-        return None
-
-    return {
-        "prompt": image_prompt,
-        "answer": image_answer,
-    }
+def current_user_name() -> str:
+    return (session.get("user_name") or "").strip()
 
 
-def store_last_image_memory(prompt: str, answer: str):
-    session["last_image_analysis"] = {
-        "prompt": (prompt or "").strip(),
-        "answer": (answer or "").strip(),
-        "saved_at_utc": utc_now().isoformat(),
-    }
+def is_logged_in() -> bool:
+    return bool(current_user_email())
 
 
-def clear_last_image_memory():
-    session.pop("last_image_analysis", None)
-
-
-def is_image_followup(text: str) -> bool:
-    t = (text or "").strip().lower()
-    if not t:
+def is_pro_user() -> bool:
+    email = current_user_email()
+    if not email:
         return False
 
-    phrases = [
-        "what do you see",
-        "what do u see",
-        "what do us see",
-        "what about the background",
-        "tell me more about the image",
-        "tell me more about it",
-        "describe it more",
-        "read the sign",
-        "what is in the background",
-        "what's in the background",
-        "what does the background say",
-        "what color is the car",
-        "what car is this",
-        "what do you notice",
-        "analyze it more",
-        "look again",
-        "what else do you see",
-        "what was the image i uploaded earlier",
-        "what's the other image before this one",
-        "what was the other image before this one",
-        "what image did i upload before this one",
-    ]
+    row = get_user_by_email(email)
+    return bool(row and int(row["pro"]) == 1)
 
-    if t in phrases:
-        return True
 
-    keywords = [
-        "background",
-        "image",
-        "picture",
-        "photo",
-        "sign",
-        "car",
-        "vehicle",
-        "color",
-        "read",
-        "see",
-        "notice",
-        "this image",
-        "this photo",
-        "that image",
-        "that photo",
-        "uploaded earlier",
-        "before this one",
-        "other image",
-    ]
-
-    short_followup = len(t.split()) <= 12
-    return short_followup and any(k in t for k in keywords)
-
-
-def sanitize_filename(name: str) -> str:
-    base = (name or "simo-project").strip().lower()
-    base = re.sub(r"[^a-z0-9]+", "-", base)
-    base = re.sub(r"-+", "-", base).strip("-")
-    return base or "simo-project"
-
-
-def make_publish_id(title: str) -> str:
-    slug = sanitize_filename(title or "published-page")
-    token = secrets.token_hex(3)
-    return f"{slug}-{token}"
-
-
-def published_html_path(site_id: str) -> str:
-    safe_id = re.sub(r"[^a-zA-Z0-9\-]", "", site_id or "")
-    return os.path.join(PUBLISHED_DIR, f"{safe_id}.html")
-
-
-def published_meta_path(site_id: str) -> str:
-    safe_id = re.sub(r"[^a-zA-Z0-9\-]", "", site_id or "")
-    return os.path.join(PUBLISHED_DIR, f"{safe_id}.json")
-
-
-# -----------------------------
-# Builder memory helpers
-# -----------------------------
-def get_last_builder_memory():
-    mem = session.get("last_builder")
-    if not isinstance(mem, dict):
-        return None
-
-    title = (mem.get("title") or "").strip()
-    summary = (mem.get("summary") or "").strip()
-    html = mem.get("html") or ""
-
-    if not isinstance(html, str) or not html.strip():
-        return None
-
-    return {
-        "title": title or "Untitled Build",
-        "summary": summary or "Generated by Simo",
-        "html": html,
-    }
-
-
-def store_last_builder_memory(builder: dict):
-    if not isinstance(builder, dict):
-        return
-
-    html = builder.get("html") or ""
-    if not isinstance(html, str) or not html.strip():
-        return
-
-    session["last_builder"] = {
-        "title": (builder.get("title") or "Untitled Build").strip(),
-        "summary": (builder.get("summary") or "Generated by Simo").strip(),
-        "html": html,
-        "saved_at_utc": utc_now().isoformat(),
-    }
-
-
-def clear_last_builder_memory():
-    session.pop("last_builder", None)
-
-
-def normalize_text(text: str) -> str:
-    return re.sub(r"\s+", " ", (text or "").strip().lower())
-
-
-def is_builder_followup(text: str) -> bool:
-    t = normalize_text(text)
-    if not t:
-        return False
-
-    phrases = [
-        "make the buttons",
-        "change the buttons",
-        "make it gold",
-        "make it darker",
-        "make it lighter",
-        "change the colors",
-        "change the color",
-        "use gold",
-        "use blue",
-        "use purple",
-        "add a hero",
-        "add testimonials",
-        "add pricing",
-        "add a contact section",
-        "add a footer",
-        "add a navbar",
-        "make it luxury",
-        "make it modern",
-        "make it premium",
-        "make it elegant",
-        "update the page",
-        "update the layout",
-        "edit the page",
-        "edit the layout",
-        "change the background",
-        "change the headline",
-        "change the title",
-        "swap the image",
-        "replace the image",
-        "remove testimonials",
-        "remove pricing",
-        "remove the footer",
-        "make the text bigger",
-        "make the buttons rounded",
-        "make the buttons more premium",
-        "make it more glowing",
-        "make it more angelic",
-        "make it more celestial",
-        "make it more divine",
-        "make it more heavenly",
-        "make it cleaner",
-        "make it more polished",
-        "improve the spacing",
-        "make the typography better",
-        "make it more luxurious",
-        "make it more high end",
-        "make the hero more premium",
-        "make the cta stronger",
-        "make it feel more premium",
-    ]
-    if any(p in t for p in phrases):
-        return True
-
-    keywords = [
-        "change",
-        "update",
-        "edit",
-        "make",
-        "add",
-        "remove",
-        "replace",
-        "swap",
-        "use",
-        "turn",
-        "restyle",
-        "redesign",
-        "improve",
-        "refine",
-        "polish",
-    ]
-
-    builder_targets = [
-        "button",
-        "buttons",
-        "color",
-        "colors",
-        "background",
-        "layout",
-        "page",
-        "site",
-        "website",
-        "hero",
-        "headline",
-        "title",
-        "section",
-        "pricing",
-        "testimonial",
-        "testimonials",
-        "footer",
-        "navbar",
-        "nav",
-        "image",
-        "font",
-        "text",
-        "cta",
-        "glow",
-        "angel",
-        "heaven",
-        "celestial",
-        "divine",
-        "spacing",
-        "typography",
-        "premium",
-        "luxury",
-        "luxurious",
-    ]
-
-    short_text = len(t.split()) <= 20
-    return short_text and any(k in t for k in keywords) and any(bt in t for bt in builder_targets)
-
-
-def extract_json_object(text: str):
-    raw = (text or "").strip()
-    if not raw:
-        return None
-
-    fence_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", raw, flags=re.DOTALL)
-    if fence_match:
-        raw = fence_match.group(1).strip()
-
-    try:
-        return json.loads(raw)
-    except Exception:
-        pass
-
-    first = raw.find("{")
-    last = raw.rfind("}")
-    if first != -1 and last != -1 and last > first:
-        candidate = raw[first:last + 1]
-        try:
-            return json.loads(candidate)
-        except Exception:
-            return None
-
-    return None
-
-
-# -----------------------------
-# Safe builder style engine
-# -----------------------------
-def detect_builder_style(prompt: str) -> str:
-    text = normalize_text(prompt)
-
-    celestial_words = [
-        "heaven", "heavenly", "celestial", "angel", "angelic", "divine",
-        "holy", "ethereal", "wings", "wing", "feather", "feathers",
-        "glow", "glowing", "light", "golden", "radiant", "cloud", "clouds"
-    ]
-    bakery_words = [
-        "bakery", "bread", "pastry", "pastries", "cake", "dessert",
-        "coffee", "cafe", "restaurant", "sourdough", "cookie", "cookies"
-    ]
-    real_estate_words = [
-        "real estate", "realtor", "property", "properties", "luxury home",
-        "luxury homes", "home page", "homepage", "listing", "listings"
-    ]
-    portfolio_words = [
-        "portfolio", "designer", "creative", "artist", "creator",
-        "photographer", "resume", "personal brand"
-    ]
-    startup_words = [
-        "startup", "saas", "software", "app", "platform", "ai", "tech",
-        "landing page", "product", "service", "business"
-    ]
-    space_words = [
-        "space", "planet", "galaxy", "universe", "stars", "cosmic", "nebula"
-    ]
-    dashboard_words = [
-        "dashboard", "portal", "admin", "analytics", "crm", "panel"
-    ]
-
-    if any(w in text for w in celestial_words):
-        return "celestial"
-    if any(w in text for w in bakery_words):
-        return "bakery"
-    if any(w in text for w in real_estate_words):
-        return "real_estate"
-    if any(w in text for w in portfolio_words):
-        return "portfolio"
-    if any(w in text for w in space_words):
-        return "space"
-    if any(w in text for w in dashboard_words):
-        return "dashboard"
-    if any(w in text for w in startup_words):
-        return "startup"
-    return "modern"
-
-
-def builder_style_guide(style_name: str) -> str:
-    guides = {
-        "celestial": (
-            "Style direction: heavenly, radiant, divine, ethereal, elegant, awe-inspiring. "
-            "Use luminous gradients, gold accents, soft white light, deep sky tones, graceful spacing, "
-            "premium typography, subtle glow, layered atmosphere, soft highlights, and a peaceful elevated mood. "
-            "The hero should feel cinematic, intentional, and emotionally beautiful, not plain."
-        ),
-        "bakery": (
-            "Style direction: warm, premium bakery brand. "
-            "Use soft cream, wheat, caramel, cocoa, toasted gold, warm neutrals, tasteful shadows, and refined cards. "
-            "Create a luxurious handcrafted feel with stronger visual hierarchy, beautiful product presentation, "
-            "more inviting hero treatment, and a boutique premium aesthetic."
-        ),
-        "real_estate": (
-            "Style direction: luxury real estate, polished and trustworthy. "
-            "Use elegant spacing, premium imagery layout, rich neutrals, refined gold accents where appropriate, "
-            "high-end presentation, strong hero composition, sophisticated typography, elevated cards, and premium CTA treatment."
-        ),
-        "portfolio": (
-            "Style direction: modern creative portfolio with premium presentation. "
-            "Use stronger typography, better composition, elegant spacing, polished cards, stylish project presentation, "
-            "memorable hero treatment, and a refined designer aesthetic."
-        ),
-        "space": (
-            "Style direction: immersive cosmic experience. "
-            "Use deep blues, stars, glow, cinematic layering, dramatic hero presentation, polished cards, "
-            "rich sci-fi atmosphere, and visually impressive structure."
-        ),
-        "dashboard": (
-            "Style direction: polished dashboard/product UI. "
-            "Use strong hierarchy, premium cards, modern panels, elegant spacing, smoother surfaces, "
-            "cleaner typography, and a believable product interface feel."
-        ),
-        "startup": (
-            "Style direction: premium startup / SaaS landing page. "
-            "Use a standout hero, strong typography hierarchy, better spacing, polished cards, premium CTA blocks, "
-            "feature sections with stronger contrast, testimonials, pricing, and a launch-ready feel."
-        ),
-        "modern": (
-            "Style direction: premium modern website. "
-            "Use a visually impressive hero, better section rhythm, stronger cards, cleaner typography, "
-            "more layered depth, refined CTA treatment, and avoid plain or bland output."
-        ),
-    }
-    return guides.get(style_name, guides["modern"])
-
-
-def suggest_builder_title(prompt: str, style_name: str) -> str:
-    if style_name == "celestial":
-        return "Celestial Experience"
-    if style_name == "bakery":
-        return "Luxury Bakery"
-    if style_name == "real_estate":
-        return "Luxury Real Estate"
-    if style_name == "portfolio":
-        return "Creative Portfolio"
-    if style_name == "space":
-        return "Explore the Universe"
-    if style_name == "dashboard":
-        return "Premium Dashboard"
-    if style_name == "startup":
-        return "Modern SaaS"
-    return "Custom Builder Page"
-
-
-def ai_builder_edit(existing_builder: dict, instruction: str):
-    if not oa_client:
-        return simple_builder_edit(existing_builder, instruction)
-
-    existing_html = existing_builder.get("html") or ""
-    existing_title = existing_builder.get("title") or "Untitled Build"
-    existing_summary = existing_builder.get("summary") or "Generated by Simo"
-
-    system_prompt = (
-        "You are Simo's website builder engine. "
-        "You receive an existing HTML page and a user edit instruction. "
-        "Return ONLY valid JSON with keys: title, summary, html. "
-        "Do not wrap in markdown fences. "
-        "Keep the page as a single complete standalone HTML document. "
-        "Preserve as much of the existing layout as possible while applying the requested change. "
-        "Do not remove major sections unless the user asked for removal. "
-        "Make edits feel polished, premium, visually cohesive, and intentional. "
-        "When the user asks for luxury, premium, glow, better spacing, stronger CTA, or better typography, "
-        "apply those changes visibly while keeping the structure stable."
-    )
-
-    user_prompt = {
-        "current_title": existing_title,
-        "current_summary": existing_summary,
-        "instruction": instruction,
-        "current_html": existing_html,
-        "premium_quality_goals": [
-            "stronger hero presence",
-            "cleaner spacing",
-            "more polished typography",
-            "better CTA styling",
-            "more layered visual depth",
-            "preserve stable structure"
-        ]
-    }
-
-    try:
-        resp = oa_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_prompt)},
-            ],
-            temperature=0.2,
-        )
-
-        raw = resp.choices[0].message.content or ""
-        parsed = extract_json_object(raw)
-
-        if not isinstance(parsed, dict):
-            return simple_builder_edit(existing_builder, instruction)
-
-        html = parsed.get("html") or ""
-        if not isinstance(html, str) or not html.strip():
-            return simple_builder_edit(existing_builder, instruction)
-
-        return {
-            "title": (parsed.get("title") or existing_title).strip(),
-            "summary": (parsed.get("summary") or f'Updated the previous build: {instruction.strip()}').strip(),
-            "html": html,
-        }
-    except Exception:
-        return simple_builder_edit(existing_builder, instruction)
-
-
-def simple_builder_edit(existing_builder: dict, instruction: str):
-    title = existing_builder.get("title") or "Untitled Build"
-    html = existing_builder.get("html") or ""
-    t = normalize_text(instruction)
-
-    summary = f'Updated the previous build: {instruction.strip() or "refined layout"}.'
-
-    color_map = {
-        "gold": "#d4af37",
-        "purple": "#7c3aed",
-        "blue": "#2563eb",
-        "pink": "#ec4899",
-        "green": "#16a34a",
-        "black": "#111827",
-        "white": "#ffffff",
-        "brown": "#8b6a46",
-    }
-
-    for word, color in color_map.items():
-        if f"buttons {word}" in t or f"button {word}" in t or f"use {word}" in t or f"make it {word}" in t:
-            html = re.sub(
-                r"(\.btn\s*\{[^}]*background:\s*)([^;]+)(;)",
-                rf"\g<1>{color}\3",
-                html,
-                count=1,
-                flags=re.DOTALL,
-            )
-            html = re.sub(
-                r"(\.cta-btn\s*\{[^}]*background:\s*)([^;]+)(;)",
-                rf"\g<1>{color}\3",
-                html,
-                count=1,
-                flags=re.DOTALL,
-            )
-
-    if "rounded" in t and "button" in t:
-        html = re.sub(
-            r"(border-radius:\s*)10px;",
-            r"\g<1>999px;",
-            html,
-            count=4,
-            flags=re.DOTALL,
-        )
-
-    if "darker" in t or "dark mode" in t:
-        html = html.replace("#fffaf5", "#0f172a")
-        html = html.replace("#f5f7fb", "#0b1020")
-        html = html.replace("color: #3f2a20;", "color: #eef2ff;")
-        html = html.replace("background: white;", "background: rgba(255,255,255,.06);")
-
-    if "lighter" in t:
-        html = html.replace("#0b1020", "#f8fafc")
-        html = html.replace("color:white;", "color:#111827;")
-        html = html.replace("color: white;", "color: #111827;")
-
-    if "testimonials" in t and "add" in t and "Client Testimonials" not in html and "What Customers Love" not in html and '<div class="testimonials">' not in html:
-        section = """
-<section>
-  <div class="section-title">Testimonials</div>
-  <div class="testimonials">
-    <div class="testimonial">
-      <strong>“Beautiful result and a premium feel.”</strong>
-      <p>The page feels polished, clear, and ready to launch.</p>
-      <div>— Happy Client</div>
-    </div>
-    <div class="testimonial">
-      <strong>“Fast, clean, and surprisingly elegant.”</strong>
-      <p>This gave us a strong starting point right away.</p>
-      <div>— Founder</div>
-    </div>
-    <div class="testimonial">
-      <strong>“Exactly the direction we wanted.”</strong>
-      <p>The updated styling feels more refined and intentional.</p>
-      <div>— Business Owner</div>
-    </div>
-  </div>
-</section>
-"""
-        html = html.replace("<footer", f"{section}\n<footer", 1)
-
-    if "pricing" in t and "add" in t and 'id="pricing"' not in html:
-        section = """
-<section id="pricing">
-  <div class="section-title">Pricing</div>
-  <div class="grid">
-    <div class="card"><div class="card-body"><h3>Starter</h3><p>Good for getting started.</p><div class="price">$9.99/mo</div></div></div>
-    <div class="card"><div class="card-body"><h3>Pro</h3><p>Great for growing brands.</p><div class="price">$29/mo</div></div></div>
-    <div class="card"><div class="card-body"><h3>Team Pro</h3><p>Best for collaboration.</p><div class="price">$299/yr</div></div></div>
-  </div>
-</section>
-"""
-        html = html.replace("<footer", f"{section}\n<footer", 1)
-
-    if "contact" in t and "add" in t and 'id="contact"' not in html:
-        section = """
-<section id="contact">
-  <div class="section-title">Contact</div>
-  <div style="max-width:760px;margin:0 auto;text-align:center;line-height:1.8;">
-    Ready to get started? Reach out for a consultation or custom project discussion.
-  </div>
-</section>
-"""
-        html = html.replace("<footer", f"{section}\n<footer", 1)
-
-    if "headline" in t or "title" in t:
-        m = re.search(r'(?:headline|title)\s+(?:to|as)\s+["“]?([^"”]+)["”]?', instruction, flags=re.IGNORECASE)
-        if m:
-            new_headline = m.group(1).strip()
-            html = re.sub(r"(<h1>)(.*?)(</h1>)", rf"\1{new_headline}\3", html, count=1, flags=re.DOTALL)
-            title = new_headline
-
-    return {
-        "title": title,
-        "summary": summary,
-        "html": html,
-    }
-
-
-def ai_generate_builder_html(prompt: str):
-    if not oa_client:
-        return generate_builder_html(prompt)
-
-    style_name = detect_builder_style(prompt)
-    style_guide = builder_style_guide(style_name)
-    suggested_title = suggest_builder_title(prompt, style_name)
-
-    system_prompt = (
-        "You are Simo's premium website builder engine. "
-        "Generate a complete standalone HTML page based on the user's prompt. "
-        "Return ONLY valid JSON with keys: title, summary, html. "
-        "Do not wrap the response in markdown fences. "
-        "The html value must be a full standalone HTML document including <!DOCTYPE html>, "
-        "<html>, <head>, <meta charset>, <meta name='viewport'>, <title>, styles, and <body>. "
-        "The output should feel intentionally designed, polished, premium, modern, and launch-ready. "
-        "Avoid plain, weak, flat, or generic layouts. "
-        "Do not make every page look like the same startup landing page. "
-        "Honor the requested subject matter and style closely. "
-        "Use stronger hero sections, cleaner hierarchy, richer spacing, polished CTAs, layered depth, tasteful shadows, "
-        "refined gradients, elegant cards, and a cohesive visual system. "
-        "Create pages that feel more expensive, more beautiful, and more intentional than a basic mockup. "
-        "Do not return explanations outside the JSON."
-    )
-
-    user_prompt = {
-        "builder_request": prompt,
-        "detected_style": style_name,
-        "suggested_title": suggested_title,
-        "style_direction": style_guide,
-        "premium_visual_requirements": [
-            "full standalone HTML document",
-            "responsive layout",
-            "visually impressive above-the-fold hero",
-            "clean premium spacing",
-            "strong typography hierarchy",
-            "refined CTA buttons",
-            "layered cards or sections where appropriate",
-            "beautiful section rhythm",
-            "cohesive color palette",
-            "3-6 meaningful sections when appropriate",
-            "avoid bland or template-feeling output"
-        ],
-        "design_preferences": {
-            "hero": "cinematic, polished, strong first impression",
-            "spacing": "clean, premium, breathable",
-            "typography": "elevated hierarchy and readable scale",
-            "cards": "refined with tasteful depth",
-            "cta": "high-conviction and visually appealing",
-            "overall_feel": "premium product or brand presentation"
-        }
-    }
-
-    try:
-        resp = oa_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": json.dumps(user_prompt)},
-            ],
-            temperature=0.8,
-        )
-
-        raw = resp.choices[0].message.content or ""
-        parsed = extract_json_object(raw)
-
-        if not isinstance(parsed, dict):
-            return generate_builder_html(prompt)
-
-        html = parsed.get("html") or ""
-        title = (parsed.get("title") or "").strip()
-        summary = (parsed.get("summary") or "").strip()
-
-        if not isinstance(html, str) or not html.strip():
-            return generate_builder_html(prompt)
-
-        if "<html" not in html.lower() or "</html>" not in html.lower():
-            return generate_builder_html(prompt)
-
-        return {
-            "title": title or suggested_title,
-            "summary": summary or f"Custom AI-generated {style_name.replace('_', ' ')} premium page",
-            "html": html,
-        }
-    except Exception:
-        return generate_builder_html(prompt)
-
-
-# -----------------------------
-# Builder templates
-# -----------------------------
-def generate_builder_html(prompt: str):
-    text = (prompt or "").lower()
-
-    if "heaven" in text or "angel" in text or "divine" in text or "celestial" in text:
-        title = "Welcome to Heaven"
-        summary = "Heaven-themed celestial landing page"
-        html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Welcome to Heaven</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      color: #fffdf7;
-      background:
-        radial-gradient(circle at 20% 10%, rgba(255,255,255,.22), transparent 18%),
-        radial-gradient(circle at 80% 18%, rgba(255,245,200,.18), transparent 20%),
-        linear-gradient(180deg, #7aa6ff 0%, #c8dcff 35%, #f9f3d7 72%, #fffdf7 100%);
-    }
-    .hero {
-      min-height: 84vh;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 90px 24px 70px;
-      position: relative;
-      overflow: hidden;
-    }
-    .hero::before,
-    .hero::after {
-      content: "";
-      position: absolute;
-      inset: auto;
-      width: 340px;
-      height: 340px;
-      border-radius: 999px;
-      filter: blur(40px);
-      opacity: .35;
-      pointer-events: none;
-    }
-    .hero::before {
-      top: 70px;
-      left: -40px;
-      background: rgba(255,255,255,.65);
-    }
-    .hero::after {
-      top: 110px;
-      right: -30px;
-      background: rgba(255,220,150,.50);
-    }
-    .hero-inner {
-      max-width: 920px;
-      position: relative;
-      z-index: 1;
-    }
-    .hero h1 {
-      margin: 0 0 18px;
-      font-size: clamp(52px, 8vw, 94px);
-      line-height: .96;
-      color: #fffefb;
-      text-shadow: 0 10px 35px rgba(90, 110, 180, .25);
-    }
-    .hero p {
-      margin: 0 auto;
-      max-width: 760px;
-      font-size: 22px;
-      line-height: 1.8;
-      color: #fff7df;
-      text-shadow: 0 6px 20px rgba(80, 90, 130, .18);
-    }
-    .btn {
-      display: inline-block;
-      margin-top: 30px;
-      padding: 15px 28px;
-      background: linear-gradient(135deg, #f2d57e, #fff6c9);
-      color: #6b4e14;
-      text-decoration: none;
-      font-weight: 800;
-      border-radius: 999px;
-      box-shadow: 0 18px 40px rgba(191, 145, 30, .22);
-    }
-    section {
-      padding: 70px 24px;
-    }
-    .section-title {
-      text-align: center;
-      font-size: 36px;
-      margin-bottom: 28px;
-      color: #6e571e;
-    }
-    .grid {
-      max-width: 1150px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 24px;
-    }
-    .card {
-      background: rgba(255,255,255,.55);
-      border: 1px solid rgba(255,255,255,.6);
-      border-radius: 22px;
-      padding: 28px;
-      box-shadow: 0 16px 42px rgba(70, 90, 140, .10);
-      backdrop-filter: blur(10px);
-      color: #5b4b22;
-    }
-    .card h3 {
-      margin-top: 0;
-      font-size: 24px;
-      color: #6b5418;
-    }
-    .card p {
-      line-height: 1.75;
-    }
-    .story {
-      max-width: 900px;
-      margin: 0 auto;
-      text-align: center;
-      font-size: 19px;
-      line-height: 1.9;
-      color: #5f512a;
-    }
-    .cloud-band {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 22px;
-    }
-    .cloud {
-      min-height: 180px;
-      border-radius: 28px;
-      background:
-        radial-gradient(circle at 30% 30%, rgba(255,255,255,.92), rgba(255,255,255,.45) 45%, transparent 65%),
-        radial-gradient(circle at 70% 35%, rgba(255,255,255,.85), rgba(255,255,255,.38) 45%, transparent 65%),
-        linear-gradient(180deg, rgba(255,255,255,.45), rgba(255,255,255,.20));
-      border: 1px solid rgba(255,255,255,.55);
-      box-shadow: 0 14px 34px rgba(120, 140, 180, .10);
-      display: flex;
-      align-items: end;
-      padding: 22px;
-      color: #6d5922;
-      font-weight: 700;
-    }
-    .cta-section {
-      text-align: center;
-      background: rgba(255,255,255,.35);
-      border-top: 1px solid rgba(255,255,255,.55);
-      border-bottom: 1px solid rgba(255,255,255,.55);
-    }
-    .cta-section h2 {
-      font-size: 38px;
-      margin: 0 0 12px;
-      color: #6b5418;
-    }
-    .cta-section p {
-      max-width: 760px;
-      margin: 0 auto 18px;
-      font-size: 19px;
-      line-height: 1.8;
-      color: #655625;
-    }
-    footer {
-      text-align: center;
-      padding: 36px 20px 50px;
-      color: #7a6630;
-      font-weight: 700;
-    }
-  </style>
-</head>
-<body>
-  <section class="hero">
-    <div class="hero-inner">
-      <h1>Welcome to Heaven</h1>
-      <p>Step into a radiant place of peace, golden light, and celestial beauty where grace, warmth, and wonder meet.</p>
-      <a class="btn" href="#welcome">Enter the Gates</a>
-    </div>
-  </section>
-
-  <section id="welcome">
-    <div class="section-title">A Divine Welcome</div>
-    <div class="story">
-      This page is designed to feel uplifting, luminous, and sacred — a soft heavenly atmosphere filled with clouds,
-      warmth, elegance, and the promise of peace.
-    </div>
-  </section>
-
-  <section>
-    <div class="section-title">Celestial Highlights</div>
-    <div class="grid">
-      <div class="card"><h3>Golden Light</h3><p>Radiant tones and soft illumination create a peaceful, elevated feeling across the page.</p></div>
-      <div class="card"><h3>Cloudlike Beauty</h3><p>Layered airy visuals and gentle gradients evoke a floating, serene heavenly atmosphere.</p></div>
-      <div class="card"><h3>Angelic Calm</h3><p>Balanced spacing, uplifting language, and graceful styling give the page a divine presence.</p></div>
-    </div>
-  </section>
-
-  <section>
-    <div class="section-title">Heavenly Atmosphere</div>
-    <div class="cloud-band">
-      <div class="cloud">Peace that feels weightless and pure.</div>
-      <div class="cloud">A place of welcome, beauty, and grace.</div>
-      <div class="cloud">Golden calm rising through luminous clouds.</div>
-    </div>
-  </section>
-
-  <section class="cta-section">
-    <h2>Welcome to Eternal Light</h2>
-    <p>Bring your heavenly concept to life with a page that feels radiant, gentle, elegant, and unforgettable.</p>
-    <a class="btn" href="#welcome">Begin the Journey</a>
-  </section>
-
-  <footer>Heaven Page • Celestial beauty • Light, peace, and grace</footer>
-</body>
-</html>"""
-        return {"title": title, "summary": summary, "html": html}
-
-    if "startup" in text or "saas" in text or "software" in text or "app" in text:
-        title = "Modern SaaS"
-        summary = "Modern startup landing page"
-        html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Modern SaaS</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background:
-        radial-gradient(circle at top left, rgba(59,130,246,.20), transparent 35%),
-        radial-gradient(circle at top right, rgba(139,92,246,.20), transparent 30%),
-        #0b1020;
-      color: #eef2ff;
-    }
-    .hero {
-      padding: 110px 24px 80px;
-      text-align: center;
-    }
-    .hero h1 {
-      margin: 0;
-      font-size: 58px;
-      line-height: 1.1;
-    }
-    .hero p {
-      max-width: 760px;
-      margin: 20px auto 0;
-      font-size: 20px;
-      line-height: 1.7;
-      color: #cbd5e1;
-    }
-    .hero-actions {
-      margin-top: 28px;
-      display: flex;
-      justify-content: center;
-      gap: 14px;
-      flex-wrap: wrap;
-    }
-    .btn {
-      padding: 14px 24px;
-      border-radius: 10px;
-      text-decoration: none;
-      font-weight: bold;
-    }
-    .btn-primary {
-      background: #4f46e5;
-      color: white;
-    }
-    .btn-secondary {
-      background: rgba(255,255,255,.08);
-      color: white;
-      border: 1px solid rgba(255,255,255,.12);
-    }
-    .features {
-      max-width: 1150px;
-      margin: 0 auto;
-      padding: 20px 24px 80px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-      gap: 24px;
-    }
-    .feature {
-      background: rgba(15,23,42,.88);
-      border: 1px solid rgba(255,255,255,.08);
-      border-radius: 18px;
-      padding: 28px;
-    }
-    footer {
-      text-align: center;
-      padding: 30px 20px 50px;
-      color: #94a3b8;
-    }
-  </style>
-</head>
-<body>
-  <section class="hero">
-    <h1>Modern SaaS</h1>
-    <p>Launch faster with a sleek, high-converting platform designed to help your business scale with confidence.</p>
-    <div class="hero-actions">
-      <a class="btn btn-primary" href="#features">Start Free</a>
-      <a class="btn btn-secondary" href="#features">See Features</a>
-    </div>
-  </section>
-  <section id="features" class="features">
-    <div class="feature"><h3>Fast Setup</h3><p>Get started in minutes with clean onboarding and simple workflows.</p></div>
-    <div class="feature"><h3>Team Collaboration</h3><p>Invite your team, share progress, and keep everything aligned.</p></div>
-    <div class="feature"><h3>Powerful Insights</h3><p>Track growth, monitor usage, and make better decisions with clarity.</p></div>
-  </section>
-  <footer>Modern SaaS • Smart workflows • Built for growth</footer>
-</body>
-</html>"""
-        return {"title": title, "summary": summary, "html": html}
-
-    title = "Modern Landing Page"
-    summary = "Modern landing page"
-    html = """<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Modern Landing Page</title>
-<style>
-* { box-sizing:border-box; }
-body {
-  margin:0;
-  font-family:Arial, sans-serif;
-  background:
-    radial-gradient(circle at top left, rgba(79,70,229,.22), transparent 35%),
-    radial-gradient(circle at top right, rgba(236,72,153,.18), transparent 30%),
-    #0b1020;
-  color:white;
-}
-.hero {
-  min-height:80vh;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  text-align:center;
-  padding:80px 20px;
-}
-.hero-inner { max-width:800px; }
-.hero h1 { font-size:56px; margin-bottom:20px; }
-.hero p { font-size:20px; line-height:1.7; color:#dbe4ff; }
-.cta-btn {
-  margin-top:30px;
-  display:inline-block;
-  padding:14px 26px;
-  background:#4f46e5;
-  border-radius:10px;
-  color:white;
-  text-decoration:none;
-  font-weight:bold;
-}
-</style>
-</head>
-<body>
-<section class="hero">
-  <div class="hero-inner">
-    <h1>Modern Landing Page</h1>
-    <p>Launch something beautiful and powerful using Simo’s AI builder.</p>
-    <a class="cta-btn" href="#">Get Started</a>
-  </div>
-</section>
-</body>
-</html>"""
-    return {"title": title, "summary": summary, "html": html}
-
-
-# -----------------------------
-# Debug routes
-# -----------------------------
-@app.get("/health")
-def health():
-    return jsonify({
-        "ok": True,
-        "message": "Simo is alive",
-        "base_url": BASE_URL,
-    })
-
-
-@app.get("/debug-routes")
-def debug_routes():
-    return jsonify({
-        "ok": True,
-        "message": "This is the live app.py",
-        "base_url": BASE_URL,
-        "google_callback": f"{BASE_URL}/auth/google/callback",
-        "request_host_url": request.host_url,
-        "request_url_root": request.url_root,
-        "google_configured": bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
-    })
-
-
-if not IS_PRODUCTION:
-    @app.get("/debug-force-pro")
-    def debug_force_pro():
-        email = (session.get("user_email") or "").strip().lower()
-        if not email:
-            return jsonify({"ok": False, "error": "No logged in user."}), 400
-
-        save_user_plan(email, "single")
-        session["plan"] = "single"
-
-        return jsonify({
-            "ok": True,
-            "message": "User upgraded to Pro.",
-            "email": email,
-            "plan": "single",
-        })
-
-# -----------------------------
-# UI
-# -----------------------------
-@app.get("/")
-def home():
-    return render_template("landing.html")
-
-
-@app.get("/app")
-def simo_app():
-    plan, _, is_team = get_plan()
-    return render_template(
-        "index.html",
-        stripe_pk=STRIPE_PUBLISHABLE_KEY,
-        stripe_mode=STRIPE_MODE,
-        free_limit=FREE_DAILY_LIMIT,
-        plan=plan,
-        is_team=is_team,
-        user_email=session.get("user_email"),
-    )
-
-
-# -----------------------------
-# API: status / me
-# -----------------------------
-@app.get("/api/status")
-def api_status():
-    return jsonify(usage_status())
-
-
-@app.get("/api/me")
-def api_me():
-    plan, _, is_team = get_plan()
-    return jsonify(
-        {
-            "ok": True,
-            "logged_in": bool(session.get("user_email")),
-            "email": session.get("user_email"),
-            "plan": plan,
-            "is_team": is_team,
-        }
-    )
-
-
-# -----------------------------
-# API: publish
-# -----------------------------
-@app.post("/api/publish")
-def api_publish():
-    data = request.get_json(force=True, silent=True) or {}
-    title = (data.get("title") or "published-page").strip()
-    html = data.get("html") or ""
-
-    if not isinstance(html, str) or not html.strip():
-        return jsonify({"ok": False, "error": "No HTML provided."}), 400
-
-    site_id = make_publish_id(title)
-    html_path = published_html_path(site_id)
-    meta_path = published_meta_path(site_id)
-
-    try:
-        with open(html_path, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        meta = {
-            "site_id": site_id,
-            "title": title,
-            "published_at_utc": utc_now().isoformat(),
-            "published_by": session.get("user_email"),
-            "plan": session.get("plan", "free"),
-        }
-        with open(meta_path, "w", encoding="utf-8") as f:
-            json.dump(meta, f, indent=2)
-
-        public_url = f"{BASE_URL}/p/{site_id}"
-        return jsonify(
-            {
-                "ok": True,
-                "site_id": site_id,
-                "url": public_url,
-                "title": title,
-            }
-        )
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Publish error: {str(e)}"}), 500
-
-
-@app.get("/p/<site_id>")
-def view_published_site(site_id):
-    html_path = published_html_path(site_id)
-    if not os.path.exists(html_path):
-        abort(404)
-
-    try:
-        with open(html_path, "r", encoding="utf-8") as f:
-            html = f.read()
-        return Response(html, mimetype="text/html")
-    except Exception:
-        abort(404)
-
-
-# -----------------------------
-# API: chat
-# -----------------------------
-@app.post("/api/chat")
-def api_chat():
-    data = request.get_json(force=True, silent=True) or {}
-    text = (data.get("text") or "").strip()
-    history = data.get("history") or []
-    settings = data.get("settings") or {}
-    mode = (data.get("mode") or "").strip().lower()
-
-    if not text:
-        return jsonify({"ok": False, "error": "Empty message."}), 400
-
-    st = usage_status()
-    plan = st["plan"]
-    used = st["used_today"]
-
-    if plan == "free" and used >= FREE_DAILY_LIMIT:
-        return jsonify({"ok": False, "error": "Daily limit reached. Upgrade to continue."}), 402
-
-    bump_daily_usage()
-
-    last_builder = get_last_builder_memory()
-    should_continue_builder = bool(last_builder and is_builder_followup(text))
-    explicit_builder_mode = mode == "builder"
-
-    if explicit_builder_mode:
-        if last_builder and is_builder_followup(text):
-            builder = ai_builder_edit(last_builder, text)
-        else:
-            builder = ai_generate_builder_html(text)
-
-        store_last_builder_memory(builder)
-
-        return jsonify(
-            {
-                "ok": True,
-                "answer": builder["summary"],
-                "mode": "builder",
-                "builder": builder,
-            }
-        )
-
-    if should_continue_builder:
-        builder = ai_builder_edit(last_builder, text)
-        store_last_builder_memory(builder)
-
-        return jsonify(
-            {
-                "ok": True,
-                "answer": builder["summary"],
-                "mode": "builder",
-                "builder": builder,
-            }
-        )
-
-    if not oa_client:
-        return jsonify(
-            {
-                "ok": True,
-                "answer": "It looks like you're testing things out! How can I assist you today?",
-            }
-        )
-
-    msgs = [{"role": "system", "content": friendly_system_prompt(settings)}]
-
-    last_image_mem = get_last_image_memory()
-    if last_image_mem and is_image_followup(text):
-        msgs.append(
-            {
-                "role": "system",
-                "content": (
-                    "Use this recent image-analysis memory for follow-up questions.\n"
-                    f"User's last image prompt: {last_image_mem['prompt'] or '[none]'}\n"
-                    f"Last image analysis: {last_image_mem['answer']}\n"
-                    "If the user asks about the image, answer from this memory directly and naturally."
-                ),
-            }
-        )
-
-    msgs.extend(safe_history_from_list(history, limit=16))
-    msgs.append({"role": "user", "content": text})
-
-    try:
-        resp = oa_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=msgs,
-            temperature=0.7,
-        )
-        answer = resp.choices[0].message.content or ""
-        return jsonify({"ok": True, "answer": answer})
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"AI error: {str(e)}"}), 500
-
-
-# -----------------------------
-# API: HTML download
-# -----------------------------
-@app.post("/api/download-html")
-def api_download_html():
-    data = request.get_json(force=True, silent=True) or {}
-    title = (data.get("title") or "simo-project").strip()
-    html = data.get("html") or ""
-
-    if not isinstance(html, str) or not html.strip():
-        return jsonify({"ok": False, "error": "No HTML provided."}), 400
-
-    filename = f"{sanitize_filename(title)}.html"
-    mem = io.BytesIO(html.encode("utf-8"))
-    mem.seek(0)
-
-    return send_file(
-        mem,
-        mimetype="text/html; charset=utf-8",
-        as_attachment=True,
-        download_name=filename,
-    )
-
-
-# -----------------------------
-# Stripe checkout
-# -----------------------------
-@app.post("/api/create-checkout-session")
-def create_checkout_session():
-    data = request.get_json(force=True, silent=True) or {}
-    plan_key = (data.get("plan") or "").strip()
-    price_id = PRICE_MAP.get(plan_key, "")
-
-    if not STRIPE_SECRET_KEY:
-        return jsonify({"ok": False, "error": "Stripe is not configured (missing STRIPE_SECRET_KEY)."}), 500
-
-    if not price_id:
-        return jsonify({"ok": False, "error": "Invalid plan."}), 400
-
-    try:
-        success = f"{BASE_URL}/billing/success?plan={quote(plan_key)}"
-        cancel = f"{BASE_URL}/billing/cancel"
-
-        checkout = stripe.checkout.Session.create(
-            mode="subscription",
-            line_items=[{"price": price_id, "quantity": 1}],
-            success_url=success,
-            cancel_url=cancel,
-            customer_email=(session.get("user_email") or None),
-        )
-        return jsonify({"ok": True, "url": checkout.url})
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Stripe error: {str(e)}"}), 500
-
-
-@app.get("/billing/success")
-def billing_success():
-    plan_key = request.args.get("plan", "")
-    plan = PLAN_AFTER_SUCCESS.get(plan_key, "free")
-    set_plan(plan)
-    return redirect(url_for("simo_app"))
-
-
-@app.get("/billing/cancel")
-def billing_cancel():
-    return redirect(url_for("simo_app"))
-
-
-# -----------------------------
-# Google login
-# -----------------------------
-@app.get("/login")
-def login():
-    if "google" not in oauth._clients:
-        return redirect(url_for("home"))
-
-    redirect_uri = f"{BASE_URL}/auth/google/callback"
-    nonce = secrets.token_urlsafe(24)
-    session["oauth_nonce"] = nonce
-
-    return oauth.google.authorize_redirect(redirect_uri, nonce=nonce)
-
-
-@app.get("/auth/google/callback")
-def google_callback():
-    if "google" not in oauth._clients:
-        return redirect(url_for("simo_app"))
-
-    token = oauth.google.authorize_access_token()
-
-    nonce = session.get("oauth_nonce")
-    if not nonce:
-        return redirect(url_for("login"))
-
-    userinfo = oauth.google.parse_id_token(token, nonce=nonce)
-    email = (userinfo.get("email") or "").strip().lower()
-
+def user_key_for_limits() -> str:
+    email = current_user_email()
     if email:
-        session["user_email"] = email
-        ensure_user_record(email)
+        return f"user:{email}"
 
-        pro_active = False
-        try:
-            customers = stripe.Customer.list(email=email).data
-            if customers:
-                customer_id = customers[0].id
-                subs = stripe.Subscription.list(
-                    customer=customer_id,
-                    status="active"
-                ).data
-                if subs:
-                    pro_active = True
-        except Exception as e:
-            print("Stripe check failed:", e)
+    anon = session.get("anon_id")
+    if not anon:
+        anon = secrets.token_hex(16)
+        session["anon_id"] = anon
 
-        if pro_active:
-            session["plan"] = "single"
-            save_user_plan(email, "single")
-        else:
-            row = get_user_record(email)
-            if row and row.get("plan") in ("free", "single", "team"):
-                session["plan"] = row["plan"]
-            else:
-                session["plan"] = "free"
-
-    session.pop("oauth_nonce", None)
-    return redirect(url_for("home"))
+    return f"anon:{anon}"
 
 
-@app.get("/logout")
-def logout():
-    session.pop("user_email", None)
-    session.pop("plan", None)
-    session.pop("oauth_nonce", None)
-    clear_last_image_memory()
-    clear_last_builder_memory()
-    return redirect(url_for("home"))
+def get_today_key() -> str:
+    return dt.datetime.now().strftime("%Y-%m-%d")
 
 
-# -----------------------------
-# Image upload (vision + history + memory)
-# -----------------------------
-@app.post("/api/image")
-def api_image():
-    if "image" not in request.files:
-        return jsonify({"ok": False, "error": "No image uploaded."}), 400
-
-    f = request.files["image"]
-    if not f or not f.filename:
-        return jsonify({"ok": False, "error": "Invalid image."}), 400
-
-    user_text = (request.form.get("text") or "").strip()
-
-    raw_history = request.form.get("history", "[]")
-    raw_settings = request.form.get("settings", "{}")
-
-    try:
-        history = json.loads(raw_history)
-    except Exception:
-        history = []
-
-    try:
-        settings = json.loads(raw_settings)
-    except Exception:
-        settings = {}
-
-    st = usage_status()
-    plan = st["plan"]
-    used = st["used_today"]
-
-    if plan == "free" and used >= FREE_DAILY_LIMIT:
-        return jsonify({"ok": False, "error": "Daily limit reached. Upgrade to continue."}), 402
-
-    img_bytes = f.read()
-    if not img_bytes:
-        return jsonify({"ok": False, "error": "Empty image."}), 400
-
-    bump_daily_usage()
-
-    if not oa_client:
-        fallback_text = user_text or "I received your image."
-        fallback_answer = f"{fallback_text} (Vision isn’t configured yet — add OPENAI_API_KEY to enable full image analysis.)"
-        store_last_image_memory(user_text, fallback_answer)
-        return jsonify({"ok": True, "answer": fallback_answer})
-
-    b64 = base64.b64encode(img_bytes).decode("utf-8")
-    mime = f.mimetype or "image/png"
-    data_url = f"data:{mime};base64,{b64}"
-
-    user_prompt = user_text or "Describe this image clearly and helpfully."
-
-    msgs = [
-        {
-            "role": "system",
-            "content": (
-                friendly_system_prompt(settings)
-                + " When the user uploads an image, analyze it carefully. "
-                + "Use recent conversation context when it is relevant. "
-                + "If the user asked a specific question about the image, answer that directly. "
-                + "If there is visible text in the image, include it when relevant."
-            ),
-        }
-    ]
-
-    msgs.extend(safe_history_from_list(history, limit=12))
-
-    msgs.append(
-        {
-            "role": "user",
-            "content": [
-                {"type": "text", "text": user_prompt},
-                {"type": "image_url", "image_url": {"url": data_url}},
-            ],
-        }
+def get_daily_usage_count(user_key: str, day_key: str) -> int:
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT count FROM usage_log WHERE user_key = ? AND day_key = ?",
+        (user_key, day_key),
     )
+    row = cur.fetchone()
+    conn.close()
+    return int(row["count"]) if row else 0
 
-    try:
-        resp = oa_client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=msgs,
-            temperature=0.3,
+
+def increment_daily_usage(user_key: str, day_key: str) -> int:
+    now = utcnow().isoformat()
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute(
+        "SELECT count FROM usage_log WHERE user_key = ? AND day_key = ?",
+        (user_key, day_key),
+    )
+    row = cur.fetchone()
+
+    if row:
+        new_count = int(row["count"]) + 1
+        cur.execute(
+            """
+            UPDATE usage_log
+            SET count = ?, updated_at = ?
+            WHERE user_key = ? AND day_key = ?
+            """,
+            (new_count, now, user_key, day_key),
         )
-        answer = resp.choices[0].message.content or ""
-        store_last_image_memory(user_prompt, answer)
-        return jsonify({"ok": True, "answer": answer})
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Vision error: {str(e)}"}), 500
+    else:
+        new_count = 1
+        cur.execute(
+            """
+            INSERT INTO usage_log (user_key, day_key, count, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (user_key, day_key, new_count, now, now),
+        )
+
+    conn.commit()
+    conn.close()
+    return new_count
 
 
-# -----------------------------
-# SEO / marketing pages
-# -----------------------------
-@app.get("/ai-tools")
-def ai_tools():
-    return render_template("ai-tools.html")
+def get_published_page_by_slug(slug: str):
+    clean_slug = slugify(slug)
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM published_pages WHERE slug = ?", (clean_slug,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def upsert_published_page(slug: str, title: str, html: str, source_text: str = "", owner_email: str = ""):
+    clean_slug = slugify(slug)
+    title = str(title or "Untitled Build").strip() or "Untitled Build"
+    html = str(html or "")
+    source_text = str(source_text or "")
+    owner_email = str(owner_email or "").strip().lower()
+    now = utcnow().isoformat()
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT id FROM published_pages WHERE slug = ?", (clean_slug,))
+    row = cur.fetchone()
+
+    if row:
+        cur.execute(
+            """
+            UPDATE published_pages
+            SET title = ?, html = ?, source_text = ?, owner_email = ?, updated_at = ?
+            WHERE slug = ?
+            """,
+            (title, html, source_text, owner_email, now, clean_slug),
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO published_pages (slug, title, html, source_text, owner_email, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (clean_slug, title, html, source_text, owner_email, now, now),
+        )
+
+    conn.commit()
+    conn.close()
+    return clean_slug
 
 
 init_db()
 
-SEO_PAGES = {
-    "ai-website-builder": {
-        "meta_title": "Free AI Website Builder | Simo",
-        "meta_description": "Create websites faster with Simo, an AI assistant that chats naturally and helps generate websites, pages, and ideas in seconds.",
-        "eyebrow": "AI Website Builder",
-        "hero_title": "Free AI Website Builder",
-        "hero_description": "Simo helps you generate website ideas, landing page copy, layouts, and starter content faster so you can go from blank page to working concept in minutes.",
-        "example_prompt": "Build me a modern bakery landing page with a hero section, menu highlights, testimonials, and a strong call to action.",
-        "example_output": "Simo can help you structure the page, write persuasive copy, suggest sections, improve messaging, and support your build workflow so your site comes together much faster.",
-        "benefits_title": "Why use Simo as your AI website builder",
-        "benefits_lead": "Simo is built to help creators, founders, and builders move faster with websites, landing pages, and project ideas.",
-        "pills": [
-            "Landing pages",
-            "Site copy help",
-            "Fast brainstorming",
-            "Simple workflow"
-        ],
-        "features": [
-            {
-                "title": "Generate website ideas faster",
-                "text": "Use Simo to brainstorm page layouts, headlines, sections, offers, and calls to action when you do not want to start from scratch."
-            },
-            {
-                "title": "Improve your website messaging",
-                "text": "Simo can help refine wording, positioning, and structure so your site is clearer, stronger, and easier for visitors to understand."
-            },
-            {
-                "title": "Go from concept to launch faster",
-                "text": "Whether you are building a startup page, portfolio, business site, or niche tool page, Simo helps speed up the creative process."
-            }
-        ],
-        "how_it_works_lead": "Use Simo to describe what you want, refine the result, and continue shaping your page or concept step by step.",
-        "steps": [
-            {
-                "title": "Describe your website idea",
-                "text": "Tell Simo what kind of website you want to create, who it is for, and what style or sections you need."
-            },
-            {
-                "title": "Refine the content",
-                "text": "Ask for stronger headlines, clearer copy, better structure, or additional sections until the concept feels right."
-            },
-            {
-                "title": "Keep building with confidence",
-                "text": "Use the output as your launch pad for website creation, iteration, and polishing."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help with landing pages?",
-                "a": "Yes. Simo can help you brainstorm, structure, and improve landing pages for businesses, startups, portfolios, and creative projects."
-            },
-            {
-                "q": "Is Simo only for developers?",
-                "a": "No. Simo is designed to be useful for non-technical founders, creators, students, and anyone who wants help shaping a website idea."
-            },
-            {
-                "q": "Can I use Simo for different types of sites?",
-                "a": "Yes. You can use Simo for business pages, portfolios, personal brands, startup sites, niche offers, and more."
-            }
-        ],
-        "cta_title": "Start building your website idea with Simo",
-        "cta_text": "Use Simo to brainstorm, refine, and move faster on your next website or landing page.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI chat, image analysis, and website help in one place."
-    },
 
-    "image-analyzer": {
-        "meta_title": "AI Image Analyzer | Simo",
-        "meta_description": "Analyze images with Simo. Get help understanding visuals, screenshots, design ideas, and image-based questions in one place.",
-        "eyebrow": "AI Image Analysis",
-        "hero_title": "AI Image Analyzer",
-        "hero_description": "Simo helps you understand images, screenshots, visuals, and design references so you can ask questions and get useful guidance faster.",
-        "example_prompt": "Analyze this screenshot and tell me what is going wrong with the form submission.",
-        "example_output": "Simo can help identify visible issues, explain what the screen shows, point out likely causes, and help you decide the best next step.",
-        "benefits_title": "Why use Simo for image analysis",
-        "benefits_lead": "Simo combines natural conversation with image understanding, so you can ask follow-up questions instead of using a one-step tool.",
-        "pills": [
-            "Screenshot help",
-            "Visual understanding",
-            "Design feedback",
-            "Follow-up questions"
-        ],
-        "features": [
-            {
-                "title": "Understand screenshots faster",
-                "text": "Use Simo to review UI screenshots, form errors, layouts, and visual states so you can quickly understand what is happening."
-            },
-            {
-                "title": "Ask follow-up questions naturally",
-                "text": "Instead of receiving a single flat result, you can keep asking questions and digging deeper into the same image or context."
-            },
-            {
-                "title": "Useful for creators and builders",
-                "text": "Simo can help with designs, interfaces, mockups, references, diagrams, and everyday visual troubleshooting."
-            }
-        ],
-        "how_it_works_lead": "Upload or share an image, ask what you want to know, and continue the conversation naturally.",
-        "steps": [
-            {
-                "title": "Share an image or screenshot",
-                "text": "Bring in a screenshot, visual, design reference, or other image you want help understanding."
-            },
-            {
-                "title": "Ask a direct question",
-                "text": "Ask what is happening, what stands out, what may be wrong, or what changes might help."
-            },
-            {
-                "title": "Go deeper with follow-ups",
-                "text": "Keep refining the discussion with additional questions based on the image and prior answers."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo analyze screenshots?",
-                "a": "Yes. Simo can help you interpret screenshots, interface states, visible messages, and other on-screen details."
-            },
-            {
-                "q": "Can I ask follow-up questions about the same image?",
-                "a": "Yes. That is one of the strengths of using Simo instead of a one-shot tool."
-            },
-            {
-                "q": "Is Simo useful for design feedback too?",
-                "a": "Yes. You can use Simo to discuss layouts, visuals, style direction, and what might improve a design."
-            }
-        ],
-        "cta_title": "Use Simo to understand images faster",
-        "cta_text": "Analyze screenshots, ask questions, and keep the conversation going with Simo.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI chat, image analysis, and creative help in one place."
-    },
+# =========================================================
+# OpenAI helpers
+# =========================================================
+def get_client():
+    if not OPENAI_API_KEY:
+        return None
+    return OpenAI(api_key=OPENAI_API_KEY)
 
-    "chatgpt-alternative": {
-        "meta_title": "ChatGPT Alternative | Simo",
-        "meta_description": "Looking for a ChatGPT alternative? Simo combines AI chat, image analysis, and website help in one platform.",
-        "eyebrow": "AI Chat Alternative",
-        "hero_title": "A ChatGPT Alternative with More Creative Utility",
-        "hero_description": "Simo is an AI assistant built for people who want natural conversation plus help with images, websites, ideas, and projects all in one place.",
-        "example_prompt": "Help me come up with a launch tagline, improve my product description, and then help me build the landing page.",
-        "example_output": "Simo is designed to support a fuller workflow, not just isolated answers, so you can continue from ideas into execution more smoothly.",
-        "benefits_title": "Why people explore Simo as an AI alternative",
-        "benefits_lead": "Simo is designed for users who want a best-friend style AI experience combined with practical creative assistance.",
-        "pills": [
-            "Natural chat",
-            "Image help",
-            "Website support",
-            "Project guidance"
-        ],
-        "features": [
-            {
-                "title": "More than conversation",
-                "text": "Simo supports natural AI chat while also helping with images, website ideas, positioning, and project thinking."
-            },
-            {
-                "title": "Built for creators and founders",
-                "text": "Whether you are launching a product, improving a page, or exploring an idea, Simo is built to be useful across real workflows."
-            },
-            {
-                "title": "Simple all-in-one experience",
-                "text": "Instead of jumping between separate tools, Simo brings several useful AI capabilities together in one place."
-            }
-        ],
-        "how_it_works_lead": "Start with a question, keep refining the conversation, and use Simo across multiple types of tasks.",
-        "steps": [
-            {
-                "title": "Ask naturally",
-                "text": "Start with a question, task, idea, or challenge in plain language."
-            },
-            {
-                "title": "Expand the workflow",
-                "text": "Move from brainstorming into editing, image analysis, or website-related help without switching tools."
-            },
-            {
-                "title": "Keep building momentum",
-                "text": "Continue the conversation until your idea, content, or project is stronger and clearer."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "What makes Simo different?",
-                "a": "Simo combines conversational AI with image understanding and website-related creative help in one platform."
-            },
-            {
-                "q": "Can Simo help with more than simple chat?",
-                "a": "Yes. Simo is meant to support broader creative and practical tasks, including image discussion and website workflow help."
-            },
-            {
-                "q": "Who is Simo for?",
-                "a": "Simo is useful for founders, creators, students, builders, and curious users who want an AI assistant that feels more versatile."
-            }
-        ],
-        "cta_title": "Try a more versatile AI experience",
-        "cta_text": "Use Simo for conversation, creative help, image understanding, and project support.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "A flexible AI assistant for chat, images, and creative work."
-    },
 
-    "resume-builder": {
-        "meta_title": "AI Resume Builder | Simo",
-        "meta_description": "Use Simo to improve resume wording, structure, and presentation so you can create a stronger resume faster.",
-        "eyebrow": "AI Resume Help",
-        "hero_title": "AI Resume Builder",
-        "hero_description": "Simo helps you improve resume wording, organize experience, refine bullet points, and present your skills more clearly.",
-        "example_prompt": "Rewrite my resume bullet points to sound stronger and more results-focused for a customer service role.",
-        "example_output": "Simo can help sharpen wording, strengthen descriptions, and improve how your experience is presented so your resume reads more clearly and professionally.",
-        "benefits_title": "Why use Simo for resume help",
-        "benefits_lead": "A stronger resume often comes down to clearer wording, better structure, and more confident positioning.",
-        "pills": [
-            "Resume wording",
-            "Bullet point help",
-            "Clearer structure",
-            "Stronger presentation"
-        ],
-        "features": [
-            {
-                "title": "Improve wording and clarity",
-                "text": "Use Simo to rewrite vague resume lines into clearer, stronger descriptions that communicate your value better."
-            },
-            {
-                "title": "Organize your experience",
-                "text": "Simo can help you group experience, refine sections, and improve the overall structure of your resume."
-            },
-            {
-                "title": "Adapt for different opportunities",
-                "text": "You can ask Simo to help tailor your resume language for different roles, industries, or goals."
-            }
-        ],
-        "how_it_works_lead": "Share your resume content, ask what kind of role you want, and refine the wording step by step.",
-        "steps": [
-            {
-                "title": "Paste your resume details",
-                "text": "Share your current bullet points, experience, or summary so Simo has a starting point."
-            },
-            {
-                "title": "Ask for improvements",
-                "text": "Request stronger wording, clearer structure, better tone, or more professional phrasing."
-            },
-            {
-                "title": "Refine for your target role",
-                "text": "Continue adjusting the content so it fits the role or direction you want to pursue."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo rewrite resume bullet points?",
-                "a": "Yes. Simo can help make resume bullet points clearer, stronger, and easier for employers to understand."
-            },
-            {
-                "q": "Can Simo help with resume summaries too?",
-                "a": "Yes. You can ask Simo to improve your summary, skills presentation, and overall resume language."
-            },
-            {
-                "q": "Is Simo useful if I am changing careers?",
-                "a": "Yes. Simo can help you reposition your experience so it speaks more clearly to a new direction."
-            }
-        ],
-        "cta_title": "Strengthen your resume with Simo",
-        "cta_text": "Use Simo to rewrite, refine, and improve your resume content faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Resume help, AI chat, and practical writing support in one place."
-    },
+def extract_first_text_from_openai_response(resp) -> str:
+    try:
+        if hasattr(resp, "output_text") and resp.output_text:
+            return str(resp.output_text).strip()
+    except Exception:
+        pass
 
-            "ai-landing-page-generator": {
-        "meta_title": "AI Landing Page Generator | Simo",
-        "meta_description": "Use Simo to brainstorm, write, and improve landing pages faster with AI-powered website and copy help.",
-        "eyebrow": "AI Landing Page Help",
-        "hero_title": "AI Landing Page Generator",
-        "hero_description": "Simo helps you create landing page ideas, headlines, sections, offers, and calls to action faster so you can move from concept to launch with less friction.",
-        "example_prompt": "Create a landing page for an AI app that helps users analyze images and build websites.",
-        "example_output": "Simo can help structure the page, sharpen the messaging, improve the hero section, and guide the overall landing page flow so it feels more polished and launch-ready.",
-        "benefits_title": "Why use Simo for landing pages",
-        "benefits_lead": "Strong landing pages usually need clear positioning, persuasive copy, and better structure. Simo helps with all three.",
-        "pills": [
-            "Hero sections",
-            "Landing page copy",
-            "CTA ideas",
-            "Page structure"
-        ],
-        "features": [
-            {
-                "title": "Write stronger landing page copy",
-                "text": "Use Simo to improve headlines, subheadings, value propositions, and calls to action so your landing page is clearer and more persuasive."
-            },
-            {
-                "title": "Structure the page faster",
-                "text": "Simo can help organize the hero, features, testimonials, pricing, and CTA sections so you are not starting from a blank page."
-            },
-            {
-                "title": "Refine your positioning",
-                "text": "Use Simo to clarify who the page is for, what problem it solves, and why visitors should care."
-            }
-        ],
-        "how_it_works_lead": "Describe your product or idea, ask for a landing page direction, and keep refining until the page feels stronger.",
-        "steps": [
-            {
-                "title": "Describe the offer",
-                "text": "Tell Simo what your product, service, or business does and who it is for."
-            },
-            {
-                "title": "Generate the landing page direction",
-                "text": "Ask for sections, headlines, messaging, and offers that fit the audience and goal."
-            },
-            {
-                "title": "Refine and improve",
-                "text": "Keep improving the copy and structure until the page feels launch-ready."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help write landing page headlines?",
-                "a": "Yes. Simo can help generate and improve headlines, supporting text, and calls to action."
-            },
-            {
-                "q": "Can Simo help with landing page structure too?",
-                "a": "Yes. Simo can suggest the best order of sections and improve overall page flow."
-            },
-            {
-                "q": "Is this useful for startups and small businesses?",
-                "a": "Yes. Simo is especially useful for founders and creators who need help shaping landing pages quickly."
-            }
-        ],
-        "cta_title": "Build your landing page faster with Simo",
-        "cta_text": "Use Simo to improve your landing page copy, structure, and positioning in one place.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI chat, image analysis, and landing page support in one place."
-    },
+    try:
+        if hasattr(resp, "choices") and resp.choices:
+            msg = resp.choices[0].message
+            if hasattr(msg, "content") and msg.content:
+                return str(msg.content).strip()
+    except Exception:
+        pass
 
-    "ai-product-description-generator": {
-        "meta_title": "AI Product Description Generator | Simo",
-        "meta_description": "Use Simo to write and improve product descriptions for websites, offers, and online products faster.",
-        "eyebrow": "AI Product Writing",
-        "hero_title": "AI Product Description Generator",
-        "hero_description": "Simo helps you write stronger product descriptions by improving clarity, benefits, positioning, and overall presentation.",
-        "example_prompt": "Write a product description for an AI assistant that chats, analyzes images, and helps build websites.",
-        "example_output": "Simo can help create clear product descriptions that explain what the offer does, who it helps, and why it matters without sounding flat or generic.",
-        "benefits_title": "Why use Simo for product descriptions",
-        "benefits_lead": "A strong product description can improve understanding, conversions, and how polished your offer feels.",
-        "pills": [
-            "Clear benefits",
-            "Better product copy",
-            "Stronger positioning",
-            "Faster writing"
-        ],
-        "features": [
-            {
-                "title": "Turn features into benefits",
-                "text": "Simo helps rewrite feature-heavy product text into benefit-driven language that is easier for customers to understand."
-            },
-            {
-                "title": "Improve clarity and polish",
-                "text": "Use Simo to make product descriptions smoother, clearer, and more persuasive."
-            },
-            {
-                "title": "Adapt for different audiences",
-                "text": "You can ask Simo to make the description more premium, casual, direct, technical, or creator-focused depending on your needs."
-            }
-        ],
-        "how_it_works_lead": "Share what your product does, who it helps, and the tone you want, then refine the result step by step.",
-        "steps": [
-            {
-                "title": "Describe the product",
-                "text": "Tell Simo what your product is, what it does, and what makes it useful."
-            },
-            {
-                "title": "Generate product copy",
-                "text": "Ask for a product description in the style or tone you want."
-            },
-            {
-                "title": "Refine the wording",
-                "text": "Improve clarity, strength, emotion, or positioning until it feels right."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write descriptions for digital products?",
-                "a": "Yes. Simo works well for apps, tools, software, websites, and online offers."
-            },
-            {
-                "q": "Can Simo rewrite existing product descriptions?",
-                "a": "Yes. You can paste an existing description and ask Simo to improve it."
-            },
-            {
-                "q": "Can Simo help with tone too?",
-                "a": "Yes. You can ask for more premium, friendly, direct, or conversion-focused wording."
-            }
-        ],
-        "cta_title": "Write stronger product descriptions with Simo",
-        "cta_text": "Use Simo to create clearer, better-positioned product copy faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Product copy, AI chat, and creative help in one place."
-    },
+    try:
+        parts = []
+        for item in getattr(resp, "output", []) or []:
+            for content in getattr(item, "content", []) or []:
+                if getattr(content, "type", "") == "output_text":
+                    parts.append(getattr(content, "text", ""))
+        text = "\n".join([p for p in parts if p]).strip()
+        if text:
+            return text
+    except Exception:
+        pass
 
-    "ai-marketing-copy-generator": {
-        "meta_title": "AI Marketing Copy Generator | Simo",
-        "meta_description": "Generate marketing copy with Simo for websites, product pages, launches, and campaigns.",
-        "eyebrow": "AI Marketing Copy",
-        "hero_title": "AI Marketing Copy Generator",
-        "hero_description": "Simo helps you brainstorm and write stronger marketing copy for websites, launches, social posts, and product messaging.",
-        "example_prompt": "Write launch copy for an AI platform called Simo that chats naturally, analyzes images, and builds websites.",
-        "example_output": "Simo can help create stronger launch messaging, promotional language, feature framing, and campaign direction so your marketing feels more focused and compelling.",
-        "benefits_title": "Why use Simo for marketing copy",
-        "benefits_lead": "Good marketing copy needs clarity, rhythm, positioning, and persuasion. Simo helps you shape all of it faster.",
-        "pills": [
-            "Launch copy",
-            "Ad angles",
-            "Website messaging",
-            "Promo writing"
-        ],
-        "features": [
-            {
-                "title": "Write clearer promotional messaging",
-                "text": "Use Simo to improve how your offer is explained and promoted across websites, posts, and campaigns."
-            },
-            {
-                "title": "Find better marketing angles",
-                "text": "Simo can help brainstorm different ways to frame the same product depending on your audience and goals."
-            },
-            {
-                "title": "Move faster on campaigns",
-                "text": "Instead of struggling with blank-page syndrome, use Simo to generate a starting point and refine from there."
-            }
-        ],
-        "how_it_works_lead": "Describe what you are promoting, what audience you want to reach, and the style you want to use.",
-        "steps": [
-            {
-                "title": "Define the offer",
-                "text": "Explain what you are launching or promoting and what outcome you want from the copy."
-            },
-            {
-                "title": "Generate the marketing direction",
-                "text": "Ask Simo for taglines, ads, launch copy, email copy, or promotional text."
-            },
-            {
-                "title": "Refine the final message",
-                "text": "Improve tone, strength, clarity, and positioning until the copy feels right."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help with launch copy?",
-                "a": "Yes. Simo can help write and improve launch copy for products, websites, and announcements."
-            },
-            {
-                "q": "Can Simo help with ad copy too?",
-                "a": "Yes. Simo can help brainstorm shorter promotional angles and ad-style messaging."
-            },
-            {
-                "q": "Can I use Simo for different tones?",
-                "a": "Yes. You can ask for premium, direct, playful, professional, or more emotional marketing copy."
-            }
-        ],
-        "cta_title": "Create stronger marketing copy with Simo",
-        "cta_text": "Use Simo to brainstorm, write, and improve your promotional messaging faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI marketing help, copy generation, and creative support in one place."
-    },
+    return "I’m sorry, something went wrong while generating a response."
 
-    "ai-pitch-generator": {
-        "meta_title": "AI Pitch Generator | Simo",
-        "meta_description": "Use Simo to shape pitches for startups, products, ideas, and offers with clearer messaging and structure.",
-        "eyebrow": "AI Pitch Help",
-        "hero_title": "AI Pitch Generator",
-        "hero_description": "Simo helps you explain your idea more clearly by improving your pitch, sharpening the message, and organizing the structure.",
-        "example_prompt": "Help me pitch Simo as an all-in-one AI that chats, analyzes images, and builds websites.",
-        "example_output": "Simo can help simplify your idea, strengthen the value proposition, and make the pitch more memorable for users, customers, or investors.",
-        "benefits_title": "Why use Simo for pitching ideas",
-        "benefits_lead": "The strongest pitches are usually simple, clear, and easy to repeat. Simo helps you get there faster.",
-        "pills": [
-            "Startup pitches",
-            "Product positioning",
-            "Clear messaging",
-            "Stronger framing"
-        ],
-        "features": [
-            {
-                "title": "Clarify the idea quickly",
-                "text": "Simo helps reduce confusion by shaping your pitch into a clearer, easier-to-understand explanation."
-            },
-            {
-                "title": "Improve the value proposition",
-                "text": "Use Simo to explain what makes your idea useful, different, and worth attention."
-            },
-            {
-                "title": "Adapt the pitch by audience",
-                "text": "Ask Simo to shape your pitch for users, investors, partners, or general audiences."
-            }
-        ],
-        "how_it_works_lead": "Share your idea, explain your audience, and refine the pitch until it feels confident and strong.",
-        "steps": [
-            {
-                "title": "Describe the idea",
-                "text": "Tell Simo what you are building and why it matters."
-            },
-            {
-                "title": "Generate a pitch direction",
-                "text": "Ask for a short pitch, longer pitch, one-liner, or positioning statement."
-            },
-            {
-                "title": "Refine for impact",
-                "text": "Make the pitch simpler, stronger, cleaner, or more memorable depending on your goal."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help write startup pitches?",
-                "a": "Yes. Simo can help shape startup and product pitches for many different audiences."
-            },
-            {
-                "q": "Can Simo make my pitch more concise?",
-                "a": "Yes. You can ask Simo to make it shorter, sharper, and easier to repeat."
-            },
-            {
-                "q": "Can I use Simo for investor-style pitches too?",
-                "a": "Yes. Simo can help improve framing, structure, and explanation for early-stage business ideas."
-            }
-        ],
-        "cta_title": "Shape a stronger pitch with Simo",
-        "cta_text": "Use Simo to clarify, organize, and improve the way you explain your idea.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Pitch help, AI chat, and practical idea support in one place."
-    },
 
-    "ai-brainstorming-tool": {
-        "meta_title": "AI Brainstorming Tool | Simo",
-        "meta_description": "Brainstorm ideas faster with Simo for products, websites, startups, content, and creative projects.",
-        "eyebrow": "AI Brainstorming",
-        "hero_title": "AI Brainstorming Tool",
-        "hero_description": "Simo helps you break through blank-page moments by generating ideas, directions, names, angles, and next steps faster.",
-        "example_prompt": "Help me brainstorm ideas for growing an AI startup that can chat, analyze images, and build websites.",
-        "example_output": "Simo can help generate options, compare directions, expand ideas, and continue the discussion so your thinking gains momentum instead of stalling.",
-        "benefits_title": "Why use Simo for brainstorming",
-        "benefits_lead": "Great brainstorming often comes from momentum and follow-up questions, not just one answer. Simo helps keep that momentum going.",
-        "pills": [
-            "Idea generation",
-            "Creative thinking",
-            "Startup brainstorming",
-            "Project planning"
-        ],
-        "features": [
-            {
-                "title": "Generate more ideas faster",
-                "text": "Use Simo to brainstorm names, product angles, website ideas, messaging directions, features, and growth concepts."
-            },
-            {
-                "title": "Ask follow-up questions naturally",
-                "text": "Instead of a one-shot tool, Simo lets you keep refining the same idea and go deeper in conversation."
-            },
-            {
-                "title": "Useful across many projects",
-                "text": "Simo can help with business ideas, creative work, branding, product strategy, writing, and more."
-            }
-        ],
-        "how_it_works_lead": "Start with a rough thought, ask for more directions, and keep refining until the idea becomes clearer.",
-        "steps": [
-            {
-                "title": "Start with the seed idea",
-                "text": "Share the rough concept, problem, or area you want to brainstorm."
-            },
-            {
-                "title": "Generate possibilities",
-                "text": "Ask Simo for options, categories, styles, or different ways to think about the same thing."
-            },
-            {
-                "title": "Refine the strongest path",
-                "text": "Pick the best direction and keep expanding it until it becomes more real and actionable."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help brainstorm startup ideas?",
-                "a": "Yes. Simo is useful for brainstorming startup ideas, features, branding angles, and launch paths."
-            },
-            {
-                "q": "Can Simo help with creative projects too?",
-                "a": "Yes. Simo can help brainstorm writing, websites, branding, visual concepts, and project direction."
-            },
-            {
-                "q": "What makes Simo good for brainstorming?",
-                "a": "Simo supports natural follow-up conversation, which helps ideas evolve instead of ending after one answer."
-            }
-        ],
-        "cta_title": "Break through blank-page moments with Simo",
-        "cta_text": "Use Simo to generate ideas, directions, and next steps faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Brainstorming help, AI chat, and creative support in one place."
-    },
+# =========================================================
+# System prompt
+# =========================================================
+SYSTEM_PROMPT = """You are Simo, a warm, smart, non-judgmental best-friend style AI assistant.
+You are helpful, emotionally aware, direct, and practical.
+Avoid robotic filler.
+When users ask for build, design, app, website, startup, game, 3D, music, creator, or visual help, be capable and concrete.
+Keep answers useful and grounded.
+Only mention a 3D model URL if it is actually verified and provided to you.
+Do not claim that a model exists unless it is truly available.
+If no verified 3D model exists, be honest and say so clearly.
+When a verified 3D model exists, keep the reply very short and natural.
+"""
 
-    "ai-startup-idea-generator": {
-        "meta_title": "AI Startup Idea Generator | Simo",
-        "meta_description": "Generate startup ideas and refine business concepts with Simo using conversational AI and practical planning help.",
-        "eyebrow": "AI Startup Ideas",
-        "hero_title": "AI Startup Idea Generator",
-        "hero_description": "Simo helps you brainstorm startup ideas, shape business concepts, and turn rough thoughts into clearer opportunities.",
-        "example_prompt": "Give me startup ideas around AI, real estate, and productivity that could become real businesses.",
-        "example_output": "Simo can help generate startup concepts, compare opportunities, shape positioning, and guide the thinking toward ideas that feel more real and useful.",
-        "benefits_title": "Why use Simo for startup ideas",
-        "benefits_lead": "The best startup ideas usually need more than inspiration. They need clearer structure, audience thinking, and follow-up refinement.",
-        "pills": [
-            "Startup concepts",
-            "Business ideas",
-            "Audience thinking",
-            "Positioning help"
-        ],
-        "features": [
-            {
-                "title": "Generate business ideas faster",
-                "text": "Use Simo to brainstorm startup opportunities across AI, software, services, marketplaces, and creative businesses."
-            },
-            {
-                "title": "Evaluate ideas more clearly",
-                "text": "Simo can help compare different startup concepts and think through who they help and why they matter."
-            },
-            {
-                "title": "Refine into something stronger",
-                "text": "Go from rough idea to more structured concept by discussing value proposition, audience, and launch path."
-            }
-        ],
-        "how_it_works_lead": "Share the types of industries, problems, or interests you care about, then refine the best idea step by step.",
-        "steps": [
-            {
-                "title": "Choose a direction",
-                "text": "Tell Simo what topics, industries, or types of problems interest you."
-            },
-            {
-                "title": "Generate startup ideas",
-                "text": "Ask for different concepts, variations, and possible business models."
-            },
-            {
-                "title": "Develop the strongest one",
-                "text": "Take the best concept and keep refining it until it feels worth pursuing."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo generate startup ideas in specific industries?",
-                "a": "Yes. You can ask for startup ideas in AI, real estate, productivity, education, creator tools, and many more categories."
-            },
-            {
-                "q": "Can Simo help evaluate which idea is strongest?",
-                "a": "Yes. Simo can help compare ideas based on audience, practicality, and positioning."
-            },
-            {
-                "q": "Can Simo help after the idea stage too?",
-                "a": "Yes. Simo can also help with business plans, pitches, messaging, and landing page thinking."
-            }
-        ],
-        "cta_title": "Generate startup ideas with Simo",
-        "cta_text": "Use Simo to brainstorm, compare, and refine business concepts faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Startup ideas, planning help, and AI support in one place."
-    },
 
-    "ai-writing-assistant": {
-        "meta_title": "AI Writing Assistant | Simo",
-        "meta_description": "Use Simo as an AI writing assistant for clearer wording, stronger structure, and faster idea-to-draft progress.",
-        "eyebrow": "AI Writing Help",
-        "hero_title": "AI Writing Assistant",
-        "hero_description": "Simo helps with writing tasks by improving wording, structure, flow, and clarity across many types of content.",
-        "example_prompt": "Help me rewrite this paragraph so it sounds more polished, clear, and professional.",
-        "example_output": "Simo can help improve sentence flow, reduce awkward phrasing, strengthen tone, and make your writing easier to read and understand.",
-        "benefits_title": "Why use Simo as a writing assistant",
-        "benefits_lead": "Writing gets easier when you can refine ideas in conversation instead of struggling alone with every sentence.",
-        "pills": [
-            "Rewrite help",
-            "Clarity improvements",
-            "Stronger structure",
-            "Better flow"
-        ],
-        "features": [
-            {
-                "title": "Improve wording quickly",
-                "text": "Use Simo to rewrite weak, awkward, or unclear sentences into stronger and smoother writing."
-            },
-            {
-                "title": "Refine tone and structure",
-                "text": "Simo can help make writing sound more polished, professional, warm, direct, or creative depending on your goal."
-            },
-            {
-                "title": "Use it across many writing tasks",
-                "text": "Simo is helpful for emails, product copy, resumes, ideas, website text, and many other writing situations."
-            }
-        ],
-        "how_it_works_lead": "Paste what you have, ask how you want it improved, and refine the writing step by step.",
-        "steps": [
-            {
-                "title": "Paste your draft",
-                "text": "Share the paragraph, sentence, message, or text you want help improving."
-            },
-            {
-                "title": "Ask for the style you want",
-                "text": "Tell Simo whether you want it clearer, stronger, more polished, more concise, or more persuasive."
-            },
-            {
-                "title": "Refine the final result",
-                "text": "Keep adjusting tone and clarity until the writing feels right."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo rewrite paragraphs?",
-                "a": "Yes. Simo can help rewrite short and long pieces of text for clarity, strength, and better flow."
-            },
-            {
-                "q": "Can Simo help with professional writing?",
-                "a": "Yes. Simo can help make writing sound more polished and professional."
-            },
-            {
-                "q": "Can Simo help with creative writing too?",
-                "a": "Yes. Simo can also help brainstorm and refine more creative styles of writing."
-            }
-        ],
-        "cta_title": "Improve your writing with Simo",
-        "cta_text": "Use Simo to rewrite, polish, and strengthen your writing faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI writing help, conversation, and practical support in one place."
-    },
+# =========================================================
+# Verified 3D catalog
+# =========================================================
+def load_verified_3d_models():
+    raw = (os.getenv("VERIFIED_3D_MODELS") or "").strip()
+    if not raw:
+        return {}
 
-        "ai-email-writer": {
-        "meta_title": "AI Email Writer | Simo",
-        "meta_description": "Use Simo to write clearer, stronger emails for work, business, follow-ups, and everyday communication.",
-        "eyebrow": "AI Email Help",
-        "hero_title": "AI Email Writer",
-        "hero_description": "Simo helps you write emails faster by improving tone, structure, clarity, and overall wording for many different situations.",
-        "example_prompt": "Write a professional follow-up email after a product demo.",
-        "example_output": "Simo can help draft emails that feel clearer, more polished, and more effective without sounding robotic or awkward.",
-        "benefits_title": "Why use Simo for emails",
-        "benefits_lead": "Emails are easier when you can quickly improve tone, clarity, and structure in conversation.",
-        "pills": [
-            "Professional emails",
-            "Follow-up messages",
-            "Clear wording",
-            "Better tone"
-        ],
-        "features": [
-            {
-                "title": "Write emails faster",
-                "text": "Use Simo to draft emails for work, business, customer follow-ups, and personal communication without staring at a blank screen."
-            },
-            {
-                "title": "Improve clarity and tone",
-                "text": "Simo can make emails sound more professional, warm, direct, confident, or polished depending on what you need."
-            },
-            {
-                "title": "Useful for many situations",
-                "text": "Use Simo for outreach, follow-ups, thank-you emails, scheduling messages, and customer communication."
-            }
-        ],
-        "how_it_works_lead": "Describe the situation, say what tone you want, and refine the email until it feels right.",
-        "steps": [
-            {
-                "title": "Describe the situation",
-                "text": "Tell Simo who the email is for and what you want to say."
-            },
-            {
-                "title": "Generate the draft",
-                "text": "Ask for the email in a professional, friendly, direct, or persuasive style."
-            },
-            {
-                "title": "Refine the wording",
-                "text": "Adjust the tone and details until the email sounds exactly how you want."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write professional emails?",
-                "a": "Yes. Simo can help draft professional emails for work, outreach, and follow-up situations."
-            },
-            {
-                "q": "Can Simo improve an email I already wrote?",
-                "a": "Yes. You can paste your draft and ask Simo to rewrite or polish it."
-            },
-            {
-                "q": "Can Simo make an email more concise?",
-                "a": "Yes. Simo can shorten, simplify, or strengthen email wording."
-            }
-        ],
-        "cta_title": "Write better emails with Simo",
-        "cta_text": "Use Simo to draft, rewrite, and improve emails faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Email writing, AI chat, and practical wording help in one place."
-    },
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            return {}
 
-    "ai-bio-generator": {
-        "meta_title": "AI Bio Generator | Simo",
-        "meta_description": "Generate bios for social profiles, personal brands, businesses, and websites with Simo.",
-        "eyebrow": "AI Bio Writing",
-        "hero_title": "AI Bio Generator",
-        "hero_description": "Simo helps you write stronger bios for personal brands, websites, businesses, and profiles by improving clarity, tone, and positioning.",
-        "example_prompt": "Write a short bio for a founder building an AI platform called Simo.",
-        "example_output": "Simo can help create bios that sound more polished, memorable, and aligned with how you want to present yourself or your brand.",
-        "benefits_title": "Why use Simo for bios",
-        "benefits_lead": "A strong bio can shape first impressions quickly. Simo helps make that easier.",
-        "pills": [
-            "Personal bios",
-            "Founder bios",
-            "Brand bios",
-            "Profile writing"
-        ],
-        "features": [
-            {
-                "title": "Write bios for many uses",
-                "text": "Use Simo for website bios, social bios, founder bios, and brand introductions."
-            },
-            {
-                "title": "Adjust tone and length",
-                "text": "Simo can make bios shorter, warmer, more premium, more professional, or more creator-focused."
-            },
-            {
-                "title": "Improve positioning",
-                "text": "Use Simo to make your bio clearer about who you are, what you do, and why people should care."
-            }
-        ],
-        "how_it_works_lead": "Describe yourself or your brand, choose a tone, and refine the bio until it feels right.",
-        "steps": [
-            {
-                "title": "Share the basics",
-                "text": "Tell Simo who the bio is about and what you want it to communicate."
-            },
-            {
-                "title": "Generate the bio",
-                "text": "Ask for a short, medium, or more polished version depending on where you will use it."
-            },
-            {
-                "title": "Refine the final version",
-                "text": "Adjust tone, confidence, warmth, and style until the bio fits."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write bios for founders and creators?",
-                "a": "Yes. Simo works well for founder bios, creator bios, and personal brand bios."
-            },
-            {
-                "q": "Can Simo make a bio shorter?",
-                "a": "Yes. Simo can shorten bios for social profiles or one-line intros."
-            },
-            {
-                "q": "Can Simo make a bio sound more professional?",
-                "a": "Yes. Simo can refine bios to sound more polished and intentional."
-            }
-        ],
-        "cta_title": "Create a stronger bio with Simo",
-        "cta_text": "Use Simo to write bios that feel clearer, stronger, and more polished.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Bio writing, AI chat, and personal brand help in one place."
-    },
+        cleaned = {}
+        for key, value in parsed.items():
+            k = str(key or "").strip().lower()
+            v = normalize_model_url(value)
+            if k and is_any_model_url(v):
+                cleaned[k] = v
+        return cleaned
+    except Exception:
+        return {}
 
-    "ai-slogan-generator": {
-        "meta_title": "AI Slogan Generator | Simo",
-        "meta_description": "Generate slogans, taglines, and brand lines with Simo for products, businesses, and websites.",
-        "eyebrow": "AI Slogan Help",
-        "hero_title": "AI Slogan Generator",
-        "hero_description": "Simo helps you generate slogans and taglines that are clearer, stronger, and more memorable for brands, products, and launches.",
-        "example_prompt": "Give me tagline ideas for an AI platform that chats, analyzes images, and builds websites.",
-        "example_output": "Simo can help brainstorm short and memorable slogans while refining tone, clarity, and brand direction.",
-        "benefits_title": "Why use Simo for slogans",
-        "benefits_lead": "A great slogan is simple, memorable, and aligned with your offer. Simo helps you get there faster.",
-        "pills": [
-            "Taglines",
-            "Brand slogans",
-            "Launch messaging",
-            "Creative naming help"
-        ],
-        "features": [
-            {
-                "title": "Generate many options quickly",
-                "text": "Use Simo to brainstorm multiple tagline directions instead of getting stuck on one idea."
-            },
-            {
-                "title": "Refine by tone",
-                "text": "Ask Simo for slogans that feel premium, playful, modern, minimal, or bold."
-            },
-            {
-                "title": "Fit slogans to your brand",
-                "text": "Simo can help shape taglines that connect more clearly with your audience and positioning."
-            }
-        ],
-        "how_it_works_lead": "Share what your product or brand does, then ask for slogan ideas in the tone you want.",
-        "steps": [
-            {
-                "title": "Describe the brand or offer",
-                "text": "Tell Simo what the product does and how you want it to feel."
-            },
-            {
-                "title": "Generate slogan ideas",
-                "text": "Ask for multiple short and memorable options."
-            },
-            {
-                "title": "Refine the strongest ones",
-                "text": "Keep shaping the best options until one stands out."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo generate taglines for startups?",
-                "a": "Yes. Simo is useful for startup taglines, product slogans, and brand lines."
-            },
-            {
-                "q": "Can Simo make slogans shorter and punchier?",
-                "a": "Yes. Simo can make slogan ideas cleaner, simpler, and more memorable."
-            },
-            {
-                "q": "Can I ask for different tones?",
-                "a": "Yes. You can ask for premium, fun, serious, bold, or modern slogan ideas."
-            }
-        ],
-        "cta_title": "Generate better taglines with Simo",
-        "cta_text": "Use Simo to create slogans and brand lines that feel stronger and more memorable.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Slogan generation, AI chat, and branding help in one place."
-    },
 
-    "ai-tagline-generator": {
-        "meta_title": "AI Tagline Generator | Simo",
-        "meta_description": "Generate taglines for brands, products, AI tools, and businesses with Simo.",
-        "eyebrow": "AI Tagline Writing",
-        "hero_title": "AI Tagline Generator",
-        "hero_description": "Simo helps you create stronger taglines by clarifying what your product does and turning that into short, memorable phrasing.",
-        "example_prompt": "Create tagline ideas for Simo, an all-in-one AI assistant.",
-        "example_output": "Simo can help turn complex product ideas into short taglines that feel clearer and more marketable.",
-        "benefits_title": "Why use Simo for taglines",
-        "benefits_lead": "A strong tagline can make your product easier to understand and easier to remember.",
-        "pills": [
-            "Product taglines",
-            "Brand lines",
-            "Clear messaging",
-            "Fast idea generation"
-        ],
-        "features": [
-            {
-                "title": "Turn complex ideas into simple lines",
-                "text": "Simo helps condense what your product does into short and memorable wording."
-            },
-            {
-                "title": "Explore different directions",
-                "text": "Ask for minimalist, premium, direct, emotional, or category-focused tagline ideas."
-            },
-            {
-                "title": "Useful for launches and directories",
-                "text": "Simo is especially useful when you need a tagline for product pages, directories, profiles, or brand assets."
-            }
-        ],
-        "how_it_works_lead": "Describe your product, choose a tone, and refine the best tagline ideas.",
-        "steps": [
-            {
-                "title": "Explain the product",
-                "text": "Tell Simo what your business, product, or website does."
-            },
-            {
-                "title": "Generate tagline options",
-                "text": "Ask for multiple short lines in the tone you want."
-            },
-            {
-                "title": "Refine the winner",
-                "text": "Keep improving the best option until it feels clear and memorable."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write taglines for AI tools?",
-                "a": "Yes. Simo is useful for AI tools, startups, creators, and online businesses."
-            },
-            {
-                "q": "Can Simo generate multiple tagline styles?",
-                "a": "Yes. You can ask for different tones and brand directions."
-            },
-            {
-                "q": "Can Simo help with short directory taglines too?",
-                "a": "Yes. Simo can help create shorter tagline versions for product submissions and listings."
-            }
-        ],
-        "cta_title": "Create stronger taglines with Simo",
-        "cta_text": "Use Simo to generate and refine tagline ideas faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Tagline writing, AI chat, and brand messaging help in one place."
-    },
-
-    "ai-name-generator": {
-        "meta_title": "AI Name Generator | Simo",
-        "meta_description": "Brainstorm names for startups, apps, websites, brands, and projects with Simo.",
-        "eyebrow": "AI Naming Help",
-        "hero_title": "AI Name Generator",
-        "hero_description": "Simo helps you brainstorm names for products, startups, brands, websites, and projects by generating ideas and refining the strongest ones.",
-        "example_prompt": "Give me name ideas for an AI platform that helps people chat, analyze images, and build websites.",
-        "example_output": "Simo can help generate names across different styles, then narrow them down based on tone, memorability, and positioning.",
-        "benefits_title": "Why use Simo for naming",
-        "benefits_lead": "Naming gets easier when you can brainstorm multiple directions and refine them in conversation.",
-        "pills": [
-            "Startup names",
-            "App names",
-            "Brand names",
-            "Project naming"
-        ],
-        "features": [
-            {
-                "title": "Generate many naming directions",
-                "text": "Use Simo to brainstorm modern, premium, playful, simple, or category-based naming ideas."
-            },
-            {
-                "title": "Refine the strongest names",
-                "text": "Simo can help compare names and improve the ones with the most potential."
-            },
-            {
-                "title": "Useful for many projects",
-                "text": "Use Simo for startup names, app names, website names, product names, and personal brand ideas."
-            }
-        ],
-        "how_it_works_lead": "Describe what you are naming, say how you want it to feel, and refine the strongest ideas.",
-        "steps": [
-            {
-                "title": "Describe the project",
-                "text": "Tell Simo what the product, startup, or brand is about."
-            },
-            {
-                "title": "Generate name ideas",
-                "text": "Ask for naming directions based on the tone and style you want."
-            },
-            {
-                "title": "Refine the best ones",
-                "text": "Keep narrowing and improving until the right name starts to stand out."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo generate startup names?",
-                "a": "Yes. Simo is useful for startup names, app names, product names, and brand ideas."
-            },
-            {
-                "q": "Can Simo make names sound more premium or modern?",
-                "a": "Yes. You can ask for different tones and naming styles."
-            },
-            {
-                "q": "Can Simo help compare name options?",
-                "a": "Yes. Simo can help weigh memorability, fit, and overall direction."
-            }
-        ],
-        "cta_title": "Find better names with Simo",
-        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Naming help, AI chat, and brand idea support in one place."
-    },
-
-    "ai-website-copy-generator": {
-        "meta_title": "AI Website Copy Generator | Simo",
-        "meta_description": "Generate website copy for homepages, landing pages, and product sites with Simo.",
-        "eyebrow": "AI Website Copy",
-        "hero_title": "AI Website Copy Generator",
-        "hero_description": "Simo helps you write clearer website copy for homepages, feature sections, product pages, and calls to action.",
-        "example_prompt": "Write homepage copy for Simo, an AI that chats naturally, analyzes images, and helps build websites.",
-        "example_output": "Simo can help write website copy that is clearer, better structured, and more aligned with what visitors care about.",
-        "benefits_title": "Why use Simo for website copy",
-        "benefits_lead": "Website copy often determines whether visitors understand your offer quickly. Simo helps improve that.",
-        "pills": [
-            "Homepage copy",
-            "Feature sections",
-            "CTA wording",
-            "Stronger messaging"
-        ],
-        "features": [
-            {
-                "title": "Write clearer homepage copy",
-                "text": "Use Simo to improve headings, value propositions, supporting text, and calls to action."
-            },
-            {
-                "title": "Improve conversion-focused wording",
-                "text": "Simo can help make website messaging stronger, simpler, and easier to understand."
-            },
-            {
-                "title": "Useful for many website types",
-                "text": "Use Simo for startup sites, portfolios, product sites, service pages, and niche landing pages."
-            }
-        ],
-        "how_it_works_lead": "Describe the page you need, generate the copy, and keep refining until it feels stronger.",
-        "steps": [
-            {
-                "title": "Describe the website or page",
-                "text": "Tell Simo what kind of site or page you are writing."
-            },
-            {
-                "title": "Generate website copy",
-                "text": "Ask for a homepage, features section, CTA block, or page messaging."
-            },
-            {
-                "title": "Refine for impact",
-                "text": "Adjust tone, clarity, and structure until the copy feels right."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write homepage copy?",
-                "a": "Yes. Simo is useful for homepage and landing page copywriting."
-            },
-            {
-                "q": "Can Simo improve website messaging I already have?",
-                "a": "Yes. You can paste existing text and ask Simo to rewrite it."
-            },
-            {
-                "q": "Can Simo help with CTA wording too?",
-                "a": "Yes. Simo can help improve calls to action and visitor-facing messaging."
-            }
-        ],
-        "cta_title": "Write stronger website copy with Simo",
-        "cta_text": "Use Simo to generate and improve website messaging faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Website copy, AI chat, and launch support in one place."
-    },
-
-    "ai-social-media-caption-generator": {
-        "meta_title": "AI Social Media Caption Generator | Simo",
-        "meta_description": "Generate captions for social media posts, launches, promotions, and personal brand content with Simo.",
-        "eyebrow": "AI Caption Writing",
-        "hero_title": "AI Social Media Caption Generator",
-        "hero_description": "Simo helps you write captions for social posts by improving tone, hooks, clarity, and overall messaging.",
-        "example_prompt": "Write a caption announcing the launch of Simo on social media.",
-        "example_output": "Simo can help create captions that feel more polished, engaging, and aligned with the message you want to share.",
-        "benefits_title": "Why use Simo for captions",
-        "benefits_lead": "A strong caption can make social posts more engaging and more effective. Simo helps you get there faster.",
-        "pills": [
-            "Launch captions",
-            "Promo posts",
-            "Brand content",
-            "Stronger hooks"
-        ],
-        "features": [
-            {
-                "title": "Write better social captions",
-                "text": "Use Simo to create captions for launches, promotions, updates, and everyday posting."
-            },
-            {
-                "title": "Adjust tone for different platforms",
-                "text": "Simo can make captions more professional, more casual, more founder-focused, or more promotional."
-            },
-            {
-                "title": "Improve hooks and clarity",
-                "text": "Use Simo to make captions more attention-grabbing without making them feel forced."
-            }
-        ],
-        "how_it_works_lead": "Describe the post, choose the tone, and refine the caption until it feels right.",
-        "steps": [
-            {
-                "title": "Describe the post",
-                "text": "Tell Simo what the post is about and what kind of reaction you want."
-            },
-            {
-                "title": "Generate caption options",
-                "text": "Ask for one caption or multiple versions in different styles."
-            },
-            {
-                "title": "Refine the best version",
-                "text": "Keep adjusting clarity, tone, and length until the caption works."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write launch captions?",
-                "a": "Yes. Simo is useful for launch announcements, product updates, and promotional posts."
-            },
-            {
-                "q": "Can Simo make captions shorter?",
-                "a": "Yes. Simo can shorten, simplify, or tighten captions for different platforms."
-            },
-            {
-                "q": "Can Simo generate multiple caption styles?",
-                "a": "Yes. You can ask for founder-style, casual, direct, or hype-style captions."
-            }
-        ],
-        "cta_title": "Write better captions with Simo",
-        "cta_text": "Use Simo to generate social media captions that feel clearer and more engaging.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Caption writing, AI chat, and launch messaging help in one place."
-    },
-
-    "ai-ad-copy-generator": {
-        "meta_title": "AI Ad Copy Generator | Simo",
-        "meta_description": "Generate ad copy and promotional messaging with Simo for launches, products, and campaigns.",
-        "eyebrow": "AI Ad Writing",
-        "hero_title": "AI Ad Copy Generator",
-        "hero_description": "Simo helps you create stronger ad copy by improving hooks, clarity, and messaging for products, offers, and promotions.",
-        "example_prompt": "Write ad copy for Simo, an AI assistant that chats, analyzes images, and builds websites.",
-        "example_output": "Simo can help brainstorm ad angles and turn them into clearer, more useful promotional copy.",
-        "benefits_title": "Why use Simo for ad copy",
-        "benefits_lead": "Good ad copy needs clarity, hooks, and audience fit. Simo helps shape all three faster.",
-        "pills": [
-            "Ad angles",
-            "Promo copy",
-            "Product ads",
-            "Stronger hooks"
-        ],
-        "features": [
-            {
-                "title": "Generate ad ideas quickly",
-                "text": "Use Simo to brainstorm multiple ad directions instead of relying on one single idea."
-            },
-            {
-                "title": "Improve clarity and audience fit",
-                "text": "Simo can help make ad messaging simpler, stronger, and better aligned with what the audience cares about."
-            },
-            {
-                "title": "Use it across campaigns",
-                "text": "Simo is useful for launches, products, paid ads, promotional tests, and growth experiments."
-            }
-        ],
-        "how_it_works_lead": "Describe the offer, say what audience you want to reach, and refine the strongest copy ideas.",
-        "steps": [
-            {
-                "title": "Describe the product or campaign",
-                "text": "Tell Simo what you are advertising and who the audience is."
-            },
-            {
-                "title": "Generate ad copy",
-                "text": "Ask for short or longer ad-style copy in the tone you want."
-            },
-            {
-                "title": "Refine the strongest version",
-                "text": "Improve the hook, angle, and clarity until it feels more effective."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help write product ads?",
-                "a": "Yes. Simo is useful for product and promotional ad copy."
-            },
-            {
-                "q": "Can Simo create different ad angles?",
-                "a": "Yes. You can ask for multiple hooks and promotional directions."
-            },
-            {
-                "q": "Can Simo make ad copy shorter?",
-                "a": "Yes. Simo can tighten and simplify ad text."
-            }
-        ],
-        "cta_title": "Generate stronger ad copy with Simo",
-        "cta_text": "Use Simo to create clearer and more effective promotional messaging faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Ad copy, AI chat, and promotional writing support in one place."
-    },
-
-    "ai-about-us-generator": {
-        "meta_title": "AI About Us Generator | Simo",
-        "meta_description": "Write About Us page content for websites, businesses, and brands with Simo.",
-        "eyebrow": "AI About Page Help",
-        "hero_title": "AI About Us Generator",
-        "hero_description": "Simo helps you write stronger About Us page content by improving story, clarity, positioning, and brand voice.",
-        "example_prompt": "Write About Us page content for Simo, an AI platform designed to chat, analyze images, and build websites.",
-        "example_output": "Simo can help shape About page content that sounds more human, polished, and aligned with your brand direction.",
-        "benefits_title": "Why use Simo for About pages",
-        "benefits_lead": "An About page helps people understand who you are and why you built what you built. Simo helps you tell that story better.",
-        "pills": [
-            "About page writing",
-            "Brand story",
-            "Founder story",
-            "Website messaging"
-        ],
-        "features": [
-            {
-                "title": "Write a clearer brand story",
-                "text": "Use Simo to explain your mission, your direction, and the reason behind your business or project."
-            },
-            {
-                "title": "Improve tone and flow",
-                "text": "Simo can make About page writing feel warmer, clearer, more premium, or more personal."
-            },
-            {
-                "title": "Useful for many websites",
-                "text": "Use Simo for startup sites, business sites, creator pages, and brand pages."
-            }
-        ],
-        "how_it_works_lead": "Describe your brand or project, share the story, and refine the writing until it feels right.",
-        "steps": [
-            {
-                "title": "Share the background",
-                "text": "Tell Simo what the brand or website is about and why it exists."
-            },
-            {
-                "title": "Generate About page content",
-                "text": "Ask for a polished About Us section in the tone you want."
-            },
-            {
-                "title": "Refine the final story",
-                "text": "Adjust the writing until it sounds clearer and more aligned with your brand."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write About Us page copy?",
-                "a": "Yes. Simo is useful for About pages, founder stories, and brand story writing."
-            },
-            {
-                "q": "Can Simo make my About page sound more professional?",
-                "a": "Yes. Simo can improve tone, clarity, and polish."
-            },
-            {
-                "q": "Can Simo make About page text more personal?",
-                "a": "Yes. You can ask Simo for a warmer or more story-driven style."
-            }
-        ],
-        "cta_title": "Write a better About page with Simo",
-        "cta_text": "Use Simo to create clearer and more compelling About Us content.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "About page writing, AI chat, and brand storytelling help in one place."
-    },
-
-    "ai-mission-statement-generator": {
-        "meta_title": "AI Mission Statement Generator | Simo",
-        "meta_description": "Generate mission statements for brands, businesses, startups, and websites with Simo.",
-        "eyebrow": "AI Mission Writing",
-        "hero_title": "AI Mission Statement Generator",
-        "hero_description": "Simo helps you create mission statements that are clearer, more purposeful, and better aligned with your brand or business direction.",
-        "example_prompt": "Write a mission statement for Simo, an AI that helps people chat, analyze images, and build websites.",
-        "example_output": "Simo can help turn broad ideas into mission statements that sound more focused, meaningful, and intentional.",
-        "benefits_title": "Why use Simo for mission statements",
-        "benefits_lead": "A good mission statement should be clear, grounded, and easy to understand. Simo helps make that easier.",
-        "pills": [
-            "Mission statements",
-            "Brand clarity",
-            "Business positioning",
-            "Stronger purpose language"
-        ],
-        "features": [
-            {
-                "title": "Clarify your purpose",
-                "text": "Use Simo to define what your brand or business is trying to do and why it matters."
-            },
-            {
-                "title": "Improve wording and focus",
-                "text": "Simo can help make mission statements simpler, stronger, and easier to communicate."
-            },
-            {
-                "title": "Useful for many brands and projects",
-                "text": "Use Simo for startups, small businesses, creator brands, personal projects, and websites."
-            }
-        ],
-        "how_it_works_lead": "Describe your brand, explain the purpose, and refine the mission statement until it feels right.",
-        "steps": [
-            {
-                "title": "Describe the mission",
-                "text": "Tell Simo what your business or project is trying to accomplish."
-            },
-            {
-                "title": "Generate mission statement options",
-                "text": "Ask for short, medium, or more polished versions."
-            },
-            {
-                "title": "Refine the final wording",
-                "text": "Adjust the statement until it feels clear, authentic, and useful."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo write mission statements for startups?",
-                "a": "Yes. Simo is useful for startup, business, and brand mission statement writing."
-            },
-            {
-                "q": "Can Simo make a mission statement shorter?",
-                "a": "Yes. Simo can simplify and tighten the wording."
-            },
-            {
-                "q": "Can Simo make it sound more premium or inspiring?",
-                "a": "Yes. You can ask for different tones and levels of polish."
-            }
-        ],
-        "cta_title": "Create a clearer mission statement with Simo",
-        "cta_text": "Use Simo to write mission statements that feel stronger and more intentional.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Mission statements, AI chat, and brand writing help in one place."
-    },
-
-    "ai-headline-generator": {
-        "meta_title": "AI Headline Generator | Simo",
-        "meta_description": "Generate headlines for websites, landing pages, launches, and marketing content with Simo.",
-        "eyebrow": "AI Headline Writing",
-        "hero_title": "AI Headline Generator",
-        "hero_description": "Simo helps you write stronger headlines for websites, product pages, launches, and marketing content by improving clarity and impact.",
-        "example_prompt": "Give me homepage headline ideas for Simo, an AI that chats, analyzes images, and builds websites.",
-        "example_output": "Simo can help brainstorm clearer and more compelling headlines that make the offer easier to understand.",
-        "benefits_title": "Why use Simo for headlines",
-        "benefits_lead": "A strong headline can change how quickly people understand your offer. Simo helps you improve that fast.",
-        "pills": [
-            "Homepage headlines",
-            "Launch headings",
-            "Marketing hooks",
-            "Stronger clarity"
-        ],
-        "features": [
-            {
-                "title": "Generate many headline options",
-                "text": "Use Simo to brainstorm multiple headline directions instead of settling too early."
-            },
-            {
-                "title": "Improve clarity and impact",
-                "text": "Simo can make headlines simpler, sharper, and more aligned with your audience."
-            },
-            {
-                "title": "Useful for many pages",
-                "text": "Use Simo for homepages, landing pages, ads, launches, and marketing content."
-            }
-        ],
-        "how_it_works_lead": "Describe the offer, ask for headline directions, and refine the strongest one.",
-        "steps": [
-            {
-                "title": "Describe the page or offer",
-                "text": "Tell Simo what the headline is for and what message it should communicate."
-            },
-            {
-                "title": "Generate headline ideas",
-                "text": "Ask for multiple options in the style you want."
-            },
-            {
-                "title": "Refine the best headline",
-                "text": "Keep shaping the best one until it feels clearer and stronger."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo generate homepage headlines?",
-                "a": "Yes. Simo is useful for homepage and landing page headline writing."
-            },
-            {
-                "q": "Can Simo make headlines shorter and stronger?",
-                "a": "Yes. Simo can simplify and tighten headline wording."
-            },
-            {
-                "q": "Can I ask for different styles of headlines?",
-                "a": "Yes. You can ask for premium, bold, direct, simple, or more emotional headlines."
-            }
-        ],
-        "cta_title": "Generate stronger headlines with Simo",
-        "cta_text": "Use Simo to brainstorm and improve headlines faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Headline writing, AI chat, and website messaging help in one place."
-    },
-
-    "ai-value-proposition-generator": {
-        "meta_title": "AI Value Proposition Generator | Simo",
-        "meta_description": "Create stronger value propositions for products, startups, and websites with Simo.",
-        "eyebrow": "AI Value Proposition Help",
-        "hero_title": "AI Value Proposition Generator",
-        "hero_description": "Simo helps you clarify what your product does, who it helps, and why it matters so your value proposition becomes stronger.",
-        "example_prompt": "Help me define the value proposition for Simo, an all-in-one AI platform.",
-        "example_output": "Simo can help turn broad product ideas into clearer value propositions that feel easier to explain and market.",
-        "benefits_title": "Why use Simo for value propositions",
-        "benefits_lead": "A strong value proposition helps people understand your offer quickly. Simo helps you shape that faster.",
-        "pills": [
-            "Product clarity",
-            "Positioning help",
-            "Startup messaging",
-            "Stronger offers"
-        ],
-        "features": [
-            {
-                "title": "Clarify what your product does",
-                "text": "Use Simo to define the main value of your offer in simpler and more understandable language."
-            },
-            {
-                "title": "Improve market positioning",
-                "text": "Simo can help explain why your product is useful and who it is really for."
-            },
-            {
-                "title": "Useful across launches and pages",
-                "text": "Use Simo for homepage messaging, product descriptions, investor pitches, and startup positioning."
-            }
-        ],
-        "how_it_works_lead": "Describe the product, define the audience, and refine the value proposition until it feels clear and strong.",
-        "steps": [
-            {
-                "title": "Explain the product",
-                "text": "Tell Simo what the offer does and what problem it solves."
-            },
-            {
-                "title": "Generate value proposition directions",
-                "text": "Ask for concise positioning statements or clearer product framing."
-            },
-            {
-                "title": "Refine the strongest version",
-                "text": "Keep improving the wording until it feels sharper and more useful."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help define a startup value proposition?",
-                "a": "Yes. Simo is useful for startup and product positioning work."
-            },
-            {
-                "q": "Can Simo make my value proposition clearer?",
-                "a": "Yes. Simo can simplify and sharpen the explanation."
-            },
-            {
-                "q": "Can Simo help with homepage positioning too?",
-                "a": "Yes. Value proposition work is especially useful for homepage and landing page messaging."
-            }
-        ],
-        "cta_title": "Clarify your value proposition with Simo",
-        "cta_text": "Use Simo to create product messaging that feels clearer and stronger.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Value proposition help, AI chat, and startup messaging support in one place."
-    },
-
-    "ai-brand-voice-generator": {
-        "meta_title": "AI Brand Voice Generator | Simo",
-        "meta_description": "Define and refine brand voice for websites, startups, and businesses with Simo.",
-        "eyebrow": "AI Brand Voice Help",
-        "hero_title": "AI Brand Voice Generator",
-        "hero_description": "Simo helps you shape a clearer brand voice by refining tone, style, personality, and messaging direction.",
-        "example_prompt": "Help me define the brand voice for Simo as a best-friend AI that is warm, practical, and non-judgmental.",
-        "example_output": "Simo can help turn broad brand ideas into clearer voice directions that can be applied across your website and messaging.",
-        "benefits_title": "Why use Simo for brand voice",
-        "benefits_lead": "A consistent brand voice helps everything feel more coherent. Simo helps define that faster.",
-        "pills": [
-            "Tone direction",
-            "Brand style",
-            "Messaging consistency",
-            "Voice clarity"
-        ],
-        "features": [
-            {
-                "title": "Define the voice clearly",
-                "text": "Use Simo to describe how your brand should sound and what emotional tone it should carry."
-            },
-            {
-                "title": "Make messaging more consistent",
-                "text": "Simo can help align your homepage, copy, and content with the same brand voice."
-            },
-            {
-                "title": "Useful for many brands and products",
-                "text": "Use Simo for startups, products, creator brands, and business websites."
-            }
-        ],
-        "how_it_works_lead": "Describe how you want the brand to feel, then refine the voice until it becomes more usable and clear.",
-        "steps": [
-            {
-                "title": "Describe the intended feel",
-                "text": "Tell Simo how you want your brand to sound and what audience it should connect with."
-            },
-            {
-                "title": "Generate voice directions",
-                "text": "Ask for a brand voice description, tone guide, or messaging direction."
-            },
-            {
-                "title": "Refine for consistency",
-                "text": "Adjust the wording until the voice feels distinct and usable."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help define a startup brand voice?",
-                "a": "Yes. Simo is useful for startup and product voice direction."
-            },
-            {
-                "q": "Can Simo make a brand voice more premium or warm?",
-                "a": "Yes. You can ask for different tones and brand personalities."
-            },
-            {
-                "q": "Can Simo help apply brand voice to website copy too?",
-                "a": "Yes. Brand voice work can support homepage and broader messaging improvements."
-            }
-        ],
-        "cta_title": "Define your brand voice with Simo",
-        "cta_text": "Use Simo to shape brand messaging that feels more coherent and intentional.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Brand voice help, AI chat, and messaging support in one place."
-    },
-
-          "ai-business-name-generator": {
-        "meta_title": "AI Business Name Generator | Simo",
-        "meta_description": "Generate business name ideas for startups, brands, apps, and projects with Simo.",
-        "eyebrow": "AI Business Naming",
-        "hero_title": "AI Business Name Generator",
-        "hero_description": "Simo helps you brainstorm business names by generating ideas, exploring styles, and refining the strongest directions.",
-        "example_prompt": "Give me business name ideas for an AI company that chats naturally, analyzes images, and builds websites.",
-        "example_output": "Simo can help generate naming directions across different tones, then refine the strongest options into something more distinctive.",
-        "benefits_title": "Why use Simo for business naming",
-        "benefits_lead": "A strong business name should fit the brand, feel memorable, and support the direction of the company. Simo helps with that.",
-        "pills": [
-            "Business names",
-            "Startup naming",
-            "Brand ideas",
-            "Naming directions"
-        ],
-        "features": [
-            {
-                "title": "Generate many business name options",
-                "text": "Use Simo to brainstorm naming ideas for startups, websites, products, and brands."
-            },
-            {
-                "title": "Explore different naming tones",
-                "text": "Ask for premium, modern, simple, creative, or category-based name directions."
-            },
-            {
-                "title": "Refine the strongest options",
-                "text": "Simo can help narrow ideas down into clearer and more memorable final choices."
-            }
-        ],
-        "how_it_works_lead": "Describe the business, choose a tone, and keep refining until the strongest names stand out.",
-        "steps": [
-            {
-                "title": "Describe the business",
-                "text": "Tell Simo what the company or product does."
-            },
-            {
-                "title": "Generate name ideas",
-                "text": "Ask for multiple directions and different naming styles."
-            },
-            {
-                "title": "Refine the best options",
-                "text": "Compare the strongest names and keep improving them."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo generate startup and business names?",
-                "a": "Yes. Simo is useful for startup, app, product, and business naming."
-            },
-            {
-                "q": "Can Simo create more premium-sounding business names?",
-                "a": "Yes. You can ask for different brand tones and naming styles."
-            },
-            {
-                "q": "Can Simo help compare the strongest names?",
-                "a": "Yes. Simo can help narrow options down and improve them."
-            }
-        ],
-        "cta_title": "Generate better business names with Simo",
-        "cta_text": "Use Simo to brainstorm and refine naming ideas faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "Business naming, AI chat, and brand direction help in one place."
-    },
-
-    "ai-copywriter": {
-        "meta_title": "AI Copywriter | Simo",
-        "meta_description": "Use Simo as an AI copywriter for website copy, marketing messaging, product descriptions, and launch content.",
-        "eyebrow": "AI Copywriting",
-        "hero_title": "AI Copywriter",
-        "hero_description": "Simo helps you write stronger copy for websites, launches, products, and promotional messaging without starting from scratch.",
-        "example_prompt": "Write homepage copy for Simo, an AI that chats, analyzes images, and helps build websites.",
-        "example_output": "Simo can help create copy that is clearer, stronger, and more aligned with what users actually care about so the message lands better.",
-        "benefits_title": "Why use Simo as an AI copywriter",
-        "benefits_lead": "Copywriting often comes down to positioning, tone, structure, and clarity. Simo helps you shape all of that faster.",
-        "pills": [
-            "Homepage copy",
-            "Launch messaging",
-            "Product copy",
-            "Website writing"
-        ],
-        "features": [
-            {
-                "title": "Write better copy for websites",
-                "text": "Use Simo to improve homepage messaging, feature explanations, product summaries, and CTA language."
-            },
-            {
-                "title": "Find stronger positioning",
-                "text": "Simo can help explain what your offer does and why it matters in a way that feels cleaner and more useful."
-            },
-            {
-                "title": "Refine copy by tone and audience",
-                "text": "Ask Simo for more premium, simple, persuasive, founder-friendly, or creator-focused copy depending on your goal."
-            }
-        ],
-        "how_it_works_lead": "Share what you are writing, ask for copy in the tone you want, and keep refining until it feels right.",
-        "steps": [
-            {
-                "title": "Describe the offer or page",
-                "text": "Tell Simo what product, website, or message you need help writing."
-            },
-            {
-                "title": "Generate the copy",
-                "text": "Ask for homepage copy, feature copy, launch text, or promotional writing."
-            },
-            {
-                "title": "Refine for clarity and impact",
-                "text": "Keep improving the copy until it matches your audience and feels more effective."
-            }
-        ],
-        "faqs": [
-            {
-                "q": "Can Simo help with homepage copy?",
-                "a": "Yes. Simo can help write and improve homepage and landing page copy."
-            },
-            {
-                "q": "Can Simo help with product launches too?",
-                "a": "Yes. Simo is useful for launch messaging, promotional text, and product positioning."
-            },
-            {
-                "q": "What kinds of copy can Simo help with?",
-                "a": "Simo can help with website copy, launch copy, product descriptions, messaging ideas, and other marketing writing."
-            }
-        ],
-        "cta_title": "Write better copy with Simo",
-        "cta_text": "Use Simo to create clearer, stronger, and more effective copy faster.",
-        "cta_button": "Try Simo Free",
-        "footer_text": "AI copywriting, chat, and creative support in one place."
-    }
+DEFAULT_VERIFIED_3D_MODELS = {
+    "astronaut": "https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/Astronaut.glb",
+    "robot": "https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/RobotExpressive.glb",
+    "horse": "https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/Horse.glb",
+    "helmet": "https://raw.githubusercontent.com/google/model-viewer/master/packages/shared-assets/models/DamagedHelmet.glb",
 }
 
-@app.route("/<slug>")
-def seo_landing_page(slug):
-    page = SEO_PAGES.get(slug)
-    if not page:
-        abort(404)
+VERIFIED_3D_MODELS = {
+    **DEFAULT_VERIFIED_3D_MODELS,
+    **load_verified_3d_models(),
+}
 
-    base_url = os.getenv("BASE_URL", "https://simonchat.ai").rstrip("/")
-    canonical_url = f"{base_url}/{slug}"
 
-    schema = {
-        "@context": "https://schema.org",
-        "@type": "WebPage",
-        "name": page["hero_title"],
-        "description": page["meta_description"],
-        "url": canonical_url,
-        "isPartOf": {
-            "@type": "WebSite",
-            "name": "Simo",
-            "url": base_url
-        },
-        "about": {
-            "@type": "SoftwareApplication",
-            "name": "Simo",
-            "applicationCategory": "BusinessApplication",
-            "operatingSystem": "Web",
-            "offers": {
-                "@type": "Offer",
-                "price": "0",
-                "priceCurrency": "USD"
-            }
+# =========================================================
+# Candidate source lane
+# =========================================================
+DEFAULT_CANDIDATE_ASSETS = {
+    "dog": [
+        {
+            "title": "Dog Fallback",
+            "url": VERIFIED_3D_MODELS.get("horse", ""),
+            "source": "fallback",
+            "verified": False,
+            "tier": "fallback",
+            "style": "fallback",
         }
+    ],
+    "tiger": [
+        {
+            "title": "Tiger Fallback",
+            "url": VERIFIED_3D_MODELS.get("horse", ""),
+            "source": "fallback",
+            "verified": False,
+            "tier": "fallback",
+            "style": "fallback",
+        }
+    ],
+    "house": [
+        {
+            "title": "House Fallback",
+            "url": VERIFIED_3D_MODELS.get("helmet", ""),
+            "source": "fallback",
+            "verified": False,
+            "tier": "fallback",
+            "style": "fallback",
+        }
+    ],
+    "car": [],
+    "spaceship": [],
+}
+
+CANDIDATE_ASSETS = DEFAULT_CANDIDATE_ASSETS.copy()
+env_candidate_assets = safe_json_loads(os.getenv("CANDIDATE_3D_ASSETS", "").strip(), {})
+if isinstance(env_candidate_assets, dict):
+    for key, value in env_candidate_assets.items():
+        if isinstance(value, list):
+            CANDIDATE_ASSETS[str(key).strip().lower()] = value
+
+
+# =========================================================
+# Routing maps
+# =========================================================
+EXACT_MATCHES = {
+    "astronaut": "astronaut",
+    "space suit": "astronaut",
+    "spacesuit": "astronaut",
+    "spaceman": "astronaut",
+    "space man": "astronaut",
+    "cosmonaut": "astronaut",
+    "robot": "robot",
+    "android": "robot",
+    "bot": "robot",
+    "mech": "robot",
+    "humanoid robot": "robot",
+    "horse": "horse",
+    "pony": "horse",
+    "stallion": "horse",
+    "mare": "horse",
+    "dog": "dog",
+    "puppy": "dog",
+    "canine": "dog",
+    "tiger": "tiger",
+    "big cat": "tiger",
+    "helmet": "helmet",
+    "house": "house",
+    "home": "house",
+    "building": "house",
+    "cabin": "house",
+    "mansion": "house",
+    "villa": "house",
+    "spaceship": "spaceship",
+    "space ship": "spaceship",
+    "spacecraft": "spaceship",
+    "rocket": "spaceship",
+    "car": "car",
+    "vehicle": "car",
+    "truck": "truck",
+    "plane": "plane",
+    "airplane": "plane",
+    "jet": "plane",
+}
+
+OBJECT_FALLBACKS = {
+    "dog": "horse",
+    "tiger": "horse",
+    "house": "helmet",
+    "astronaut": "astronaut",
+    "robot": "robot",
+}
+
+CATEGORY_FALLBACKS = {
+    "human": "astronaut",
+    "character": "robot",
+    "animal": "horse",
+}
+
+CATEGORY_KEYWORDS = {
+    "human": [
+        "human", "person", "man", "woman", "boy", "girl", "people", "worker", "human model"
+    ],
+    "character": [
+        "character", "robotic", "android", "humanoid", "cyborg", "game character"
+    ],
+    "animal": [
+        "animal", "dog", "cat", "wolf", "tiger", "lion", "bear", "deer", "creature"
+    ],
+    "building": [
+        "house", "home", "building", "cabin", "mansion", "apartment", "villa", "garage"
+    ],
+    "vehicle": [
+        "car", "vehicle", "truck", "van", "plane", "airplane", "jet", "fighter", "spaceship", "rocket"
+    ],
+    "furniture": [
+        "chair", "table", "desk", "couch", "sofa", "bed", "lamp", "shelf"
+    ],
+}
+
+CONCEPT_KEYWORDS = [
+    "design me",
+    "create me",
+    "make me",
+    "build me",
+    "custom",
+    "concept",
+    "editable",
+    "edit the 3d",
+    "edit this 3d",
+    "3 bedroom",
+    "4 bedroom",
+    "garage",
+    "floor plan",
+    "floorplan",
+    "modern home",
+    "sports car",
+    "music video",
+    "record my music",
+    "record audio",
+    "music creator",
+    "make a song",
+    "create a beat",
+    "music production",
+]
+
+
+# =========================================================
+# Model choice helpers
+# =========================================================
+SOURCE_PRIORITY = {
+    "verified": 0,
+    "candidate": 1,
+    "fallback": 2,
+    "concept": 3,
+}
+
+
+def make_model_choice(
+    label: str,
+    url: str,
+    source: str = "candidate",
+    verified: bool = False,
+    tier: str = None,
+    style: str = "default",
+):
+    clean_url = normalize_model_url(url)
+    clean_source = str(source or "candidate").strip().lower()
+    clean_tier = str(tier or clean_source or "candidate").strip().lower()
+    clean_style = str(style or "default").strip().lower()
+
+    return {
+        "label": prettify_model_name(label),
+        "url": clean_url,
+        "source": clean_source,
+        "verified": bool(verified) and clean_source == "verified" and is_any_model_url(clean_url),
+        "tier": clean_tier,
+        "style": clean_style,
     }
 
-    return render_template(
-        "seo_landing.html",
-        canonical_url=canonical_url,
-        schema_json=json.dumps(schema),
-        **page
+
+def dedupe_model_choices(choices):
+    seen = set()
+    out = []
+
+    if not isinstance(choices, list):
+        return out
+
+    for item in choices:
+        if not isinstance(item, dict):
+            continue
+
+        url = normalize_model_url(item.get("url", ""))
+        if not url or not is_any_model_url(url):
+            continue
+        if url in seen:
+            continue
+
+        source = str(item.get("source") or "candidate").strip().lower()
+        verified = bool(item.get("verified", False)) and source == "verified"
+
+        seen.add(url)
+        out.append(
+            {
+                "label": prettify_model_name(item.get("label") or item.get("title") or "3D model"),
+                "url": url,
+                "source": source,
+                "verified": verified,
+                "tier": str(item.get("tier") or source or "candidate").strip().lower(),
+                "style": str(item.get("style") or "default").strip().lower(),
+            }
+        )
+
+    return out
+
+
+def sort_model_choices(choices):
+    return sorted(
+        choices,
+        key=lambda item: (
+            SOURCE_PRIORITY.get(str(item.get("source") or "candidate"), 9),
+            0 if bool(item.get("verified", False)) else 1,
+            str(item.get("label") or ""),
+        ),
     )
 
+
+def postprocess_choice_labels(object_name: str, choices):
+    out = []
+    for item in choices or []:
+        source = str(item.get("source") or "candidate").strip().lower()
+        out.append(
+            {
+                **item,
+                "label": clean_choice_label(item.get("label") or "", object_name),
+                "source": source,
+                "verified": bool(item.get("verified", False)) and source == "verified",
+                "tier": str(item.get("tier") or source or "candidate").strip().lower(),
+                "style": str(item.get("style") or "default").strip().lower(),
+            }
+        )
+    return sort_model_choices(dedupe_model_choices(out))
+
+
+def get_phase39_multi_choices_for_object(object_name: str):
+    key = str(object_name or "").strip().lower()
+    if not key:
+        return []
+    return postprocess_choice_labels(key, parse_phase39_multi_env_choices(key))
+
+
+def get_verified_choices_for_object(object_name: str):
+    key = str(object_name or "").strip().lower()
+    if not key:
+        return []
+
+    url = normalize_model_url(VERIFIED_3D_MODELS.get(key, ""))
+    if not url or not is_any_model_url(url):
+        return []
+
+    return [
+        make_model_choice(
+            label=prettify_model_name(key),
+            url=url,
+            source="verified",
+            verified=True,
+            tier="verified",
+            style="default",
+        )
+    ]
+
+
+def normalize_candidate_item(object_name: str, item):
+    if not isinstance(item, dict):
+        return None
+
+    url = normalize_model_url(item.get("url", ""))
+    title = str(item.get("title") or item.get("label") or prettify_model_name(object_name))
+    source = str(item.get("source") or "candidate").strip().lower()
+    tier = str(item.get("tier") or source or "candidate").strip().lower()
+    style = str(item.get("style") or "default").strip().lower()
+
+    if not url or not is_any_model_url(url):
+        return None
+
+    verified = bool(item.get("verified", False)) and source == "verified"
+
+    return {
+        "label": prettify_model_name(title),
+        "url": url,
+        "source": source,
+        "verified": verified,
+        "tier": tier,
+        "style": style,
+    }
+
+
+def get_candidate_assets_for_object(object_name: str):
+    key = str(object_name or "").strip().lower()
+    if not key:
+        return []
+
+    out = []
+
+    env_key = f"MODEL3D_CANDIDATE_{key.upper()}"
+    labeled_env_choices = parse_labeled_env_choices(os.getenv(env_key, ""), key)
+    out.extend(labeled_env_choices)
+
+    raw = CANDIDATE_ASSETS.get(key, [])
+    if isinstance(raw, list):
+        for item in raw:
+            normalized = normalize_candidate_item(key, item)
+            if normalized:
+                out.append(normalized)
+
+    return sort_model_choices(dedupe_model_choices(out))
+
+
+def relabel_choices_for_object(object_name: str, choices, source: str):
+    relabeled = []
+    pretty_obj = prettify_model_name(object_name)
+
+    for idx, item in enumerate(choices or [], start=1):
+        relabeled.append(
+            {
+                "label": f"{pretty_obj} Fallback" if idx == 1 else f"{pretty_obj} Fallback {idx}",
+                "url": item.get("url", ""),
+                "source": source,
+                "verified": False,
+                "tier": "fallback",
+                "style": "fallback",
+            }
+        )
+    return sort_model_choices(dedupe_model_choices(relabeled))
+
+
+def get_object_fallback_choices(object_name: str):
+    key = str(object_name or "").strip().lower()
+    fallback_key = OBJECT_FALLBACKS.get(key)
+    if not fallback_key:
+        return []
+
+    multi_choices = get_phase39_multi_choices_for_object(fallback_key)
+    preferred_multi = [c for c in multi_choices if c.get("source") == "verified"]
+    if preferred_multi:
+        return relabel_choices_for_object(key, preferred_multi, "fallback")
+
+    verified_choices = get_verified_choices_for_object(fallback_key)
+    if verified_choices:
+        return relabel_choices_for_object(key, verified_choices, "fallback")
+
+    candidate_choices = get_candidate_assets_for_object(fallback_key)
+    if candidate_choices:
+        return relabel_choices_for_object(key, candidate_choices, "fallback")
+
+    return []
+
+
+def get_category_fallback_choices(object_name: str, category: str):
+    fallback_key = CATEGORY_FALLBACKS.get(category or "")
+    if not fallback_key:
+        return []
+
+    multi_choices = get_phase39_multi_choices_for_object(fallback_key)
+    preferred_multi = [c for c in multi_choices if c.get("source") == "verified"]
+    if preferred_multi:
+        return relabel_choices_for_object(object_name, preferred_multi, "fallback")
+
+    verified_choices = get_verified_choices_for_object(fallback_key)
+    if verified_choices:
+        return relabel_choices_for_object(object_name, verified_choices, "fallback")
+
+    candidate_choices = get_candidate_assets_for_object(fallback_key)
+    if candidate_choices:
+        return relabel_choices_for_object(object_name, candidate_choices, "fallback")
+
+    return []
+
+
+def build_best_choices_for_object(object_name: str, category: str = None):
+    key = str(object_name or "").strip().lower()
+    out = []
+
+    out.extend(get_phase39_multi_choices_for_object(key))
+    out.extend(get_verified_choices_for_object(key))
+    out.extend(get_candidate_assets_for_object(key))
+    out.extend(get_object_fallback_choices(key))
+    out.extend(get_category_fallback_choices(key, category))
+
+    return postprocess_choice_labels(key, out)
+
+
+def build_model3d_payload(
+    route_type: str,
+    matched_name: str,
+    object_name: str,
+    category: str,
+    match_type: str,
+    choices,
+    concept_mode: bool,
+):
+    cleaned_choices = postprocess_choice_labels(object_name, choices)
+    selected_index = 0
+    primary = cleaned_choices[0] if cleaned_choices else {}
+    primary_url = primary.get("url", "")
+
+    display_name = matched_name or object_name or ""
+    if route_type != "verified" and display_name:
+        display_name = object_name or matched_name
+
+    return {
+        "route_type": route_type,
+        "matched": bool(matched_name),
+        "match_type": match_type,
+        "name": prettify_model_name(display_name) if display_name else None,
+        "label": primary.get("label") or (prettify_model_name(display_name) if display_name else None),
+        "object_name": object_name,
+        "category": category,
+        "url": primary_url,
+        "available": bool(primary_url),
+        "verified_only": route_type == "verified",
+        "choices": cleaned_choices,
+        "model3d_options": cleaned_choices,
+        "selected_index": selected_index,
+        "concept_mode": concept_mode,
+        "tier": primary.get("tier") or route_type,
+        "style": primary.get("style") or "default",
+    }
+
+
+# =========================================================
+# Router helpers
+# =========================================================
+def detect_3d_intent(user_text: str) -> bool:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+
+    keywords = [
+        "3d",
+        "three d",
+        "model",
+        "glb",
+        "gltf",
+        "render",
+        "viewer",
+        "show me",
+        "open",
+        "preview",
+        "object",
+        "mesh",
+    ]
+    return any(word in text for word in keywords)
+
+
+def detect_music_creator_intent(user_text: str) -> bool:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+
+    keywords = [
+        "music video",
+        "record my music",
+        "record audio",
+        "record vocals",
+        "music creator",
+        "make a song",
+        "create a beat",
+        "music production",
+        "audio creator",
+        "studio",
+    ]
+    return any(k in text for k in keywords)
+
+
+def detect_concept_request(user_text: str) -> bool:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+    return any(k in text for k in CONCEPT_KEYWORDS)
+
+
+def detect_category(text: str):
+    text = (text or "").strip().lower()
+    if not text:
+        return None
+
+    for category, keywords in CATEGORY_KEYWORDS.items():
+        for keyword in keywords:
+            if keyword in text:
+                return category
+
+    return None
+
+
+def extract_object_name(user_text: str) -> str:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return ""
+
+    exact_items = sorted(EXACT_MATCHES.items(), key=lambda kv: len(kv[0]), reverse=True)
+    for phrase, canonical in exact_items:
+        if phrase in text:
+            return canonical
+
+    category = detect_category(text)
+    if category == "human":
+        return "person"
+    if category == "character":
+        return "character"
+    if category == "animal":
+        for token in ["dog", "cat", "wolf", "tiger", "lion", "bear", "deer"]:
+            if token in text:
+                return token
+        return "animal"
+    if category == "building":
+        for token in ["house", "home", "cabin", "mansion", "villa", "garage"]:
+            if token in text:
+                return token
+        return "building"
+    if category == "vehicle":
+        for token in ["car", "truck", "plane", "jet", "spaceship", "rocket"]:
+            if token in text:
+                return token
+        return "vehicle"
+
+    return ""
+
+
+def find_exact_model_match(user_text: str):
+    text = (user_text or "").strip().lower()
+    if not text:
+        return None, None
+
+    exact_items = sorted(EXACT_MATCHES.items(), key=lambda kv: len(kv[0]), reverse=True)
+    for phrase, canonical in exact_items:
+        if phrase in text:
+            verified_url = normalize_model_url(VERIFIED_3D_MODELS.get(canonical))
+            if verified_url and is_any_model_url(verified_url):
+                return canonical, verified_url
+            return canonical, None
+
+    return None, None
+
+
+def classify_request(user_text: str):
+    text = (user_text or "").strip()
+    lowered = text.lower()
+
+    is_3d = detect_3d_intent(lowered)
+    is_music = detect_music_creator_intent(lowered)
+    is_concept = detect_concept_request(lowered)
+
+    if is_music:
+        return {
+            "route_type": "concept",
+            "object_name": "music_creator",
+            "category": "creator_audio",
+            "matched_name": None,
+            "verified_url": None,
+            "match_type": None,
+            "reply": (
+                "This sounds like a creator workflow. I can help plan a music or audio project inside Simo. "
+                "Tell me the style, mood, vocals or instrumental, and whether you want a music video concept too."
+            ),
+            "choices": [],
+            "concept_mode": True,
+        }
+
+    if is_3d or is_concept:
+        exact_name, exact_url = find_exact_model_match(lowered)
+        object_name = extract_object_name(lowered) or exact_name or "3d_object"
+        category = detect_category(lowered)
+
+        best_choices = build_best_choices_for_object(object_name, category)
+
+        if exact_name and exact_url and exact_name == object_name:
+            if is_concept and object_name not in {"astronaut", "robot", "horse", "helmet"}:
+                return {
+                    "route_type": "concept",
+                    "object_name": object_name,
+                    "category": category,
+                    "matched_name": exact_name,
+                    "verified_url": exact_url,
+                    "match_type": "exact",
+                    "reply": (
+                        f"I can show a related verified {prettify_model_name(exact_name).lower()} model and help design a custom {object_name} after that."
+                    ),
+                    "choices": best_choices,
+                    "concept_mode": True,
+                }
+
+            return {
+                "route_type": "verified",
+                "object_name": object_name,
+                "category": category,
+                "matched_name": exact_name,
+                "verified_url": exact_url,
+                "match_type": "exact",
+                "reply": f"Opening {prettify_model_name(exact_name)} 3D model...",
+                "choices": best_choices,
+                "concept_mode": False,
+            }
+
+        if best_choices:
+            primary = best_choices[0]
+            primary_source = str(primary.get("source") or "candidate").strip().lower()
+            primary_url = primary.get("url", "")
+
+            if is_concept:
+                return {
+                    "route_type": "concept",
+                    "object_name": object_name,
+                    "category": category,
+                    "matched_name": exact_name,
+                    "verified_url": primary_url,
+                    "match_type": "fallback" if not exact_name else "exact",
+                    "reply": f"I can show a related 3D option for {object_name} and help design a custom version after that.",
+                    "choices": best_choices,
+                    "concept_mode": True,
+                }
+
+            if primary_source == "verified":
+                return {
+                    "route_type": "verified",
+                    "object_name": object_name,
+                    "category": category,
+                    "matched_name": exact_name or object_name,
+                    "verified_url": primary_url,
+                    "match_type": "exact" if exact_name else "fallback",
+                    "reply": f"Opening {prettify_model_name(object_name)} 3D model...",
+                    "choices": best_choices,
+                    "concept_mode": False,
+                }
+
+            if primary_source in {"candidate", "fallback"}:
+                reply_name = prettify_model_name(object_name).lower()
+                if primary_source == "fallback":
+                    reply = f"I found a related fallback 3D option for {reply_name} inside Simo."
+                else:
+                    reply = f"I found 3D options for {reply_name} inside Simo."
+
+                return {
+                    "route_type": "candidate",
+                    "object_name": object_name,
+                    "category": category,
+                    "matched_name": exact_name,
+                    "verified_url": primary_url,
+                    "match_type": "fallback" if not exact_name else "exact",
+                    "reply": reply,
+                    "choices": best_choices,
+                    "concept_mode": False,
+                }
+
+        if is_concept:
+            return {
+                "route_type": "concept",
+                "object_name": object_name,
+                "category": category,
+                "matched_name": None,
+                "verified_url": None,
+                "match_type": None,
+                "reply": (
+                    f"I don’t have a verified {object_name} 3D model yet, but I can help design a custom {object_name}. "
+                    "Tell me the style, dimensions, and main features you want."
+                ),
+                "choices": [],
+                "concept_mode": True,
+            }
+
+        return {
+            "route_type": "unsupported",
+            "object_name": object_name,
+            "category": category,
+            "matched_name": None,
+            "verified_url": None,
+            "match_type": None,
+            "reply": f"I don’t have a verified 3D model for {object_name or 'that'} yet.",
+            "choices": [],
+            "concept_mode": False,
+        }
+
+    return {
+        "route_type": None,
+        "object_name": None,
+        "category": None,
+        "matched_name": None,
+        "verified_url": None,
+        "match_type": None,
+        "reply": "",
+        "choices": [],
+        "concept_mode": False,
+    }
+
+
+def is_builder_request(user_text: str) -> bool:
+    text = (user_text or "").strip().lower()
+    if not text:
+        return False
+
+    strong_phrases = [
+        "build a website",
+        "build me a website",
+        "build a landing page",
+        "create a website",
+        "make a website",
+        "make me a website",
+        "landing page",
+        "web page",
+        "homepage",
+        "home page",
+        "portfolio site",
+        "portfolio website",
+        "sales page",
+        "html page",
+        "generate html",
+        "build a page",
+        "create a landing page",
+        "make a landing page",
+        "design a website",
+        "design me a website",
+        "build me a site",
+        "make me a page",
+        "create a page",
+    ]
+    if any(p in text for p in strong_phrases):
+        return True
+
+    business_words = [
+        "website",
+        "site",
+        "landing",
+        "page",
+        "homepage",
+        "home page",
+        "portfolio",
+        "startup",
+        "bakery",
+        "restaurant",
+        "cafe",
+        "store",
+        "shop",
+        "brand",
+        "agency",
+        "saas",
+        "app",
+        "product page",
+        "business page",
+        "bike shop",
+    ]
+
+    action_words = [
+        "build",
+        "create",
+        "make",
+        "design",
+        "generate",
+    ]
+
+    has_business_word = any(word in text for word in business_words)
+    has_action_word = any(word in text for word in action_words)
+
+    if has_business_word and has_action_word:
+        return True
+
+    if "bakery website" in text or "bakery landing page" in text or "bakery page" in text:
+        return True
+
+    return False
+
+
+def builder_system_prompt(user_text: str) -> str:
+    return f"""You are Simo, an expert AI website builder.
+
+The user is asking you to build or update a webpage.
+
+CRITICAL RULES:
+- Return a complete, ready-to-preview HTML document only.
+- Start with <!DOCTYPE html>
+- Include <html>, <head>, <body>, CSS, and content.
+- Never return a partial patch.
+- Never return an explanation or outline.
+- Do not wrap the answer in markdown fences.
+- Do not say "here is the HTML".
+- Output only the raw HTML document.
+
+EDITING RULES:
+- If the user is editing an existing page, preserve good parts of the current layout unless the user asks for a redesign.
+- Apply the requested change to the existing page instead of starting over whenever possible.
+- You are allowed to improve styles and layout if that helps fulfill the request better.
+- If the user asks to enhance, upgrade, modernize, premium-ify, polish, refine, or make it darker/lighter/better, do a clearly stronger premium upgrade of the current page rather than a tiny cosmetic tweak.
+- Keep the page responsive and preview-safe.
+
+Design goals:
+- Premium modern UI
+- Visually polished
+- Responsive
+- Clear hierarchy
+- Nice hero section
+- Strong CTA buttons
+- Real sections and content
+- Inline CSS is allowed and preferred for compatibility
+
+User request:
+{user_text}
+"""
+
+
+# =========================================================
+# Routes
+# =========================================================
+
+def build_simo_boot():
+    usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
+
+    return {
+        "loggedIn": is_logged_in(),
+        "email": current_user_email(),
+        "name": current_user_name(),
+        "pro": is_pro_user(),
+        "team": False,
+        "freeDailyLimit": FREE_DAILY_LIMIT,
+        "usageToday": usage_today,
+        "stripePublishableKey": STRIPE_PUBLISHABLE_KEY,
+        "stripePriceId": STRIPE_PRICE_ID,
+        "baseUrl": BASE_URL,
+        "builderLibraryKey": "simo_builder_library_v5_1_builder_first",
+        "lastPreviewKey": "simo_last_preview_v2",
+    }
+
+
+@app.route("/")
+def landing():
+    return render_template("landing.html")
+
+
+@app.route("/app")
+def app_home():
+    boot = build_simo_boot()
+    return render_template(
+        "index.html",
+        simo_boot=boot,
+        simo_boot_json=json.dumps(boot),
+    )
+
+
+@app.route("/health")
+def health():
+    builder_state = get_builder_session_state()
+    builder_meta = builder_state.get("meta", {})
+    if not isinstance(builder_meta, dict):
+        builder_meta = {}
+
+    return jsonify(
+        {
+            "ok": True,
+            "app": "simo",
+            "backend_version": "PHASE_2_9B_INTELLIGENT_BUILDER_DB_PERSISTENCE",
+            "time": utcnow_z(),
+            "logged_in": is_logged_in(),
+            "pro": is_pro_user(),
+            "verified_3d_models_count": len(VERIFIED_3D_MODELS),
+            "verified_3d_model_names": sorted(list(VERIFIED_3D_MODELS.keys())),
+            "candidate_objects": sorted(list(CANDIDATE_ASSETS.keys())),
+            "object_fallbacks": OBJECT_FALLBACKS,
+            "builder_active": bool(builder_state.get("active")),
+            "builder_revision": builder_state.get("revision"),
+            "builder_turn_count": builder_state.get("turn_count"),
+            "builder_last_request_kind": builder_state.get("last_request_kind"),
+            "builder_title": builder_state.get("title"),
+            "builder_meta": builder_meta,
+        }
+    )
+
+
+@app.route("/debug-routes")
+def debug_routes():
+    routes = []
+    for rule in sorted(app.url_map.iter_rules(), key=lambda r: r.rule):
+        routes.append(
+            {
+                "rule": rule.rule,
+                "endpoint": rule.endpoint,
+                "methods": sorted([m for m in rule.methods if m not in {"HEAD", "OPTIONS"}]),
+            }
+        )
+    return jsonify({"ok": True, "count": len(routes), "routes": routes})
+
+
+# ---------------------------------------------------------
+# Auth
+# ---------------------------------------------------------
+@app.route("/login")
+def login():
+    if "google" in oauth._clients:
+        return redirect(url_for("login_google"))
+    return redirect(url_for("app_home"))
+
+
+@app.route("/login/google")
+def login_google():
+    if "google" not in oauth._clients:
+        return jsonify({"ok": False, "error": "Google OAuth is not configured."}), 500
+
+    redirect_uri = url_for("auth_google_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    if "google" not in oauth._clients:
+        return jsonify({"ok": False, "error": "Google OAuth is not configured."}), 500
+
+    try:
+        token = oauth.google.authorize_access_token()
+        user_info = token.get("userinfo", {})
+
+        email = (user_info.get("email") or "").strip().lower()
+        name = (user_info.get("name") or "").strip()
+        sub = (user_info.get("sub") or "").strip()
+
+        if not email:
+            return jsonify({"ok": False, "error": "Google login did not return an email."}), 400
+
+        upsert_user(email=email, name=name, google_sub=sub)
+
+        session["user_email"] = email
+        session["user_name"] = name
+        session["google_sub"] = sub
+
+        return redirect(url_for("app_home"))
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Google auth failed: {str(e)}"}), 500
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_email", None)
+    session.pop("user_name", None)
+    session.pop("google_sub", None)
+    return redirect(url_for("app_home"))
+
+
+@app.route("/api/me")
+def api_me():
+    usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
+    return jsonify(
+        {
+            "ok": True,
+            "loggedIn": is_logged_in(),
+            "email": current_user_email(),
+            "name": current_user_name(),
+            "pro": is_pro_user(),
+            "team": False,
+            "usage_today": usage_today,
+            "free_daily_limit": FREE_DAILY_LIMIT,
+        }
+    )
+
+
+# ---------------------------------------------------------
+# Billing
+# ---------------------------------------------------------
+@app.route("/api/pro-status")
+def api_pro_status():
+    return jsonify(
+        {
+            "ok": True,
+            "loggedIn": is_logged_in(),
+            "email": current_user_email(),
+            "pro": is_pro_user(),
+        }
+    )
+
+
+@app.route("/api/create-checkout-session", methods=["POST"])
+def api_create_checkout_session():
+    if not STRIPE_SECRET_KEY:
+        return jsonify({"ok": False, "error": "Stripe is not configured."}), 500
+
+    if not STRIPE_PRICE_ID:
+        return jsonify({"ok": False, "error": "Missing STRIPE_PRICE_ID."}), 500
+
+    try:
+        data = request.get_json(silent=True) or {}
+        email = current_user_email() or str(data.get("email") or "").strip().lower() or None
+
+        if BASE_URL:
+            success_url = f"{BASE_URL}/app?checkout=success"
+            cancel_url = f"{BASE_URL}/app?checkout=cancel"
+        else:
+            success_url = url_for("app_home", _external=True) + "?checkout=success"
+            cancel_url = url_for("app_home", _external=True) + "?checkout=cancel"
+
+        checkout = stripe.checkout.Session.create(
+            mode="subscription",
+            line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            customer_email=email,
+            metadata={"user_email": email or ""},
+        )
+
+        return jsonify({"ok": True, "url": checkout.url, "id": checkout.id})
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Stripe checkout failed: {str(e)}"}), 500
+
+
+@app.route("/stripe-webhook", methods=["POST"])
+def stripe_webhook():
+    payload = request.get_data(as_text=False)
+    sig_header = request.headers.get("Stripe-Signature", "")
+
+    if not STRIPE_WEBHOOK_SECRET:
+        return jsonify({"ok": False, "error": "Missing STRIPE_WEBHOOK_SECRET"}), 500
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Webhook verification failed: {str(e)}"}), 400
+
+    event_type = event.get("type", "")
+    data_object = event.get("data", {}).get("object", {})
+
+    try:
+        if event_type == "checkout.session.completed":
+            email = (
+                data_object.get("customer_details", {}).get("email")
+                or data_object.get("customer_email")
+                or data_object.get("metadata", {}).get("user_email")
+                or ""
+            ).strip().lower()
+
+            if email:
+                upsert_user(email=email)
+                set_user_pro(email, True)
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Webhook handling failed: {str(e)}"}), 500
+
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------
+# Chat
+# ---------------------------------------------------------
+@app.route("/api/chat", methods=["POST"])
+def api_chat():
+    try:
+        data = request.get_json(silent=True) or {}
+        user_message = str(data.get("message", "") or "").strip()
+
+        if not user_message:
+            return jsonify({"ok": False, "error": "Message is required."}), 400
+
+        if should_reset_builder_context(user_message):
+            clear_builder_session_state()
+
+        if not is_pro_user():
+            ukey = user_key_for_limits()
+            dkey = get_today_key()
+            current_count = get_daily_usage_count(ukey, dkey)
+            if current_count >= FREE_DAILY_LIMIT:
+                return jsonify(
+                    {
+                        "ok": False,
+                        "limitReached": True,
+                        "error": f"Free daily limit reached ({FREE_DAILY_LIMIT}/day). Upgrade to Pro for unlimited chat.",
+                    }
+                ), 403
+
+        builder_state = get_builder_session_state()
+        explicit_builder_request = is_builder_request(user_message)
+        followup_builder_request = is_builder_followup_request(user_message)
+        builder_request = explicit_builder_request or followup_builder_request
+        builder_kind = builder_request_kind(user_message) if builder_request else ""
+        route = classify_request(user_message)
+
+        history = session.get("chat_history", [])
+        if not isinstance(history, list):
+            history = []
+
+        compact_user = compact_history_content("user", user_message)
+        if compact_user:
+            history.append({"role": "user", "content": compact_user})
+        history = history[-12:]
+        session["chat_history"] = history
+
+        assistant_text = ""
+        client = get_client()
+
+        if builder_request:
+            assistant_text = generate_builder_html(
+                user_message,
+                client,
+                prior_state=builder_state,
+            )
+            mode, preset = extract_mode_and_preset(user_message)
+            assistant_text = save_builder_session_state(
+                user_message,
+                assistant_text,
+                mode=mode,
+                preset=preset,
+                request_kind=builder_kind,
+            )
+
+        elif route["route_type"] in {"verified", "candidate", "concept", "unsupported"}:
+            assistant_text = route["reply"]
+
+        elif client:
+            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            for item in history:
+                role = str(item.get("role", "")).strip()
+                content = str(item.get("content", "")).strip()
+                if role in {"user", "assistant", "system"} and content:
+                    messages.append({"role": role, "content": content})
+
+            try:
+                resp = client.responses.create(
+                    model=OPENAI_MODEL,
+                    input=messages,
+                )
+                assistant_text = extract_first_text_from_openai_response(resp)
+            except Exception:
+                resp = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=messages,
+                )
+                assistant_text = extract_first_text_from_openai_response(resp)
+        else:
+            assistant_text = "Simo is running, but OPENAI_API_KEY is missing, so chat generation is unavailable right now."
+
+        compact_assistant = compact_history_content("assistant", assistant_text)
+        if compact_assistant:
+            history.append({"role": "assistant", "content": compact_assistant})
+        session["chat_history"] = history[-12:]
+
+        usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
+        if not is_pro_user():
+            usage_today = increment_daily_usage(user_key_for_limits(), get_today_key())
+
+        model3d = build_model3d_payload(
+            route_type=route["route_type"],
+            matched_name=route["matched_name"],
+            object_name=route["object_name"],
+            category=route["category"],
+            match_type=route["match_type"],
+            choices=route["choices"],
+            concept_mode=route["concept_mode"],
+        )
+
+        builder_state_after = get_builder_session_state()
+        builder_meta = builder_state_after.get("meta", {})
+        if not isinstance(builder_meta, dict):
+            builder_meta = {}
+
+        return jsonify(
+            {
+                "ok": True,
+                "reply": assistant_text,
+                "pro": is_pro_user(),
+                "usage_today": usage_today,
+                "free_daily_limit": FREE_DAILY_LIMIT,
+                "model3d": model3d,
+                "model3d_options": model3d.get("model3d_options", []),
+                "builder_active": bool(builder_state_after.get("active")),
+                "builder_kind": builder_kind or None,
+                "builder_revision": int(builder_state_after.get("revision", 0) or 0),
+                "builder_turn_count": int(builder_state_after.get("turn_count", 0) or 0),
+                "builder_last_request_kind": str(builder_state_after.get("last_request_kind", "") or "").strip() or None,
+                "builder_meta": builder_meta,
+            }
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Chat failed: {str(e)}"}), 500
+
+
+# ---------------------------------------------------------
+# Image upload / analyze
+# ---------------------------------------------------------
+@app.route("/api/upload-image", methods=["POST"])
+def api_upload_image():
+    try:
+        if "image" not in request.files:
+            return jsonify({"ok": False, "error": "No image file uploaded."}), 400
+
+        file = request.files["image"]
+        if not file or not file.filename:
+            return jsonify({"ok": False, "error": "Invalid image upload."}), 400
+
+        if not allowed_image(file.filename):
+            return jsonify({"ok": False, "error": "Unsupported image type."}), 400
+
+        safe_name = secure_filename(file.filename)
+        ts = dt.datetime.now().strftime("%Y%m%d_%H%M%S")
+        final_name = f"{ts}_{safe_name}"
+        save_path = os.path.join(UPLOAD_DIR, final_name)
+
+        file.save(save_path)
+        session["last_uploaded_image"] = save_path
+
+        return jsonify(
+            {
+                "ok": True,
+                "filename": final_name,
+                "url": url_for("uploaded_file", filename=final_name),
+            }
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Image upload failed: {str(e)}"}), 500
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    safe_filename = os.path.basename(filename)
+    path = os.path.join(UPLOAD_DIR, safe_filename)
+    if not os.path.isfile(path):
+        abort(404)
+    return send_file(path)
+
+
+@app.route("/api/analyze-image", methods=["POST"])
+def api_analyze_image():
+    try:
+        data = request.get_json(silent=True) or {}
+        prompt = str(data.get("prompt", "") or "Analyze this image.").strip()
+
+        image_path = session.get("last_uploaded_image")
+        if not image_path or not os.path.isfile(image_path):
+            return jsonify({"ok": False, "error": "No uploaded image found in session."}), 400
+
+        client = get_client()
+        if not client:
+            return jsonify({"ok": False, "error": "OPENAI_API_KEY is missing."}), 500
+
+        with open(image_path, "rb") as f:
+            img_bytes = f.read()
+
+        b64 = base64.b64encode(img_bytes).decode("utf-8")
+
+        mime = "image/png"
+        lower = image_path.lower()
+        if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+            mime = "image/jpeg"
+        elif lower.endswith(".webp"):
+            mime = "image/webp"
+        elif lower.endswith(".gif"):
+            mime = "image/gif"
+
+        try:
+            resp = client.responses.create(
+                model=OPENAI_MODEL,
+                input=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "input_text", "text": prompt},
+                            {
+                                "type": "input_image",
+                                "image_url": f"data:{mime};base64,{b64}",
+                            },
+                        ],
+                    }
+                ],
+            )
+            text = extract_first_text_from_openai_response(resp)
+            return jsonify({"ok": True, "reply": text})
+        except Exception:
+            return jsonify(
+                {
+                    "ok": True,
+                    "reply": "Image analysis is not available with the current OpenAI SDK version on this machine yet. Chat is fixed first.",
+                }
+            )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Image analysis failed: {str(e)}"}), 500
+
+
+# ---------------------------------------------------------
+# 3D matching
+# ---------------------------------------------------------
+@app.route("/api/3d-match", methods=["POST"])
+def api_3d_match():
+    try:
+        data = request.get_json(silent=True) or {}
+        user_text = str(data.get("message", "") or "").strip()
+
+        route = classify_request(user_text)
+
+        model3d = build_model3d_payload(
+            route_type=route["route_type"],
+            matched_name=route["matched_name"],
+            object_name=route["object_name"],
+            category=route["category"],
+            match_type=route["match_type"],
+            choices=route["choices"],
+            concept_mode=route["concept_mode"],
+        )
+
+        return jsonify(
+            {
+                "ok": True,
+                **model3d,
+                "message": route["reply"],
+                "model3d_options": model3d.get("model3d_options", []),
+            }
+        )
+    except Exception as e:
+        return jsonify(
+            {
+                "ok": False,
+                "matched": False,
+                "match_type": None,
+                "route_type": None,
+                "available": False,
+                "name": None,
+                "label": None,
+                "object_name": None,
+                "category": None,
+                "url": None,
+                "choices": [],
+                "model3d_options": [],
+                "selected_index": 0,
+                "message": f"3D match failed: {str(e)}",
+                "concept_mode": False,
+                "tier": None,
+                "style": None,
+            }
+        ), 500
+
+
+# ---------------------------------------------------------
+# HTML export helper
+# ---------------------------------------------------------
+@app.route("/api/download-html", methods=["POST"])
+def api_download_html():
+    try:
+        data = request.get_json(silent=True) or {}
+        html = str(data.get("html", "") or "")
+        filename = str(data.get("filename", "") or "simo-build.html").strip()
+
+        if not filename.lower().endswith(".html"):
+            filename += ".html"
+
+        return Response(
+            html,
+            mimetype="text/html",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Download failed: {str(e)}"}), 500
+
+
+# ---------------------------------------------------------
+# Publish
+# ---------------------------------------------------------
+def _publish_from_request():
+    data = request.get_json(silent=True) or {}
+
+    html = str(
+        data.get("html")
+        or data.get("code")
+        or data.get("content")
+        or data.get("markup")
+        or ""
+    ).strip()
+    builder_state = get_builder_session_state()
+    title = str(data.get("title", "") or builder_state.get("title") or "Untitled Build").strip() or "Untitled Build"
+    source_text = str(data.get("sourceText", "") or data.get("source_text", "") or "").strip()
+    requested_slug = str(data.get("slug", "") or data.get("requestedSlug", "") or "").strip()
+
+    if not html:
+        html = str(builder_state.get("html", "") or "").strip()
+
+    if not html:
+        return jsonify({"ok": False, "error": "HTML is required for publish."}), 400
+
+    html = normalize_builder_html(html, source_text or title)
+
+    slug = slugify(requested_slug or title)
+
+    owner_email = current_user_email()
+    final_slug = upsert_published_page(
+        slug=slug,
+        title=title,
+        html=html,
+        source_text=source_text,
+        owner_email=owner_email,
+    )
+
+    file_path = os.path.join(PUBLISHED_DIR, f"{final_slug}.html")
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(html)
+
+    if BASE_URL:
+        public_url = f"{BASE_URL}/p/{final_slug}"
+    else:
+        public_url = url_for("published_page", slug=final_slug, _external=True)
+
+    return jsonify(
+        {
+            "ok": True,
+            "slug": final_slug,
+            "url": public_url,
+            "published_url": public_url,
+            "title": title,
+        }
+    )
+
+
+@app.route("/api/publish", methods=["POST"])
+@app.route("/api/publish-build", methods=["POST"])
+@app.route("/api/builder/publish", methods=["POST"])
+def api_publish():
+    try:
+        return _publish_from_request()
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Publish failed: {str(e)}"}), 500
+
+
+@app.route("/p/<slug>")
+def published_page(slug):
+    clean_slug = slugify(slug)
+
+    row = get_published_page_by_slug(clean_slug)
+    if row and row["html"]:
+        return Response(str(row["html"]), mimetype="text/html")
+
+    file_path = os.path.join(PUBLISHED_DIR, f"{clean_slug}.html")
+    if os.path.isfile(file_path):
+        return send_file(file_path, mimetype="text/html")
+
+    abort(404)
+
+
+# ---------------------------------------------------------
+# Session helper
+# ---------------------------------------------------------
+@app.route("/api/session/clear", methods=["POST"])
+def api_session_clear():
+    keep = {"user_email", "user_name", "google_sub", "anon_id"}
+    for key in list(session.keys()):
+        if key not in keep:
+            session.pop(key, None)
+    clear_builder_session_state()
+    return jsonify({"ok": True})
+
+
+# =========================================================
+# Error handlers
+# =========================================================
+@app.errorhandler(404)
+def not_found(_e):
+    return jsonify({"ok": False, "error": "Not found"}), 404
+
+
+@app.errorhandler(413)
+def too_large(_e):
+    return jsonify({"ok": False, "error": "Uploaded file is too large."}), 413
+
+
+@app.errorhandler(500)
+def server_error(_e):
+    return jsonify({"ok": False, "error": "Internal server error"}), 500
+
+
+# =========================================================
+# Persistent Library (Phase 3.0A)
+# =========================================================
+
+def ensure_saved_builds_table():
+    conn = get_db()
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS saved_builds (
+            id TEXT PRIMARY KEY,
+            user_email TEXT,
+            title TEXT,
+            html TEXT,
+            created_at TEXT,
+            updated_at TEXT
+        )
+    """)
+    conn.commit()
+
+
+ensure_saved_builds_table()
+
+
+@app.route("/api/library", methods=["GET"])
+def api_get_library():
+    email = session.get("user_email")
+    if not email:
+        return jsonify({"ok": True, "items": []})
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM saved_builds WHERE user_email=? ORDER BY updated_at DESC",
+        (email,)
+    ).fetchall()
+
+    items = [dict(r) for r in rows]
+    return jsonify({"ok": True, "items": items})
+
+
+@app.route("/api/library/save", methods=["POST"])
+def api_save_build():
+    email = session.get("user_email")
+    if not email:
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+
+    data = request.get_json() or {}
+
+    build_id = data.get("id") or secrets.token_hex(8)
+    title = data.get("title") or "Untitled Build"
+    html = data.get("html") or ""
+
+    now = dt.datetime.utcnow().isoformat()
+
+    conn = get_db()
+    conn.execute("""
+        INSERT INTO saved_builds (id, user_email, title, html, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title=excluded.title,
+            html=excluded.html,
+            updated_at=excluded.updated_at
+    """, (build_id, email, title, html, now, now))
+    conn.commit()
+
+    return jsonify({"ok": True, "id": build_id})
+
+
+@app.route("/api/library/delete", methods=["POST"])
+def api_delete_build():
+    email = session.get("user_email")
+    if not email:
+        return jsonify({"ok": False}), 401
+
+    data = request.get_json() or {}
+    build_id = data.get("id")
+
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM saved_builds WHERE id=? AND user_email=?",
+        (build_id, email)
+    )
+    conn.commit()
+
+    return jsonify({"ok": True})
+
+
+# =========================================================
+# Main
+# =========================================================
 if __name__ == "__main__":
-    host = os.getenv("HOST", "127.0.0.1" if not IS_PRODUCTION else "0.0.0.0")
+    host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "5000"))
-    debug = env_bool("FLASK_DEBUG", not IS_PRODUCTION)
+    debug = env_bool("FLASK_DEBUG", True)
     app.run(host=host, port=port, debug=debug)
