@@ -711,22 +711,22 @@
   }
 
   async function startUpgradeFlow() {
-    try {
-      const data = await api("/api/create-checkout-session", {
-        method: "POST",
-        body: JSON.stringify({}),
-      });
+  try {
+    const data = await api("/api/create-checkout-session", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
 
-      if (data && data.ok && data.url) {
-        window.location.href = data.url;
-        return;
-      }
-
-      throw new Error("Could not start checkout.");
-    } catch (err) {
-      toast(err.message || "Upgrade failed.", "error");
+    if (data && data.ok && data.url) {
+      window.location.href = data.url;
+      return;
     }
+
+    throw new Error("Could not start checkout.");
+  } catch (err) {
+    toast(err.message || "Upgrade failed.", "error");
   }
+}
 
   // -----------------------------
   // chat rendering
