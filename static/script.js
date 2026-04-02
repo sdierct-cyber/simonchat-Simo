@@ -2670,25 +2670,35 @@
   }
 
   function updateLibraryItem(id, patch) {
-    const items = getLibrary();
-    const idx = items.findIndex((x) => x.id === id);
-    if (idx < 0) return;
+  const items = getLibrary();
+  const next = items.map((item) => {
+    if (item.id !== id) return item;
 
-    items[idx] = {
-      ...items[idx],
+    const updated = {
+      ...item,
       ...patch,
       updatedAt: nowIso(),
     };
 
-    setLibrary(items);
-    renderLibrary();
-  }
+    // 🔥 backend sync (non-blocking)
+    backendSaveLibraryItem(updated);
+
+    return updated;
+  });
+
+  setLibrary(next);
+  renderLibrary();
+}
 
   function removeLibraryItem(id) {
-    const items = getLibrary().filter((x) => x.id !== id);
-    setLibrary(items);
-    renderLibrary();
-  }
+  const items = getLibrary().filter((item) => item.id !== id);
+
+  // 🔥 backend delete
+  backendDeleteLibraryItem(id);
+
+  setLibrary(items);
+  renderLibrary();
+} 
 
   function duplicateLibraryItem(id) {
     const items = getLibrary();
@@ -3709,12 +3719,14 @@ function wireTopbarButtons() {
   if (profileBtn && profileBtn.dataset.boundClick !== "true") {
     profileBtn.dataset.boundClick = "true";
     profileBtn.addEventListener("click", async () => {
-      await refreshMe();
-      const label = state.me.loggedIn
-        ? `${state.me.email || "Signed in"} • ${state.me.team ? "Team" : state.me.pro ? "Pro" : "Free"}`
-        : "Guest • Free";
-      toast(label, "info", 2600);
-    });
+  await refreshMe();
+
+  const label = state.me.loggedIn
+    ? `${state.me.email || "Signed in"} • ${state.me.team ? "Team" : state.me.pro ? "Pro" : "Free"}`
+    : "Guest • Free";
+
+  toast(label, "info", 2600);
+});
   }
 
   if (settingsBtn && settingsBtn.dataset.boundClick !== "true") {
@@ -3827,12 +3839,14 @@ async function boot() {
   if (loadingHintEl) loadingHintEl.textContent = "Ready.";
 
   await refreshMe();
-  await refreshProStatus();
+await backendLoadLibrary();
+renderLibrary();
+await refreshProStatus();
 
-  scrollAfterUiChange();
-  setTimeout(() => scrollChatToBottom(true), 200);
+scrollAfterUiChange();
+setTimeout(() => scrollChatToBottom(true), 200);
 
-  console.log("Simo script.js Phase 2.6 memory upgrade booted.");
+console.log("Simo script.js Phase 2.6 memory upgrade booted.");
 }
 
 if (document.readyState === "loading") {
