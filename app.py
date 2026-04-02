@@ -3045,6 +3045,115 @@ def stripe_subscription_is_pro(status: str) -> bool:
     return status in {"active", "trialing"}
 
 
+def get_stripe_customers_by_email(email: str):
+    email = str(email or "").strip().lower()
+    if not email or not STRIPE_SECRET_KEY:
+        return []
+
+    try:
+        customers = stripe.Customer.list(email=email, limit=20)
+        data = customers.get("data", []) if isinstance(customers, dict) else getattr(customers, "data", []) or []
+        return data
+    except Exception:
+        return []
+
+
+def normalize_stripe_obj_value(obj, key: str, default=""):
+    if obj is None:
+        return default
+    if isinstance(obj, dict):
+        return obj.get(key, default)
+    return getattr(obj, key, default)
+
+
+def find_active_subscription_for_email(email: str):
+    email = str(email or "").strip().lower()
+    if not email or not STRIPE_SECRET_KEY:
+        return None
+
+    customers = get_stripe_customers_by_email(email)
+
+    for customer in customers:
+        customer_id = str(normalize_stripe_obj_value(customer, "id", "") or "").strip()
+        if not customer_id:
+            continue
+
+        try:
+            subscriptions = stripe.Subscription.list(customer=customer_id, status="all", limit=50)
+            sub_items = subscriptions.get("data", []) if isinstance(subscriptions, dict) else getattr(subscriptions, "data", []) or []
+        except Exception:
+            sub_items = []
+
+        for sub in sub_items:
+            status = str(normalize_stripe_obj_value(sub, "status", "") or "").strip().lower()
+            if stripe_subscription_is_pro(status):
+                return {
+                    "customer_id": customer_id,
+                    "subscription_id": str(normalize_stripe_obj_value(sub, "id", "") or "").strip(),
+                    "subscription_status": status,
+                    "email": email,
+                }
+
+    return None
+
+
+def sync_user_pro_from_stripe(email: str):
+    email = str(email or "").strip().lower()
+    if not email:
+        return get_user_by_email(email)
+
+    row = get_user_by_email(email)
+
+    # If already marked active in DB, keep it.
+    if row and stripe_subscription_is_pro(str(row["stripe_subscription_status"] or "")):
+        if int(row["pro"] or 0) != 1:
+            set_user_subscription_state(
+                email=email,
+                customer_id=str(row["stripe_customer_id"] or "").strip(),
+                subscription_id=str(row["stripe_subscription_id"] or "").strip(),
+                subscription_status=str(row["stripe_subscription_status"] or "").strip(),
+                is_pro=True,
+            )
+            row = get_user_by_email(email)
+        return row
+
+    # Try Stripe by email to recover existing active subscription.
+    active = find_active_subscription_for_email(email)
+    if active:
+        upsert_user(email=email)
+        set_user_subscription_state(
+            email=email,
+            customer_id=active["customer_id"],
+            subscription_id=active["subscription_id"],
+            subscription_status=active["subscription_status"],
+            is_pro=True,
+        )
+        return get_user_by_email(email)
+
+    # If we have an existing DB row with known Stripe ids, try direct retrieval too.
+    if row:
+        customer_id = str(row["stripe_customer_id"] or "").strip()
+        subscription_id = str(row["stripe_subscription_id"] or "").strip()
+
+        if subscription_id and STRIPE_SECRET_KEY:
+            try:
+                sub = stripe.Subscription.retrieve(subscription_id)
+                status = str(normalize_stripe_obj_value(sub, "status", "") or "").strip().lower()
+                if stripe_subscription_is_pro(status):
+                    set_user_subscription_state(
+                        email=email,
+                        customer_id=customer_id or str(normalize_stripe_obj_value(sub, "customer", "") or "").strip(),
+                        subscription_id=subscription_id,
+                        subscription_status=status,
+                        is_pro=True,
+                    )
+                    return get_user_by_email(email)
+            except Exception:
+                pass
+
+    return row
+
+
 # =========================================================
 # Routes
 # =========================================================
@@ -3085,7 +3194,7 @@ def health():
         {
             "ok": True,
             "app": "simo",
-            "backend_version": "PHASE_3_1_STRIPE_AND_LIBRARY_PERSISTENCE_FIX",
+            "backend_version": "PHASE_3_2_STRIPE_RECOVERY_SYNC",
             "time": utcnow_z(),
             "logged_in": is_logged_in(),
             "pro": is_pro_user(),
@@ -3158,6 +3267,9 @@ def auth_google_callback():
         session["user_name"] = name
         session["google_sub"] = sub
 
+        # Recover Stripe status immediately on login.
+        sync_user_pro_from_stripe(email)
+
         return redirect(url_for("home"))
     except Exception as e:
         return jsonify({"ok": False, "error": f"Google auth failed: {str(e)}"}), 500
@@ -3173,16 +3285,17 @@ def logout():
 
 @app.route("/api/me")
 def api_me():
+    email = current_user_email()
+    row = sync_user_pro_from_stripe(email) if email else None
     usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
-    row = get_user_by_email(current_user_email()) if current_user_email() else None
 
     return jsonify(
         {
             "ok": True,
             "loggedIn": is_logged_in(),
-            "email": current_user_email(),
+            "email": email,
             "name": current_user_name(),
-            "pro": is_pro_user(),
+            "pro": bool(row and int(row["pro"] or 0) == 1),
             "team": False,
             "usage_today": usage_today,
             "free_daily_limit": FREE_DAILY_LIMIT,
@@ -3196,14 +3309,35 @@ def api_me():
 # ---------------------------------------------------------
 @app.route("/api/pro-status")
 def api_pro_status():
-    row = get_user_by_email(current_user_email()) if current_user_email() else None
+    email = current_user_email()
+    row = sync_user_pro_from_stripe(email) if email else None
+
     return jsonify(
         {
             "ok": True,
             "loggedIn": is_logged_in(),
-            "email": current_user_email(),
-            "pro": is_pro_user(),
+            "email": email,
+            "pro": bool(row and int(row["pro"] or 0) == 1),
             "stripe_subscription_status": str(row["stripe_subscription_status"] or "") if row else "",
+        }
+    )
+
+
+@app.route("/api/stripe-sync", methods=["POST"])
+def api_stripe_sync():
+    email = current_user_email()
+    if not email:
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+
+    row = sync_user_pro_from_stripe(email)
+    return jsonify(
+        {
+            "ok": True,
+            "email": email,
+            "pro": bool(row and int(row["pro"] or 0) == 1),
+            "stripe_subscription_status": str(row["stripe_subscription_status"] or "") if row else "",
+            "stripe_customer_id": str(row["stripe_customer_id"] or "") if row else "",
+            "stripe_subscription_id": str(row["stripe_subscription_id"] or "") if row else "",
         }
     )
 
@@ -3226,6 +3360,20 @@ def api_create_checkout_session():
             return jsonify({"ok": False, "error": "You must be logged in before upgrading to Pro."}), 401
 
         upsert_user(email=email, name=current_user_name(), google_sub=google_sub)
+
+        # Recover active Stripe subscription before sending user to checkout again.
+        synced_row = sync_user_pro_from_stripe(email)
+        if synced_row and int(synced_row["pro"] or 0) == 1:
+            return jsonify(
+                {
+                    "ok": True,
+                    "already_pro": True,
+                    "pro": True,
+                    "email": email,
+                    "stripe_subscription_status": str(synced_row["stripe_subscription_status"] or ""),
+                }
+            )
+
         user_row = get_user_by_email(email)
 
         if BASE_URL:
