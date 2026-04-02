@@ -712,6 +712,15 @@
 
   async function startUpgradeFlow() {
   try {
+    // 🧠 Step 1: Check if already Pro BEFORE checkout
+    const status = await api("/api/pro-status");
+
+    if (status && status.pro) {
+      toast("You already have Pro.", "info");
+      return;
+    }
+
+    // 💳 Step 2: Start checkout
     const data = await api("/api/create-checkout-session", {
       method: "POST",
       body: JSON.stringify({}),
@@ -722,7 +731,7 @@
       return;
     }
 
-    throw new Error("Could not start checkout.");
+    throw new Error(data?.error || "Could not start checkout.");
   } catch (err) {
     toast(err.message || "Upgrade failed.", "error");
   }
