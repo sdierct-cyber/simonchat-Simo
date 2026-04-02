@@ -1657,6 +1657,16 @@ def get_db():
     return conn
 
 
+def table_has_column(conn, table_name: str, column_name: str) -> bool:
+    rows = conn.execute(f"PRAGMA table_info({table_name})").fetchall()
+    return any(str(r["name"]).strip().lower() == column_name.strip().lower() for r in rows)
+
+
+def ensure_column(conn, table_name: str, column_name: str, column_sql: str):
+    if not table_has_column(conn, table_name, column_name):
+        conn.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_sql}")
+
+
 def init_db():
     conn = get_db()
     cur = conn.cursor()
@@ -1669,6 +1679,9 @@ def init_db():
             name TEXT,
             google_sub TEXT,
             pro INTEGER DEFAULT 0,
+            stripe_customer_id TEXT,
+            stripe_subscription_id TEXT,
+            stripe_subscription_status TEXT,
             created_at TEXT,
             updated_at TEXT
         )
@@ -1728,6 +1741,34 @@ def init_db():
         """
     )
 
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS saved_builds (
+            id TEXT PRIMARY KEY,
+            user_email TEXT,
+            title TEXT,
+            html TEXT,
+            source_text TEXT,
+            notes TEXT,
+            tags_json TEXT,
+            pinned INTEGER DEFAULT 0,
+            archived INTEGER DEFAULT 0,
+            created_at TEXT,
+            updated_at TEXT
+        )
+        """
+    )
+
+    ensure_column(conn, "users", "stripe_customer_id", "TEXT")
+    ensure_column(conn, "users", "stripe_subscription_id", "TEXT")
+    ensure_column(conn, "users", "stripe_subscription_status", "TEXT")
+
+    ensure_column(conn, "saved_builds", "source_text", "TEXT")
+    ensure_column(conn, "saved_builds", "notes", "TEXT")
+    ensure_column(conn, "saved_builds", "tags_json", "TEXT")
+    ensure_column(conn, "saved_builds", "pinned", "INTEGER DEFAULT 0")
+    ensure_column(conn, "saved_builds", "archived", "INTEGER DEFAULT 0")
+
     conn.commit()
     conn.close()
 
@@ -1745,23 +1786,29 @@ def upsert_user(email: str, name: str = "", google_sub: str = ""):
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute("SELECT id FROM users WHERE email = ?", (email,))
+    cur.execute("SELECT id, name, google_sub FROM users WHERE email = ?", (email,))
     row = cur.fetchone()
 
     if row:
+        next_name = name or str(row["name"] or "").strip()
+        next_google_sub = google_sub or str(row["google_sub"] or "").strip()
         cur.execute(
             """
             UPDATE users
             SET name = ?, google_sub = ?, updated_at = ?
             WHERE email = ?
             """,
-            (name, google_sub, now, email),
+            (next_name, next_google_sub, now, email),
         )
     else:
         cur.execute(
             """
-            INSERT INTO users (email, name, google_sub, pro, created_at, updated_at)
-            VALUES (?, ?, ?, 0, ?, ?)
+            INSERT INTO users (
+                email, name, google_sub, pro,
+                stripe_customer_id, stripe_subscription_id, stripe_subscription_status,
+                created_at, updated_at
+            )
+            VALUES (?, ?, ?, 0, '', '', '', ?, ?)
             """,
             (email, name, google_sub, now, now),
         )
@@ -1778,6 +1825,32 @@ def get_user_by_email(email: str):
     conn = get_db()
     cur = conn.cursor()
     cur.execute("SELECT * FROM users WHERE email = ?", (email,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def get_user_by_customer_id(customer_id: str):
+    customer_id = str(customer_id or "").strip()
+    if not customer_id:
+        return None
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE stripe_customer_id = ?", (customer_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def get_user_by_subscription_id(subscription_id: str):
+    subscription_id = str(subscription_id or "").strip()
+    if not subscription_id:
+        return None
+
+    conn = get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
     row = cur.fetchone()
     conn.close()
     return row
@@ -1804,6 +1877,96 @@ def set_user_pro(email: str, is_pro: bool):
     conn.close()
 
 
+def set_user_subscription_state(
+    *,
+    email: str = "",
+    customer_id: str = "",
+    subscription_id: str = "",
+    subscription_status: str = "",
+    is_pro: bool = None,
+):
+    email = (email or "").strip().lower()
+    customer_id = str(customer_id or "").strip()
+    subscription_id = str(subscription_id or "").strip()
+    subscription_status = str(subscription_status or "").strip()
+    now = utcnow().isoformat()
+
+    conn = get_db()
+    cur = conn.cursor()
+
+    row = None
+    if email:
+        cur.execute("SELECT * FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+    if not row and customer_id:
+        cur.execute("SELECT * FROM users WHERE stripe_customer_id = ?", (customer_id,))
+        row = cur.fetchone()
+    if not row and subscription_id:
+        cur.execute("SELECT * FROM users WHERE stripe_subscription_id = ?", (subscription_id,))
+        row = cur.fetchone()
+
+    if not row:
+        if not email:
+            conn.close()
+            return
+
+        cur.execute(
+            """
+            INSERT INTO users (
+                email, name, google_sub, pro,
+                stripe_customer_id, stripe_subscription_id, stripe_subscription_status,
+                created_at, updated_at
+            )
+            VALUES (?, '', '', ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                email,
+                1 if bool(is_pro) else 0,
+                customer_id,
+                subscription_id,
+                subscription_status,
+                now,
+                now,
+            ),
+        )
+        conn.commit()
+        conn.close()
+        return
+
+    target_email = str(row["email"] or "").strip().lower()
+    next_customer_id = customer_id or str(row["stripe_customer_id"] or "").strip()
+    next_subscription_id = subscription_id or str(row["stripe_subscription_id"] or "").strip()
+    next_status = subscription_status or str(row["stripe_subscription_status"] or "").strip()
+
+    if is_pro is None:
+        next_pro = int(row["pro"] or 0)
+    else:
+        next_pro = 1 if bool(is_pro) else 0
+
+    cur.execute(
+        """
+        UPDATE users
+        SET stripe_customer_id = ?,
+            stripe_subscription_id = ?,
+            stripe_subscription_status = ?,
+            pro = ?,
+            updated_at = ?
+        WHERE email = ?
+        """,
+        (
+            next_customer_id,
+            next_subscription_id,
+            next_status,
+            next_pro,
+            now,
+            target_email,
+        ),
+    )
+
+    conn.commit()
+    conn.close()
+
+
 def current_user_email() -> str:
     return (session.get("user_email") or "").strip().lower()
 
@@ -1822,7 +1985,7 @@ def is_pro_user() -> bool:
         return False
 
     row = get_user_by_email(email)
-    return bool(row and int(row["pro"]) == 1)
+    return bool(row and int(row["pro"] or 0) == 1)
 
 
 def user_key_for_limits() -> str:
@@ -1936,6 +2099,25 @@ def upsert_published_page(slug: str, title: str, html: str, source_text: str = "
     conn.commit()
     conn.close()
     return clean_slug
+
+
+def normalize_saved_build_item(row):
+    tags = safe_json_loads(row["tags_json"] or "[]", [])
+    if not isinstance(tags, list):
+        tags = []
+
+    return {
+        "id": str(row["id"] or ""),
+        "title": str(row["title"] or "Untitled Build"),
+        "html": str(row["html"] or ""),
+        "sourceText": str(row["source_text"] or ""),
+        "notes": str(row["notes"] or ""),
+        "tags": safe_text_list(tags),
+        "pinned": bool(int(row["pinned"] or 0)),
+        "archived": bool(int(row["archived"] or 0)),
+        "createdAt": str(row["created_at"] or ""),
+        "updatedAt": str(row["updated_at"] or ""),
+    }
 
 
 init_db()
@@ -2844,14 +3026,33 @@ User request:
 """
 
 
+def retrieve_customer_email(customer_id: str) -> str:
+    customer_id = str(customer_id or "").strip()
+    if not customer_id or not STRIPE_SECRET_KEY:
+        return ""
+
+    try:
+        customer = stripe.Customer.retrieve(customer_id)
+        if isinstance(customer, dict):
+            return str(customer.get("email") or "").strip().lower()
+        return str(getattr(customer, "email", "") or "").strip().lower()
+    except Exception:
+        return ""
+
+
+def stripe_subscription_is_pro(status: str) -> bool:
+    status = str(status or "").strip().lower()
+    return status in {"active", "trialing"}
+
+
 # =========================================================
 # Routes
 # =========================================================
-
-def build_simo_boot():
+@app.route("/")
+def home():
     usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
 
-    return {
+    boot = {
         "loggedIn": is_logged_in(),
         "email": current_user_email(),
         "name": current_user_name(),
@@ -2866,15 +3067,6 @@ def build_simo_boot():
         "lastPreviewKey": "simo_last_preview_v2",
     }
 
-
-@app.route("/")
-def landing():
-    return render_template("landing.html")
-
-
-@app.route("/app")
-def app_home():
-    boot = build_simo_boot()
     return render_template(
         "index.html",
         simo_boot=boot,
@@ -2893,7 +3085,7 @@ def health():
         {
             "ok": True,
             "app": "simo",
-            "backend_version": "PHASE_2_9B_INTELLIGENT_BUILDER_DB_PERSISTENCE",
+            "backend_version": "PHASE_3_1_STRIPE_AND_LIBRARY_PERSISTENCE_FIX",
             "time": utcnow_z(),
             "logged_in": is_logged_in(),
             "pro": is_pro_user(),
@@ -2932,7 +3124,7 @@ def debug_routes():
 def login():
     if "google" in oauth._clients:
         return redirect(url_for("login_google"))
-    return redirect(url_for("app_home"))
+    return redirect(url_for("home"))
 
 
 @app.route("/login/google")
@@ -2966,7 +3158,7 @@ def auth_google_callback():
         session["user_name"] = name
         session["google_sub"] = sub
 
-        return redirect(url_for("app_home"))
+        return redirect(url_for("home"))
     except Exception as e:
         return jsonify({"ok": False, "error": f"Google auth failed: {str(e)}"}), 500
 
@@ -2976,12 +3168,14 @@ def logout():
     session.pop("user_email", None)
     session.pop("user_name", None)
     session.pop("google_sub", None)
-    return redirect(url_for("app_home"))
+    return redirect(url_for("home"))
 
 
 @app.route("/api/me")
 def api_me():
     usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
+    row = get_user_by_email(current_user_email()) if current_user_email() else None
+
     return jsonify(
         {
             "ok": True,
@@ -2992,6 +3186,7 @@ def api_me():
             "team": False,
             "usage_today": usage_today,
             "free_daily_limit": FREE_DAILY_LIMIT,
+            "stripe_subscription_status": str(row["stripe_subscription_status"] or "") if row else "",
         }
     )
 
@@ -3001,12 +3196,14 @@ def api_me():
 # ---------------------------------------------------------
 @app.route("/api/pro-status")
 def api_pro_status():
+    row = get_user_by_email(current_user_email()) if current_user_email() else None
     return jsonify(
         {
             "ok": True,
             "loggedIn": is_logged_in(),
             "email": current_user_email(),
             "pro": is_pro_user(),
+            "stripe_subscription_status": str(row["stripe_subscription_status"] or "") if row else "",
         }
     )
 
@@ -3021,23 +3218,48 @@ def api_create_checkout_session():
 
     try:
         data = request.get_json(silent=True) or {}
-        email = current_user_email() or str(data.get("email") or "").strip().lower() or None
+
+        email = current_user_email() or str(data.get("email") or "").strip().lower()
+        google_sub = (session.get("google_sub") or "").strip()
+
+        if not email:
+            return jsonify({"ok": False, "error": "You must be logged in before upgrading to Pro."}), 401
+
+        upsert_user(email=email, name=current_user_name(), google_sub=google_sub)
+        user_row = get_user_by_email(email)
 
         if BASE_URL:
-            success_url = f"{BASE_URL}/app?checkout=success"
-            cancel_url = f"{BASE_URL}/app?checkout=cancel"
+            success_url = f"{BASE_URL}/?checkout=success"
+            cancel_url = f"{BASE_URL}/?checkout=cancel"
         else:
-            success_url = url_for("app_home", _external=True) + "?checkout=success"
-            cancel_url = url_for("app_home", _external=True) + "?checkout=cancel"
+            success_url = url_for("home", _external=True) + "?checkout=success"
+            cancel_url = url_for("home", _external=True) + "?checkout=cancel"
 
-        checkout = stripe.checkout.Session.create(
-            mode="subscription",
-            line_items=[{"price": STRIPE_PRICE_ID, "quantity": 1}],
-            success_url=success_url,
-            cancel_url=cancel_url,
-            customer_email=email,
-            metadata={"user_email": email or ""},
-        )
+        checkout_kwargs = {
+            "mode": "subscription",
+            "line_items": [{"price": STRIPE_PRICE_ID, "quantity": 1}],
+            "success_url": success_url,
+            "cancel_url": cancel_url,
+            "client_reference_id": email,
+            "metadata": {
+                "user_email": email,
+                "google_sub": google_sub,
+            },
+            "subscription_data": {
+                "metadata": {
+                    "user_email": email,
+                    "google_sub": google_sub,
+                }
+            },
+        }
+
+        existing_customer_id = str(user_row["stripe_customer_id"] or "").strip() if user_row else ""
+        if existing_customer_id:
+            checkout_kwargs["customer"] = existing_customer_id
+        else:
+            checkout_kwargs["customer_email"] = email
+
+        checkout = stripe.checkout.Session.create(**checkout_kwargs)
 
         return jsonify({"ok": True, "url": checkout.url, "id": checkout.id})
     except Exception as e:
@@ -3057,21 +3279,84 @@ def stripe_webhook():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Webhook verification failed: {str(e)}"}), 400
 
-    event_type = event.get("type", "")
-    data_object = event.get("data", {}).get("object", {})
+    event_type = str(event.get("type", "") or "").strip()
+    data_object = event.get("data", {}).get("object", {}) or {}
 
     try:
         if event_type == "checkout.session.completed":
             email = (
-                data_object.get("customer_details", {}).get("email")
-                or data_object.get("customer_email")
-                or data_object.get("metadata", {}).get("user_email")
-                or ""
-            ).strip().lower()
+                str(data_object.get("metadata", {}).get("user_email") or "").strip().lower()
+                or str(data_object.get("client_reference_id") or "").strip().lower()
+                or str(data_object.get("customer_details", {}).get("email") or "").strip().lower()
+                or str(data_object.get("customer_email") or "").strip().lower()
+            )
+            customer_id = str(data_object.get("customer") or "").strip()
+            subscription_id = str(data_object.get("subscription") or "").strip()
+
+            if customer_id and not email:
+                email = retrieve_customer_email(customer_id)
 
             if email:
                 upsert_user(email=email)
-                set_user_pro(email, True)
+                set_user_subscription_state(
+                    email=email,
+                    customer_id=customer_id,
+                    subscription_id=subscription_id,
+                    subscription_status="checkout_completed",
+                    is_pro=True,
+                )
+
+        elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
+            customer_id = str(data_object.get("customer") or "").strip()
+            subscription_id = str(data_object.get("id") or "").strip()
+            status = str(data_object.get("status") or "").strip().lower()
+            metadata = data_object.get("metadata", {}) or {}
+            email = str(metadata.get("user_email") or "").strip().lower()
+
+            if customer_id and not email:
+                user_row = get_user_by_customer_id(customer_id)
+                if user_row:
+                    email = str(user_row["email"] or "").strip().lower()
+
+            if subscription_id and not email:
+                user_row = get_user_by_subscription_id(subscription_id)
+                if user_row:
+                    email = str(user_row["email"] or "").strip().lower()
+
+            if customer_id and not email:
+                email = retrieve_customer_email(customer_id)
+
+            if email:
+                upsert_user(email=email)
+                set_user_subscription_state(
+                    email=email,
+                    customer_id=customer_id,
+                    subscription_id=subscription_id,
+                    subscription_status=status,
+                    is_pro=stripe_subscription_is_pro(status),
+                )
+
+        elif event_type == "customer.subscription.deleted":
+            customer_id = str(data_object.get("customer") or "").strip()
+            subscription_id = str(data_object.get("id") or "").strip()
+            status = str(data_object.get("status") or "canceled").strip().lower()
+
+            user_row = None
+            if subscription_id:
+                user_row = get_user_by_subscription_id(subscription_id)
+            if not user_row and customer_id:
+                user_row = get_user_by_customer_id(customer_id)
+
+            email = str(user_row["email"] or "").strip().lower() if user_row else ""
+            if email:
+                set_user_subscription_state(
+                    email=email,
+                    customer_id=customer_id,
+                    subscription_id=subscription_id,
+                    subscription_status=status,
+                    is_pro=False,
+                )
+
     except Exception as e:
         return jsonify({"ok": False, "error": f"Webhook handling failed: {str(e)}"}), 500
 
@@ -3471,6 +3756,106 @@ def published_page(slug):
 
 
 # ---------------------------------------------------------
+# Persistent Library
+# ---------------------------------------------------------
+@app.route("/api/library", methods=["GET"])
+def api_get_library():
+    email = current_user_email()
+    if not email:
+        return jsonify({"ok": True, "items": []})
+
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT * FROM saved_builds WHERE user_email = ? ORDER BY updated_at DESC",
+        (email,),
+    ).fetchall()
+    conn.close()
+
+    items = [normalize_saved_build_item(r) for r in rows]
+    return jsonify({"ok": True, "items": items})
+
+
+@app.route("/api/library/save", methods=["POST"])
+def api_save_build():
+    email = current_user_email()
+    if not email:
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+
+    data = request.get_json(silent=True) or {}
+
+    build_id = str(data.get("id") or secrets.token_hex(8)).strip()
+    title = str(data.get("title") or "Untitled Build").strip() or "Untitled Build"
+    html = str(data.get("html") or "").strip()
+    source_text = str(data.get("sourceText") or data.get("source_text") or "").strip()
+    notes = str(data.get("notes") or "").strip()
+    tags = safe_text_list(data.get("tags", []))
+    pinned = 1 if bool(data.get("pinned", False)) else 0
+    archived = 1 if bool(data.get("archived", False)) else 0
+
+    now = dt.datetime.utcnow().isoformat()
+
+    conn = get_db()
+    conn.execute(
+        """
+        INSERT INTO saved_builds (
+            id, user_email, title, html, source_text, notes, tags_json,
+            pinned, archived, created_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            user_email = excluded.user_email,
+            title = excluded.title,
+            html = excluded.html,
+            source_text = excluded.source_text,
+            notes = excluded.notes,
+            tags_json = excluded.tags_json,
+            pinned = excluded.pinned,
+            archived = excluded.archived,
+            updated_at = excluded.updated_at
+        """,
+        (
+            build_id,
+            email,
+            title,
+            html,
+            source_text,
+            notes,
+            json.dumps(tags),
+            pinned,
+            archived,
+            now,
+            now,
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True, "id": build_id})
+
+
+@app.route("/api/library/delete", methods=["POST"])
+def api_delete_build():
+    email = current_user_email()
+    if not email:
+        return jsonify({"ok": False, "error": "not_logged_in"}), 401
+
+    data = request.get_json(silent=True) or {}
+    build_id = str(data.get("id") or "").strip()
+    if not build_id:
+        return jsonify({"ok": False, "error": "missing_id"}), 400
+
+    conn = get_db()
+    conn.execute(
+        "DELETE FROM saved_builds WHERE id = ? AND user_email = ?",
+        (build_id, email),
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"ok": True})
+
+
+# ---------------------------------------------------------
 # Session helper
 # ---------------------------------------------------------
 @app.route("/api/session/clear", methods=["POST"])
@@ -3502,95 +3887,10 @@ def server_error(_e):
 
 
 # =========================================================
-# Persistent Library (Phase 3.0A)
-# =========================================================
-
-def ensure_saved_builds_table():
-    conn = get_db()
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS saved_builds (
-            id TEXT PRIMARY KEY,
-            user_email TEXT,
-            title TEXT,
-            html TEXT,
-            created_at TEXT,
-            updated_at TEXT
-        )
-    """)
-    conn.commit()
-
-
-ensure_saved_builds_table()
-
-
-@app.route("/api/library", methods=["GET"])
-def api_get_library():
-    email = session.get("user_email")
-    if not email:
-        return jsonify({"ok": True, "items": []})
-
-    conn = get_db()
-    rows = conn.execute(
-        "SELECT * FROM saved_builds WHERE user_email=? ORDER BY updated_at DESC",
-        (email,)
-    ).fetchall()
-
-    items = [dict(r) for r in rows]
-    return jsonify({"ok": True, "items": items})
-
-
-@app.route("/api/library/save", methods=["POST"])
-def api_save_build():
-    email = session.get("user_email")
-    if not email:
-        return jsonify({"ok": False, "error": "not_logged_in"}), 401
-
-    data = request.get_json() or {}
-
-    build_id = data.get("id") or secrets.token_hex(8)
-    title = data.get("title") or "Untitled Build"
-    html = data.get("html") or ""
-
-    now = dt.datetime.utcnow().isoformat()
-
-    conn = get_db()
-    conn.execute("""
-        INSERT INTO saved_builds (id, user_email, title, html, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            title=excluded.title,
-            html=excluded.html,
-            updated_at=excluded.updated_at
-    """, (build_id, email, title, html, now, now))
-    conn.commit()
-
-    return jsonify({"ok": True, "id": build_id})
-
-
-@app.route("/api/library/delete", methods=["POST"])
-def api_delete_build():
-    email = session.get("user_email")
-    if not email:
-        return jsonify({"ok": False}), 401
-
-    data = request.get_json() or {}
-    build_id = data.get("id")
-
-    conn = get_db()
-    conn.execute(
-        "DELETE FROM saved_builds WHERE id=? AND user_email=?",
-        (build_id, email)
-    )
-    conn.commit()
-
-    return jsonify({"ok": True})
-
-
-# =========================================================
 # Main
 # =========================================================
 if __name__ == "__main__":
-    host = "0.0.0.0"
-    port = int(os.getenv("PORT", "10000"))
-    debug = env_bool("FLASK_DEBUG", False)
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "5000"))
+    debug = env_bool("FLASK_DEBUG", True)
     app.run(host=host, port=port, debug=debug)
