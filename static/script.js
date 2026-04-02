@@ -337,7 +337,7 @@
     setTimeout(() => scrollChatToBottom(true), 320);
   }
 
-  // -----------------------------
+    // -----------------------------
   // storage
   // -----------------------------
   function normalizeLibraryArray(items) {
@@ -349,22 +349,84 @@
         id: item.id || "build_" + Math.random().toString(36).slice(2, 10),
         title: String(item.title || "Untitled Build"),
         html: String(item.html || ""),
-        sourceText: String(item.sourceText || ""),
+        sourceText: String(item.sourceText || item.source_text || ""),
         notes: String(item.notes || ""),
         tags: Array.isArray(item.tags) ? item.tags.filter(Boolean).map(String) : [],
         pinned: !!item.pinned,
         archived: !!item.archived,
-        createdAt: item.createdAt || nowIso(),
-        updatedAt: item.updatedAt || item.createdAt || nowIso(),
+        createdAt: item.createdAt || item.created_at || nowIso(),
+        updatedAt:
+          item.updatedAt ||
+          item.updated_at ||
+          item.createdAt ||
+          item.created_at ||
+          nowIso(),
       }));
   }
 
   function getLibrary() {
-    return normalizeLibraryArray(safeJsonParse(localStorage.getItem(LIB_KEY), []));
+    return normalizeLibraryArray(
+      safeJsonParse(localStorage.getItem(LIB_KEY), [])
+    );
+  }
+
+  async function backendLoadLibrary() {
+    if (!state.me.loggedIn) return getLibrary();
+
+    try {
+      const data = await api("/api/library");
+      const items = normalizeLibraryArray(data && data.items);
+      localStorage.setItem(LIB_KEY, JSON.stringify(items));
+      updateDashboardUi();
+      return items;
+    } catch (err) {
+      console.warn("backendLoadLibrary failed:", err);
+      return getLibrary();
+    }
+  }
+
+  async function backendSaveLibraryItem(item) {
+    if (!state.me.loggedIn || !item) return;
+
+    try {
+      await api("/api/library/save", {
+        method: "POST",
+        body: JSON.stringify({
+          id: item.id,
+          title: item.title,
+          html: item.html,
+          sourceText: item.sourceText,
+          notes: item.notes,
+          tags: item.tags,
+          pinned: !!item.pinned,
+          archived: !!item.archived,
+        }),
+      });
+    } catch (err) {
+      console.warn("backendSaveLibraryItem failed:", err);
+      toast("Saved locally, but cloud sync failed.", "error", 2600);
+    }
+  }
+
+  async function backendDeleteLibraryItem(id) {
+    if (!state.me.loggedIn || !id) return;
+
+    try {
+      await api("/api/library/delete", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+    } catch (err) {
+      console.warn("backendDeleteLibraryItem failed:", err);
+      toast("Deleted locally, but cloud delete failed.", "error", 2600);
+    }
   }
 
   function setLibrary(items) {
-    localStorage.setItem(LIB_KEY, JSON.stringify(normalizeLibraryArray(items)));
+    localStorage.setItem(
+      LIB_KEY,
+      JSON.stringify(normalizeLibraryArray(items))
+    );
     updateDashboardUi();
   }
 
@@ -386,7 +448,9 @@
   }
 
   function getPreviewHistory() {
-    return normalizePreviewHistory(safeJsonParse(localStorage.getItem(PREVIEW_HISTORY_KEY), []));
+    return normalizePreviewHistory(
+      safeJsonParse(localStorage.getItem(PREVIEW_HISTORY_KEY), [])
+    );
   }
 
   function setPreviewHistory(items) {
@@ -400,7 +464,8 @@
     const cleanHtml = String(html || "").trim();
     if (!cleanHtml) return;
 
-    const cleanTitle = String(title || "Untitled Preview").trim() || "Untitled Preview";
+    const cleanTitle =
+      String(title || "Untitled Preview").trim() || "Untitled Preview";
     const existing = getPreviewHistory();
 
     const withoutDupes = existing.filter(
@@ -478,7 +543,7 @@
     );
   }
 
-  function mergeImportedLibrary(payload) {
+  async function mergeImportedLibrary(payload) {
     if (!payload || !Array.isArray(payload.items)) {
       throw new Error("Invalid library file.");
     }
@@ -492,6 +557,13 @@
 
     const merged = Array.from(map.values());
     setLibrary(merged);
+
+    if (state.me.loggedIn) {
+      for (const item of merged) {
+        await backendSaveLibraryItem(item);
+      }
+    }
+
     return merged.length;
   }
 
