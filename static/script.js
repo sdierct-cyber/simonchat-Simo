@@ -731,7 +731,7 @@
     syncLibraryTriggerVisuals();
   }
 
-  function updateUserUi() {
+    function updateUserUi() {
     setText(userEmailEl, state.me.email || "");
 
     if (proBadgeEl) {
@@ -751,6 +751,12 @@
       };
     }
 
+    if (easySignupBtn) {
+      easySignupBtn.onclick = () => {
+        toast("Easy Signup flow is not wired yet.", "info", 2200);
+      };
+    }
+
     updateDashboardUi();
   }
 
@@ -765,8 +771,10 @@
       state.usageToday = Number(data.usage_today || 0);
       state.freeDailyLimit = Number(data.free_daily_limit || state.freeDailyLimit || 50);
       updateUserUi();
+      return data;
     } catch (err) {
       console.warn("refreshMe failed:", err);
+      return null;
     }
   }
 
@@ -777,37 +785,76 @@
       state.me.email = data.email || "";
       state.me.pro = !!data.pro;
       updateUserUi();
+      return data;
     } catch (err) {
       console.warn("refreshProStatus failed:", err);
+      return null;
     }
   }
 
   async function startUpgradeFlow() {
-  try {
-    // 🧠 Step 1: Check if already Pro BEFORE checkout
-    const status = await api("/api/pro-status");
+    try {
+      const proStatus = await api("/api/pro-status");
 
-    if (status && status.pro) {
-      toast("You already have Pro.", "info");
-      return;
+      if (proStatus && proStatus.pro) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        if (upgradeBtn) {
+          upgradeBtn.disabled = true;
+          upgradeBtn.textContent = "Pro Active";
+          upgradeBtn.style.opacity = "0.72";
+          upgradeBtn.style.cursor = "default";
+        }
+        return;
+      }
+
+      const data = await api("/api/create-checkout-session", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      if (data && data.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      if (data && data.ok && data.already_pro) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        if (upgradeBtn) {
+          upgradeBtn.disabled = true;
+          upgradeBtn.textContent = "Pro Active";
+          upgradeBtn.style.opacity = "0.72";
+          upgradeBtn.style.cursor = "default";
+        }
+        return;
+      }
+
+      throw new Error((data && data.error) || "Could not start checkout.");
+    } catch (err) {
+      const msg = String(err?.message || "");
+
+      if (msg.toLowerCase().includes("already pro")) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        if (upgradeBtn) {
+          upgradeBtn.disabled = true;
+          upgradeBtn.textContent = "Pro Active";
+          upgradeBtn.style.opacity = "0.72";
+          upgradeBtn.style.cursor = "default";
+        }
+        return;
+      }
+
+      toast(msg || "Upgrade failed.", "error");
     }
-
-    // 💳 Step 2: Start checkout
-    const data = await api("/api/create-checkout-session", {
-      method: "POST",
-      body: JSON.stringify({}),
-    });
-
-    if (data && data.ok && data.url) {
-      window.location.href = data.url;
-      return;
-    }
-
-    throw new Error(data?.error || "Could not start checkout.");
-  } catch (err) {
-    toast(err.message || "Upgrade failed.", "error");
   }
-}
 
   // -----------------------------
   // chat rendering
@@ -1986,11 +2033,9 @@
           published = normalizePublishResponse(data, slug);
 
           if (published && published.url) {
-  closeLibrary();
-  document.body.classList.remove("modal-open");
-  document.body.style.overflow = "";
-  break;
-}
+            showPublishSuccess(published.url);
+            break;
+          }
 
           lastErr = new Error(`Endpoint responded without a publish URL: ${endpoint}`);
         } catch (err) {
@@ -7231,90 +7276,4 @@ function showPublishSuccess(url) {
   }
 
   loop();
-
-// ==============================
-// Simo Phase 2.7 — Smart Starter Prompts (FIXED LISTENER)
-// ==============================
-
-(function simoSmartStarters() {
-  function init() {
-    const input = document.getElementById("chatInput");
-    if (!input) return;
-
-    const starters = {
-      build: "Build a modern landing page for my business",
-      business: "Give me a startup idea I can launch quickly",
-      design: "Design something creative and unique for me",
-      image: "Analyze this image and tell me what you see",
-      chat: "Let’s just chat"
-    };
-
-    function applyPrompt(text) {
-      input.value = text;
-      input.focus();
-      input.dispatchEvent(new Event("input", { bubbles: true }));
-    }
-
-    document.addEventListener("click", function (e) {
-      const el = e.target.closest("[data-simo-starter]");
-      if (!el) return;
-
-      const key = el.getAttribute("data-simo-starter");
-      if (!starters[key]) return;
-
-      applyPrompt(starters[key]);
-    });
-
-    console.log("✅ Simo Starter Prompts Ready");
-  }
-
-  // ensure DOM is ready
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
-
-// ==============================
-// Simo Phase 2.8 — Starter UX Enhancements (SAFE ADD-ON)
-// ==============================
-
-(function simoStarterUXEnhancements() {
-  function init() {
-    const buttons = Array.from(document.querySelectorAll("[data-simo-starter]"));
-    const input = document.getElementById("chatInput");
-    if (!buttons.length || !input) return;
-
-    function setActive(clicked) {
-      buttons.forEach(btn => {
-        btn.style.opacity = "0.6";
-        btn.style.transform = "scale(0.98)";
-      });
-
-      clicked.style.opacity = "1";
-      clicked.style.transform = "scale(1.05)";
-    }
-
-    function scrollToInput() {
-      input.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-
-    buttons.forEach(btn => {
-      btn.addEventListener("click", () => {
-        setActive(btn);
-        scrollToInput();
-      });
-    });
-
-    console.log("✨ Starter UX Enhancements Active");
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
-  } else {
-    init();
-  }
-})();
-
 })();
