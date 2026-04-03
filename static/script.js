@@ -731,7 +731,382 @@
     syncLibraryTriggerVisuals();
   }
 
-    function updateUserUi() {
+     function closeAuthModal() {
+    const modal = $("simoAuthModal");
+    if (!modal) return;
+
+    modal.hidden = true;
+    modal.style.display = "none";
+    document.body.classList.remove("modal-open");
+    document.body.style.overflow = "";
+  }
+
+  function openAuthModal(mode = "signup") {
+    let modal = $("simoAuthModal");
+
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "simoAuthModal";
+      modal.hidden = true;
+      modal.style.position = "fixed";
+      modal.style.inset = "0";
+      modal.style.zIndex = "999999";
+      modal.style.display = "none";
+      modal.style.alignItems = "center";
+      modal.style.justifyContent = "center";
+      modal.style.padding = "20px";
+      modal.style.background = "rgba(3,7,14,.68)";
+      modal.style.backdropFilter = "blur(10px)";
+
+      modal.innerHTML = `
+        <div
+          id="simoAuthCard"
+          style="
+            width:min(460px, 100%);
+            border-radius:24px;
+            border:1px solid rgba(255,255,255,.10);
+            background:linear-gradient(180deg, rgba(14,20,34,.98), rgba(10,16,28,.98));
+            box-shadow:0 30px 90px rgba(0,0,0,.42);
+            padding:22px;
+            display:grid;
+            gap:14px;
+            color:#eef4ff;
+          "
+        >
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <div style="display:grid; gap:4px;">
+              <div id="simoAuthTitle" style="font-size:22px; font-weight:800;">Create your account</div>
+              <div id="simoAuthSubtitle" style="font-size:13px; color:rgba(235,242,255,.72);">
+                Sign up to save your place inside Simo.
+              </div>
+            </div>
+
+            <button
+              id="simoAuthCloseBtn"
+              type="button"
+              style="
+                width:40px;
+                height:40px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-size:18px;
+                line-height:1;
+              "
+            >×</button>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button
+              id="simoAuthModeSignup"
+              type="button"
+              style="
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(110,168,255,.16);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Easy Signup</button>
+
+            <button
+              id="simoAuthModeLogin"
+              type="button"
+              style="
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Sign In</button>
+
+            <button
+              id="simoAuthGoogleBtn"
+              type="button"
+              style="
+                margin-left:auto;
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Google</button>
+          </div>
+
+          <form id="simoAuthForm" style="display:grid; gap:12px;">
+            <div id="simoAuthNameWrap" style="display:grid; gap:6px;">
+              <label for="simoAuthName" style="font-size:12px; color:rgba(235,242,255,.78);">Name</label>
+              <input
+                id="simoAuthName"
+                type="text"
+                autocomplete="name"
+                placeholder="Your name"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div style="display:grid; gap:6px;">
+              <label for="simoAuthEmail" style="font-size:12px; color:rgba(235,242,255,.78);">Email</label>
+              <input
+                id="simoAuthEmail"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div style="display:grid; gap:6px;">
+              <label for="simoAuthPassword" style="font-size:12px; color:rgba(235,242,255,.78);">Password</label>
+              <input
+                id="simoAuthPassword"
+                type="password"
+                autocomplete="current-password"
+                placeholder="At least 6 characters"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div
+              id="simoAuthError"
+              style="
+                display:none;
+                padding:10px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,120,140,.20);
+                background:rgba(160,32,64,.14);
+                color:#ffd8e0;
+                font-size:13px;
+                line-height:1.4;
+              "
+            ></div>
+
+            <button
+              id="simoAuthSubmitBtn"
+              type="submit"
+              style="
+                min-height:48px;
+                border-radius:14px;
+                border:1px solid rgba(110,168,255,.25);
+                background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(150,115,255,.20));
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:800;
+                font-size:14px;
+              "
+            >Create account</button>
+          </form>
+
+          <div id="simoAuthFooterText" style="font-size:12px; color:rgba(235,242,255,.66);">
+            Create a simple account now and keep moving.
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeAuthModal();
+      });
+
+      $("simoAuthCloseBtn")?.addEventListener("click", closeAuthModal);
+
+      $("simoAuthGoogleBtn")?.addEventListener("click", () => {
+        window.location.href = "/login";
+      });
+
+      $("simoAuthModeSignup")?.addEventListener("click", () => {
+        openAuthModal("signup");
+      });
+
+      $("simoAuthModeLogin")?.addEventListener("click", () => {
+        openAuthModal("login");
+      });
+
+      $("simoAuthForm")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const currentMode = modal.dataset.mode || "signup";
+        const nameEl = $("simoAuthName");
+        const emailEl = $("simoAuthEmail");
+        const passwordEl = $("simoAuthPassword");
+        const submitBtn = $("simoAuthSubmitBtn");
+        const errorEl = $("simoAuthError");
+
+        const payload = {
+          name: (nameEl?.value || "").trim(),
+          email: (emailEl?.value || "").trim(),
+          password: (passwordEl?.value || "").trim(),
+        };
+
+        if (errorEl) {
+          errorEl.style.display = "none";
+          errorEl.textContent = "";
+        }
+
+        if (!payload.email || !payload.password || (currentMode === "signup" && !payload.name)) {
+          if (errorEl) {
+            errorEl.textContent =
+              currentMode === "signup"
+                ? "Please enter your name, email, and password."
+                : "Please enter your email and password.";
+            errorEl.style.display = "block";
+          }
+          return;
+        }
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = "0.7";
+          submitBtn.textContent = currentMode === "signup" ? "Creating account..." : "Signing in...";
+        }
+
+        try {
+          const endpoint = currentMode === "signup" ? "/api/signup" : "/api/login";
+          const body =
+            currentMode === "signup"
+              ? payload
+              : { email: payload.email, password: payload.password };
+
+          const data = await api(endpoint, {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+
+          state.me.loggedIn = !!data.loggedIn;
+          state.me.email = data.email || "";
+          state.me.name = data.name || "";
+          state.me.pro = !!data.pro;
+          state.me.team = false;
+
+          await refreshMe();
+          await backendLoadLibrary();
+          updateUserUi();
+          closeAuthModal();
+
+          toast(
+            currentMode === "signup"
+              ? "Account created. You’re in."
+              : "Signed in successfully.",
+            "success",
+            2200
+          );
+        } catch (err) {
+          if (errorEl) {
+            errorEl.textContent = err.message || "Authentication failed.";
+            errorEl.style.display = "block";
+          }
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.textContent = currentMode === "signup" ? "Create account" : "Sign in";
+          }
+        }
+      });
+    }
+
+    modal.dataset.mode = mode;
+    modal.hidden = false;
+    modal.style.display = "flex";
+    document.body.classList.add("modal-open");
+    document.body.style.overflow = "hidden";
+
+    const titleEl = $("simoAuthTitle");
+    const subtitleEl = $("simoAuthSubtitle");
+    const footerEl = $("simoAuthFooterText");
+    const nameWrap = $("simoAuthNameWrap");
+    const submitBtn = $("simoAuthSubmitBtn");
+    const signupModeBtn = $("simoAuthModeSignup");
+    const loginModeBtn = $("simoAuthModeLogin");
+    const errorEl = $("simoAuthError");
+    const nameEl = $("simoAuthName");
+    const emailEl = $("simoAuthEmail");
+    const passwordEl = $("simoAuthPassword");
+
+    if (errorEl) {
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+    }
+
+    const isSignup = mode === "signup";
+
+    if (titleEl) titleEl.textContent = isSignup ? "Create your account" : "Welcome back";
+    if (subtitleEl) {
+      subtitleEl.textContent = isSignup
+        ? "Sign up to save your place inside Simo."
+        : "Sign in with your email and password.";
+    }
+    if (footerEl) {
+      footerEl.textContent = isSignup
+        ? "Create a simple account now and keep moving."
+        : "Use the account you already created.";
+    }
+    if (nameWrap) nameWrap.style.display = isSignup ? "grid" : "none";
+    if (submitBtn) submitBtn.textContent = isSignup ? "Create account" : "Sign in";
+
+    if (signupModeBtn) {
+      signupModeBtn.style.background = isSignup ? "rgba(110,168,255,.16)" : "rgba(255,255,255,.05)";
+      signupModeBtn.style.borderColor = isSignup ? "rgba(110,168,255,.30)" : "rgba(255,255,255,.10)";
+    }
+
+    if (loginModeBtn) {
+      loginModeBtn.style.background = !isSignup ? "rgba(110,168,255,.16)" : "rgba(255,255,255,.05)";
+      loginModeBtn.style.borderColor = !isSignup ? "rgba(110,168,255,.30)" : "rgba(255,255,255,.10)";
+    }
+
+    setTimeout(() => {
+      try {
+        if (isSignup && nameEl) nameEl.focus();
+        else if (emailEl) emailEl.focus();
+      } catch {}
+    }, 30);
+
+    if (!isSignup && passwordEl) {
+      passwordEl.setAttribute("autocomplete", "current-password");
+    } else if (passwordEl) {
+      passwordEl.setAttribute("autocomplete", "new-password");
+    }
+  }
+
+  function updateUserUi() {
     setText(userEmailEl, state.me.email || "");
 
     if (proBadgeEl) {
@@ -740,20 +1115,46 @@
     }
 
     if (loginBtn) {
+      loginBtn.textContent = state.me.loggedIn ? "Signed In" : "Sign in";
+      loginBtn.disabled = !!state.me.loggedIn;
+      loginBtn.style.opacity = state.me.loggedIn ? "0.68" : "1";
+      loginBtn.style.cursor = state.me.loggedIn ? "default" : "pointer";
       loginBtn.onclick = () => {
-        window.location.href = "/login";
+        if (state.me.loggedIn) return;
+        openAuthModal("login");
       };
     }
 
     if (logoutBtn) {
-      logoutBtn.onclick = () => {
-        window.location.href = "/logout";
+      logoutBtn.disabled = !state.me.loggedIn;
+      logoutBtn.style.opacity = state.me.loggedIn ? "1" : "0.68";
+      logoutBtn.style.cursor = state.me.loggedIn ? "pointer" : "default";
+      logoutBtn.onclick = async () => {
+        if (!state.me.loggedIn) return;
+
+        try {
+          await api("/api/logout", { method: "POST" });
+          state.me.loggedIn = false;
+          state.me.email = "";
+          state.me.name = "";
+          state.me.pro = false;
+          state.me.team = false;
+          await refreshMe();
+          updateUserUi();
+          toast("Logged out.", "success", 1800);
+        } catch (err) {
+          toast(err.message || "Logout failed.", "error");
+        }
       };
     }
 
     if (easySignupBtn) {
       easySignupBtn.onclick = () => {
-        toast("Easy Signup flow is not wired yet.", "info", 2200);
+        if (state.me.loggedIn) {
+          toast("You’re already signed in.", "info", 1800);
+          return;
+        }
+        openAuthModal("signup");
       };
     }
 
@@ -852,10 +1253,17 @@
         return;
       }
 
+      if (msg.toLowerCase().includes("logged in")) {
+        openAuthModal("signup");
+        toast("Create your account or sign in before upgrading.", "info", 2600);
+        return;
+      }
+
       toast(msg || "Upgrade failed.", "error");
     }
   }
 
+        
   // -----------------------------
   // chat rendering
   // -----------------------------
@@ -3735,11 +4143,15 @@ function wireTopbarButtons() {
   }
 
   if (easySignupBtn && easySignupBtn.dataset.boundClick !== "true") {
-    easySignupBtn.dataset.boundClick = "true";
-    easySignupBtn.addEventListener("click", () => {
-      toast("Easy Signup flow is not wired yet.", "info", 3200);
-    });
-  }
+  easySignupBtn.dataset.boundClick = "true";
+  easySignupBtn.addEventListener("click", () => {
+    if (state.me.loggedIn) {
+      toast("You’re already signed in.", "info", 1800);
+      return;
+    }
+    openAuthModal("signup");
+  });
+}
 
   if (publishBtn && publishBtn.dataset.boundClick !== "true") {
     publishBtn.dataset.boundClick = "true";
