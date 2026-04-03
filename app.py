@@ -21,6 +21,7 @@ from flask import (
 from dotenv import load_dotenv
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 
 import stripe
 from authlib.integrations.flask_client import OAuth
@@ -1678,6 +1679,8 @@ def init_db():
             email TEXT UNIQUE,
             name TEXT,
             google_sub TEXT,
+            password_hash TEXT,
+            auth_provider TEXT DEFAULT 'google',
             pro INTEGER DEFAULT 0,
             stripe_customer_id TEXT,
             stripe_subscription_id TEXT,
@@ -1759,6 +1762,8 @@ def init_db():
         """
     )
 
+    ensure_column(conn, "users", "password_hash", "TEXT")
+    ensure_column(conn, "users", "auth_provider", "TEXT DEFAULT 'google'")
     ensure_column(conn, "users", "stripe_customer_id", "TEXT")
     ensure_column(conn, "users", "stripe_subscription_id", "TEXT")
     ensure_column(conn, "users", "stripe_subscription_status", "TEXT")
@@ -1773,10 +1778,12 @@ def init_db():
     conn.close()
 
 
-def upsert_user(email: str, name: str = "", google_sub: str = ""):
+def upsert_user(email: str, name: str = "", google_sub: str = "", password_hash: str = "", auth_provider: str = ""):
     email = (email or "").strip().lower()
     name = (name or "").strip()
     google_sub = (google_sub or "").strip()
+    password_hash = str(password_hash or "").strip()
+    auth_provider = normalize_auth_provider(auth_provider or ("local" if password_hash else "google"))
 
     if not email:
         return
@@ -1786,31 +1793,41 @@ def upsert_user(email: str, name: str = "", google_sub: str = ""):
     conn = get_db()
     cur = conn.cursor()
 
-    cur.execute("SELECT id, name, google_sub FROM users WHERE email = ?", (email,))
+    cur.execute(
+        """
+        SELECT id, name, google_sub, password_hash, auth_provider
+        FROM users
+        WHERE email = ?
+        """,
+        (email,),
+    )
     row = cur.fetchone()
 
     if row:
         next_name = name or str(row["name"] or "").strip()
         next_google_sub = google_sub or str(row["google_sub"] or "").strip()
+        next_password_hash = password_hash or str(row["password_hash"] or "").strip()
+        next_auth_provider = merge_auth_provider(str(row["auth_provider"] or "").strip(), auth_provider)
+
         cur.execute(
             """
             UPDATE users
-            SET name = ?, google_sub = ?, updated_at = ?
+            SET name = ?, google_sub = ?, password_hash = ?, auth_provider = ?, updated_at = ?
             WHERE email = ?
             """,
-            (next_name, next_google_sub, now, email),
+            (next_name, next_google_sub, next_password_hash, next_auth_provider, now, email),
         )
     else:
         cur.execute(
             """
             INSERT INTO users (
-                email, name, google_sub, pro,
+                email, name, google_sub, password_hash, auth_provider, pro,
                 stripe_customer_id, stripe_subscription_id, stripe_subscription_status,
                 created_at, updated_at
             )
-            VALUES (?, ?, ?, 0, '', '', '', ?, ?)
+            VALUES (?, ?, ?, ?, ?, 0, '', '', '', ?, ?)
             """,
-            (email, name, google_sub, now, now),
+            (email, name, google_sub, password_hash, auth_provider, now, now),
         )
 
     conn.commit()
@@ -2118,6 +2135,54 @@ def normalize_saved_build_item(row):
         "createdAt": str(row["created_at"] or ""),
         "updatedAt": str(row["updated_at"] or ""),
     }
+
+def normalize_auth_provider(value: str) -> str:
+    raw = str(value or "").strip().lower()
+    if not raw:
+        return "local"
+    return raw
+
+
+def merge_auth_provider(existing: str, incoming: str) -> str:
+    existing_clean = normalize_auth_provider(existing)
+    incoming_clean = normalize_auth_provider(incoming)
+
+    existing_parts = {p.strip() for p in existing_clean.split(",") if p.strip()}
+    incoming_parts = {p.strip() for p in incoming_clean.split(",") if p.strip()}
+
+    merged = existing_parts | incoming_parts
+    ordered = []
+
+    for key in ["google", "local"]:
+        if key in merged:
+            ordered.append(key)
+
+    for item in sorted(merged):
+        if item not in ordered:
+            ordered.append(item)
+
+    return ",".join(ordered) if ordered else incoming_clean
+
+
+def valid_email(email: str) -> bool:
+    email = str(email or "").strip()
+    return bool(re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email))
+
+
+def valid_password(password: str) -> bool:
+    return len(str(password or "")) >= 6
+
+
+def set_logged_in_user(email: str, name: str = "", google_sub: str = ""):
+    session["user_email"] = str(email or "").strip().lower()
+    session["user_name"] = str(name or "").strip()
+    session["google_sub"] = str(google_sub or "").strip()
+
+
+def clear_logged_in_user():
+    session.pop("user_email", None)
+    session.pop("user_name", None)
+    session.pop("google_sub", None)
 
 
 init_db()
@@ -3194,7 +3259,7 @@ def health():
         {
             "ok": True,
             "app": "simo",
-            "backend_version": "PHASE_3_2_STRIPE_RECOVERY_SYNC",
+            "backend_version": "PHASE_3_3_EASY_SIGNUP_BACKEND",
             "time": utcnow_z(),
             "logged_in": is_logged_in(),
             "pro": is_pro_user(),
@@ -3261,11 +3326,8 @@ def auth_google_callback():
         if not email:
             return jsonify({"ok": False, "error": "Google login did not return an email."}), 400
 
-        upsert_user(email=email, name=name, google_sub=sub)
-
-        session["user_email"] = email
-        session["user_name"] = name
-        session["google_sub"] = sub
+        upsert_user(email=email, name=name, google_sub=sub, auth_provider="google")
+        set_logged_in_user(email=email, name=name, google_sub=sub)
 
         # Recover Stripe status immediately on login.
         sync_user_pro_from_stripe(email)
@@ -3277,9 +3339,7 @@ def auth_google_callback():
 
 @app.route("/logout")
 def logout():
-    session.pop("user_email", None)
-    session.pop("user_name", None)
-    session.pop("google_sub", None)
+    clear_logged_in_user()
     return redirect(url_for("home"))
 
 
@@ -3300,9 +3360,122 @@ def api_me():
             "usage_today": usage_today,
             "free_daily_limit": FREE_DAILY_LIMIT,
             "stripe_subscription_status": str(row["stripe_subscription_status"] or "") if row else "",
+            "auth_provider": str(row["auth_provider"] or "") if row else "",
         }
     )
 
+@app.route("/api/signup", methods=["POST"])
+def api_signup():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        email = str(data.get("email") or "").strip().lower()
+        name = str(data.get("name") or "").strip()
+        password = str(data.get("password") or "")
+
+        if not email or not valid_email(email):
+            return jsonify({"ok": False, "error": "Please enter a valid email address."}), 400
+
+        if not valid_password(password):
+            return jsonify({"ok": False, "error": "Password must be at least 6 characters."}), 400
+
+        existing = get_user_by_email(email)
+
+        if existing and str(existing["password_hash"] or "").strip():
+            return jsonify({"ok": False, "error": "An account with that email already exists."}), 409
+
+        password_hash = generate_password_hash(password)
+
+        if existing:
+            upsert_user(
+                email=email,
+                name=name or str(existing["name"] or "").strip(),
+                google_sub=str(existing["google_sub"] or "").strip(),
+                password_hash=password_hash,
+                auth_provider="local",
+            )
+        else:
+            upsert_user(
+                email=email,
+                name=name,
+                google_sub="",
+                password_hash=password_hash,
+                auth_provider="local",
+            )
+
+        set_logged_in_user(
+            email=email,
+            name=name or (str(existing["name"] or "").strip() if existing else ""),
+            google_sub=str(existing["google_sub"] or "").strip() if existing else "",
+        )
+
+        sync_user_pro_from_stripe(email)
+        row = get_user_by_email(email)
+
+        return jsonify(
+            {
+                "ok": True,
+                "loggedIn": True,
+                "email": email,
+                "name": current_user_name(),
+                "pro": bool(row and int(row["pro"] or 0) == 1),
+            }
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Signup failed: {str(e)}"}), 500
+
+
+@app.route("/api/login", methods=["POST"])
+def api_login_password():
+    try:
+        data = request.get_json(silent=True) or {}
+
+        email = str(data.get("email") or "").strip().lower()
+        password = str(data.get("password") or "")
+
+        if not email or not password:
+            return jsonify({"ok": False, "error": "Email and password are required."}), 400
+
+        row = get_user_by_email(email)
+        if not row:
+            return jsonify({"ok": False, "error": "Invalid email or password."}), 401
+
+        stored_hash = str(row["password_hash"] or "").strip()
+        if not stored_hash:
+            return jsonify(
+                {
+                    "ok": False,
+                    "error": "This account does not have an email/password login yet. Use Google login or create a password for this account first.",
+                }
+            ), 401
+
+        if not check_password_hash(stored_hash, password):
+            return jsonify({"ok": False, "error": "Invalid email or password."}), 401
+
+        name = str(row["name"] or "").strip()
+        google_sub = str(row["google_sub"] or "").strip()
+
+        set_logged_in_user(email=email, name=name, google_sub=google_sub)
+        sync_user_pro_from_stripe(email)
+        row = get_user_by_email(email)
+
+        return jsonify(
+            {
+                "ok": True,
+                "loggedIn": True,
+                "email": email,
+                "name": name,
+                "pro": bool(row and int(row["pro"] or 0) == 1),
+            }
+        )
+    except Exception as e:
+        return jsonify({"ok": False, "error": f"Login failed: {str(e)}"}), 500
+
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    clear_logged_in_user()
+    return jsonify({"ok": True})
 
 # ---------------------------------------------------------
 # Billing
