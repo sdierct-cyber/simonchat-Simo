@@ -1158,6 +1158,19 @@
       };
     }
 
+if (upgradeBtn) {
+      if (state.me.pro) {
+        upgradeBtn.disabled = true;
+        upgradeBtn.textContent = "Pro Active";
+        upgradeBtn.style.opacity = "0.72";
+        upgradeBtn.style.cursor = "default";
+      } else {
+        upgradeBtn.disabled = false;
+        upgradeBtn.textContent = "Upgrade";
+        upgradeBtn.style.opacity = "1";
+        upgradeBtn.style.cursor = "pointer";
+      }
+    }
     updateDashboardUi();
   }
 
