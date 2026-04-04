@@ -3534,7 +3534,6 @@ def api_create_checkout_session():
 
         upsert_user(email=email, name=current_user_name(), google_sub=google_sub)
 
-        # Recover active Stripe subscription before sending user to checkout again.
         synced_row = sync_user_pro_from_stripe(email)
         if synced_row and int(synced_row["pro"] or 0) == 1:
             return jsonify(
@@ -3585,103 +3584,6 @@ def api_create_checkout_session():
         return jsonify({"ok": True, "url": checkout.url, "id": checkout.id})
     except Exception as e:
         return jsonify({"ok": False, "error": f"Stripe checkout failed: {str(e)}"}), 500
-
-
-@app.route("/stripe-webhook", methods=["POST"])
-def stripe_webhook():
-    payload = request.get_data(as_text=False)
-    sig_header = request.headers.get("Stripe-Signature", "")
-
-    if not STRIPE_WEBHOOK_SECRET:
-        return jsonify({"ok": False, "error": "Missing STRIPE_WEBHOOK_SECRET"}), 500
-
-    try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Webhook verification failed: {str(e)}"}), 400
-
-    event_type = str(event.get("type", "") or "").strip()
-    data_object = event.get("data", {}).get("object", {}) or {}
-
-    try:
-        if event_type == "checkout.session.completed":
-            email = (
-                str(data_object.get("metadata", {}).get("user_email") or "").strip().lower()
-                or str(data_object.get("client_reference_id") or "").strip().lower()
-                or str(data_object.get("customer_details", {}).get("email") or "").strip().lower()
-                or str(data_object.get("customer_email") or "").strip().lower()
-            )
-            customer_id = str(data_object.get("customer") or "").strip()
-            subscription_id = str(data_object.get("subscription") or "").strip()
-
-            if customer_id and not email:
-                email = retrieve_customer_email(customer_id)
-
-            if email:
-                upsert_user(email=email)
-                set_user_subscription_state(
-                    email=email,
-                    customer_id=customer_id,
-                    subscription_id=subscription_id,
-                    subscription_status="checkout_completed",
-                    is_pro=True,
-                )
-
-        elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
-            customer_id = str(data_object.get("customer") or "").strip()
-            subscription_id = str(data_object.get("id") or "").strip()
-            status = str(data_object.get("status") or "").strip().lower()
-            metadata = data_object.get("metadata", {}) or {}
-            email = str(metadata.get("user_email") or "").strip().lower()
-
-            if customer_id and not email:
-                user_row = get_user_by_customer_id(customer_id)
-                if user_row:
-                    email = str(user_row["email"] or "").strip().lower()
-
-            if subscription_id and not email:
-                user_row = get_user_by_subscription_id(subscription_id)
-                if user_row:
-                    email = str(user_row["email"] or "").strip().lower()
-
-            if customer_id and not email:
-                email = retrieve_customer_email(customer_id)
-
-            if email:
-                upsert_user(email=email)
-                set_user_subscription_state(
-                    email=email,
-                    customer_id=customer_id,
-                    subscription_id=subscription_id,
-                    subscription_status=status,
-                    is_pro=stripe_subscription_is_pro(status),
-                )
-
-        elif event_type == "customer.subscription.deleted":
-            customer_id = str(data_object.get("customer") or "").strip()
-            subscription_id = str(data_object.get("id") or "").strip()
-            status = str(data_object.get("status") or "canceled").strip().lower()
-
-            user_row = None
-            if subscription_id:
-                user_row = get_user_by_subscription_id(subscription_id)
-            if not user_row and customer_id:
-                user_row = get_user_by_customer_id(customer_id)
-
-            email = str(user_row["email"] or "").strip().lower() if user_row else ""
-            if email:
-                set_user_subscription_state(
-                    email=email,
-                    customer_id=customer_id,
-                    subscription_id=subscription_id,
-                    subscription_status=status,
-                    is_pro=False,
-                )
-
-    except Exception as e:
-        return jsonify({"ok": False, "error": f"Webhook handling failed: {str(e)}"}), 500
-
-    return jsonify({"ok": True})
 
 
 # ---------------------------------------------------------
