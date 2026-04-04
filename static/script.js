@@ -2747,9 +2747,12 @@ if (upgradeBtn) {
     });
 
     items.unshift(item);
-    setLibrary(items);
-    toast("Build saved to Builder Library.", "success");
-    renderLibrary();
+setLibrary(items);
+
+backendSaveLibraryItem(item);
+
+toast("Build saved to Builder Library.", "success");
+renderLibrary();
   }
 
   function updateReopenLastPreviewVisibility() {
