@@ -1,0 +1,7 @@
+.env
+.venv/
+simo.db
+published/
+published_sites/
+app_backup.py
+app_phase_2_5.py
