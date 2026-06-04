@@ -1,391 +1,567 @@
-/* SIMO PHASE 14M-R10.46 — Library Rescue Loader
-   Purpose: restore Open Library when the legacy library opener is missing/not exposed.
-   Scope: frontend-only. Does not touch Stripe, login, image generation, app.py, or workspace rendering.
+/*
+  SIMO PHASE 14M-R10.47 — LIVE FRONTEND LIBRARY BUTTON + SAVE/OPEN BRIDGE
+  File: static/simo-library-rescue.js
+
+  Frontend-only scope:
+  - Open Library rescue
+  - Workspace Save to Library proof-before-success
+  - Saved card display
+  - Saved card reopens the exact saved design/workspace image
+  - No localhost / 127.0.0.1 fallback
+  - No image generation / credit usage
 */
 (function () {
   "use strict";
 
-  if (window.__SIMO_LIBRARY_RESCUE_R1046__) return;
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (window.__SIMO_PHASE14M_R1047_LIVE_LIBRARY_BUTTON_BRIDGE__) return;
+  window.__SIMO_PHASE14M_R1047_LIVE_LIBRARY_BUTTON_BRIDGE__ = true;
   window.__SIMO_LIBRARY_RESCUE_R1046__ = true;
+  window.__SIMO_LIBRARY_RESCUE_R1047__ = true;
+  window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1046__ = true;
+  window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1047__ = true;
 
-  var PHASE = "SIMO Library Rescue R10.46";
-  var LIB_KEY = "simo_builder_library_v5_1_builder_first";
-  var LAST_PREVIEW_KEY = "simo_last_preview_v2";
+  var PHASE = "PHASE 14M-R10.47 Live Library Button + Proof Save Bridge";
+  var LIB_KEYS = [
+    "simo_builder_library_v5_1_builder_first",
+    "simo_builder_library_v5",
+    "simo_visual_concepts_library_v1",
+    "simo_builder_library_v4",
+    "simo_builder_library",
+    "simo_library_items"
+  ];
+  var LAST_KEY = "simo_workspace_last_saved_item_v2";
+  var FORCE_KEY = "simo_workspace_force_library_item_v1";
+  var MODAL_ID = "simoLiveLibraryFixModal";
 
   function $(id) { return document.getElementById(id); }
-
+  function nowIso() { return new Date().toISOString(); }
+  function uid(prefix) {
+    return (prefix || "simo_saved") + "_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 9);
+  }
   function esc(v) {
     return String(v == null ? "" : v)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
+      .replace(/\"/g, "&quot;")
       .replace(/'/g, "&#039;");
   }
+  function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
+  function low(v) { return clean(v).toLowerCase(); }
+  function parseJson(raw, fallback) {
+    try { return JSON.parse(raw); } catch (e) { return fallback; }
+  }
 
-  function readLocal() {
+  function fixUrl(src) {
+    src = String(src || "").trim();
+    if (!src) return "";
+    if (src.indexOf("data:image/") === 0 || src.indexOf("blob:") === 0) return src;
+    // Hard block stale local dev paths on live. They cannot be readable to users.
+    src = src.replace(/^https?:\/\/(?:127\.0\.0\.1|localhost)(?::\d+)?/i, window.location.origin);
+    if (/^https?:\/\//i.test(src)) return src;
+    try { return new URL(src, window.location.origin).href; } catch (e) { return src; }
+  }
+
+  function isUsefulImage(src) {
+    src = fixUrl(src);
+    return !!(
+      src &&
+      src.indexOf("127.0.0.1") < 0 &&
+      src.indexOf("localhost") < 0 &&
+      (
+        src.indexOf("data:image/") === 0 ||
+        src.indexOf("blob:") === 0 ||
+        src.indexOf("/generated-images/") >= 0 ||
+        src.indexOf("/generated_images/") >= 0 ||
+        /\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(src)
+      )
+    );
+  }
+
+  function readStore(key) {
+    var parsed = parseJson(localStorage.getItem(key) || "[]", []);
+    if (Array.isArray(parsed)) return { mode: "array", obj: parsed, arr: parsed };
+    if (parsed && Array.isArray(parsed.items)) return { mode: "items", obj: parsed, arr: parsed.items };
+    if (parsed && Array.isArray(parsed.builds)) return { mode: "builds", obj: parsed, arr: parsed.builds };
+    if (parsed && Array.isArray(parsed.library)) return { mode: "library", obj: parsed, arr: parsed.library };
+    return { mode: "array", obj: [], arr: [] };
+  }
+
+  function writeStore(key, store, arr) {
     try {
-      var raw = localStorage.getItem(LIB_KEY) || "[]";
-      var list = JSON.parse(raw);
-      return Array.isArray(list) ? list.filter(Boolean) : [];
+      if (store.mode === "array") {
+        localStorage.setItem(key, JSON.stringify(arr));
+        return true;
+      }
+      var obj = store.obj && typeof store.obj === "object" ? store.obj : {};
+      obj[store.mode] = arr;
+      localStorage.setItem(key, JSON.stringify(obj));
+      return true;
     } catch (e) {
-      return [];
+      return false;
     }
   }
 
-  function writeLocal(items) {
-    try {
-      localStorage.setItem(LIB_KEY, JSON.stringify(Array.isArray(items) ? items : []));
-    } catch (e) {}
-    updateCount(items);
-  }
-
-  function updateCount(items) {
-    var list = Array.isArray(items) ? items : readLocal();
-    var count = list.filter(function (x) { return x && !x.archived; }).length;
-    var el = $("libraryCountValue");
-    if (el) el.textContent = String(count);
-    var card = $("builderLibraryCount");
-    if (card) card.textContent = String(count);
-  }
-
-  function normalizeItem(item) {
-    item = item || {};
-    var id = String(item.id || item.build_id || item.slug || ("local_" + Date.now() + "_" + Math.random().toString(36).slice(2, 7)));
-    var title = String(item.title || item.name || "Untitled Build");
-    var html = String(item.html || item.content || "");
-    var sourceText = String(item.sourceText || item.source_text || item.source || "");
-    var notes = String(item.notes || "");
-    var tags = item.tags;
-    if (!Array.isArray(tags)) {
-      try { tags = JSON.parse(item.tags_json || "[]"); } catch (e) { tags = []; }
-    }
-    tags = Array.isArray(tags) ? tags.filter(Boolean) : [];
-    return {
-      id: id,
-      title: title,
-      html: html,
-      sourceText: sourceText,
-      notes: notes,
-      tags: tags,
-      pinned: !!item.pinned,
-      archived: !!item.archived,
-      createdAt: item.createdAt || item.created_at || item.savedAt || item.saved_at || item.updatedAt || item.updated_at || "",
-      updatedAt: item.updatedAt || item.updated_at || item.createdAt || item.created_at || ""
-    };
-  }
-
-  function mergeItems(localItems, serverItems) {
+  function allItems() {
     var out = [];
-    var seen = Object.create(null);
-
-    function add(item) {
-      var n = normalizeItem(item);
-      if (!n || !n.id) return;
-      if (seen[n.id]) return;
-      seen[n.id] = true;
-      out.push(n);
-    }
-
-    (serverItems || []).forEach(add);
-    (localItems || []).forEach(add);
-
-    out.sort(function (a, b) {
-      var ap = a.pinned ? 1 : 0;
-      var bp = b.pinned ? 1 : 0;
-      if (ap !== bp) return bp - ap;
-      return String(b.updatedAt || b.createdAt || "").localeCompare(String(a.updatedAt || a.createdAt || ""));
+    var seen = {};
+    LIB_KEYS.forEach(function (key) {
+      try {
+        var store = readStore(key);
+        (store.arr || []).forEach(function (item) {
+          if (!item || typeof item !== "object") return;
+          var id = String(item.id || item._id || item.title || item.name || Math.random());
+          var image = fixUrl(bestItemImage(item));
+          var sig = id + "|" + image;
+          if (seen[sig]) return;
+          seen[sig] = true;
+          out.push(normalizeItem(item));
+        });
+      } catch (e) {}
     });
-
+    out.sort(function (a, b) {
+      return Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0);
+    });
     return out;
   }
 
-  async function fetchServerLibrary() {
-    try {
-      var res = await fetch("/api/library", { credentials: "same-origin", cache: "no-store" });
-      var data = await res.json().catch(function () { return null; });
-      if (!res.ok || !data || data.ok === false) return [];
-      return Array.isArray(data.items) ? data.items : [];
-    } catch (e) {
-      return [];
+  function bestItemImage(item) {
+    item = item || {};
+    var candidates = [
+      item.imageUrl,
+      item.image_url,
+      item.generated_visual_url,
+      item.generatedImageUrl,
+      item.previewUrl,
+      item.thumbnail,
+      item.visualUrl,
+      item.displayImageUrl,
+      item.currentImage,
+      item.image,
+      item.sourceImageUrl,
+      item.originalImageUrl
+    ];
+    if (item.workspaceData) {
+      candidates.unshift(
+        item.workspaceData.currentImage,
+        item.workspaceData.image,
+        item.workspaceData.displayImageUrl,
+        item.workspaceData.sourceImage,
+        item.workspaceData.originalImage
+      );
     }
+    for (var i = 0; i < candidates.length; i += 1) {
+      var src = fixUrl(candidates[i]);
+      if (isUsefulImage(src)) return src;
+    }
+    return "";
   }
 
-  function extractVisualProject(item) {
-    var source = String((item && (item.sourceText || item.source_text)) || "");
-    var idx = source.indexOf("{");
-    if (idx >= 0) {
-      try {
-        var obj = JSON.parse(source.slice(idx));
-        if (obj && obj.type === "simo_visual_project") return obj;
-      } catch (e) {}
-    }
+  function titleFromItem(item) {
+    return clean(item && (item.title || item.name || item.projectTitle || item.workspaceSubject || item.prompt)) || "Simo Saved Design";
+  }
 
-    var html = String((item && item.html) || "");
-    var img = "";
-    var m = html.match(/<img[^>]+src=["']([^"']+)["']/i);
-    if (m && m[1]) img = m[1];
-
-    var title = String((item && item.title) || "Saved Design");
-    return {
-      type: "simo_visual_project",
+  function normalizeItem(item) {
+    item = item && typeof item === "object" ? item : {};
+    var img = fixUrl(bestItemImage(item));
+    var id = String(item.id || uid("simo_saved"));
+    var title = titleFromItem(item);
+    var original = fixUrl(item.originalImageUrl || item.originalImage || (item.workspaceData && item.workspaceData.originalImage) || img);
+    var source = fixUrl(item.sourceImageUrl || item.sourceImage || (item.workspaceData && item.workspaceData.sourceImage) || img);
+    var edits = Array.isArray(item.workspaceEdits) ? item.workspaceEdits.slice() :
+      (item.workspaceData && Array.isArray(item.workspaceData.edits) ? item.workspaceData.edits.slice() : []);
+    var normalized = Object.assign({}, item, {
+      id: id,
       title: title,
-      item: title,
-      prompt: title,
-      latestPrompt: title,
+      name: title,
+      projectTitle: item.projectTitle || title,
+      type: item.type || "visual",
+      kind: item.kind || "visual",
+      source: item.source || "simo_phase14m_live_library_fix",
+      tags: Array.isArray(item.tags) ? item.tags : ["visual", "design", "workspace"],
+      notes: item.notes || "Saved from Simo workspace after frontend proof check.",
       imageUrl: img,
-      controls: [],
-      category: "object"
-    };
-  }
-
-  function css() {
-    if ($("simoLibraryRescueStyles")) return;
-    var s = document.createElement("style");
-    s.id = "simoLibraryRescueStyles";
-    s.textContent = `
-      .simo-lib-backdrop{position:fixed;inset:0;z-index:2147483200;background:rgba(0,0,0,.66);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Inter,Arial,sans-serif;color:#eef4ff}
-      .simo-lib-modal{width:min(1120px,96vw);max-height:90vh;overflow:hidden;border:1px solid rgba(255,255,255,.16);background:#07111f;border-radius:24px;box-shadow:0 30px 110px rgba(0,0,0,.62);display:grid;grid-template-rows:auto auto 1fr}
-      .simo-lib-head{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;gap:14px;align-items:center;justify-content:space-between}
-      .simo-lib-head h3{margin:0;font-size:22px}.simo-lib-head p{margin:4px 0 0;color:#b7c6e4;font-size:13px}
-      .simo-lib-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-      .simo-lib-btn{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:10px 12px;font-weight:900;cursor:pointer;font-size:12px}
-      .simo-lib-btn.primary{border-color:rgba(110,168,255,.35);background:rgba(110,168,255,.16)}
-      .simo-lib-btn.danger{border-color:rgba(255,115,115,.32);background:rgba(255,115,115,.12)}
-      .simo-lib-toolbar{padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;gap:10px;align-items:center}
-      .simo-lib-search{flex:1;min-width:220px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;border-radius:999px;padding:11px 14px;outline:none}
-      .simo-lib-list{overflow:auto;padding:18px 20px;display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px}
-      .simo-lib-card{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);border-radius:18px;padding:14px;display:grid;gap:10px}
-      .simo-lib-title{font-size:15px;font-weight:950;line-height:1.25}.simo-lib-meta{color:#b7c6e4;font-size:12px;line-height:1.35}.simo-lib-tags{display:flex;gap:6px;flex-wrap:wrap}
-      .simo-lib-tag{font-size:10px;font-weight:900;color:#cfe0ff;border:1px solid rgba(110,168,255,.20);background:rgba(110,168,255,.10);border-radius:999px;padding:4px 7px}
-      .simo-lib-card-actions{display:flex;gap:8px;flex-wrap:wrap}.simo-lib-empty{grid-column:1/-1;border:1px dashed rgba(255,255,255,.16);border-radius:20px;padding:28px;color:#c7d3ea;text-align:center}
-      .simo-preview-frame{width:min(1120px,96vw);height:min(820px,90vh);border:1px solid rgba(255,255,255,.16);background:#fff;border-radius:18px;box-shadow:0 30px 100px rgba(0,0,0,.65)}
-    `;
-    document.head.appendChild(s);
-  }
-
-  function closeExisting() {
-    var old = $("simoLibraryRescueBackdrop");
-    if (old) old.remove();
-    var prev = $("simoLibraryPreviewBackdrop");
-    if (prev) prev.remove();
-  }
-
-  function previewItem(item) {
-    css();
-    var html = String(item.html || "").trim();
-    if (!html) {
-      var visual = extractVisualProject(item);
-      if (visual.imageUrl) {
-        html = '<!doctype html><html><body style="margin:0;background:#07111f;color:#eef4ff;font-family:Arial;padding:24px"><h2>' + esc(item.title) + '</h2><img src="' + esc(visual.imageUrl) + '" style="max-width:100%;border-radius:18px"/></body></html>';
-      } else {
-        html = '<!doctype html><html><body style="margin:0;background:#07111f;color:#eef4ff;font-family:Arial;padding:24px"><h2>' + esc(item.title) + '</h2><pre style="white-space:pre-wrap">' + esc(item.sourceText || item.notes || "No preview content saved.") + '</pre></body></html>';
-      }
-    }
-
-    try { localStorage.setItem(LAST_PREVIEW_KEY, JSON.stringify({ title: item.title, html: html, savedAt: new Date().toISOString() })); } catch (e) {}
-
-    var back = document.createElement("div");
-    back.id = "simoLibraryPreviewBackdrop";
-    back.className = "simo-lib-backdrop";
-    back.innerHTML = '<div style="display:grid;gap:10px"><div style="display:flex;justify-content:flex-end"><button class="simo-lib-btn" type="button" data-close-preview>Close Preview</button></div><iframe class="simo-preview-frame" sandbox="allow-scripts allow-same-origin"></iframe></div>';
-    document.body.appendChild(back);
-    back.querySelector("[data-close-preview]").onclick = function () { back.remove(); };
-    var iframe = back.querySelector("iframe");
-    try {
-      iframe.srcdoc = html;
-    } catch (e2) {
-      var doc = iframe.contentDocument || iframe.contentWindow.document;
-      doc.open(); doc.write(html); doc.close();
-    }
-  }
-
-  async function deleteItem(item, card) {
-    if (!confirm("Delete this saved item from your Library?")) return;
-    var items = readLocal().filter(function (x) { return x && String(x.id) !== String(item.id); });
-    writeLocal(items);
-    if (card) card.remove();
-
-    try {
-      await fetch("/api/library/delete", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: item.id })
-      });
-    } catch (e) {}
-
-    try {
-      window.dispatchEvent(new CustomEvent("simo:library-updated", { detail: { reason: "delete", id: item.id } }));
-    } catch (e2) {}
-  }
-
-  function continueItem(item) {
-    var visual = extractVisualProject(item);
-    closeExisting();
-
-    if (window.SimoLiveWorkspaceIsolated && typeof window.SimoLiveWorkspaceIsolated.openSavedItem === "function") {
-      try {
-        window.SimoLiveWorkspaceIsolated.openSavedItem({
-          id: item.id,
-          title: item.title,
-          html: item.html,
-          sourceText: item.sourceText,
-          imageUrl: visual.imageUrl || "",
-          visualProject: visual
-        });
-        return;
-      } catch (e) {
-        console.warn("Simo library rescue workspace open failed:", e);
-      }
-    }
-
-    if (window.SimoLiveWorkspaceIsolated && typeof window.SimoLiveWorkspaceIsolated.openTab === "function" && visual.imageUrl) {
-      try {
-        window.SimoLiveWorkspaceIsolated.openTab(visual.imageUrl, item.title, visual);
-        return;
-      } catch (e2) {}
-    }
-
-    previewItem(item);
-  }
-
-  function renderModal(items) {
-    css();
-    closeExisting();
-
-    var back = document.createElement("div");
-    back.id = "simoLibraryRescueBackdrop";
-    back.className = "simo-lib-backdrop";
-    back.innerHTML = `
-      <div class="simo-lib-modal" role="dialog" aria-modal="true" aria-label="Simo Builder Library">
-        <div class="simo-lib-head">
-          <div>
-            <h3>Builder Library</h3>
-            <p>Saved builds and visual concepts from this browser and your signed-in account.</p>
-          </div>
-          <div class="simo-lib-actions">
-            <button class="simo-lib-btn primary" type="button" data-refresh>Refresh</button>
-            <button class="simo-lib-btn" type="button" data-close>Close</button>
-          </div>
-        </div>
-        <div class="simo-lib-toolbar">
-          <input class="simo-lib-search" placeholder="Search saved items..." />
-          <span class="simo-lib-meta" data-count></span>
-        </div>
-        <div class="simo-lib-list"></div>
-      </div>
-    `;
-    document.body.appendChild(back);
-
-    var listEl = back.querySelector(".simo-lib-list");
-    var searchEl = back.querySelector(".simo-lib-search");
-    var countEl = back.querySelector("[data-count]");
-
-    function draw() {
-      var q = String(searchEl.value || "").toLowerCase().trim();
-      var filtered = items.filter(function (item) {
-        if (!item || item.archived) return false;
-        var hay = [item.title, item.notes, item.sourceText, (item.tags || []).join(" ")].join(" ").toLowerCase();
-        return !q || hay.indexOf(q) >= 0;
-      });
-
-      countEl.textContent = filtered.length + " item" + (filtered.length === 1 ? "" : "s");
-
-      if (!filtered.length) {
-        listEl.innerHTML = '<div class="simo-lib-empty">No saved items found yet. Save a design or build, then reopen Library.</div>';
-        return;
-      }
-
-      listEl.innerHTML = "";
-      filtered.forEach(function (item) {
-        var card = document.createElement("div");
-        card.className = "simo-lib-card";
-        var tags = (item.tags || []).slice(0, 5).map(function (t) { return '<span class="simo-lib-tag">' + esc(t) + '</span>'; }).join("");
-        var when = item.updatedAt || item.createdAt || "";
-        card.innerHTML = `
-          <div class="simo-lib-title">${esc(item.title)}</div>
-          <div class="simo-lib-meta">${esc(when ? new Date(when).toLocaleString() : "Saved item")}</div>
-          ${item.notes ? '<div class="simo-lib-meta">' + esc(item.notes).slice(0, 140) + '</div>' : ''}
-          <div class="simo-lib-tags">${tags}</div>
-          <div class="simo-lib-card-actions">
-            <button class="simo-lib-btn primary" type="button" data-continue>Continue</button>
-            <button class="simo-lib-btn" type="button" data-preview>Preview</button>
-            <button class="simo-lib-btn danger" type="button" data-delete>Delete</button>
-          </div>
-        `;
-        card.querySelector("[data-continue]").onclick = function () { continueItem(item); };
-        card.querySelector("[data-preview]").onclick = function () { previewItem(item); };
-        card.querySelector("[data-delete]").onclick = function () { deleteItem(item, card); };
-        listEl.appendChild(card);
-      });
-    }
-
-    back.querySelector("[data-close]").onclick = closeExisting;
-    back.querySelector("[data-refresh]").onclick = function () { openLibrary(); };
-    searchEl.addEventListener("input", draw);
-    back.addEventListener("click", function (e) { if (e.target === back) closeExisting(); });
-    draw();
-  }
-
-  async function openLibrary() {
-    css();
-    var local = readLocal();
-    updateCount(local);
-
-    var loading = document.createElement("div");
-    loading.id = "simoLibraryRescueBackdrop";
-    loading.className = "simo-lib-backdrop";
-    loading.innerHTML = '<div class="simo-lib-modal" style="display:block;padding:24px"><h3 style="margin:0 0 8px">Builder Library</h3><p style="color:#c7d3ea;margin:0">Loading saved items...</p></div>';
-    closeExisting();
-    document.body.appendChild(loading);
-
-    var server = await fetchServerLibrary();
-    var merged = mergeItems(local, server);
-    writeLocal(merged);
-    renderModal(merged);
-  }
-
-  function bindButtons() {
-    var openBtn = $("openLibraryBtn");
-    var card = $("builderLibraryCard");
-
-    [openBtn, card].forEach(function (node) {
-      if (!node || node.dataset.simoLibraryRescueBound === "1") return;
-      node.dataset.simoLibraryRescueBound = "1";
-      node.addEventListener("click", function (e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        openLibrary();
-      }, true);
+      image_url: img,
+      generated_visual_url: img,
+      generatedImageUrl: img,
+      previewUrl: img,
+      thumbnail: img,
+      visualUrl: img,
+      displayImageUrl: img,
+      currentImage: img,
+      image: img,
+      sourceImageUrl: source,
+      originalImageUrl: original,
+      workspaceOpen: true,
+      workspaceSubject: item.workspaceSubject || title,
+      workspaceEdits: edits,
+      simoWorkspaceVersion: "phase14m-live-library-fix",
+      updatedAt: item.updatedAt || nowIso(),
+      createdAt: item.createdAt || nowIso()
     });
-
-    updateCount(readLocal());
+    normalized.workspaceData = Object.assign({}, item.workspaceData || {}, {
+      id: id,
+      title: title,
+      projectTitle: normalized.projectTitle,
+      workspaceSubject: normalized.workspaceSubject,
+      image: img,
+      currentImage: img,
+      displayImageUrl: img,
+      sourceImage: source,
+      currentSourceImage: source,
+      originalImage: original,
+      edits: edits
+    });
+    if (!normalized.html) normalized.html = visualHtml(normalized);
+    return normalized;
   }
 
-  window.SimoLibrary = window.SimoLibrary || {};
-  window.SimoLibrary.open = openLibrary;
-  window.SimoLibrary.openLibrary = openLibrary;
-  window.openLibrary = openLibrary;
-  window.simoOpenLibrary = openLibrary;
-  window.SimoOpenLibrary = openLibrary;
-
-  document.addEventListener("DOMContentLoaded", function () {
-    bindButtons();
-    setTimeout(bindButtons, 250);
-    setTimeout(bindButtons, 1000);
-  });
-
-  if (document.readyState !== "loading") {
-    bindButtons();
-    setTimeout(bindButtons, 250);
-    setTimeout(bindButtons, 1000);
+  function visualHtml(item) {
+    var img = fixUrl(bestItemImage(item));
+    var title = titleFromItem(item);
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + '</title></head><body style="margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif;"><main style="max-width:960px;margin:0 auto;padding:24px;"><h1>' + esc(title) + '</h1><img src="' + esc(img) + '" alt="' + esc(title) + '" style="max-width:100%;border-radius:18px;display:block;box-shadow:0 24px 80px rgba(0,0,0,.45);"><p>Saved Simo workspace design.</p></main></body></html>';
   }
 
-  window.addEventListener("simo:library-updated", function () {
-    setTimeout(function () { updateCount(readLocal()); }, 80);
-  });
+  function writeItemEverywhere(item) {
+    var normalized = normalizeItem(item);
+    var wrote = false;
+    LIB_KEYS.forEach(function (key) {
+      try {
+        var store = readStore(key);
+        var arr = (store.arr || []).filter(function (existing) {
+          return String(existing && existing.id || "") !== normalized.id;
+        });
+        arr.unshift(normalized);
+        if (arr.length > 160) arr.length = 160;
+        if (writeStore(key, store, arr)) wrote = true;
+      } catch (e) {}
+    });
+    try {
+      localStorage.setItem(LAST_KEY, JSON.stringify(normalized));
+      localStorage.setItem(FORCE_KEY, JSON.stringify(normalized));
+    } catch (e) {}
+    return wrote ? normalized : null;
+  }
 
-  console.log("Simo Library Rescue loaded:", PHASE);
+  function findById(id) {
+    id = String(id || "");
+    if (!id) return null;
+    var items = allItems();
+    for (var i = 0; i < items.length; i += 1) {
+      if (String(items[i].id || "") === id) return normalizeItem(items[i]);
+    }
+    return null;
+  }
+
+  function verifyReadable(item) {
+    item = normalizeItem(item);
+    var found = findById(item.id);
+    if (!found) return { ok: false, error: "Saved item was not found after write." };
+    if (!isUsefulImage(bestItemImage(found))) return { ok: false, error: "Saved item has no readable image." };
+    return { ok: true, item: found };
+  }
+
+  function compressIfPossible(src) {
+    src = fixUrl(src);
+    if (!src || src.indexOf("data:image/") !== 0) return Promise.resolve(src);
+    return new Promise(function (resolve) {
+      try {
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var maxSide = 900;
+            var w = img.naturalWidth || img.width || 900;
+            var h = img.naturalHeight || img.height || 900;
+            var scale = Math.min(1, maxSide / Math.max(w, h));
+            var canvas = document.createElement("canvas");
+            canvas.width = Math.max(1, Math.round(w * scale));
+            canvas.height = Math.max(1, Math.round(h * scale));
+            var ctx = canvas.getContext("2d");
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            var out = canvas.toDataURL("image/jpeg", 0.78);
+            resolve(out && out.indexOf("data:image/") === 0 ? out : src);
+          } catch (e) { resolve(src); }
+        };
+        img.onerror = function () { resolve(src); };
+        img.src = src;
+      } catch (e) { resolve(src); }
+    });
+  }
+
+  function itemFromWorkspaceData(data) {
+    data = data || {};
+    var img = fixUrl(data.currentImage || data.image || data.displayImageUrl || data.previewUrl || data.sourceImage || data.originalImage || "");
+    var title = clean(data.workspaceSubject || data.projectTitle || data.title || data.name) || "Simo Workspace Design";
+    var edits = Array.isArray(data.edits) ? data.edits.slice() : [];
+    var now = nowIso();
+    return normalizeItem({
+      id: data.id && String(data.id).indexOf("simo_workspace_") === 0 ? String(data.id) : uid("simo_workspace_saved"),
+      title: title,
+      projectTitle: title,
+      prompt: data.prompt || data.latestPrompt || title,
+      latestPrompt: edits.length ? String(edits[edits.length - 1]) : (data.latestPrompt || title),
+      type: "visual",
+      kind: "visual",
+      source: "simo_phase14m_live_workspace_verified_save",
+      tags: ["visual", "design", "workspace", "saved-workspace"],
+      notes: "Saved only after Simo verified this item was readable in Library storage.",
+      imageUrl: img,
+      originalImageUrl: fixUrl(data.originalImage || img),
+      sourceImageUrl: fixUrl(data.currentSourceImage || data.sourceImage || img),
+      workspaceSubject: title,
+      workspaceEdits: edits,
+      createdAt: now,
+      updatedAt: now
+    });
+  }
+
+  function saveWorkspace(data) {
+    var base = itemFromWorkspaceData(data || {});
+    var img = bestItemImage(base);
+    if (!isUsefulImage(img)) {
+      return Promise.resolve({ ok: false, error: "No readable workspace image found. Nothing was saved." });
+    }
+    return compressIfPossible(img).then(function (safeImg) {
+      base.imageUrl = safeImg || img;
+      base = normalizeItem(base);
+      var written = writeItemEverywhere(base);
+      if (!written) return { ok: false, error: "Library write failed." };
+      var proof = verifyReadable(written);
+      if (!proof.ok) return proof;
+      fireUpdated(proof.item);
+      return { ok: true, item: proof.item, id: proof.item.id };
+    });
+  }
+
+  function fireUpdated(item) {
+    try { window.dispatchEvent(new CustomEvent("simo:library-updated", { detail: { phase: PHASE, item: item } })); } catch (e) {}
+    try { document.dispatchEvent(new CustomEvent("simo:library-updated", { detail: { phase: PHASE, item: item } })); } catch (e) {}
+    updateCount();
+    if ($(MODAL_ID)) renderModal();
+  }
+
+  function updateCount() {
+    var el = $("libraryCountValue");
+    if (el) el.textContent = String(allItems().length);
+  }
+
+  function status(message) {
+    var el = $("loadingHint") || $("statusText") || document.querySelector("[data-simo-status], .status, .loading-hint");
+    if (el) el.textContent = message;
+  }
+
+  function openItemWorkspace(item) {
+    item = normalizeItem(item);
+    var data = Object.assign({}, item.workspaceData || {}, {
+      id: uid("workspace_reopen"),
+      title: titleFromItem(item),
+      projectTitle: item.projectTitle || titleFromItem(item),
+      workspaceSubject: item.workspaceSubject || titleFromItem(item),
+      image: bestItemImage(item),
+      currentImage: bestItemImage(item),
+      displayImageUrl: bestItemImage(item),
+      sourceImage: item.sourceImageUrl || bestItemImage(item),
+      currentSourceImage: item.sourceImageUrl || bestItemImage(item),
+      originalImage: item.originalImageUrl || bestItemImage(item),
+      edits: Array.isArray(item.workspaceEdits) ? item.workspaceEdits : []
+    });
+    if (window.SimoWorkspaceBridge && typeof window.SimoWorkspaceBridge.openTab === "function") {
+      window.SimoWorkspaceBridge.openTab(data);
+      return true;
+    }
+    if (window.SimoLiveWorkspace && typeof window.SimoLiveWorkspace.open === "function") {
+      window.SimoLiveWorkspace.open(data);
+      return true;
+    }
+    // Safe fallback: view-only card, no localhost, no generation.
+    var html = visualHtml(Object.assign({}, item, { workspaceData: data }));
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener=false");
+    return true;
+  }
+
+  function modalHtml(items) {
+    var cards = items.map(function (item) {
+      item = normalizeItem(item);
+      var img = bestItemImage(item);
+      var title = titleFromItem(item);
+      return '<article class="simo-live-library-card" data-simo-live-library-id="' + esc(item.id) + '" style="background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.11);border-radius:18px;padding:14px;display:grid;gap:10px;">' +
+        '<img src="' + esc(img) + '" alt="' + esc(title) + '" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#050914;">' +
+        '<div style="font-weight:800;color:#fff;line-height:1.25;">' + esc(title) + '</div>' +
+        '<div style="font-size:12px;color:#b9c6e8;">' + esc(item.updatedAt || item.createdAt || '') + '</div>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
+          '<button type="button" data-simo-live-open="' + esc(item.id) + '" style="border:0;border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;background:#6ea8ff;color:#061225;">Open Workspace</button>' +
+          '<button type="button" data-simo-live-preview="' + esc(item.id) + '" style="border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 12px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.08);color:#fff;">Preview</button>' +
+        '</div>' +
+      '</article>';
+    }).join("");
+    if (!cards) cards = '<div style="padding:18px;border-radius:18px;background:rgba(255,255,255,.055);color:#dbe6ff;">No saved designs found yet.</div>';
+    return '<div id="' + MODAL_ID + '" style="position:fixed;inset:0;z-index:2147482600;background:rgba(2,6,18,.82);backdrop-filter:blur(12px);display:flex;align-items:flex-start;justify-content:center;padding:28px;overflow:auto;">' +
+      '<section style="width:min(1120px,96vw);border:1px solid rgba(255,255,255,.14);border-radius:24px;background:#10172a;box-shadow:0 28px 90px rgba(0,0,0,.55);padding:18px;">' +
+        '<header style="display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:14px;">' +
+          '<div><div style="font-size:21px;font-weight:900;color:#fff;">Builder Library</div><div style="font-size:13px;color:#aebce4;margin-top:4px;">Verified local saved designs. Opening a card uses that exact saved image.</div></div>' +
+          '<button type="button" data-simo-live-close style="border:1px solid rgba(255,255,255,.18);border-radius:999px;padding:10px 14px;background:rgba(255,255,255,.08);color:#fff;font-weight:800;cursor:pointer;">Close</button>' +
+        '</header>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px;">' + cards + '</div>' +
+      '</section>' +
+    '</div>';
+  }
+
+  function renderModal() {
+    var old = $(MODAL_ID);
+    if (old) old.remove();
+    document.body.insertAdjacentHTML("beforeend", modalHtml(allItems()));
+  }
+
+  function openLibrary() {
+    renderModal();
+    updateCount();
+    status("Library opened.");
+    return true;
+  }
+
+  function closeLibrary() {
+    var modal = $(MODAL_ID);
+    if (modal) modal.remove();
+  }
+
+  function buttonText(btn) {
+    return low(btn && (btn.textContent || btn.value || btn.getAttribute("aria-label") || btn.title || ""));
+  }
+
+  function closestCard(el) {
+    return el && el.closest ? el.closest("[data-simo-live-library-id], [data-simo-workspace-saved-id], [data-simo-library-card], [data-library-card], .builder-library-card, .simo-library-card, .library-card, .build-card, .builder-card, article, .card") : null;
+  }
+
+  function bestImageInCard(card) {
+    if (!card || !card.querySelectorAll) return "";
+    var imgs = Array.prototype.slice.call(card.querySelectorAll("img"));
+    for (var i = 0; i < imgs.length; i += 1) {
+      var src = fixUrl(imgs[i].getAttribute("src") || imgs[i].src || "");
+      if (isUsefulImage(src)) return src;
+    }
+    return "";
+  }
+
+  function itemFromDomCard(card) {
+    var id = card && (card.getAttribute("data-simo-live-library-id") || card.getAttribute("data-simo-workspace-saved-id") || card.getAttribute("data-id") || "");
+    var found = findById(id);
+    if (found) return found;
+    var img = bestImageInCard(card);
+    var title = clean(card && (card.querySelector("h1,h2,h3,h4,.title,.card-title,strong,b") || {}).textContent) || clean(card && card.textContent).split("Open")[0] || "Simo Saved Design";
+    return normalizeItem({ id: id || uid("simo_card"), title: title, imageUrl: img, originalImageUrl: img, sourceImageUrl: img });
+  }
+
+  function handleClick(e) {
+    var target = e.target;
+    if (!target || !target.closest) return;
+
+    // R10.47: stop the old visible sidebar/card Library buttons before they can fire
+    // the stale "Library script is not loaded yet" alert. This uses the visible text
+    // because the live DOM does not always keep the older IDs/data attributes.
+    var libraryHit = target.closest("button, a, .nav-card, .sidebar-card, .side-card, [role='button'], [data-simo-open-library], #openLibraryBtn, #builderLibraryCard");
+    var libraryText = buttonText(libraryHit);
+    if (libraryHit && (
+      libraryText.indexOf("open library") >= 0 ||
+      libraryText.indexOf("builder library") >= 0 ||
+      libraryText === "library"
+    )) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openLibrary();
+      return false;
+    }
+
+    if (target.closest("[data-simo-live-close]")) {
+      e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      closeLibrary(); return false;
+    }
+
+    var openIdBtn = target.closest("[data-simo-live-open], [data-simo-live-preview]");
+    if (openIdBtn) {
+      e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      var id = openIdBtn.getAttribute("data-simo-live-open") || openIdBtn.getAttribute("data-simo-live-preview");
+      var item = findById(id);
+      if (item) openItemWorkspace(item);
+      return false;
+    }
+
+    var openLibraryBtn = target.closest("#openLibraryBtn, #builderLibraryCard, [data-simo-open-library]");
+    if (openLibraryBtn) {
+      e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openLibrary(); return false;
+    }
+
+    var btn = target.closest("button, a, input[type='button'], input[type='submit'], [role='button']");
+    if (!btn) return;
+    var label = buttonText(btn);
+    if (!(label === "open" || label === "preview" || label === "continue" || label === "workspace" || label.indexOf("open workspace") >= 0)) return;
+
+    var card = closestCard(btn);
+    if (!card) return;
+    var img = bestImageInCard(card);
+    var text = low(card.textContent || "");
+    var looksSavedDesign = isUsefulImage(img) && (text.indexOf("workspace") >= 0 || text.indexOf("visual") >= 0 || text.indexOf("design") >= 0 || card.hasAttribute("data-simo-library-card") || card.hasAttribute("data-library-card"));
+    if (!looksSavedDesign) return;
+
+    e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    openItemWorkspace(itemFromDomCard(card));
+    return false;
+  }
+
+  function installWorkspaceBridgeOverride() {
+    var old = window.SimoWorkspaceBridge || {};
+    window.SimoWorkspaceBridge = Object.assign({}, old, {
+      phase: PHASE,
+      save: function (data) {
+        status("Saving to Library…");
+        return saveWorkspace(data).then(function (result) {
+          if (result && result.ok) {
+            status("Saved and verified in Library.");
+            return true;
+          }
+          status("Save failed verification — not shown as saved.");
+          return Promise.reject(new Error((result && result.error) || "Save failed verification."));
+        });
+      },
+      openLibrary: openLibrary,
+      openSavedItem: openItemWorkspace
+    });
+  }
+
+  function installPublicApi() {
+    window.SimoLibrary = Object.assign({}, window.SimoLibrary || {}, {
+      phase: PHASE,
+      open: openLibrary,
+      close: closeLibrary,
+      saveWorkspace: saveWorkspace,
+      getItems: allItems,
+      openItem: openItemWorkspace,
+      verifyReadable: verifyReadable,
+      normalizeItem: normalizeItem
+    });
+    window.openLibrary = openLibrary;
+    window.SimoOpenLibrary = openLibrary;
+  }
+
+  function boot() {
+    installPublicApi();
+    installWorkspaceBridgeOverride();
+    document.addEventListener("click", handleClick, true);
+    window.addEventListener("click", handleClick, true);
+    if (document.documentElement) document.documentElement.addEventListener("click", handleClick, true);
+    window.SimoLibraryButtonBridgeR1047 = { openLibrary: openLibrary, handleClick: handleClick, phase: PHASE };
+    window.addEventListener("simo:library-updated", updateCount);
+    document.addEventListener("simo:library-updated", updateCount);
+    updateCount();
+    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); }, 500);
+    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); }, 1500);
+    console.log(PHASE + " loaded.");
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+  else boot();
 })();
