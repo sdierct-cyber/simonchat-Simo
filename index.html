@@ -1,102 +1,257 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simo — Your Best Friend AI</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <link rel="stylesheet" href="styles.css">
-    <script src="app.js" defer></script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Simo — Your Best Friend</title>
+  <link rel="stylesheet" href="/static/styles.css?v=phase105f" />
+  <link rel="stylesheet" href="/static/designstudio.css">
 </head>
-<body class="bg-zinc-950 text-white font-sans">
-    <div class="flex h-screen">
-        <!-- Sidebar -->
-        <div id="sidebar" class="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col">
-            <div class="p-6 flex items-center gap-3 border-b border-zinc-800">
-                <div class="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-2xl flex items-center justify-center text-3xl">🤖</div>
-                <div>
-                    <h1 class="text-3xl font-bold tracking-tighter">Simo</h1>
-                    <p class="text-emerald-400 text-sm">Your Best Friend</p>
-                </div>
-            </div>
-           
-            <div class="p-4">
-                <button onclick="togglePro()" id="proBtn"
-                    class="w-full py-4 px-6 rounded-3xl bg-gradient-to-r from-purple-600 to-pink-600 font-bold text-lg flex items-center justify-center gap-3 shadow-xl shadow-purple-500/50 hover:scale-105 transition-all">
-                    <span>⭐ PRO MODE</span>
-                    <i class="fas fa-star"></i>
-                </button>
-            </div>
-            <nav class="flex-1 overflow-y-auto p-4 space-y-1" id="featureList">
-                <!-- Populated by JS -->
-            </nav>
-            <div class="p-4 border-t border-zinc-800">
-                <button onclick="showSettings()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-zinc-800">
-                    <i class="fas fa-cog"></i> Settings & Voice
-                </button>
-                <button onclick="showSignup()" class="w-full flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-zinc-800 mt-2">
-                    <i class="fas fa-user-plus"></i> Easy Signup
-                </button>
-            </div>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-card">
+        <div style="font-size:34px; margin-bottom:10px;">🤖</div>
+        <div style="font-size:18px; font-weight:700;">Simo</div>
+        <div class="muted" style="margin-top:6px;">Your Best Friend</div>
+        <div class="muted tiny" style="margin-top:10px;">Warm, smart, and ready</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Image Upload & Analysis</div>
+        <div class="muted">Upload any photo — Simo describes & helps</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Business Plans & Startups</div>
+        <div class="muted">Full plans generated instantly</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">Stock Market & Portfolios</div>
+        <div class="muted">General insights + tracking ideas</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">AI Website Builder</div>
+        <div class="muted">Generate premium landing pages instantly</div>
+      </div>
+
+      <div class="side-card">
+        <div style="font-weight:700; margin-bottom:8px;">3D Rendering & Rotate</div>
+        <div class="muted">Viewer stays honest — only verified 3D opens</div>
+      </div>
+
+      <div class="side-card" id="builderLibraryCard">
+        <div style="font-weight:700; margin-bottom:8px;">Builder Library</div>
+        <div class="muted">Open saved websites and reload past builds</div>
+      </div>
+
+      <div style="margin-top:16px; display:grid; gap:12px;">
+        <button id="settingsBtn" class="pill" type="button">Settings & Voice</button>
+        <button id="signupBtn" class="pill" type="button">Easy Signup</button>
+        <button id="openLibraryBtn" class="pill" type="button">Open Library</button>
+        <button id="reopenLastPreviewBtn" class="pill hidden" type="button">Reopen Last Preview</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <section class="hero-card topbar">
+        <div>
+          <div style="font-size:18px; font-weight:700;">What do you want to build today?</div>
+          <div class="muted" style="margin-top:6px;">Talk, design, create, and build — all in one place</div>
         </div>
 
-        <!-- Main Chat + Content Area -->
-        <div class="flex-1 flex flex-col">
-            <header class="h-16 border-b border-zinc-800 px-6 flex items-center justify-between bg-zinc-950">
-                <div class="flex items-center gap-4">
-                    <div id="currentFeature" class="font-semibold text-xl">Chat with Simo</div>
-                </div>
-                <div class="flex items-center gap-4">
-                    <button onclick="startNewChat()" class="px-5 py-2 bg-zinc-800 hover:bg-zinc-700 rounded-full text-sm font-medium flex items-center gap-2">
-                        <i class="fas fa-plus"></i> New Chat
-                    </button>
-                    <button onclick="confirmClearHistory()" class="px-5 py-2 bg-red-900/40 hover:bg-red-900/60 rounded-full text-sm font-medium flex items-center gap-2 text-red-300">
-                        <i class="fas fa-trash-alt"></i> Clear History
-                    </button>
-                    <div onclick="toggleTheme()" class="cursor-pointer px-2">
-                        <i class="fas fa-moon text-2xl"></i>
-                    </div>
-                    <div class="flex items-center gap-3 cursor-pointer" onclick="showProfile()">
-                        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">👦</div>
-                        <span id="username" class="font-medium">You</span>
-                    </div>
-                </div>
-            </header>
+        <div class="topbar-actions">
+          <div class="online-pill">
+            <span class="dot"></span>
+            <span>Simo is online</span>
+          </div>
 
-            <!-- Chat Window -->
-            <div id="chatArea" class="flex-1 overflow-y-auto p-6 space-y-8">
-                <!-- Messages added by JS -->
-            </div>
-
-            <!-- Input -->
-            <div class="p-6 border-t border-zinc-800 bg-zinc-900">
-                <div class="flex gap-4">
-                    <input id="userInput" type="text" placeholder="Talk to your best friend Simo..."
-                           class="flex-1 bg-zinc-800 rounded-3xl px-8 py-5 focus:outline-none focus:ring-4 focus:ring-purple-500/30 text-lg">
-                    
-                    <!-- Mic button -->
-                    <button id="voiceBtn" onclick="toggleVoiceInput()"
-                            class="w-16 h-16 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-3xl flex items-center justify-center text-3xl hover:scale-110 transition">
-                        <i class="fas fa-microphone"></i>
-                    </button>
-                    
-                    <button onclick="sendMessage()"
-                            class="w-16 h-16 bg-gradient-to-br from-purple-500 to-pink-500 rounded-3xl flex items-center justify-center text-3xl hover:scale-110 transition">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
-                </div>
-                <div class="text-center text-xs text-zinc-500 mt-4">Free mode • Preview everything • Pro unlocks downloads & 3D export</div>
-            </div>
+          <button id="upgradeBtn" class="pill" type="button">Upgrade</button>
+          <button id="newChatBtn" class="pill" type="button">+ New Chat</button>
+          <button id="loginBtn" class="pill" type="button">Sign in</button>
+          <button id="logoutBtn" class="pill" type="button">Logout</button>
+          <button id="profileBtn" class="pill" type="button">🙂 You</button>
+          <button id="clearHistoryBtn" class="pill" type="button">🗑 Clear History</button>
         </div>
-    </div>
+      </section>
 
-    <!-- Modals -->
-    <div id="modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50">
-        <div id="modalContent" class="bg-zinc-900 rounded-3xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
-            <!-- Dynamic content loaded by JS -->
+      <section class="hero-card">
+        <div class="chip-row">
+          <div class="chip">⚡ Ready for chat</div>
+          <div class="chip">🧠 Builder enabled</div>
+          <div class="chip">🖼️ Image aware</div>
+          <div class="chip">🧊 3D viewer ready</div>
         </div>
-    </div>
+
+        <div class="stats">
+          <div class="stat-card">
+            <div class="tiny muted">ACCOUNT</div>
+            <div id="accountValue" style="font-size:18px; font-weight:700; margin-top:6px;">Guest</div>
+            <div id="userEmail" class="muted tiny" style="margin-top:6px; font-size:13px; opacity:0.75;"></div>
+            <div class="muted" style="margin-top:6px;">Logged-in workspace status</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="tiny muted">PLAN</div>
+            <div id="planValue" style="font-size:18px; font-weight:700; margin-top:13px;">Free</div>
+            <div id="proBadge" class="muted tiny" data-pro="false" style="margin-top:6px;">Free</div>
+            <div class="muted" style="margin-top:6px;">Free / Pro / Team</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="tiny muted">USAGE TODAY</div>
+            <div id="usageTodayValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
+            <div class="muted" style="margin-top:6px;">Daily message usage</div>
+          </div>
+
+          <div class="stat-card">
+            <div class="tiny muted">BUILDER LIBRARY</div>
+            <div id="libraryCountValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
+            <div class="muted" style="margin-top:6px;">Saved local builds</div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="hero-card"
+        style="
+          padding:20px 22px;
+          margin-top:14px;
+          position:relative;
+          overflow:hidden;
+          background:
+            radial-gradient(circle at top right, rgba(110,168,255,.10), transparent 24%),
+            linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025));
+          border:1px solid rgba(255,255,255,.08);
+          box-shadow:
+            inset 0 1px 0 rgba(255,255,255,.04),
+            0 10px 30px rgba(0,0,0,.12);
+        "
+      >
+        <div
+          style="
+            position:absolute;
+            top:-60px;
+            right:-40px;
+            width:180px;
+            height:180px;
+            border-radius:999px;
+            background:radial-gradient(circle, rgba(110,168,255,.10), transparent 68%);
+            pointer-events:none;
+          "
+        ></div>
+
+        <div style="position:relative; z-index:1;">
+         <div style="font-size:15px; font-weight:700; margin-bottom:12px; letter-spacing:.01em;">
+  Start with one of these:
+</div>
+
+          <div style="display:flex; gap:14px; flex-wrap:wrap;">
+            <button class="chip" type="button" data-simo-starter="build" style="cursor:pointer;">Build a website</button>
+            <button class="chip" type="button" data-simo-starter="business" style="cursor:pointer;">Create a business idea</button>
+            <button class="chip" type="button" data-simo-starter="design" style="cursor:pointer;">Design something</button>
+            <button class="chip" type="button" data-simo-starter="image" style="cursor:pointer;">Analyze an image</button>
+            <button class="chip" type="button" data-simo-starter="chat" style="cursor:pointer;">Just chat</button>
+          </div>
+
+         <div class="muted tiny" style="margin-top:14px; font-size:13px;">
+  Click one to load a starter prompt into the composer. Nothing auto-sends.
+</div>
+
+          <div
+            id="simoHintCard"
+            style="
+              margin-top:14px;
+              padding:14px 16px;
+              border-radius:14px;
+              background:
+                linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+              border:1px solid rgba(255,255,255,.10);
+              box-shadow:
+                inset 0 1px 0 rgba(255,255,255,.05),
+                0 10px 28px rgba(0,0,0,.10);
+              position:relative;
+              overflow:hidden;
+            "
+          >
+            <div
+              style="
+                position:absolute;
+                inset:0;
+                background:
+                  radial-gradient(circle at top left, rgba(110,168,255,.10), transparent 30%);
+                pointer-events:none;
+              "
+            ></div>
+
+            <div style="position:relative; z-index:1;">
+              <div
+                style="
+                  font-size:13px;
+                  font-weight:700;
+                  margin-bottom:7px;
+                  display:flex;
+                  align-items:center;
+                  gap:8px;
+                "
+              >
+                <span
+                  style="
+                    width:8px;
+                    height:8px;
+                    border-radius:999px;
+                    background:#6ea8ff;
+                    box-shadow:0 0 12px rgba(110,168,255,.6);
+                    display:inline-block;
+                    flex:0 0 auto;
+                  "
+                ></span>
+                <span>Best first move</span>
+              </div>
+
+              <div id="simoHintText" class="muted tiny" style="line-height:1.6; font-size:13px;">
+                New here? Start with <strong>Build a website</strong> or <strong>Create a business idea</strong>.
+                You can send the starter as-is or edit it first before pressing send.
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="chat-wrap" id="chat">
+        <div id="chatMessages"></div>
+      </section>
+
+ <section class="composer-wrap">
+  <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
+  <input id="imageInput" type="file" accept="image/*" hidden />
+  <textarea id="chatInput" placeholder="What do you want to build today?" style="color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important;opacity:1 !important;background:transparent !important;font-size:16px !important;line-height:1.4 !important;text-indent:0 !important;text-shadow:none !important;"></textarea>
+  <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
+</section>
+  
+      <div id="loadingHint">Ready.</div>
+    </main>
+  </div>
+
+  <script>
+    window.SIMO_BOOT = {{ simo_boot_json | safe }};
+  </script>
+
+  <script src="/static/3dviewer.js?v=phase50"></script>
+    <script src="/static/simo-ui-recovery.js?v=phase14m-r7"></script>
+  <script src="/static/script.js?v=r1044checked"></script>
+  <script src="/static/phase28-safe-addon.js?v=phase28safe1"></script>
+  <script src="/static/phase29b-safe-addon.js?v=phase14m-r102-next"></script>
+  <script src="/static/phase30-image-intake-safe.js?v=phase14m-r102-next"></script>
+  <script src="/static/designstudio.js"></script>
+  <script src="/static/simo_visualcore_PHASE_13A.js?v=phase14m-r7"></script>
+  <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
+  <script src="/static/simo-feature-buttons.js?v=phase14m-r10-stable"></script>
+  <script src="/static/phase31-design-actions-safe.js?v=phase14m-r103-design-actions"></script>
+  <script src="/static/simo-live-workspace-isolated.js?v=clean-v1b-bridge"></script>
+  <script src="/static/simo-open-workspace-card-bridge.js?v=phase14m-r1044e-main-card-workspace"></script>
+  <script src="/static/simo-r1039c-saved-design-flow-finish.js?v=1039d"></script>
 </body>
 </html>
