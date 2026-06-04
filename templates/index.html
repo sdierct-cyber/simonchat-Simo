@@ -4,7 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Simo — Your Best Friend</title>
-  <link rel="stylesheet" href="/static/styles.css?v=phase50" />
+  <link rel="stylesheet" href="/static/styles.css?v=phase105f" />
+  <link rel="stylesheet" href="/static/designstudio.css">
 </head>
 <body>
   <div class="app-shell">
@@ -88,13 +89,13 @@
           <div class="stat-card">
             <div class="tiny muted">ACCOUNT</div>
             <div id="accountValue" style="font-size:18px; font-weight:700; margin-top:6px;">Guest</div>
-            <div id="userEmail" class="muted tiny" style="margin-top:6px;"></div>
+            <div id="userEmail" class="muted tiny" style="margin-top:6px; font-size:13px; opacity:0.75;"></div>
             <div class="muted" style="margin-top:6px;">Logged-in workspace status</div>
           </div>
 
           <div class="stat-card">
             <div class="tiny muted">PLAN</div>
-            <div id="planValue" style="font-size:18px; font-weight:700; margin-top:6px;">Free</div>
+            <div id="planValue" style="font-size:18px; font-weight:700; margin-top:13px;">Free</div>
             <div id="proBadge" class="muted tiny" data-pro="false" style="margin-top:6px;">Free</div>
             <div class="muted" style="margin-top:6px;">Free / Pro / Team</div>
           </div>
@@ -143,11 +144,11 @@
         ></div>
 
         <div style="position:relative; z-index:1;">
-          <div style="font-size:14px; font-weight:700; margin-bottom:12px; letter-spacing:.01em;">
-            Start with one of these:
-          </div>
+         <div style="font-size:15px; font-weight:700; margin-bottom:12px; letter-spacing:.01em;">
+  Start with one of these:
+</div>
 
-          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="display:flex; gap:14px; flex-wrap:wrap;">
             <button class="chip" type="button" data-simo-starter="build" style="cursor:pointer;">Build a website</button>
             <button class="chip" type="button" data-simo-starter="business" style="cursor:pointer;">Create a business idea</button>
             <button class="chip" type="button" data-simo-starter="design" style="cursor:pointer;">Design something</button>
@@ -155,9 +156,9 @@
             <button class="chip" type="button" data-simo-starter="chat" style="cursor:pointer;">Just chat</button>
           </div>
 
-          <div class="muted tiny" style="margin-top:12px;">
-            Click one to load a starter prompt into the composer. Nothing auto-sends.
-          </div>
+         <div class="muted tiny" style="margin-top:14px; font-size:13px;">
+  Click one to load a starter prompt into the composer. Nothing auto-sends.
+</div>
 
           <div
             id="simoHintCard"
@@ -210,7 +211,7 @@
                 <span>Best first move</span>
               </div>
 
-              <div id="simoHintText" class="muted tiny" style="line-height:1.6;">
+              <div id="simoHintText" class="muted tiny" style="line-height:1.6; font-size:13px;">
                 New here? Start with <strong>Build a website</strong> or <strong>Create a business idea</strong>.
                 You can send the starter as-is or edit it first before pressing send.
               </div>
@@ -223,13 +224,13 @@
         <div id="chatMessages"></div>
       </section>
 
-      <section class="composer-wrap">
-        <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼</button>
-        <input id="imageInput" type="file" accept="image/*" hidden />
-        <textarea id="chatInput" placeholder="What do you want to build today?"></textarea>
-        <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
-      </section>
-
+ <section class="composer-wrap">
+  <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
+  <input id="imageInput" type="file" accept="image/*" hidden />
+  <textarea id="chatInput" placeholder="What do you want to build today?" style="color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important;opacity:1 !important;background:transparent !important;font-size:16px !important;line-height:1.4 !important;text-indent:0 !important;text-shadow:none !important;"></textarea>
+  <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
+</section>
+  
       <div id="loadingHint">Ready.</div>
     </main>
   </div>
@@ -239,8 +240,18 @@
   </script>
 
   <script src="/static/3dviewer.js?v=phase50"></script>
-  <script src="/static/script.js?v=phase50"></script>
+    <script src="/static/simo-ui-recovery.js?v=phase14m-r7"></script>
+  <script src="/static/script.js?v=r1044checked"></script>
   <script src="/static/phase28-safe-addon.js?v=phase28safe1"></script>
-  <script src="/static/phase29b-safe-addon.js?v=phase29b1"></script>
+  <script src="/static/phase29b-safe-addon.js?v=phase14m-r102-next"></script>
+  <script src="/static/phase30-image-intake-safe.js?v=phase14m-r102-next"></script>
+  <script src="/static/designstudio.js"></script>
+  <script src="/static/simo_visualcore_PHASE_13A.js?v=phase14m-r7"></script>
+  <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
+  <script src="/static/simo-feature-buttons.js?v=phase14m-r10-stable"></script>
+  <script src="/static/phase31-design-actions-safe.js?v=phase14m-r103-design-actions"></script>
+  <script src="/static/simo-live-workspace-isolated.js?v=clean-v1b-bridge"></script>
+  <script src="/static/simo-open-workspace-card-bridge.js?v=phase14m-r1044e-main-card-workspace"></script>
+  <script src="/static/simo-r1039c-saved-design-flow-finish.js?v=1039d"></script>
 </body>
 </html>
