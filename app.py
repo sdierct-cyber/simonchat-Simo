@@ -6482,8 +6482,44 @@ def sync_user_pro_from_stripe(email: str):
 # =========================================================
 # Routes
 # =========================================================
-@app.route("/")
+@app.route("/", methods=["GET", "POST"])
 def home():
+    # PHASE 14M live compatibility guard:
+    # Some deployed frontend modules can accidentally POST design/chat payloads to "/".
+    # Render logs then show POST / 405 and the UI reports Request failed: 500.
+    # Keep GET / unchanged, but safely route POST / to the intended API handler.
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        text = str(
+            data.get("prompt")
+            or data.get("message")
+            or data.get("text")
+            or data.get("input")
+            or data.get("user_text")
+            or ""
+        ).strip()
+        lowered = text.lower()
+        visualish = bool(
+            data.get("active_visual_project")
+            or data.get("visual_core_phase")
+            or data.get("locked_subject")
+            or data.get("exact_object_lock")
+            or data.get("domain")
+            or data.get("strict_domain")
+            or any(
+                word in lowered
+                for word in (
+                    "design", "render", "visual", "mockup", "concept", "prototype",
+                    "show me", "create", "make", "build", "flashlight", "bottle",
+                    "toaster", "grill", "rim", "wheel", "extinguisher", "dispenser",
+                    "logo", "book cover", "product"
+                )
+            )
+        )
+        if visualish:
+            return api_generate_visual()
+        return api_chat()
+
     usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
     image_credits = simo_design_credit_status()
 
