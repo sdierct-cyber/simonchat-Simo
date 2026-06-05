@@ -1,5 +1,5 @@
 /*
-  SIMO PHASE 14M-R10.47 — LIVE FRONTEND LIBRARY BUTTON + SAVE/OPEN BRIDGE
+  SIMO PHASE 14M-R10.55 — PREVIEW VIEW-ONLY HARD STOP
   File: static/simo-library-rescue.js
 
   Frontend-only scope:
@@ -21,7 +21,7 @@
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1046__ = true;
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1047__ = true;
 
-  var PHASE = "PHASE 14M-R10.47 Live Library Button + Proof Save Bridge";
+  var PHASE = "PHASE 14M-R10.56 Single Library Owner + Server Merge";
   var LIB_KEYS = [
     "simo_builder_library_v5_1_builder_first",
     "simo_builder_library_v5",
@@ -33,6 +33,7 @@
   var LAST_KEY = "simo_workspace_last_saved_item_v2";
   var FORCE_KEY = "simo_workspace_force_library_item_v1";
   var MODAL_ID = "simoLiveLibraryFixModal";
+  var SERVER_ITEMS_CACHE = [];
 
   function $(id) { return document.getElementById(id); }
   function nowIso() { return new Date().toISOString(); }
@@ -53,6 +54,25 @@
     try { return JSON.parse(raw); } catch (e) { return fallback; }
   }
 
+  function firstImageFromText(text) {
+    var s = String(text || "");
+    if (!s) return "";
+    var patterns = [
+      /<img[^>]+src=["']([^"']+)["']/i,
+      /(?:imageUrl|image_url|generated_visual_url|previewUrl|thumbnail|currentImage|image)\s*[=:]\s*["']([^"']+)["']/i,
+      /(\/generated-images\/[^"' <>)]+?\.(?:png|jpg|jpeg|webp|gif))/i,
+      /(\/generated_images\/[^"' <>)]+?\.(?:png|jpg|jpeg|webp|gif))/i,
+      /(data:image\/(?:png|jpg|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+)/i,
+      /(https?:\/\/[^"' <>)]+?\.(?:png|jpg|jpeg|webp|gif))/i
+    ];
+    for (var i = 0; i < patterns.length; i += 1) {
+      var m = s.match(patterns[i]);
+      if (m && m[1]) return m[1];
+    }
+    return "";
+  }
+
+
   function fixUrl(src) {
     src = String(src || "").trim();
     if (!src) return "";
@@ -65,10 +85,23 @@
 
   function isUsefulImage(src) {
     src = fixUrl(src);
+    if (!src) return false;
+
+    // R10.50: local recovery fix.
+    // Allow same-origin localhost/127.0.0.1 images while still preventing stale
+    // localhost URLs from another origin. This was causing valid local Library
+    // thumbnails to render as broken even when direct /generated-images URLs opened.
+    try {
+      if (/^https?:\/\//i.test(src)) {
+        var u = new URL(src, window.location.origin);
+        if ((/^(127\.0\.0\.1|localhost)$/i).test(u.hostname) && u.origin !== window.location.origin) {
+          return false;
+        }
+      }
+    } catch (e) {}
+
     return !!(
       src &&
-      src.indexOf("127.0.0.1") < 0 &&
-      src.indexOf("localhost") < 0 &&
       (
         src.indexOf("data:image/") === 0 ||
         src.indexOf("blob:") === 0 ||
@@ -151,6 +184,8 @@
         item.workspaceData.originalImage
       );
     }
+    candidates.push(firstImageFromText(item.html));
+    candidates.push(firstImageFromText(item.sourceText || item.source_text));
     for (var i = 0; i < candidates.length; i += 1) {
       var src = fixUrl(candidates[i]);
       if (isUsefulImage(src)) return src;
@@ -382,18 +417,123 @@
     return true;
   }
 
+
+  function removeItemEverywhere(id) {
+    id = String(id || "");
+    if (!id) return false;
+    var changed = false;
+    LIB_KEYS.forEach(function (key) {
+      try {
+        var store = readStore(key);
+        var before = (store.arr || []).length;
+        var arr = (store.arr || []).filter(function (item) {
+          return String(item && item.id || "") !== id;
+        });
+        if (arr.length !== before) {
+          writeStore(key, store, arr);
+          changed = true;
+        }
+      } catch (e) {}
+    });
+    try {
+      var last = parseJson(localStorage.getItem(LAST_KEY) || "null", null);
+      if (last && String(last.id || "") === id) localStorage.removeItem(LAST_KEY);
+    } catch (e) {}
+    try {
+      var force = parseJson(localStorage.getItem(FORCE_KEY) || "null", null);
+      if (force && String(force.id || "") === id) localStorage.removeItem(FORCE_KEY);
+    } catch (e) {}
+    if (changed) fireUpdated(null);
+    return changed;
+  }
+
+  function updateItemEverywhere(id, updater) {
+    id = String(id || "");
+    if (!id || typeof updater !== "function") return null;
+    var updated = null;
+    LIB_KEYS.forEach(function (key) {
+      try {
+        var store = readStore(key);
+        var arr = (store.arr || []).map(function (item) {
+          if (String(item && item.id || "") !== id) return item;
+          var next = normalizeItem(updater(Object.assign({}, item)));
+          updated = next;
+          return next;
+        });
+        writeStore(key, store, arr);
+      } catch (e) {}
+    });
+    if (updated) fireUpdated(updated);
+    return updated;
+  }
+
+  function openPreview(item) {
+    item = normalizeItem(item);
+    var img = bestItemImage(item);
+    var title = titleFromItem(item);
+    var html = '<!doctype html><html><head><meta charset="utf-8"><title>' + esc(title) + ' — Preview</title>' +
+      '<style>body{margin:0;background:#070b16;color:#fff;font-family:Arial,sans-serif;}main{max-width:1100px;margin:0 auto;padding:24px;}h1{font-size:24px;margin:0 0 16px;}img{display:block;max-width:100%;max-height:82vh;object-fit:contain;border-radius:18px;background:#050914;box-shadow:0 24px 90px rgba(0,0,0,.45);}p{color:#b9c6e8;}</style>' +
+      '</head><body><main><h1>' + esc(title) + '</h1><img src="' + esc(img) + '" alt="' + esc(title) + '"><p>Preview only. No workspace edit is running.</p></main></body></html>';
+    var blob = new Blob([html], { type: "text/html" });
+    var url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener=false");
+    return true;
+  }
+
+  function editTags(item) {
+    item = normalizeItem(item);
+    var current = Array.isArray(item.tags) ? item.tags.join(", ") : "";
+    var next = window.prompt("Tags for this saved design:", current);
+    if (next === null) return false;
+    var tags = String(next || "")
+      .split(",")
+      .map(function (x) { return clean(x); })
+      .filter(Boolean);
+    updateItemEverywhere(item.id, function (old) {
+      old.tags = tags.length ? tags : ["visual", "design", "workspace"];
+      old.updatedAt = nowIso();
+      return old;
+    });
+    return true;
+  }
+
+  function renameItem(item) {
+    item = normalizeItem(item);
+    var next = window.prompt("Rename this saved design:", titleFromItem(item));
+    if (next === null) return false;
+    next = clean(next);
+    if (!next) return false;
+    updateItemEverywhere(item.id, function (old) {
+      old.title = next;
+      old.name = next;
+      old.projectTitle = next;
+      if (old.workspaceData) {
+        old.workspaceData.title = next;
+        old.workspaceData.projectTitle = next;
+      }
+      old.updatedAt = nowIso();
+      return old;
+    });
+    return true;
+  }
+
   function modalHtml(items) {
     var cards = items.map(function (item) {
       item = normalizeItem(item);
       var img = bestItemImage(item);
       var title = titleFromItem(item);
+      var tags = Array.isArray(item.tags) ? item.tags.slice(0, 4).map(esc).join(", ") : "";
       return '<article class="simo-live-library-card" data-simo-live-library-id="' + esc(item.id) + '" style="background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.11);border-radius:18px;padding:14px;display:grid;gap:10px;">' +
         '<img src="' + esc(img) + '" alt="' + esc(title) + '" style="width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:14px;background:#050914;">' +
-        '<div style="font-weight:800;color:#fff;line-height:1.25;">' + esc(title) + '</div>' +
+        '<div style="font-weight:900;color:#fff;line-height:1.25;">' + esc(title) + '</div>' +
         '<div style="font-size:12px;color:#b9c6e8;">' + esc(item.updatedAt || item.createdAt || '') + '</div>' +
+        (tags ? '<div style="font-size:11px;color:#9fb0da;">Tags: ' + tags + '</div>' : '') +
         '<div style="display:flex;gap:8px;flex-wrap:wrap;">' +
-          '<button type="button" data-simo-live-open="' + esc(item.id) + '" style="border:0;border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;background:#6ea8ff;color:#061225;">Open Workspace</button>' +
-          '<button type="button" data-simo-live-preview="' + esc(item.id) + '" style="border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 12px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.08);color:#fff;">Preview</button>' +
+          '<button type="button" data-simo-live-open="' + esc(item.id) + '" style="border:0;border-radius:999px;padding:9px 12px;font-weight:900;cursor:pointer;background:#6ea8ff;color:#061225;">Open Workspace</button>' +
+          '<button type="button" data-simo-live-preview="' + esc(item.id) + '" style="border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.08);color:#fff;">Preview</button>' +
+          '<button type="button" data-simo-live-rename="' + esc(item.id) + '" style="border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.08);color:#fff;">Rename</button>' +
+          '<button type="button" data-simo-live-tags="' + esc(item.id) + '" style="border:1px solid rgba(255,255,255,.16);border-radius:999px;padding:9px 12px;font-weight:800;cursor:pointer;background:rgba(255,255,255,.08);color:#fff;">Tags</button>' +
+          '<button type="button" data-simo-live-delete="' + esc(item.id) + '" style="border:1px solid rgba(255,120,120,.38);border-radius:999px;padding:9px 12px;font-weight:900;cursor:pointer;background:rgba(255,80,80,.12);color:#ffd7d7;">Delete</button>' +
         '</div>' +
       '</article>';
     }).join("");
@@ -409,16 +549,93 @@
     '</div>';
   }
 
+
+  function forcePreviewLabels() {
+    try {
+      var modal = $(MODAL_ID);
+      if (!modal || !modal.querySelectorAll) return;
+
+      var buttons = Array.prototype.slice.call(modal.querySelectorAll("button"));
+      buttons.forEach(function (btn) {
+        var txt = low(btn.textContent || "");
+        var isOpen = btn.hasAttribute("data-simo-live-open") || txt.indexOf("open workspace") >= 0;
+        var isPreview = btn.hasAttribute("data-simo-live-preview");
+
+        // R10.53: Some older bridge/UI code rewrites the gray Preview button text to
+        // "Workspace". The blue button is the only true editor opener.
+        if (isPreview && !isOpen) {
+          btn.textContent = "Preview";
+          btn.setAttribute("aria-label", "Preview");
+          btn.title = "Preview saved design";
+          return;
+        }
+
+        // Defensive fallback: if a gray card button says Workspace but it is not
+        // the blue Open Workspace button, convert it into a Preview button.
+        if (!isOpen && txt === "workspace") {
+          var card = btn.closest && btn.closest("[data-simo-live-library-id]");
+          var id = card && card.getAttribute("data-simo-live-library-id");
+          if (id) {
+            btn.setAttribute("data-simo-live-preview", id);
+            btn.textContent = "Preview";
+            btn.setAttribute("aria-label", "Preview");
+            btn.title = "Preview saved design";
+          }
+        }
+      });
+    } catch (e) {}
+  }
+
+  function mergeItems(localItems, serverItems) {
+    var out = [];
+    var seen = {};
+    (serverItems || []).concat(localItems || []).forEach(function (item) {
+      if (!item || typeof item !== "object") return;
+      var normalized = normalizeItem(item);
+      var img = bestItemImage(normalized);
+      if (!img) return;
+      var sig = String(normalized.id || "") + "|" + String(normalized.title || "") + "|" + String(img || "");
+      if (seen[sig]) return;
+      seen[sig] = true;
+      out.push(normalized);
+    });
+    out.sort(function (a, b) {
+      return Date.parse(b.updatedAt || b.createdAt || 0) - Date.parse(a.updatedAt || a.createdAt || 0);
+    });
+    return out;
+  }
+
+  function fetchServerItems() {
+    return fetch("/api/library", { credentials: "same-origin" })
+      .then(function (res) { if (!res.ok) return []; return res.json(); })
+      .then(function (data) {
+        var arr = Array.isArray(data) ? data : (Array.isArray(data && data.items) ? data.items : []);
+        SERVER_ITEMS_CACHE = arr.map(function (item) { return normalizeItem(item); }).filter(function (item) { return !!bestItemImage(item); });
+        return SERVER_ITEMS_CACHE;
+      })
+      .catch(function () { SERVER_ITEMS_CACHE = SERVER_ITEMS_CACHE || []; return SERVER_ITEMS_CACHE; });
+  }
+
   function renderModal() {
     var old = $(MODAL_ID);
     if (old) old.remove();
-    document.body.insertAdjacentHTML("beforeend", modalHtml(allItems()));
+    document.body.insertAdjacentHTML("beforeend", modalHtml(mergeItems(allItems(), SERVER_ITEMS_CACHE)));
+    forcePreviewLabels();
+    setTimeout(forcePreviewLabels, 50);
+    setTimeout(forcePreviewLabels, 250);
   }
 
   function openLibrary() {
     renderModal();
     updateCount();
     status("Library opened.");
+    fetchServerItems().then(function () {
+      if ($(MODAL_ID)) {
+        renderModal();
+        updateCount();
+        status("Library opened with local + server saved designs.");
+      }
+    });
     return true;
   }
 
@@ -480,12 +697,27 @@
       closeLibrary(); return false;
     }
 
-    var openIdBtn = target.closest("[data-simo-live-open], [data-simo-live-preview]");
-    if (openIdBtn) {
+    var actionBtn = target.closest("[data-simo-live-open], [data-simo-live-preview], [data-simo-live-delete], [data-simo-live-tags], [data-simo-live-rename]");
+    if (actionBtn) {
       e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      var id = openIdBtn.getAttribute("data-simo-live-open") || openIdBtn.getAttribute("data-simo-live-preview");
+      var id = actionBtn.getAttribute("data-simo-live-open") ||
+        actionBtn.getAttribute("data-simo-live-preview") ||
+        actionBtn.getAttribute("data-simo-live-delete") ||
+        actionBtn.getAttribute("data-simo-live-tags") ||
+        actionBtn.getAttribute("data-simo-live-rename");
       var item = findById(id);
-      if (item) openItemWorkspace(item);
+      if (!item) return false;
+
+      if (actionBtn.hasAttribute("data-simo-live-open")) openItemWorkspace(item);
+      else if (actionBtn.hasAttribute("data-simo-live-preview")) openPreview(item);
+      else if (actionBtn.hasAttribute("data-simo-live-tags")) editTags(item);
+      else if (actionBtn.hasAttribute("data-simo-live-rename")) renameItem(item);
+      else if (actionBtn.hasAttribute("data-simo-live-delete")) {
+        if (window.confirm("Delete this saved design from this browser Library?")) {
+          removeItemEverywhere(id);
+          renderModal();
+        }
+      }
       return false;
     }
 
@@ -498,7 +730,9 @@
     var btn = target.closest("button, a, input[type='button'], input[type='submit'], [role='button']");
     if (!btn) return;
     var label = buttonText(btn);
-    if (!(label === "open" || label === "preview" || label === "continue" || label === "workspace" || label.indexOf("open workspace") >= 0)) return;
+    // R10.55: Never let generic fallback open Preview in the editor.
+    // Only explicit "Open Workspace" may open the editor.
+    if (label !== "open workspace" && label.indexOf("open workspace") < 0) return;
 
     var card = closestCard(btn);
     if (!card) return;
@@ -550,15 +784,46 @@
   function boot() {
     installPublicApi();
     installWorkspaceBridgeOverride();
-    document.addEventListener("click", handleClick, true);
+  
+  // R10.55: absolute first-line guard for Preview.
+  // Older/open-workspace rescue handlers can still exist in the page and steal preview clicks.
+  // This handler runs in capture phase and stops Preview from ever reaching those handlers.
+  document.addEventListener("click", function (e) {
+    try {
+      var target = e.target;
+      if (!target || !target.closest) return;
+      var btn = target.closest("[data-simo-live-preview], button, a, [role='button']");
+      if (!btn) return;
+      var label = low(btn.textContent || btn.value || btn.getAttribute("aria-label") || btn.title || "");
+      var isPreview = btn.hasAttribute("data-simo-live-preview") || label === "preview";
+      if (!isPreview) return;
+
+      var card = closestCard(btn);
+      if (!card || !card.hasAttribute("data-simo-live-library-id")) return;
+      var id = btn.getAttribute("data-simo-live-preview") || card.getAttribute("data-simo-live-library-id");
+      var item = findById(id);
+      if (!item) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+      openPreview(item);
+      return false;
+    } catch (err) {
+      try { console.warn("SIMO R10.55 preview hard stop skipped:", err); } catch (e2) {}
+    }
+  }, true);
+
+  document.addEventListener("click", handleClick, true);
     window.addEventListener("click", handleClick, true);
     if (document.documentElement) document.documentElement.addEventListener("click", handleClick, true);
     window.SimoLibraryButtonBridgeR1047 = { openLibrary: openLibrary, handleClick: handleClick, phase: PHASE };
     window.addEventListener("simo:library-updated", updateCount);
     document.addEventListener("simo:library-updated", updateCount);
     updateCount();
-    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); }, 500);
-    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); }, 1500);
+    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); forcePreviewLabels(); }, 500);
+    setTimeout(function () { installWorkspaceBridgeOverride(); installPublicApi(); updateCount(); forcePreviewLabels(); }, 1500);
+    setTimeout(forcePreviewLabels, 3000);
     console.log(PHASE + " loaded.");
   }
 
