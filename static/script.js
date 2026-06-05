@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const PHASE = "PHASE 14M-R10.45G-V1323/V1.3.22 — Server Image Credit Gate Compatible";
+  const PHASE = "PHASE 14M-R10.57 — Library Click Isolation + Server Image Credit Gate Compatible";
   const ACTIVE_KEY = "simo_phase105d_active_visual_project_v1";
   const LEGACY_ACTIVE_KEY = "simo_active_visual_project_v1";
   const LIB_KEY = "simo_builder_library_v5_1_builder_first";
@@ -1751,6 +1751,17 @@ function seededRealImageUrl(project) {
   function hardOpenWorkspaceFromClick(e) {
     const target = e && e.target;
     if (!target || !target.closest) return false;
+
+    // R10.57: Do not let the main chat visual-core workspace catcher steal clicks
+    // from the recovered Builder Library modal. The Library owner must open the
+    // exact clicked saved card. Without this guard, the global active project can
+    // win and every Library card may reopen the last active design, such as a
+    // flashlight.
+    if (target.closest(
+      "#simoLiveLibraryFixModal, [data-simo-live-library-id], [data-simo-live-open], [data-simo-live-preview], [data-simo-live-delete], [data-simo-live-tags], [data-simo-live-rename]"
+    )) {
+      return false;
+    }
 
     const special = target.closest("[data-simo-vc-special='open-3d'], [data-simo-vc-special=\"open-3d\"]");
     const btn = target.closest("button, a, [role='button']");
