@@ -14,7 +14,7 @@
 
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  var PHASE = "SIMO Clean Design Workspace V1.3.17 — prompt rebuild + local save guard";
+  var PHASE = "SIMO Clean Design Workspace V1.3.18 — local save + server sync guard";
   var LIB_KEY = "simo_builder_library_v5_1_builder_first";
   var LAST_SAVED_KEY = "simo_workspace_last_saved_item_v4";
 
@@ -1793,11 +1793,36 @@
           try { console.warn("SIMO workspace local save failed:", localErr); } catch (e3) {}
         }
 
-        // V1.3.17: local-first save guard.
-        // The current local build was creating duplicate cards when the workspace saved locally
-        // and then also synced the same item through the server/library path.
-        // Keep the exact current workspace version local for now so one click creates one card.
-        syncedServer = false;
+        // V1.3.18: local-first, server-second save.
+        // Local save remains the immediate proof so the user's current browser does not lose work.
+        // Then, when the user is logged in, sync the exact same saved item to /api/library/save
+        // so live Simo can reload it from the server instead of depending only on localStorage.
+        try {
+          var saveOrigin = window.location && window.location.origin ? window.location.origin : "";
+          if ((!saveOrigin || saveOrigin === "null") && window.opener && window.opener.location) saveOrigin = window.opener.location.origin || "";
+          var serverUrl = (saveOrigin && saveOrigin !== "null" ? saveOrigin : "") + "/api/library/save";
+          var serverRes = await fetch(serverUrl, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: item.id,
+              title: item.title,
+              html: item.html || "",
+              sourceText: item.sourceText || "",
+              notes: item.notes || "",
+              tags: Array.isArray(item.tags) ? item.tags : ["visual", "design", "workspace"],
+              pinned: !!item.pinned,
+              archived: !!item.archived
+            })
+          });
+          var serverPayload = {};
+          try { serverPayload = await serverRes.json(); } catch (jsonErr) { serverPayload = {}; }
+          syncedServer = !!(serverRes.ok && serverPayload && serverPayload.ok);
+        } catch (serverErr) {
+          syncedServer = false;
+          try { console.warn("SIMO workspace server save skipped:", serverErr); } catch (e4) {}
+        }
 
         try {
           if (window.opener && !window.opener.closed) {
