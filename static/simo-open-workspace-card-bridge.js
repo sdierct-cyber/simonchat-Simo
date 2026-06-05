@@ -1,5 +1,5 @@
 /*
-  SIMO PHASE 14M-R10.47 — Workspace Card Bridge Marker + Safe Reopen
+  SIMO PHASE 14M-R10.54 — Preview No-Editor Bridge Guard
   Frontend-only. No backend, no Stripe, no image generation, no credit use.
 */
 (function () {
@@ -11,7 +11,7 @@
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1046__ = true;
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1047__ = true;
 
-  var PHASE = "PHASE 14M-R10.47 Workspace Card Bridge";
+  var PHASE = "PHASE 14M-R10.56 Open Workspace Only Bridge";
 
   function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
   function low(v) { return clean(v).toLowerCase(); }
@@ -24,7 +24,20 @@
   }
   function isImage(src) {
     src = fixUrl(src);
-    return !!(src && src.indexOf("127.0.0.1") < 0 && src.indexOf("localhost") < 0 && (
+    if (!src) return false;
+
+    // R10.50: allow same-origin local Flask image URLs. Block only stale
+    // localhost/127.0.0.1 URLs that point somewhere other than this page origin.
+    try {
+      if (/^https?:\/\//i.test(src)) {
+        var u = new URL(src, window.location.origin);
+        if ((/^(127\.0\.0\.1|localhost)$/i).test(u.hostname) && u.origin !== window.location.origin) {
+          return false;
+        }
+      }
+    } catch (e) {}
+
+    return !!(src && (
       src.indexOf("data:image/") === 0 ||
       src.indexOf("blob:") === 0 ||
       src.indexOf("/generated-images/") >= 0 ||
@@ -87,7 +100,11 @@
       }
     }
 
-    if (!(label === "open" || label === "preview" || label === "continue" || label === "workspace" || label.indexOf("open workspace") >= 0)) return;
+    // R10.54: This bridge must ONLY open the editor for explicit Open Workspace.
+    // It must not capture Preview, Rename, Tags, Delete, or generic gray Workspace buttons.
+    // The Library rescue modal owns Preview as a view-only action.
+    if (label.indexOf("open workspace") < 0) return;
+
     var card = closestCard(btn);
     if (!card || !isImage(bestImage(card))) return;
     var cardText = low(card.textContent || "");
