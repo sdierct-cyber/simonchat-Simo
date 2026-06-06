@@ -1,9 +1,11 @@
+// SIMO PHASE 14M-R10.59J VERIFIED CREDIT PILL + SETTINGS + IMAGE ANALYSIS READY
+// SIMO PHASE 14M-R10.59B VERIFIED CREDIT PILL SAFE POSITION + SERVER LIBRARY BRIDGE
 // PHASE 10.7B — Exact Object + Persistent Workspace
 // Runs after the legacy script and stays isolated from its internals.
 (function () {
   "use strict";
 
-  const PHASE = "PHASE 14M-R10.57 — Library Click Isolation + Server Image Credit Gate Compatible";
+  const PHASE = "PHASE 14M-R10.59J VERIFIED — Credit Pill + Settings + Library Click Isolation + Server Library Bridge Compatible";
   const ACTIVE_KEY = "simo_phase105d_active_visual_project_v1";
   const LEGACY_ACTIVE_KEY = "simo_active_visual_project_v1";
   const LIB_KEY = "simo_builder_library_v5_1_builder_first";
@@ -1752,7 +1754,7 @@ function seededRealImageUrl(project) {
     const target = e && e.target;
     if (!target || !target.closest) return false;
 
-    // R10.57: Do not let the main chat visual-core workspace catcher steal clicks
+    // R10.59/R10.57: Do not let the main chat visual-core workspace catcher steal clicks
     // from the recovered Builder Library modal. The Library owner must open the
     // exact clicked saved card. Without this guard, the global active project can
     // win and every Library card may reopen the last active design, such as a
@@ -1975,8 +1977,15 @@ function seededRealImageUrl(project) {
   function css() {
     if (document.getElementById("simoDesignCreditStyles")) return;
     var style = el("style", { id: "simoDesignCreditStyles" }, `
-      .simo-credit-pill{position:fixed;right:18px;bottom:18px;z-index:2147483000;border:1px solid rgba(255,255,255,.16);background:rgba(7,14,27,.88);backdrop-filter:blur(16px);color:#eef4ff;border-radius:999px;padding:10px 12px;display:flex;align-items:center;gap:9px;box-shadow:0 18px 55px rgba(0,0,0,.32);font-family:Inter,Arial,sans-serif;font-size:12px;font-weight:900}
-      .simo-credit-pill button{border:1px solid rgba(110,168,255,.35);background:rgba(110,168,255,.15);color:#eef4ff;border-radius:999px;padding:8px 10px;font-weight:950;cursor:pointer;font-size:12px}
+      .simo-credit-pill{position:static;min-height:38px;height:38px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.075);color:#eef4ff;border-radius:999px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:none;font:inherit;font-size:13px;font-weight:850;white-space:nowrap;cursor:pointer;line-height:1;vertical-align:middle}
+      .simo-credit-pill:hover{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.11)}
+      .simo-credit-pill .simo-credit-label{opacity:.98}
+      .simo-credit-pill .simo-credit-buy{display:inline-flex;align-items:center;border-left:1px solid rgba(255,255,255,.18);padding-left:8px;color:#eef4ff;font-weight:900;font-size:12px;line-height:1}
+      .simo-credit-pill.simo-credit-low{border-color:rgba(255,199,89,.62);background:rgba(255,199,89,.16);box-shadow:0 0 0 1px rgba(255,199,89,.10) inset}
+      .simo-credit-pill.simo-credit-empty{border-color:rgba(255,120,120,.72);background:rgba(255,95,95,.18);box-shadow:0 0 0 1px rgba(255,120,120,.12) inset}
+      .simo-credit-pill.simo-credit-fallback-fixed{position:fixed;right:24px;top:96px;z-index:2147481200;box-shadow:0 18px 55px rgba(0,0,0,.32)}
+      @media (max-width: 920px){.simo-credit-pill{height:36px;min-height:36px;font-size:12px;padding:0 11px}.simo-credit-pill .simo-credit-buy{font-size:11px;padding-left:7px}}
+      @media (max-width: 720px){.simo-credit-pill.simo-credit-fallback-fixed{top:86px;right:12px;transform:scale(.94);transform-origin:top right}}
       .simo-credit-modal-backdrop{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Inter,Arial,sans-serif}
       .simo-credit-modal{width:min(560px,96vw);border:1px solid rgba(255,255,255,.16);background:#07111f;color:#eef4ff;border-radius:24px;box-shadow:0 30px 100px rgba(0,0,0,.55);padding:20px;display:grid;gap:14px}
       .simo-credit-modal h3{margin:0;font-size:22px}.simo-credit-modal p{margin:0;color:#c7d3ea;line-height:1.45;font-size:13px}
@@ -1993,22 +2002,39 @@ function seededRealImageUrl(project) {
   }
 
   function label(status) {
-    if (!status || !status.enabled) return "Design credits";
-    if (status.unlimited) return "Design credits: Admin";
+    if (!status || !status.enabled) return "Credits";
+    if (status.unlimited) return "Credits: Admin";
     var n = status.remaining == null ? 0 : Number(status.remaining || 0);
-    return "Design credits: " + n;
+    return "Credits: " + n;
   }
 
   function renderPill(status) {
     css();
     var old = document.getElementById("simoDesignCreditPill");
     if (old) old.remove();
-    var pill = el("div", { id:"simoDesignCreditPill", class:"simo-credit-pill" });
-    pill.appendChild(el("span", {}, label(status)));
-    var btn = el("button", { type:"button" }, "Buy credits");
-    btn.addEventListener("click", openModal);
-    pill.appendChild(btn);
-    document.body.appendChild(pill);
+
+    var pill = el("button", {
+      id: "simoDesignCreditPill",
+      class: "simo-credit-pill",
+      type: "button",
+      title: "Buy Simo design credits"
+    });
+    pill.innerHTML = '<span class="simo-credit-label">' + label(status) + '</span><span class="simo-credit-buy">Buy</span>';
+    if (status && status.enabled && !status.unlimited) {
+      var remaining = Number(status.remaining || 0);
+      if (remaining <= 0) pill.classList.add("simo-credit-empty");
+      else if (remaining <= 3) pill.classList.add("simo-credit-low");
+    }
+    pill.addEventListener("click", openModal);
+
+    var clearBtn = document.getElementById("clearHistoryBtn");
+    var actions = clearBtn && clearBtn.parentElement;
+    if (actions && actions.classList && actions.classList.contains("topbar-actions")) {
+      actions.insertBefore(pill, clearBtn);
+    } else {
+      pill.classList.add("simo-credit-fallback-fixed");
+      document.body.appendChild(pill);
+    }
   }
 
   async function refresh() {
@@ -2067,4 +2093,105 @@ function seededRealImageUrl(project) {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ refresh(); claimReturnCreditPack(); });
   else { refresh(); claimReturnCreditPack(); }
   window.SimoDesignCreditsUI = { refresh: refresh, open: openModal };
+})();
+
+
+// SIMO PHASE 14M-R10.59J VERIFIED SETTINGS & VOICE MODAL
+(function () {
+  "use strict";
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (window.__SIMO_R1059I_SETTINGS_MODAL__) return;
+  window.__SIMO_R1059I_SETTINGS_MODAL__ = true;
+
+  const SETTINGS_KEY = "simo_settings_v1";
+  const THEMES = ["dark", "midnight", "warm", "light"];
+  const VOICES = ["Best Friend", "Focused", "Creative", "Direct"];
+
+  function $(id) { return document.getElementById(id); }
+  function esc(v) { return String(v == null ? "" : v).replace(/[&<>\"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m])); }
+  function readSettings() { try { return JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}"); } catch { return {}; } }
+  function writeSettings(next) { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(next || {})); } catch {} }
+
+  function applySettings(settings) {
+    settings = settings || readSettings();
+    const theme = settings.theme || "dark";
+    const accent = settings.accent || "#6ea8ff";
+    const voice = settings.voice || "Best Friend";
+    document.documentElement.dataset.simoTheme = theme;
+    document.documentElement.style.setProperty("--simo-user-accent", accent);
+    window.SIMO_USER_SETTINGS = { theme, accent, voice };
+    try { window.dispatchEvent(new CustomEvent("simo:settings-updated", { detail: window.SIMO_USER_SETTINGS })); } catch {}
+  }
+
+  function optionHtml(values, selected) {
+    return values.map(v => '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
+  }
+
+  function ensureStyles() {
+    if ($("simoR1059ISettingsStyles")) return;
+    const style = document.createElement("style");
+    style.id = "simoR1059ISettingsStyles";
+    style.textContent = `
+      .simo-settings-backdrop{position:fixed;inset:0;z-index:2147483002;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Inter,Arial,sans-serif}
+      .simo-settings-modal{width:min(560px,96vw);border:1px solid rgba(255,255,255,.16);background:#07111f;color:#eef4ff;border-radius:24px;box-shadow:0 30px 100px rgba(0,0,0,.55);padding:20px;display:grid;gap:14px}
+      .simo-settings-modal h3{margin:0;font-size:22px}.simo-settings-modal p{margin:0;color:#c7d3ea;line-height:1.45;font-size:13px}
+      .simo-settings-grid{display:grid;gap:12px}.simo-settings-row{display:grid;gap:6px}.simo-settings-row label{font-size:12px;color:#aebce4;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+      .simo-settings-row select,.simo-settings-row input{border:1px solid rgba(255,255,255,.14);background:#111b2b;color:#eef4ff;border-radius:14px;padding:11px 12px;font-weight:800;outline:none;color-scheme:dark}.simo-settings-row select option{background:#111b2b;color:#eef4ff}.simo-settings-row select:focus,.simo-settings-row input:focus{border-color:rgba(110,168,255,.55);box-shadow:0 0 0 3px rgba(110,168,255,.15)}
+      .simo-settings-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.simo-settings-actions button{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:10px 13px;font-weight:900;cursor:pointer}.simo-settings-actions .primary{background:rgba(110,168,255,.22);border-color:rgba(110,168,255,.45)}
+      html[data-simo-theme="light"] body{background:#f6f8ff;color:#0d1628} html[data-simo-theme="warm"] body{background:#140f0a} html[data-simo-theme="midnight"] body{background:#030712}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function openSettings(e) {
+    if (e) { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }
+    ensureStyles();
+    const current = readSettings();
+    const theme = current.theme || "dark";
+    const accent = current.accent || "#6ea8ff";
+    const voice = current.voice || "Best Friend";
+    const backdrop = document.createElement("div");
+    backdrop.className = "simo-settings-backdrop";
+    backdrop.innerHTML = `
+      <section class="simo-settings-modal" role="dialog" aria-modal="true" aria-label="Simo Settings">
+        <h3>Settings & Voice</h3>
+        <p>These settings are saved in this browser and applied immediately. They are safe UI preferences and do not change Stripe, login, Library data, or design credits. Voice here means written tone, not microphone/audio.</p>
+        <div class="simo-settings-grid">
+          <div class="simo-settings-row"><label>Theme</label><select id="simoSettingsTheme">${optionHtml(THEMES, theme)}</select></div>
+          <div class="simo-settings-row"><label>Accent color</label><input id="simoSettingsAccent" type="color" value="${esc(accent)}" /></div>
+          <div class="simo-settings-row"><label>Voice style (text tone)</label><select id="simoSettingsVoice">${optionHtml(VOICES, voice)}</select><small style="color:#93a4c9;font-size:11px;line-height:1.35;">This changes Simo’s written tone. Microphone and spoken audio are not enabled in this build.</small></div>
+        </div>
+        <div class="simo-settings-actions"><button type="button" data-simo-settings-close>Cancel</button><button type="button" class="primary" data-simo-settings-save>Save settings</button></div>
+      </section>`;
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener("click", function (ev) { if (ev.target === backdrop) backdrop.remove(); });
+    const close = backdrop.querySelector("[data-simo-settings-close]");
+    const save = backdrop.querySelector("[data-simo-settings-save]");
+    if (close) close.addEventListener("click", () => backdrop.remove());
+    if (save) save.addEventListener("click", function () {
+      const next = {
+        theme: (backdrop.querySelector("#simoSettingsTheme") || {}).value || "dark",
+        accent: (backdrop.querySelector("#simoSettingsAccent") || {}).value || "#6ea8ff",
+        voice: (backdrop.querySelector("#simoSettingsVoice") || {}).value || "Best Friend",
+        updatedAt: new Date().toISOString()
+      };
+      writeSettings(next); applySettings(next); backdrop.remove();
+    });
+    return false;
+  }
+
+  function boot() {
+    applySettings(readSettings());
+    document.addEventListener("click", function (e) {
+      const hit = e.target && e.target.closest && e.target.closest("#settingsBtn, [data-simo-settings], button, a, [role='button']");
+      if (!hit) return;
+      const txt = String(hit.textContent || hit.value || hit.getAttribute("aria-label") || hit.title || "").toLowerCase().replace(/\s+/g," ").trim();
+      if (hit.id === "settingsBtn" || txt === "settings & voice" || txt.indexOf("settings") >= 0 && txt.indexOf("voice") >= 0) {
+        return openSettings(e);
+      }
+    }, true);
+    window.SimoSettings = { open: openSettings, apply: applySettings, read: readSettings, phase: "R10.59J" };
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
+  else boot();
 })();
