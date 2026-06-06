@@ -1793,7 +1793,7 @@
           try { console.warn("SIMO workspace local save failed:", localErr); } catch (e3) {}
         }
 
-        // V1.3.18: local-first, server-second save.
+        // V1.3.19: local-first, server-owned save.
         // Local save remains the immediate proof so the user's current browser does not lose work.
         // Then, when the user is logged in, sync the exact same saved item to /api/library/save
         // so live Simo can reload it from the server instead of depending only on localStorage.
@@ -1805,7 +1805,7 @@
             method: "POST",
             credentials: "same-origin",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+            body: JSON.stringify(Object.assign({}, item, {
               id: item.id,
               title: item.title,
               html: item.html || "",
@@ -1813,8 +1813,10 @@
               notes: item.notes || "",
               tags: Array.isArray(item.tags) ? item.tags : ["visual", "design", "workspace"],
               pinned: !!item.pinned,
-              archived: !!item.archived
-            })
+              archived: !!item.archived,
+              workspaceData: item.workspaceData || DATA || {},
+              imageDataUrl: (String(item.imageUrl || "").indexOf("data:image/") === 0 ? item.imageUrl : "")
+            }))
           });
           var serverPayload = {};
           try { serverPayload = await serverRes.json(); } catch (jsonErr) { serverPayload = {}; }
