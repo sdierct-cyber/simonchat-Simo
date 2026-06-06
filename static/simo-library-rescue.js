@@ -282,7 +282,7 @@
   function findById(id) {
     id = String(id || "");
     if (!id) return null;
-    var items = allItems();
+    var items = mergeItems(allItems(), SERVER_ITEMS_CACHE);
     for (var i = 0; i < items.length; i += 1) {
       if (String(items[i].id || "") === id) return normalizeItem(items[i]);
     }
