@@ -1,5 +1,10 @@
+/* SIMO PHASE 14M-R10.59J VERIFIED FINAL LOCAL-LIVE SYNC */
+// SIMO PHASE 14M-R10.59J VERIFIED LIVE READY
 /*
-  SIMO PHASE 14M-R10.54 — Preview No-Editor Bridge Guard
+  SIMO PHASE 14M-R10.59 VERIFIED SERVER LIBRARY BRIDGE
+*/
+/*
+  SIMO PHASE 14M-R10.59 VERIFIED OPEN WORKSPACE ONLY BRIDGE
   Frontend-only. No backend, no Stripe, no image generation, no credit use.
 */
 (function () {
@@ -11,7 +16,7 @@
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1046__ = true;
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1047__ = true;
 
-  var PHASE = "PHASE 14M-R10.56 Open Workspace Only Bridge";
+  var PHASE = "PHASE 14M-R10.59 VERIFIED OPEN WORKSPACE ONLY BRIDGE";
 
   function clean(v) { return String(v || "").replace(/\s+/g, " ").trim(); }
   function low(v) { return clean(v).toLowerCase(); }
@@ -26,7 +31,7 @@
     src = fixUrl(src);
     if (!src) return false;
 
-    // R10.50: allow same-origin local Flask image URLs. Block only stale
+    // R10.59: allow same-origin local Flask image URLs. Block only stale
     // localhost/127.0.0.1 URLs that point somewhere other than this page origin.
     try {
       if (/^https?:\/\//i.test(src)) {
@@ -100,7 +105,7 @@
       }
     }
 
-    // R10.54: This bridge must ONLY open the editor for explicit Open Workspace.
+    // R10.59: This bridge must ONLY open the editor for explicit Open Workspace.
     // It must not capture Preview, Rename, Tags, Delete, or generic gray Workspace buttons.
     // The Library rescue modal owns Preview as a view-only action.
     if (label.indexOf("open workspace") < 0) return;
