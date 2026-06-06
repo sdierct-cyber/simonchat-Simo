@@ -1,3 +1,4 @@
+# SIMO PHASE 14M-R10.59J VERIFIED FINAL LOCAL-LIVE SYNC
 import os
 import json
 import re
@@ -31,7 +32,8 @@ from openai import OpenAI
 
 load_dotenv()
 print("RUNNING APP FILE:", os.path.abspath(__file__))
-print("SIMO PHASE 14M-R10.45G / V1.3.22 SERVER IMAGE CREDIT GATE")
+print("SIMO PHASE 14M-R10.59J VERIFIED LIVE READY + IMAGE ANALYSIS RESTORE")
+print("SIMO PHASE 14M-R10.59J VERIFIED LIVE READY + IMAGE ANALYSIS RESTORE")
 
 # =========================================================
 # Helpers
@@ -7311,22 +7313,7 @@ def api_chat():
 
                 image_path = session.get("last_uploaded_image")
                 if image_path and os.path.isfile(image_path) and client:
-                    try:
-                        with open(image_path, "rb") as f:
-                            img_bytes = f.read()
-
-                        b64 = base64.b64encode(img_bytes).decode("utf-8")
-
-                        mime = "image/png"
-                        lower = image_path.lower()
-                        if lower.endswith(".jpg") or lower.endswith(".jpeg"):
-                            mime = "image/jpeg"
-                        elif lower.endswith(".webp"):
-                            mime = "image/webp"
-                        elif lower.endswith(".gif"):
-                            mime = "image/gif"
-
-                        vision_prompt = """
+                    vision_prompt = """
 Analyze this image for website-building purposes.
 
 Return a concise visual breakdown covering:
@@ -7340,24 +7327,10 @@ Return a concise visual breakdown covering:
 
 Keep it practical and builder-friendly.
 """.strip()
-
-                        resp = client.responses.create(
-                            model=OPENAI_MODEL,
-                            input=[
-                                {
-                                    "role": "user",
-                                    "content": [
-                                        {"type": "input_text", "text": vision_prompt},
-                                        {
-                                            "type": "input_image",
-                                            "image_url": f"data:{mime};base64,{b64}",
-                                        },
-                                    ],
-                                }
-                            ],
-                        )
-                        image_analysis = extract_first_text_from_openai_response(resp).strip()
-                    except Exception:
+                    try:
+                        image_analysis = analyze_image_file_with_openai(image_path, vision_prompt, client).strip()
+                    except Exception as e:
+                        print(f"[SIMO R10.59J] builder image analysis skipped: {e}", flush=True)
                         image_analysis = ""
 
                 if image_analysis:
@@ -8561,6 +8534,88 @@ def generated_images(filename):
 
     return send_file(full, mimetype=mimetype, conditional=True, max_age=3600)
 
+
+# ---------------------------------------------------------
+# R10.59J image analysis restore helpers
+# ---------------------------------------------------------
+def mime_for_image_path(image_path: str) -> str:
+    lower = str(image_path or "").lower()
+    if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return "image/jpeg"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    if lower.endswith(".gif"):
+        return "image/gif"
+    return "image/png"
+
+
+def analyze_image_file_with_openai(image_path: str, prompt: str, client=None) -> str:
+    """Analyze an uploaded image using Responses first, then Chat Completions fallback.
+
+    R10.59J: do not return the old fake "SDK not available" message. Either
+    return real vision text or raise the actual failure so the UI can report it.
+    """
+    if not image_path or not os.path.isfile(image_path):
+        raise FileNotFoundError("Uploaded image file was not found.")
+    client = client or get_client()
+    if not client:
+        raise RuntimeError("OPENAI_API_KEY is missing.")
+
+    with open(image_path, "rb") as f:
+        img_bytes = f.read()
+    b64 = base64.b64encode(img_bytes).decode("utf-8")
+    mime = mime_for_image_path(image_path)
+    data_url = f"data:{mime};base64,{b64}"
+    prompt = str(prompt or "Analyze this image for Simo.").strip()
+
+    errors = []
+    try:
+        resp = client.responses.create(
+            model=OPENAI_MODEL,
+            input=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": data_url},
+                    ],
+                }
+            ],
+        )
+        text = extract_first_text_from_openai_response(resp).strip()
+        if text:
+            return text
+        errors.append("Responses API returned no text.")
+    except Exception as e:
+        errors.append(f"Responses API failed: {str(e)}")
+
+    try:
+        resp = client.chat.completions.create(
+            model=OPENAI_MODEL,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": data_url}},
+                    ],
+                }
+            ],
+            max_tokens=700,
+        )
+        text = ""
+        try:
+            text = (resp.choices[0].message.content or "").strip()
+        except Exception:
+            text = ""
+        if text:
+            return text
+        errors.append("Chat Completions returned no text.")
+    except Exception as e:
+        errors.append(f"Chat Completions fallback failed: {str(e)}")
+
+    raise RuntimeError("Image analysis failed. " + " | ".join(errors[-2:]))
+
 # ---------------------------------------------------------
 # Image upload / analyze
 # ---------------------------------------------------------
@@ -8619,45 +8674,12 @@ def api_analyze_image():
         if not client:
             return jsonify({"ok": False, "error": "OPENAI_API_KEY is missing."}), 500
 
-        with open(image_path, "rb") as f:
-            img_bytes = f.read()
-
-        b64 = base64.b64encode(img_bytes).decode("utf-8")
-
-        mime = "image/png"
-        lower = image_path.lower()
-        if lower.endswith(".jpg") or lower.endswith(".jpeg"):
-            mime = "image/jpeg"
-        elif lower.endswith(".webp"):
-            mime = "image/webp"
-        elif lower.endswith(".gif"):
-            mime = "image/gif"
-
         try:
-            resp = client.responses.create(
-                model=OPENAI_MODEL,
-                input=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "input_text", "text": prompt},
-                            {
-                                "type": "input_image",
-                                "image_url": f"data:{mime};base64,{b64}",
-                            },
-                        ],
-                    }
-                ],
-            )
-            text = extract_first_text_from_openai_response(resp)
+            text = analyze_image_file_with_openai(image_path, prompt, client)
             return jsonify({"ok": True, "reply": text})
-        except Exception:
-            return jsonify(
-                {
-                    "ok": True,
-                    "reply": "Image analysis is not available with the current OpenAI SDK version on this machine yet. Chat is fixed first.",
-                }
-            )
+        except Exception as e:
+            print(f"[SIMO R10.59J] image analysis failed: {e}", flush=True)
+            return jsonify({"ok": False, "error": f"Image analysis failed: {str(e)}"}), 500
     except Exception as e:
         return jsonify({"ok": False, "error": f"Image analysis failed: {str(e)}"}), 500
 
@@ -8821,7 +8843,7 @@ def published_page(slug):
 
 
 # ---------------------------------------------------------
-# Server-owned visual library helpers (R10.58)
+# Server-owned visual library helpers (R10.59 VERIFIED)
 # ---------------------------------------------------------
 def _simo_extract_json_after_marker(text: str):
     raw = str(text or "").strip()
