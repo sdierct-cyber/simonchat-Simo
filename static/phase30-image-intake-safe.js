@@ -1,4 +1,4 @@
-// PHASE 14M-R10.2 NEXT — Isolated Image Intake Safe
+// PHASE 14M-R10.59J — Image Intake Chat Preview Safe
 // Safe add-on only.
 // Owns image button click, file picker, paste image, upload preview, /api/upload-image, and /api/analyze-image.
 // Does not touch app.py, core visual logic, subject lock, library, account sync, or normal Send/Enter behavior.
@@ -10,7 +10,7 @@
   if (window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__) return;
   window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__ = true;
 
-  const PHASE = "PHASE 14M-R10.2 NEXT — Isolated Image Intake Safe";
+  const PHASE = "PHASE 14M-R10.59J — Image Intake Chat Preview Safe";
   const MAX_BYTES = 18 * 1024 * 1024;
   const UPLOAD_TIMEOUT_MS = 65000;
 
@@ -87,6 +87,13 @@
   function addAssistant(text, title) {
     const safeTitle = title ? `<div style="font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:#cfe0ff;font-weight:950;margin-bottom:8px;">${esc(title)}</div>` : "";
     return addRow("assistant", `<div class="msg-bubble msg-bubble-assistant" style="max-width:min(1080px,96%);width:100%;"><div style="border:1px solid rgba(255,255,255,.10);border-radius:18px;padding:14px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.025));">${safeTitle}<div style="color:#edf4ff;line-height:1.55;">${markdownToSafeHtml(text || "")}</div></div></div>`);
+  }
+
+  function addImageAnalysis(reply, imageUrl) {
+    const img = imageUrl ? `![Uploaded image](${imageUrl})
+
+` : "";
+    return addAssistant(img + (reply || "Image analyzed."), "Image Analysis");
   }
 
   function ensureStyles() {
@@ -281,14 +288,14 @@
       setStatus("Image analyzed. Ready.", false);
       if (manual || !staged.__autoAnalysisShown) {
         staged.__autoAnalysisShown = true;
-        addAssistant(reply, "Image Analysis");
+        addImageAnalysis(reply, staged.previewUrl || staged.url);
       }
     } catch (err) {
       const message = err && err.message ? err.message : "Image analysis failed.";
       staged.status = "Image uploaded. Analysis did not finish, but the image can still be attached to your next prompt.";
       updateTray(staged.status);
       setStatus(staged.status, false);
-      if (manual) addAssistant(message, "Image Analysis");
+      if (manual) addImageAnalysis(message, staged.previewUrl || staged.url);
     } finally {
       analysisInFlight = false;
       updateTray(staged ? staged.status : "Ready.");
