@@ -3371,18 +3371,42 @@ def normalize_saved_build_item(row):
     if not isinstance(tags, list):
         tags = []
 
-    return {
+    html = str(row["html"] or "")
+    source_text = str(row["source_text"] or "")
+    parsed = _simo_extract_json_after_marker(source_text)
+    if not isinstance(parsed, dict):
+        parsed = {}
+    image_url = _simo_live_safe_image_url(_simo_best_image_from_payload({**parsed, "html": html, "sourceText": source_text}), str(row["id"] or ""))
+    item_payload = _simo_library_payload_for_storage(parsed, image_url) if parsed else {}
+
+    item = {
         "id": str(row["id"] or ""),
-        "title": str(row["title"] or "Untitled Build"),
-        "html": str(row["html"] or ""),
-        "sourceText": str(row["source_text"] or ""),
-        "notes": str(row["notes"] or ""),
-        "tags": safe_text_list(tags),
+        "title": str(row["title"] or item_payload.get("title") or "Untitled Build"),
+        "html": html,
+        "sourceText": source_text,
+        "notes": str(row["notes"] or item_payload.get("notes") or ""),
+        "tags": safe_text_list(tags or item_payload.get("tags") or []),
         "pinned": bool(int(row["pinned"] or 0)),
         "archived": bool(int(row["archived"] or 0)),
         "createdAt": str(row["created_at"] or ""),
         "updatedAt": str(row["updated_at"] or ""),
     }
+    if item_payload:
+        item.update(item_payload)
+        item["id"] = str(row["id"] or item_payload.get("id") or "")
+        item["title"] = str(row["title"] or item_payload.get("title") or "Untitled Build")
+        item["html"] = html or str(item_payload.get("html") or "")
+        item["sourceText"] = source_text
+        item["notes"] = str(row["notes"] or item_payload.get("notes") or "")
+        item["tags"] = safe_text_list(tags or item_payload.get("tags") or [])
+        item["pinned"] = bool(int(row["pinned"] or 0))
+        item["archived"] = bool(int(row["archived"] or 0))
+        item["createdAt"] = str(row["created_at"] or item_payload.get("createdAt") or "")
+        item["updatedAt"] = str(row["updated_at"] or item_payload.get("updatedAt") or "")
+    elif image_url:
+        for k in ("imageUrl", "image_url", "generated_visual_url", "generatedImageUrl", "previewUrl", "thumbnail", "visualUrl", "displayImageUrl", "currentImage", "image", "sourceImageUrl", "originalImageUrl"):
+            item[k] = image_url
+    return item
 
 def normalize_auth_provider(value: str) -> str:
     raw = str(value or "").strip().lower()
@@ -8795,6 +8819,136 @@ def published_page(slug):
     abort(404)
 
 
+
+# ---------------------------------------------------------
+# Server-owned visual library helpers (R10.58)
+# ---------------------------------------------------------
+def _simo_extract_json_after_marker(text: str):
+    raw = str(text or "").strip()
+    if not raw:
+        return None
+    marker_text = "[SIMO_CLEAN_WORKSPACE_SAVED]"
+    if marker_text in raw:
+        raw = raw.split(marker_text, 1)[1].strip()
+    start_obj = raw.find("{")
+    start_arr = raw.find("[")
+    starts = [x for x in (start_obj, start_arr) if x >= 0]
+    if not starts:
+        return None
+    raw = raw[min(starts):].strip()
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+def _simo_first_image_from_text(text: str) -> str:
+    raw = str(text or "")
+    if not raw:
+        return ""
+    patterns = [
+        r"<img[^>]+src=[\"']([^\"']+)[\"']",
+        r"(data:image\/(?:png|jpeg|jpg|webp|gif);base64,[A-Za-z0-9+\/=_-]+)",
+        r"((?:\/generated-images\/|\/generated_images\/)[^\"'\s<>)]+?\.(?:png|jpg|jpeg|webp|gif))",
+        r"(https?:\/\/[^\"'\s<>)]+?\.(?:png|jpg|jpeg|webp|gif)(?:\?[^\"'\s<>)]+)?)",
+    ]
+    for pat in patterns:
+        m = re.search(pat, raw, flags=re.I)
+        if m:
+            return m.group(1).strip()
+    return ""
+
+
+def _simo_best_image_from_payload(data) -> str:
+    data = data if isinstance(data, dict) else {}
+    workspace = data.get("workspaceData") if isinstance(data.get("workspaceData"), dict) else {}
+    candidates = [
+        data.get("imageUrl"), data.get("image_url"), data.get("generated_visual_url"), data.get("generatedImageUrl"),
+        data.get("previewUrl"), data.get("thumbnail"), data.get("visualUrl"), data.get("displayImageUrl"),
+        data.get("currentImage"), data.get("image"), data.get("sourceImageUrl"), data.get("originalImageUrl"),
+        data.get("imageDataUrl"), data.get("image_data_url"),
+        workspace.get("currentImage"), workspace.get("image"), workspace.get("displayImageUrl"), workspace.get("sourceImage"), workspace.get("originalImage"),
+        _simo_first_image_from_text(data.get("html")),
+        _simo_first_image_from_text(data.get("sourceText") or data.get("source_text")),
+    ]
+    for v in candidates:
+        raw = str(v or "").strip()
+        if raw:
+            return raw
+    parsed = _simo_extract_json_after_marker(data.get("sourceText") or data.get("source_text") or "")
+    if isinstance(parsed, dict):
+        return _simo_best_image_from_payload(parsed)
+    return ""
+
+
+def _simo_live_safe_image_url(src: str, preferred_id: str = "") -> str:
+    raw = str(src or "").strip()
+    if not raw:
+        return ""
+    if raw.startswith("data:image/"):
+        m = re.match(r"^data:image\/(png|jpeg|jpg|webp|gif);base64,(.+)$", raw, flags=re.I | re.S)
+        if not m:
+            return raw
+        ext = m.group(1).lower().replace("jpeg", "jpg")
+        b64 = re.sub(r"\s+", "", m.group(2) or "")
+        try:
+            blob = base64.b64decode(b64)
+        except Exception:
+            return raw
+        safe_id = sanitize_key(preferred_id or secrets.token_hex(6)) or secrets.token_hex(6)
+        filename = f"simo_library_saved_{dt.datetime.utcnow().strftime('%Y%m%d_%H%M%S')}_{safe_id}.{ext}"
+        return save_generated_image_bytes(filename, blob)
+    try:
+        if raw.startswith("http://") or raw.startswith("https://"):
+            from urllib.parse import urlparse
+            u = urlparse(raw)
+            if u.path.startswith("/generated-images/") or u.path.startswith("/generated_images/"):
+                return u.path.replace("/generated_images/", "/generated-images/", 1)
+    except Exception:
+        pass
+    if raw.startswith("/generated_images/"):
+        return raw.replace("/generated_images/", "/generated-images/", 1)
+    if raw.startswith("generated_images/"):
+        return "/generated-images/" + raw.split("generated_images/", 1)[1]
+    if raw.startswith("generated-images/"):
+        return "/" + raw
+    return raw
+
+
+def _simo_library_payload_for_storage(data: dict, image_url: str) -> dict:
+    data = data if isinstance(data, dict) else {}
+    title = str(data.get("title") or data.get("name") or data.get("projectTitle") or "Untitled Build").strip() or "Untitled Build"
+    workspace = data.get("workspaceData") if isinstance(data.get("workspaceData"), dict) else {}
+    merged_workspace = dict(workspace)
+    if image_url:
+        for k in ("image", "currentImage", "displayImageUrl", "sourceImage", "currentSourceImage"):
+            merged_workspace[k] = image_url
+        merged_workspace.setdefault("originalImage", image_url)
+    merged_workspace.setdefault("title", title)
+    merged_workspace.setdefault("projectTitle", title)
+    merged_workspace.setdefault("workspaceSubject", data.get("workspaceSubject") or title)
+    out = dict(data)
+    out.update({
+        "title": title,
+        "name": data.get("name") or title,
+        "projectTitle": data.get("projectTitle") or title,
+        "type": data.get("type") or "visual",
+        "kind": data.get("kind") or "visual",
+        "imageUrl": image_url or data.get("imageUrl") or "",
+        "image_url": image_url or data.get("image_url") or "",
+        "generated_visual_url": image_url or data.get("generated_visual_url") or "",
+        "generatedImageUrl": image_url or data.get("generatedImageUrl") or "",
+        "previewUrl": image_url or data.get("previewUrl") or "",
+        "thumbnail": image_url or data.get("thumbnail") or "",
+        "visualUrl": image_url or data.get("visualUrl") or "",
+        "displayImageUrl": image_url or data.get("displayImageUrl") or "",
+        "sourceImageUrl": image_url or data.get("sourceImageUrl") or "",
+        "originalImageUrl": image_url or data.get("originalImageUrl") or "",
+        "workspaceOpen": True,
+        "workspaceData": merged_workspace,
+    })
+    return out
+
 # ---------------------------------------------------------
 # Persistent Library
 # ---------------------------------------------------------
@@ -8822,13 +8976,28 @@ def api_save_build():
         return jsonify({"ok": False, "error": "not_logged_in"}), 401
 
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        data = {}
 
     build_id = str(data.get("id") or secrets.token_hex(8)).strip()
-    title = str(data.get("title") or "Untitled Build").strip() or "Untitled Build"
-    html = str(data.get("html") or "").strip()
-    source_text = str(data.get("sourceText") or data.get("source_text") or "").strip()
+    title = str(data.get("title") or data.get("name") or data.get("projectTitle") or "Untitled Build").strip() or "Untitled Build"
+
+    image_raw = _simo_best_image_from_payload(data)
+    image_url = _simo_live_safe_image_url(image_raw, build_id)
+    item_payload = _simo_library_payload_for_storage(data, image_url)
+    item_payload["id"] = build_id
+    item_payload["title"] = title
+    item_payload["updatedAt"] = utcnow_z()
+    item_payload.setdefault("createdAt", utcnow_z())
+
+    html = str(data.get("html") or item_payload.get("html") or "").strip()
+    if image_url and (not html or "<img" not in html.lower()):
+        html = """<!doctype html><html><head><meta charset="utf-8"><title>{title}</title></head><body style="margin:0;background:#0b1020;color:#fff;font-family:Arial,sans-serif;"><main style="max-width:960px;margin:0 auto;padding:24px;"><h1>{title}</h1><img src="{image_url}" alt="{title}" style="max-width:100%;border-radius:18px;display:block;"><p>Saved Simo workspace design.</p></main></body></html>""".format(title=title, image_url=image_url)
+
+    source_text = "[SIMO_CLEAN_WORKSPACE_SAVED]\n" + json.dumps(item_payload, ensure_ascii=False)
+
     notes = str(data.get("notes") or "").strip()
-    tags = safe_text_list(data.get("tags", []))
+    tags = safe_text_list(data.get("tags", [])) or ["visual", "design", "workspace", "prompt-first"]
     pinned = 1 if bool(data.get("pinned", False)) else 0
     archived = 1 if bool(data.get("archived", False)) else 0
 
@@ -8870,7 +9039,7 @@ def api_save_build():
     conn.commit()
     conn.close()
 
-    return jsonify({"ok": True, "id": build_id})
+    return jsonify({"ok": True, "id": build_id, "imageUrl": image_url, "item": item_payload})
 
 
 @app.route("/api/library/delete", methods=["POST"])
