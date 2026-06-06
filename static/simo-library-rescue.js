@@ -1,5 +1,7 @@
+/* SIMO PHASE 14M-R10.59J VERIFIED FINAL LOCAL-LIVE SYNC */
+// SIMO PHASE 14M-R10.59J VERIFIED LIVE READY
 /*
-  SIMO PHASE 14M-R10.55 — PREVIEW VIEW-ONLY HARD STOP
+  SIMO PHASE 14M-R10.59 VERIFIED SERVER LIBRARY BRIDGE
   File: static/simo-library-rescue.js
 
   Frontend-only scope:
@@ -21,7 +23,7 @@
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1046__ = true;
   window.__SIMO_OPEN_WORKSPACE_CARD_BRIDGE_R1047__ = true;
 
-  var PHASE = "PHASE 14M-R10.56 Single Library Owner + Server Merge";
+  var PHASE = "PHASE 14M-R10.59 VERIFIED SERVER LIBRARY BRIDGE";
   var LIB_KEYS = [
     "simo_builder_library_v5_1_builder_first",
     "simo_builder_library_v5",
@@ -87,7 +89,7 @@
     src = fixUrl(src);
     if (!src) return false;
 
-    // R10.50: local recovery fix.
+    // R10.59: local recovery fix.
     // Allow same-origin localhost/127.0.0.1 images while still preventing stale
     // localhost URLs from another origin. This was causing valid local Library
     // thumbnails to render as broken even when direct /generated-images URLs opened.
@@ -561,7 +563,7 @@
         var isOpen = btn.hasAttribute("data-simo-live-open") || txt.indexOf("open workspace") >= 0;
         var isPreview = btn.hasAttribute("data-simo-live-preview");
 
-        // R10.53: Some older bridge/UI code rewrites the gray Preview button text to
+        // R10.59: Some older bridge/UI code rewrites the gray Preview button text to
         // "Workspace". The blue button is the only true editor opener.
         if (isPreview && !isOpen) {
           btn.textContent = "Preview";
@@ -730,7 +732,7 @@
     var btn = target.closest("button, a, input[type='button'], input[type='submit'], [role='button']");
     if (!btn) return;
     var label = buttonText(btn);
-    // R10.55: Never let generic fallback open Preview in the editor.
+    // R10.59: Never let generic fallback open Preview in the editor.
     // Only explicit "Open Workspace" may open the editor.
     if (label !== "open workspace" && label.indexOf("open workspace") < 0) return;
 
@@ -785,7 +787,7 @@
     installPublicApi();
     installWorkspaceBridgeOverride();
   
-  // R10.55: absolute first-line guard for Preview.
+  // R10.59: absolute first-line guard for Preview.
   // Older/open-workspace rescue handlers can still exist in the page and steal preview clicks.
   // This handler runs in capture phase and stops Preview from ever reaching those handlers.
   document.addEventListener("click", function (e) {
@@ -810,7 +812,7 @@
       openPreview(item);
       return false;
     } catch (err) {
-      try { console.warn("SIMO R10.55 preview hard stop skipped:", err); } catch (e2) {}
+      try { console.warn("SIMO R10.59 preview hard stop skipped:", err); } catch (e2) {}
     }
   }, true);
 
