@@ -74,18 +74,29 @@ body.modal-open{
 /* -------------------------------------------------- */
 /* App shell */
 /* -------------------------------------------------- */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
 .app-shell{
   position:relative;
   z-index:1;
   display:grid;
   grid-template-columns:var(--sidebar-w) minmax(0, 1fr);
-  min-height:100vh;
+  height:100vh;
   width:100%;
+  overflow:hidden;
 }
 
 .sidebar{
-  position:relative;
+  position:sticky;
+  top:0;
   z-index:2;
+  height:100vh;
   border-right:1px solid var(--stroke2);
   padding:16px;
   background:
@@ -101,9 +112,21 @@ body.modal-open{
   display:flex;
   flex-direction:column;
   gap:12px;
-  min-height:100vh;
+  height:100vh;
+  min-height:0;
   padding:14px;
   overflow:hidden;
+}
+
+.chat-wrap{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+
+.composer-wrap{
+  flex:0 0 auto;
 }
 
 /* -------------------------------------------------- */
@@ -1332,5 +1355,1006 @@ code, pre{
 
   .msg-bubble-assistant [data-model-choice-wrap] section > div:first-child{
     opacity:1;
+  }
+}
+
+/* PHASE 4.7 RECOVERY — helper must NOT reserve space */
+
+body .composer-wrap {
+  padding-right: 0 !important;
+}
+
+/* keep send button above any UI */
+body #sendBtn {
+  position: relative;
+  z-index: 60;
+}
+
+@media (max-width: 1100px) {
+  body .composer-wrap {
+    padding-right: 0 !important;
+  }
+}
+
+/* === PHASE 4.7 FIX: Composer + Helper Panel Separation (SAFE) === */
+
+/* Ensure chat input area always sits above helper panel */
+.chat-composer,
+#chat-composer,
+.chat-input-area {
+  position: relative;
+  z-index: 50;
+}
+
+/* Push helper panel slightly up so it doesn't cover send button */
+.helper-panel,
+#helper-panel {
+  margin-bottom: 70px; /* adjust spacing safely */
+  z-index: 10;
+}
+
+/* Ensure send button is always visible */
+button[type="submit"],
+.send-button,
+#sendBtn {
+  position: relative;
+  z-index: 60;
+}
+
+/* Prevent overlap behavior */
+.chat-container,
+.chat-body {
+  padding-bottom: 80px;
+}
+
+/* === PHASE 4.8A: Pro Helper Icon Toggle (APPEND ONLY, SAFE) === */
+
+.simo-helper-toggle-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  flex: 0 0 auto;
+}
+
+.simo-helper-toggle-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.simo-helper-toggle-btn:active {
+  transform: translateY(0);
+}
+
+.simo-helper-toggle-btn[hidden] {
+  display: none !important;
+}
+
+.simo-helper-toggle-btn.is-active {
+  background: rgba(86, 240, 169, 0.14);
+  border-color: rgba(86, 240, 169, 0.40);
+  box-shadow: 0 0 0 1px rgba(86, 240, 169, 0.12), 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.simo-helper-toggle-btn .simo-helper-toggle-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"] {
+  display: none !important;
+}
+
+/* === PHASE 4.8B TEXT VISIBILITY HARD FIX (SAFE) === */
+
+.composer-wrap textarea,
+#chatInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 16px 18px;
+  background: transparent;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  opacity: 1 !important;
+  font-size: 16px;
+  line-height: 1.4;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+}
+
+.composer-wrap textarea::placeholder,
+#chatInput::placeholder {
+  color: rgba(255, 255, 255, 0.65) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.65) !important;
+  opacity: 1 !important;
+}
+
+/* === FIX: FORCE USER MESSAGE VISIBILITY === */
+
+.message.user,
+.chat-message.user,
+.msg.user {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  padding: 12px 16px !important;
+  border-radius: 14px !important;
+  margin: 10px 0 !important;
+  display: inline-block !important;
+  max-width: 70% !important;
+  align-self: flex-end !important;
+  white-space: pre-wrap !important;
+}
+
+.message.user * {
+  color: #ffffff !important;
+}
+
+.msg-row.msg-user {
+  display: flex !important;
+  justify-content: flex-end !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.msg-bubble.msg-bubble-user {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* === FINAL FIX: helper floats, does NOT affect layout === */
+
+#simoBuilderSuggestionsCard {
+  position: absolute;
+  right: 20px;
+  bottom: 100px;
+  width: 280px;
+  z-index: 10;
+}
+
+/* When hidden, fully remove it */
+#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"] {
+  display: none !important;
+}
+
+/* Chat area always full width */
+.main,
+.chat-wrap {
+  width: 100% !important;
+}
+
+/* === FINAL FIX: composer must sit above helper overlays === */
+
+.composer-wrap {
+  position: relative !important;
+  z-index: 10050 !important;
+}
+
+/* keep buttons clickable */
+#sendBtn,
+.send-btn,
+.icon-btn,
+#chatInput {
+  position: relative !important;
+  z-index: 10060 !important;
+}
+
+/* === CLEAN COMPOSER RECOVERY === */
+
+.composer-wrap {
+  position: relative !important;
+  z-index: 10050 !important;
+  padding-right: 0 !important;
+}
+
+#chatInput,
+#sendBtn,
+.send-btn,
+.icon-btn {
+  position: relative !important;
+  z-index: 10060 !important;
+}
+
+/* small composer polish */
+.composer-wrap {
+  padding-right: 14px !important;
+}
+
+#sendBtn,
+.send-btn {
+  margin-right: 4px !important;
+}
+
+/* === PHASE 4.8B SAFE: hide legacy floating builder overlays only === */
+
+/* Old floating Builder Memory card */
+#simoBuilderMemoryCard,
+body > div:has(#simoBuilderMemoryRevision),
+body > div:has(#simoBuilderMemoryTurns),
+body > div:has(#simoBuilderMemoryKind),
+body > div:has(#simoBuilderMemoryStatus) {
+  display: none !important;
+}
+
+/* Old floating Current Goal card */
+body > div:has(#simoBuilderGoalBadge),
+body > div:has(#simoBuilderGoalTitle),
+body > div:has(#simoBuilderGoalText) {
+  display: none !important;
+}
+
+/* === PHASE 4.8B SAFE: reopen star only when helper is hidden === */
+
+/* When helper is visible, hide the bottom reopen star */
+body:has(#simoBuilderSuggestionsCard:not([data-simo-helper-hidden="1"])) #simoHelperReopenBtn {
+  display: none !important;
+}
+
+/* When helper is hidden, show the bottom reopen star */
+body:has(#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"]) #simoHelperReopenBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* === PHASE 4.8B SAFE: align reopen star with gold star row === */
+#simoHelperReopenBtn {
+  right: 132px !important;
+  bottom: 57px !important;
+}
+
+
+/* -------------------------------------------------- */
+/* PHASE 6.2 — Visual-first design + procedural 3D house */
+/* -------------------------------------------------- */
+.simo-procedural-house-overlay{
+  position:fixed;
+  inset:0;
+  z-index:2147483000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:22px;
+  background:rgba(3,7,16,.72);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+
+.simo-procedural-house-overlay.open{
+  display:flex;
+}
+
+.simo-procedural-house-shell{
+  width:min(1180px, 96vw);
+  height:min(760px, 92vh);
+  overflow:hidden;
+  border-radius:28px;
+  border:1px solid rgba(255,255,255,.14);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(119,91,255,.20), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(0,213,255,.16), transparent 30%),
+    rgba(8,12,28,.96);
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+  color:#fff;
+  display:grid;
+  grid-template-rows:auto 1fr;
+}
+
+.simo-procedural-house-topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px 20px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+
+.simo-procedural-house-kicker{
+  color:rgba(255,255,255,.58);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  margin-bottom:5px;
+}
+
+.simo-procedural-house-title{
+  font-size:clamp(18px, 2vw, 26px);
+  font-weight:850;
+  letter-spacing:-.035em;
+}
+
+.simo-procedural-house-close{
+  width:42px;
+  height:42px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+}
+
+.simo-procedural-house-body{
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 330px;
+}
+
+.simo-procedural-house-stage{
+  position:relative;
+  min-height:0;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.08), transparent 28%),
+    linear-gradient(180deg, rgba(20,30,60,.60), rgba(3,6,16,.92));
+}
+
+.simo-procedural-house-canvas-host{
+  position:absolute;
+  inset:0;
+}
+
+.simo-procedural-house-controls-hint{
+  position:absolute;
+  left:18px;
+  bottom:18px;
+  padding:10px 13px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(5,8,20,.70);
+  color:rgba(255,255,255,.82);
+  font-size:13px;
+  box-shadow:0 15px 50px rgba(0,0,0,.25);
+}
+
+.simo-procedural-house-panel{
+  overflow:auto;
+  padding:18px;
+  border-left:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.035);
+}
+
+.simo-procedural-house-panel h3{
+  margin:0 0 8px;
+  font-size:18px;
+}
+
+.simo-procedural-house-panel p{
+  margin:0 0 14px;
+  color:rgba(255,255,255,.72);
+  line-height:1.45;
+  font-size:14px;
+}
+
+.simo-procedural-house-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:14px 0;
+}
+
+.simo-procedural-house-tags span{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.07);
+  color:rgba(255,255,255,.88);
+  border-radius:999px;
+  padding:8px 10px;
+  font-size:12px;
+}
+
+.simo-procedural-house-actions{
+  display:grid;
+  gap:10px;
+  margin-top:18px;
+}
+
+.simo-procedural-house-actions button,
+.simo-instant-design-actions button{
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  border-radius:16px;
+  padding:12px 13px;
+  cursor:pointer;
+  text-align:left;
+  font-weight:800;
+}
+
+.simo-procedural-house-actions button:first-child,
+.simo-instant-design-actions button:first-child{
+  background:linear-gradient(135deg, rgba(110,91,255,.98), rgba(0,205,255,.82));
+  border-color:rgba(255,255,255,.24);
+}
+
+.simo-instant-design-card{
+  width:100%;
+  display:grid;
+  gap:14px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:24px;
+  padding:16px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(110,168,255,.14), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(185,130,255,.13), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.035));
+  box-shadow:0 18px 48px rgba(0,0,0,.22);
+}
+
+.simo-instant-design-hero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 210px;
+  gap:16px;
+  align-items:stretch;
+}
+
+.simo-instant-design-kicker{
+  color:rgba(235,242,255,.68);
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  margin-bottom:6px;
+}
+
+.simo-instant-design-card h2{
+  margin:0 0 8px;
+  font-size:clamp(22px, 3vw, 34px);
+  line-height:1.05;
+  letter-spacing:-.04em;
+}
+
+.simo-instant-design-card p{
+  margin:0;
+  color:rgba(235,242,255,.76);
+  line-height:1.55;
+}
+
+.simo-instant-design-preview{
+  min-height:150px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(circle at 50% 28%, rgba(121,224,255,.18), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+  position:relative;
+  overflow:hidden;
+}
+
+.simo-house-mini{
+  position:absolute;
+  left:22px;
+  right:22px;
+  bottom:18px;
+  height:105px;
+  transform:skewY(-4deg);
+}
+
+.simo-house-mini .mass,
+.simo-house-mini .roof,
+.simo-house-mini .glass,
+.simo-house-mini .pool{
+  position:absolute;
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 14px 35px rgba(0,0,0,.24);
+}
+
+.simo-house-mini .mass-one{
+  left:10px;
+  bottom:28px;
+  width:120px;
+  height:58px;
+  background:linear-gradient(135deg, #d8d4cb, #8f7d68);
+}
+
+.simo-house-mini .mass-two{
+  right:12px;
+  bottom:40px;
+  width:106px;
+  height:50px;
+  background:linear-gradient(135deg, #f1eee8, #b7a98c);
+}
+
+.simo-house-mini .roof-one{
+  left:4px;
+  bottom:86px;
+  width:138px;
+  height:11px;
+  background:#181d26;
+}
+
+.simo-house-mini .roof-two{
+  right:4px;
+  bottom:91px;
+  width:120px;
+  height:11px;
+  background:#181d26;
+}
+
+.simo-house-mini .glass-one{
+  left:46px;
+  bottom:38px;
+  width:46px;
+  height:38px;
+  background:linear-gradient(135deg, rgba(143,216,255,.85), rgba(143,216,255,.18));
+}
+
+.simo-house-mini .glass-two{
+  right:42px;
+  bottom:48px;
+  width:42px;
+  height:32px;
+  background:linear-gradient(135deg, rgba(143,216,255,.85), rgba(143,216,255,.18));
+}
+
+.simo-house-mini .pool{
+  left:52px;
+  right:10px;
+  bottom:0;
+  height:18px;
+  border-radius:999px;
+  background:linear-gradient(90deg, rgba(46,181,209,.88), rgba(121,224,255,.36));
+}
+
+.simo-instant-design-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+
+.simo-instant-design-grid div{
+  padding:12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.045);
+  display:grid;
+  gap:5px;
+}
+
+.simo-instant-design-grid strong{
+  color:#f5f8ff;
+  font-size:13px;
+}
+
+.simo-instant-design-grid span{
+  color:rgba(235,242,255,.72);
+  font-size:12.5px;
+  line-height:1.45;
+}
+
+.simo-instant-design-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.simo-instant-design-actions button{
+  border-radius:999px;
+  padding:9px 11px;
+  font-size:12px;
+  text-align:center;
+}
+
+.simo-instant-design-note{
+  color:rgba(235,242,255,.55);
+  font-size:11.5px;
+  line-height:1.4;
+}
+
+@media (max-width:850px){
+  .simo-procedural-house-body,
+  .simo-instant-design-hero,
+  .simo-instant-design-grid{
+    grid-template-columns:1fr;
+  }
+
+  .simo-procedural-house-panel{
+    border-left:0;
+    border-top:1px solid rgba(255,255,255,.10);
+    max-height:260px;
+  }
+}
+
+
+
+/* -------------------------------------------------- */
+/* PHASE 7 OPTION A — Real result card + real 3D workspace */
+/* -------------------------------------------------- */
+.simo-optiona-card{
+  width:min(980px, 100%);
+  display:grid;
+  gap:14px;
+  border:1px solid rgba(110,168,255,.20);
+  border-radius:24px;
+  padding:14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(110,168,255,.16), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(185,130,255,.13), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
+  box-shadow:0 18px 46px rgba(0,0,0,.28);
+  overflow:hidden;
+}
+
+.simo-optiona-card.simo-optiona-loading{
+  padding:18px;
+}
+
+.simo-optiona-kicker{
+  color:#cfe0ff;
+  font-size:11px;
+  font-weight:950;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+.simo-optiona-card h2{
+  margin:0;
+  font-size:clamp(20px, 2.8vw, 32px);
+  line-height:1.08;
+  letter-spacing:-.04em;
+  color:#f7f9ff;
+}
+
+.simo-optiona-card p{
+  margin:0;
+  color:#c7d3ea;
+  line-height:1.56;
+}
+
+.simo-optiona-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1.25fr) minmax(280px, .75fr);
+  gap:14px;
+  align-items:stretch;
+}
+
+.simo-optiona-visual{
+  min-height:260px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.10);
+  background:#050b14;
+  overflow:hidden;
+}
+
+.simo-optiona-visual img{
+  width:100%;
+  height:100%;
+  min-height:260px;
+  max-height:560px;
+  object-fit:cover;
+  display:block;
+  margin:0;
+  border:0;
+  border-radius:0;
+}
+
+.simo-optiona-side{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+}
+
+.simo-optiona-chips,
+.simo-optiona-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.simo-optiona-chips span{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.055);
+  color:#dbe8ff;
+  padding:7px 10px;
+  font-size:12px;
+  font-weight:850;
+}
+
+.simo-optiona-actions button{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.065);
+  color:#eef4ff;
+  padding:9px 11px;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.simo-optiona-actions button.primary{
+  border-color:rgba(110,168,255,.42);
+  background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(16,188,232,.16));
+  box-shadow:0 10px 26px rgba(57,128,255,.16);
+}
+
+.simo-optiona-note{
+  color:rgba(235,242,255,.58);
+  font-size:12px;
+  line-height:1.45;
+}
+
+@media (max-width: 900px){
+  .simo-optiona-layout{
+    grid-template-columns:1fr;
+  }
+  .simo-optiona-visual,
+  .simo-optiona-visual img{
+    min-height:220px;
+  }
+}
+
+
+/* ==================================================
+   PHASE 14M-R10.2 — Composer Proportion + Image Tray
+   Safe visual polish only. Keeps Send/Image buttons aligned.
+   ================================================== */
+.composer-wrap{
+  display:grid !important;
+  grid-template-columns:44px minmax(0, 1fr) 48px !important;
+  align-items:center !important;
+  gap:10px !important;
+  padding:12px 14px !important;
+  min-height:78px !important;
+  position:relative !important;
+  z-index:10050 !important;
+}
+
+#chatInput{
+  min-height:44px !important;
+  height:44px !important;
+  max-height:132px !important;
+  padding:10px 14px !important;
+  line-height:22px !important;
+  border-radius:18px !important;
+  overflow-y:auto !important;
+  align-self:center !important;
+  display:block !important;
+}
+
+#imageBtn,
+.icon-btn{
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  align-self:center !important;
+}
+
+#sendBtn,
+.send-btn{
+  width:48px !important;
+  height:44px !important;
+  min-width:48px !important;
+  min-height:44px !important;
+  margin:0 !important;
+  align-self:center !important;
+}
+
+#simoSelectedImageTray{
+  margin:0 0 10px 0 !important;
+}
+
+@media (max-width:700px){
+  .composer-wrap{
+    grid-template-columns:42px minmax(0,1fr) 46px !important;
+    gap:8px !important;
+    padding:10px !important;
+  }
+  #chatInput{
+    min-height:42px !important;
+    height:42px !important;
+    padding:9px 12px !important;
+  }
+  #imageBtn,.icon-btn{width:42px !important;height:42px !important;min-width:42px !important;}
+  #sendBtn,.send-btn{width:46px !important;height:42px !important;min-width:46px !important;}
+}
+
+/* ==================================================
+   SIMO PHASE 14M-R10.59L — CHAT COMPOSER ALIGNMENT FIX
+   CSS ONLY. PRESERVES R10.59J LIVE CORE PASS.
+   Purpose:
+   - Center the bottom chat bar like the local test.
+   - Keep image button, input, and send button even.
+   - Do not touch Library, Workspace, saved cards, JS, credits, or backend.
+   ================================================== */
+
+body .composer-wrap{
+  display:grid !important;
+  grid-template-columns:44px minmax(0, 1fr) 48px !important;
+  align-items:center !important;
+  justify-content:stretch !important;
+  gap:10px !important;
+
+  width:100% !important;
+  min-width:0 !important;
+  min-height:64px !important;
+
+  padding:10px 14px !important;
+  margin:0 !important;
+
+  position:relative !important;
+  bottom:auto !important;
+  z-index:10050 !important;
+
+  flex:0 0 auto !important;
+}
+
+/* Image upload button — fixed square, vertically centered */
+body .composer-wrap #imageBtn,
+body .composer-wrap .icon-btn{
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  max-width:44px !important;
+  max-height:44px !important;
+
+  padding:0 !important;
+  margin:0 !important;
+
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+
+  align-self:center !important;
+  justify-self:center !important;
+
+  line-height:1 !important;
+  border-radius:14px !important;
+  flex:0 0 44px !important;
+}
+
+/* Main text input — even height, centered text, no oversized padding */
+body .composer-wrap #chatInput,
+body .composer-wrap textarea#chatInput{
+  width:100% !important;
+  min-width:0 !important;
+
+  height:44px !important;
+  min-height:44px !important;
+  max-height:132px !important;
+
+  padding:10px 14px !important;
+  margin:0 !important;
+
+  display:block !important;
+  align-self:center !important;
+  justify-self:stretch !important;
+
+  resize:none !important;
+  overflow-y:auto !important;
+
+  border:none !important;
+  outline:none !important;
+  border-radius:18px !important;
+
+  background:transparent !important;
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+  caret-color:#ffffff !important;
+  opacity:1 !important;
+
+  font-size:16px !important;
+  line-height:22px !important;
+  text-indent:0 !important;
+  text-shadow:none !important;
+
+  box-shadow:none !important;
+}
+
+/* Placeholder stays visible but soft */
+body .composer-wrap #chatInput::placeholder,
+body .composer-wrap textarea#chatInput::placeholder{
+  color:rgba(255,255,255,.68) !important;
+  -webkit-text-fill-color:rgba(255,255,255,.68) !important;
+  opacity:1 !important;
+}
+
+/* Send button — fixed size, no right drift */
+body .composer-wrap #sendBtn,
+body .composer-wrap .send-btn{
+  width:48px !important;
+  height:44px !important;
+  min-width:48px !important;
+  min-height:44px !important;
+  max-width:48px !important;
+  max-height:44px !important;
+
+  padding:0 !important;
+  margin:0 !important;
+
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+
+  align-self:center !important;
+  justify-self:center !important;
+
+  line-height:1 !important;
+  border-radius:14px !important;
+  flex:0 0 48px !important;
+}
+
+/* Keep composer controls above helper overlays without changing layout */
+body .composer-wrap #chatInput,
+body .composer-wrap #imageBtn,
+body .composer-wrap #sendBtn,
+body .composer-wrap .icon-btn,
+body .composer-wrap .send-btn{
+  position:relative !important;
+  z-index:10060 !important;
+}
+
+/* The selected image tray should not push the bar unevenly */
+body #simoSelectedImageTray{
+  margin:0 0 8px 0 !important;
+}
+
+/* Keep status text from creating weird bottom spacing */
+body #loadingHint{
+  min-height:18px !important;
+  padding-top:1px !important;
+  padding-bottom:0 !important;
+  margin:0 !important;
+  text-align:center !important;
+}
+
+/* Mobile safety */
+@media (max-width:700px){
+  body .composer-wrap{
+    grid-template-columns:42px minmax(0, 1fr) 46px !important;
+    gap:8px !important;
+    min-height:62px !important;
+    padding:9px 10px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap .icon-btn{
+    width:42px !important;
+    height:42px !important;
+    min-width:42px !important;
+    min-height:42px !important;
+    max-width:42px !important;
+    max-height:42px !important;
+    flex:0 0 42px !important;
+  }
+
+  body .composer-wrap #chatInput,
+  body .composer-wrap textarea#chatInput{
+    height:42px !important;
+    min-height:42px !important;
+    padding:9px 12px !important;
+    line-height:22px !important;
+    border-radius:17px !important;
+  }
+
+  body .composer-wrap #sendBtn,
+  body .composer-wrap .send-btn{
+    width:46px !important;
+    height:42px !important;
+    min-width:46px !important;
+    min-height:42px !important;
+    max-width:46px !important;
+    max-height:42px !important;
+    flex:0 0 46px !important;
   }
 }
