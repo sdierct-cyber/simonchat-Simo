@@ -1,3 +1,4 @@
+# SIMO RC11.8.2 — ACTIVE/UPCOMING STALE-YEAR AUTO-REPAIR FOR NORMAL GENERATION
 # SIMO RC11.7 — AUDITED WHOLE-SITE REDESIGN: CONTENT REFERENCE WITHOUT OLD DOM ANCHOR
 # SIMO RC11.6.3 — CALIBRATED WHOLE-SITE REDESIGN SIMILARITY GATE
 # SIMO RC11.6.2 — EDITOR REDESIGN STALE-YEAR AUTO-REPAIR
@@ -15485,6 +15486,9 @@ def _simo_canonical_website_generate():
         # not cause a good subject-specific page to be thrown away prematurely.
         first = _simo_v96_visual_enrichment_pass(first, prompt)
         first = _simo_v106_placeholder_cleanup(first, prompt)
+        # RC11.8.2: deterministically repair stale years in active/upcoming sections
+        # before quality review so a harmless old date does not trigger paid repair work.
+        first = _simo_v116_refresh_active_years_for_editor_redesign(first)
         good, reasons = _simo_v71_html_review(first, prompt, defer_image_quota=True)
         html = first
         attempt = 1
@@ -15498,12 +15502,14 @@ def _simo_canonical_website_generate():
             )
             html = _simo_v96_visual_enrichment_pass(html, prompt)
             html = _simo_v106_placeholder_cleanup(html, prompt)
+            html = _simo_v116_refresh_active_years_for_editor_redesign(html)
             good, reasons = _simo_v71_html_review(html, prompt, defer_image_quota=True)
             attempt = 2
         if not good:
             # One final deterministic enrichment pass; still no generic fallback.
             html = _simo_v96_visual_enrichment_pass(html, prompt)
             html = _simo_v106_placeholder_cleanup(html, prompt)
+            html = _simo_v116_refresh_active_years_for_editor_redesign(html)
             good, reasons = _simo_v71_html_review(html, prompt, defer_image_quota=True)
             attempt = 3
         if not good:
@@ -15595,8 +15601,9 @@ def _simo_canonical_website_generate():
 
         html = _simo_v1024_non_destructive_finish(html, prompt)
         html = _simo_v106_placeholder_cleanup(html, prompt)
-        if editor_redesign:
-            html = _simo_v116_refresh_active_years_for_editor_redesign(html)
+        # RC11.8.2: safe for normal generation too; only active/upcoming sections
+        # are changed, while historical/timeline years remain untouched.
+        html = _simo_v116_refresh_active_years_for_editor_redesign(html)
         polished_good, polished_reasons = _simo_v99_razor_review(html, prompt)
         # 10.4: the Razor benchmark is a repair target, not a premature dead-end.
         # A nearly-good page gets up to two bounded final repair passes using its
@@ -15612,8 +15619,7 @@ def _simo_canonical_website_generate():
             repaired = _simo_v106_placeholder_cleanup(repaired, prompt)
             html = _simo_v1024_non_destructive_finish(repaired, prompt)
             html = _simo_v106_placeholder_cleanup(html, prompt)
-            if editor_redesign:
-                html = _simo_v116_refresh_active_years_for_editor_redesign(html)
+            html = _simo_v116_refresh_active_years_for_editor_redesign(html)
             polished_good, polished_reasons = _simo_v99_razor_review(html, prompt)
         if not polished_good:
             return _simo_contract_json_error(
