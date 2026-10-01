@@ -8,7 +8,7 @@
   if (window.__SIMO_UI_RECOVERY_LOADED__) return;
   window.__SIMO_UI_RECOVERY_LOADED__ = true;
 
-  var PHASE = "SIMO UI Recovery — live button restore";
+  var PHASE = "SIMO UI Recovery — R10.60Z35 non-stealing send guard";
   console.log("[SIMO]", PHASE);
 
   function $(id) {
@@ -23,6 +23,17 @@
     var t = clean(text).toLowerCase();
     if (!t) return false;
     return /\b(show me|design|create|make|generate|render|visualize|mockup|prototype|concept|product|bottle|toaster|grill|rim|wheel|flashlight|extinguisher|dispenser|logo|book cover|website|landing page|app screen|dashboard|house|home|guitar|car)\b/.test(t);
+  }
+
+
+
+  function isWebsiteBuilderPrompt(text) {
+    var t = clean(text).toLowerCase();
+    if (!t) return false;
+    var digital = /\b(website|web site|landing page|webpage|web page|homepage|home page|business site|ecommerce site|e-commerce site|online store|shop page|storefront|app screen|dashboard|web app|mobile app|saas|portal|booking page|checkout page|pricing page|contact page|web tool)\b/.test(t);
+    var verb = /\b(build|create|make|generate|design|show me|i need|i want|put together|draft|start|make me|build me)\b/.test(t);
+    var edit = /\b(hero|cta|button|buttons|services|products|pricing|contact form|testimonials|gallery|media|colors|theme|mobile|seo|domain|publish|download html|copy html|launch)\b/.test(t);
+    return !!(digital && (verb || edit));
   }
 
   function getChat() {
@@ -69,8 +80,8 @@
     var text = clean(input && input.value);
     if (!text) return;
 
-    // Let the visual/design script handle design prompts.
-    if (isDesignLikePrompt(text) && window.SimoVisualCore) return;
+    // Let the Website Builder / visual-design script handle builder/design prompts.
+    if (isWebsiteBuilderPrompt(text) || (isDesignLikePrompt(text) && window.SimoVisualCore)) return;
 
     if (input) input.value = "";
     addMessage("user", esc(text));
@@ -154,33 +165,40 @@
       }
     });
 
-    bindClick("openLibraryBtn", function () {
-      if (typeof window.openBuilderLibrary === "function") {
-        window.openBuilderLibrary();
-        return;
-      }
-      if (typeof window.SimoBuilderLibraryOpen === "function") {
-        window.SimoBuilderLibraryOpen();
-        return;
-      }
-      alert("Library script is not loaded yet.");
-    });
+    // Open Design Library is exclusively owned by simo-library-rescue.js.
+    // No capture-phase Library binding belongs in this recovery file.
 
     bindClick("settingsBtn", function () {
-      alert("Settings are not restored on live yet.");
+      if (typeof window.SimoOpenSettings === "function") {
+        window.SimoOpenSettings();
+        return;
+      }
     });
 
-    bindClick("signupBtn", function () {
-      window.location.href = "/login";
-    });
+    // signupBtn / Easy Signup is owned by main script.js.
+    // Do not capture or redirect it here; the main owner opens the signup modal
+    // even when an existing Pro session is active.
 
     bindClick("profileBtn", function () {
       window.location.href = "/api/me";
     });
 
-    bindClick("sendBtn", function () {
-      sendNormalChat();
-    });
+    var send = $("sendBtn");
+    if (send && !send.dataset.simoUiRecoverySendGuardBound) {
+      send.dataset.simoUiRecoverySendGuardBound = "true";
+      send.addEventListener("click", function (e) {
+        var input = getInput();
+        var text = clean(input && input.value);
+        if (!text) return;
+        // Website/App Builder and visual/product prompts must be owned by script.js/SimoVisualCore.
+        // Do not preventDefault/stopPropagation for those lanes; that was causing website results to be swallowed.
+        if (isWebsiteBuilderPrompt(text) || (isDesignLikePrompt(text) && window.SimoVisualCore)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+        sendNormalChat();
+      }, true);
+    }
   }
 
   function bindStarterChips() {
@@ -217,8 +235,8 @@
       var text = clean(input.value);
       if (!text) return;
 
-      // Let the visual core capture design prompts first.
-      if (isDesignLikePrompt(text) && window.SimoVisualCore) return;
+      // Let the Website Builder / visual core capture builder and design prompts first.
+      if (isWebsiteBuilderPrompt(text) || (isDesignLikePrompt(text) && window.SimoVisualCore)) return;
 
       e.preventDefault();
       e.stopPropagation();
