@@ -6,7 +6,7 @@
   const PHASE = "PHASE 14M-R3 - TitleCase + Send Recovery";
   const ACTIVE_KEY = "simo_phase105d_active_visual_project_v1";
   const LEGACY_ACTIVE_KEY = "simo_active_visual_project_v1";
-  const LIB_KEY = "simo_builder_library_v5_1_builder_first";
+  const LIB_KEY = "simo_visual_concepts_library_v1";
   const LAST_PREVIEW_KEY = "simo_last_preview_v2";
   const PREVIEW_HISTORY_KEY = "simo_preview_history_v1";
   const VISUAL_CONCEPTS_KEY = "simo_visual_concepts_v1";
@@ -664,6 +664,10 @@ function displayTitle(project) {
     const item = {
       id: `visual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       title,
+      type: "design",
+      kind: "visual",
+      owner: "simo_design_studio",
+      design_library: true,
       html: visualProjectHtml(project),
       sourceText: projectSourceText(project),
       notes: "Saved from Simo real image-first visual card. Continue this concept from the same visual prompt and controls.",
@@ -690,8 +694,8 @@ function displayTitle(project) {
 
     showSaveNotice(
       cloudSynced
-        ? `${title} was saved and synced to the Builder Library.`
-        : `${title} was saved to this browser's Builder Library. Sign in to sync it to your account.`,
+        ? `${title} was saved and synced to the Design Library.`
+        : `${title} was saved to this browser's Design Library. Sign in to sync it to your account.`,
       cloudSynced
     );
     return true;
@@ -1200,12 +1204,12 @@ function seededRealImageUrl(project) {
       actionButton("Generate Realistic Render", "rerender", "blue"),
       actionButton("Generate Variations", "variation", "normal"),
       actionButton("Continue Editing", "continue", "green"),
-      actionButton("3D / Rotate Workspace", "open-3d", "blue"),
+      actionButton("Open Design Workspace", "open-design-workspace", "blue"),
       actionButton("Save to Library", "save-library", "gold"),
       `<a href="${esc(img)}" target="_blank" rel="noopener" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:950;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Open Image</a>`
     ];
 
-    const lead = note || "Here is the closest real visual starting point. Simo is staying with the user’s exact request, showing the result first, then giving relevant controls and a 3D-aware workspace option to keep designing from here.";
+    const lead = note || "Here is the closest real visual starting point. Simo is staying with the user’s exact request, showing the result first, then giving relevant controls and a focused Design Workspace option to keep designing from here.";
     const chips = [
       `<span style="display:inline-flex;border:1px solid rgba(86,240,169,.25);background:rgba(86,240,169,.10);color:#dfffee;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;">Real image-first</span>`,
       `<span style="display:inline-flex;border:1px solid rgba(110,168,255,.22);background:rgba(110,168,255,.10);color:#dce8ff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;">${safeCat}</span>`,
@@ -1613,7 +1617,7 @@ function seededRealImageUrl(project) {
       setSimoStatus("Ready.", false);
       removeRow(working);
       addAssistant(renderProject(project, actionIsMeaningful(action)
-        ? `Updated this same ${project.category || "design"} concept with a visible ${actionLabel} pass. Use 3D / Rotate Workspace to keep refining from this exact design.`
+        ? `Updated this same ${project.category || "design"} concept with a visible ${actionLabel} pass. Use Open Design Workspace to keep refining from this exact design.`
         : undefined));
       return true;
     } catch (err) {
@@ -1645,10 +1649,10 @@ function seededRealImageUrl(project) {
     const target = e && e.target;
     if (!target || !target.closest) return false;
 
-    const special = target.closest("[data-simo-vc-special='open-3d'], [data-simo-vc-special=\"open-3d\"]");
+    const special = target.closest("[data-simo-vc-special='open-design-workspace'], [data-simo-vc-special=\"open-design-workspace\"]");
     const btn = target.closest("button, a, [role='button']");
     const label = clean((btn && (btn.textContent || btn.getAttribute("aria-label") || btn.getAttribute("title"))) || "");
-    const looksLikeWorkspace = !!special || (label.includes("3d") && label.includes("rotate") && label.includes("workspace"));
+    const looksLikeWorkspace = !!special || label.includes("open design workspace");
 
     if (!looksLikeWorkspace) return false;
 
@@ -1666,15 +1670,29 @@ function seededRealImageUrl(project) {
       if (img && img.src) active.imageUrl = img.src;
     } catch {}
 
-    active.wants3D = true;
+    active.wants3D = false;
     setActive(active);
 
     try {
-      openConnectedWorkspace(
-        active,
-        active.latestPrompt || active.prompt || active.item || "this exact visual concept",
-        "Opened directly from the 3D / Rotate Workspace button. This keeps the current visual concept as the source of truth and does not use an unrelated fallback model."
-      );
+      var workspaceData = {
+        title: displayTitle(active),
+        projectTitle: displayTitle(active),
+        workspaceSubject: active.lockedSubject || active.item || displayTitle(active),
+        image: active.imageUrl || "",
+        currentImage: active.imageUrl || "",
+        displayImageUrl: active.imageUrl || "",
+        sourceImage: active.imageUrl || "",
+        originalImage: active.imageUrl || "",
+        originalPrompt: active.prompt || active.latestPrompt || active.item || "",
+        currentPrompt: active.latestPrompt || active.prompt || active.item || ""
+      };
+      if (window.SimoLiveWorkspaceIsolated && typeof window.SimoLiveWorkspaceIsolated.openTab === "function") {
+        window.SimoLiveWorkspaceIsolated.openTab(workspaceData);
+      } else if (window.SimoWorkspaceBridge && typeof window.SimoWorkspaceBridge.openTab === "function") {
+        window.SimoWorkspaceBridge.openTab(workspaceData);
+      } else {
+        throw new Error("Design Workspace owner is not loaded.");
+      }
       return true;
     } catch (err) {
       console.error("Simo hard workspace open failed:", err);
@@ -1703,8 +1721,8 @@ function seededRealImageUrl(project) {
           saveVisualProject(active);
           return;
         }
-        if (mode === "open-3d") {
-          open3D(active, active.latestPrompt || active.prompt || active.item);
+        if (mode === "open-design-workspace") {
+          hardOpenWorkspaceFromClick(e);
           return;
         }
         if (mode === "continue") {
