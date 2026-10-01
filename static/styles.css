@@ -2455,3 +2455,1360 @@ body .composer-wrap .send-btn{
     flex:0 0 42px !important;
   }
 }
+
+
+/* SIMO R10.60Z54 — Website/App Creator active mode UI */
+.simo-webapp-mode-tab-active{
+  border-color:rgba(56,189,248,.75)!important;
+  background:linear-gradient(135deg, rgba(56,189,248,.22), rgba(99,102,241,.18))!important;
+  box-shadow:0 0 0 1px rgba(56,189,248,.18), 0 12px 34px rgba(56,189,248,.14)!important;
+}
+body.simo-webapp-mode-active .composer-wrap{
+  box-shadow:0 0 0 1px rgba(56,189,248,.18), 0 14px 38px rgba(56,189,248,.10)!important;
+}
+.simo-webapp-mode-banner,.simo-webapp-error,.simo-webapp-working{
+  border:1px solid rgba(56,189,248,.22);
+  border-radius:18px;
+  padding:14px 16px;
+  background:linear-gradient(180deg, rgba(56,189,248,.10), rgba(255,255,255,.035));
+  color:#eaf6ff;
+}
+.simo-webapp-card{
+  width:min(1120px,100%);
+  border:1px solid rgba(56,189,248,.22);
+  border-radius:24px;
+  overflow:hidden;
+  background:#0d1726;
+  box-shadow:0 20px 58px rgba(0,0,0,.32);
+}
+.simo-webapp-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:16px 18px;background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(99,102,241,.10));
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.simo-webapp-kicker{font-size:11px;letter-spacing:.14em;font-weight:950;color:#9ee7ff;text-transform:uppercase;margin-bottom:5px}
+.simo-webapp-head h2{margin:0 0 4px;font-size:22px}.simo-webapp-head p{margin:0;color:#b9c8e4}
+.simo-webapp-primary,.simo-webapp-actions button{
+  border:1px solid rgba(255,255,255,.14);background:#223048;color:#fff;border-radius:999px;padding:10px 14px;font-weight:900;cursor:pointer;white-space:nowrap
+}
+.simo-webapp-primary,.simo-webapp-actions button:first-child{background:#38bdf8;color:#07111f;border-color:rgba(56,189,248,.6)}
+.simo-webapp-preview{width:100%;height:560px;border:0;background:#fff;display:block}
+.simo-webapp-actions{display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);background:#101a2b}
+@media(max-width:760px){.simo-webapp-head{display:grid}.simo-webapp-preview{height:430px}}
+
+/* SIMO R10.60Z58 — Website/App Creator polish: readable buttons + hide old design suggestions in web mode */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card{
+  display:none !important;
+}
+body.simo-webapp-mode-active button,
+body.simo-webapp-mode-active .pill{
+  color:#f8fbff;
+}
+.simo-webapp-card .simo-webapp-primary,
+.simo-webapp-card .simo-webapp-actions button,
+#builderLibraryModal [data-simo-webapp-edit],
+#builderLibraryModal button[data-simo-webapp-edit],
+.libraryCard [data-simo-webapp-edit],
+.builder-library-card [data-simo-webapp-edit],
+.library-card [data-simo-webapp-edit]{
+  color:#06111f !important;
+  background:#38bdf8 !important;
+  border-color:rgba(56,189,248,.75) !important;
+  font-weight:950 !important;
+  text-shadow:none !important;
+  box-shadow:0 8px 22px rgba(56,189,248,.20) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:not(:first-child){
+  color:#ffffff !important;
+  background:#26344d !important;
+  border-color:rgba(255,255,255,.18) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:nth-child(2){
+  background:#166534 !important;
+  color:#ffffff !important;
+  border-color:rgba(74,222,128,.35) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:nth-child(3){
+  background:#38bdf8 !important;
+  color:#06111f !important;
+}
+body.simo-webapp-mode-active button[style*="Design Suggestions"],
+body.simo-webapp-mode-active .pill[style*="Design Suggestions"]{
+  display:none !important;
+}
+
+
+/* SIMO R10.60Z58 — Website/App Creator nav-guard + suggestions hard-hide polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host],
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card{
+  display:none !important;
+  visibility:hidden !important;
+  height:0 !important;
+  overflow:hidden !important;
+}
+.simo-webapp-card .simo-webapp-actions button,
+.simo-webapp-card .simo-webapp-primary,
+#builderLibraryModal [data-simo-webapp-edit],
+.libraryCard [data-simo-webapp-edit],
+.builder-library-card [data-simo-webapp-edit],
+.library-card [data-simo-webapp-edit]{
+  min-height:38px !important;
+  color:#06111f !important;
+  background:#38bdf8 !important;
+  border:1px solid rgba(56,189,248,.85) !important;
+  opacity:1 !important;
+  font-weight:950 !important;
+  text-shadow:none !important;
+}
+
+
+/* SIMO R10.60Z58 Website/App Creator polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card,
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host="1"]{display:none!important;}
+body.simo-webapp-mode-active .msg-bubble-assistant:has(.simo-webapp-card) [data-simo-design-suggestions]{display:none!important;}
+body.simo-webapp-mode-active button[data-simo-webapp-edit],
+body.simo-webapp-mode-active button[data-simo-webapp-save],
+body.simo-webapp-mode-active button[data-simo-webapp-publish],
+body.simo-webapp-mode-active button[data-simo-webapp-download],
+body.simo-webapp-mode-active .pill[data-simo-webapp-edit]{
+  color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;background:linear-gradient(135deg,rgba(14,165,233,.95),rgba(37,99,235,.88))!important;border-color:rgba(125,211,252,.85)!important;font-weight:900!important;text-shadow:0 1px 0 rgba(0,0,0,.35)!important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-save]{background:linear-gradient(135deg,#15803d,#166534)!important;}
+body.simo-webapp-mode-active .simo-webapp-card{border-color:rgba(56,189,248,.45)!important;}
+
+
+/* SIMO R10.60Z59 — Website/App Creator mode hard polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host="1"]{
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+body.simo-webapp-mode-active .simo-webapp-mode-tab-active{
+  border-color:#38bdf8 !important;
+  box-shadow:0 0 0 1px rgba(56,189,248,.55),0 0 24px rgba(56,189,248,.22) !important;
+  background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(59,130,246,.09)) !important;
+}
+.simo-webapp-card button,
+.libraryCard button[data-simo-webapp-edit],
+.builder-library-card button[data-simo-webapp-edit],
+.library-card button[data-simo-webapp-edit]{
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+  text-shadow:0 1px 1px rgba(0,0,0,.45) !important;
+  font-weight:900 !important;
+}
+.simo-webapp-card button[data-simo-webapp-edit],
+.libraryCard button[data-simo-webapp-edit],
+.builder-library-card button[data-simo-webapp-edit],
+.library-card button[data-simo-webapp-edit]{
+  background:#0ea5e9 !important;
+  border-color:rgba(125,211,252,.75) !important;
+  color:#06111f !important;
+  -webkit-text-fill-color:#06111f !important;
+}
+
+/* SIMO R10.60Z60 — Website/App Creator editor actions + library polish */
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host],
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active .simo-builder-suggestions-card,
+body.simo-webapp-mode-active [data-simo-design-suggestions]{
+  display:none !important; visibility:hidden !important; pointer-events:none !important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .libraryCard button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .builder-library-card button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .library-card button[data-simo-webapp-edit]{
+  color:#06111f !important;
+  -webkit-text-fill-color:#06111f !important;
+  background:linear-gradient(135deg,#38bdf8,#0ea5e9) !important;
+  border-color:rgba(125,211,252,.9) !important;
+  text-shadow:none !important;
+  font-weight:950 !important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-save]{
+  background:linear-gradient(135deg,#16a34a,#166534) !important;
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+}
+.simo-webapp-card .simo-webapp-actions{align-items:center;}
+.simo-webapp-card iframe.simo-webapp-preview{background:#fff;}
+.msg-user {
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+.msg-user .msg-bubble,
+.msg-bubble-user {
+  width: fit-content !important;
+  max-width: 72% !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
+}
+/* -------------------------------------------------- */
+/* Simo brand mark — isolated visual branding pass     */
+/* Replaces robot artwork only; no runtime ownership.  */
+/* -------------------------------------------------- */
+.simo-brand-card{
+  padding:16px;
+}
+
+.simo-brand-lockup{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.simo-ai-mark{
+  position:relative;
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(142,176,255,.22);
+  border-radius:16px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255,255,255,.16), transparent 34%),
+    linear-gradient(145deg, rgba(110,168,255,.20), rgba(185,130,255,.14));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 10px 26px rgba(20,52,115,.24);
+  overflow:hidden;
+}
+
+.simo-ai-mark::after{
+  content:"";
+  position:absolute;
+  inset:7px;
+  border-radius:11px;
+  border:1px solid rgba(255,255,255,.07);
+  pointer-events:none;
+}
+
+.simo-ai-mark-a{
+  position:relative;
+  z-index:1;
+  display:block;
+  font-size:34px;
+  line-height:1;
+  font-weight:850;
+  letter-spacing:-.12em;
+  transform:translateX(-1px);
+  color:#f5f8ff;
+  text-shadow:0 0 18px rgba(110,168,255,.34);
+}
+
+/* The lowercase i sits in the A's center/negative-space area,
+   preserving the approved integrated Ai idea without an image asset. */
+.simo-ai-mark-i{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:50%;
+  transform:translate(-45%,-37%);
+  font-size:17px;
+  line-height:1;
+  font-weight:850;
+  color:var(--blue);
+  text-shadow:0 0 12px rgba(110,168,255,.55);
+}
+
+.simo-brand-copy{
+  min-width:0;
+}
+
+.simo-brand-name{
+  font-size:20px;
+  line-height:1.05;
+  font-weight:800;
+  letter-spacing:-.02em;
+  color:var(--text);
+}
+
+.simo-brand-tagline{
+  margin-top:5px;
+  line-height:1.25;
+}
+
+.simo-brand-status{
+  margin-top:11px;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC2 — PREMIUM HOME / DEFAULT EXPERIENCE
+   Presentation layer only. Existing JS control IDs and owners
+   remain intact.
+   ========================================================= */
+
+body[data-simo-theme="default"]{
+  --bg:#020813; --bg2:#04111f; --panel:#061628; --panel2:#04101d;
+  --card:rgba(4,21,38,.84); --card2:rgba(3,16,29,.78);
+  --stroke:rgba(23,155,255,.22); --stroke2:rgba(56,149,231,.12);
+  --text:#f4faff; --muted:#9eb7d1; --soft:#6f8ba7;
+  --blue:#0bc9ff; --blue2:#067cff; --green:#32ef80;
+  background:
+    radial-gradient(circle at 78% 0%,rgba(83,58,171,.18),transparent 24%),
+    radial-gradient(circle at 50% 16%,rgba(0,119,225,.14),transparent 32%),
+    linear-gradient(180deg,#010710 0%,#03101d 54%,#020812 100%) !important;
+}
+body[data-simo-theme="default"]::before{
+  background:
+    radial-gradient(circle at 65% 18%,rgba(10,125,255,.08),transparent 32%),
+    linear-gradient(180deg,rgba(255,255,255,.012),transparent 35%);
+  opacity:1;
+}
+
+.app-shell{grid-template-columns:220px minmax(0,1fr);}
+.simo-premium-sidebar{
+  padding:12px 10px;
+  background:linear-gradient(180deg,rgba(1,13,25,.99),rgba(1,9,18,.99));
+  border-right:1px solid rgba(26,137,222,.17);
+}
+.simo-premium-brand{
+  display:flex;align-items:center;gap:10px;padding:4px 6px 14px;
+}
+.simo-premium-mini-mark{
+  position:relative;width:52px;height:52px;display:grid;place-items:center;flex:0 0 52px;
+  filter:drop-shadow(0 0 15px rgba(0,181,255,.34));
+}
+.simo-premium-mini-mark span{
+  font-size:48px;line-height:1;font-weight:950;font-style:italic;letter-spacing:-8px;
+  background:linear-gradient(150deg,#65eeff 0%,#0aa7ff 42%,#1e50ff 72%,#b4d8ff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.simo-premium-mini-mark i{
+  position:absolute;font-style:normal;font-size:22px;font-weight:950;color:#f5fcff;left:27px;top:20px;
+  text-shadow:0 0 12px rgba(255,255,255,.5);
+}
+.simo-premium-brand-copy{display:grid;line-height:1.15;min-width:0}
+.simo-premium-brand-copy>strong{font-size:20px;letter-spacing:-.02em}
+.simo-premium-brand-copy small{color:#75a4c8;margin-top:4px;white-space:nowrap}
+.simo-signed-line{display:flex;gap:5px;align-items:center;color:#56ec94;font-size:10px;margin-top:2px}
+.simo-signed-line b{width:7px;height:7px;border-radius:50%;background:#39f184;box-shadow:0 0 10px #39f184}
+
+.simo-home-nav,.simo-side-tools{display:grid;gap:3px}
+.simo-nav-item{
+  width:100%;min-height:38px;border:1px solid transparent;background:transparent;color:#bad0e5;
+  border-radius:11px;padding:8px 10px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;
+  font:inherit;transition:.16s ease;text-decoration:none;
+}
+.simo-nav-item>span{width:20px;color:#23c9ff;font-size:17px;text-align:center;flex:0 0 20px}
+.simo-nav-item>b{font-size:12px;font-weight:650;flex:1}
+.simo-nav-item:hover{
+  color:white;background:linear-gradient(90deg,rgba(0,126,255,.15),rgba(0,126,255,.035));
+  border-color:rgba(12,168,255,.20);transform:translateX(1px);
+}
+.simo-nav-item.is-home{
+  color:#eaf8ff;background:linear-gradient(90deg,rgba(0,112,255,.30),rgba(0,112,255,.08));
+  border-color:rgba(0,177,255,.52);box-shadow:inset 3px 0 0 #0bd5ff,0 0 20px rgba(0,120,255,.12);
+}
+.simo-sidebar-rule{height:1px;background:rgba(77,147,207,.16);margin:10px 6px}
+.simo-library-nav em{
+  min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#0a7cff;color:#fff;
+  display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;
+  box-shadow:0 0 14px rgba(0,119,255,.3);
+}
+#builderLibraryCard{
+  background:transparent;
+  border-color:transparent;
+}
+#builderLibraryCard:hover,
+#builderLibraryCard:focus-visible{
+  color:#fff;
+  background:linear-gradient(90deg,rgba(0,126,255,.15),rgba(0,126,255,.035));
+  border-color:rgba(12,168,255,.20);
+}
+
+.simo-premium-main{gap:10px;padding:0 10px 10px;height:100vh;overflow:hidden;}
+.simo-premium-topbar{
+  flex:0 0 auto;min-height:70px;margin:0 -10px;padding:11px 18px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  background:
+    radial-gradient(circle at 88% 0%,rgba(104,61,183,.17),transparent 25%),
+    linear-gradient(90deg,rgba(2,16,30,.98),rgba(7,24,46,.96));
+  border:1px solid rgba(53,139,225,.14);border-top:0;
+  border-radius:0 0 15px 15px;
+}
+.simo-topbar-greeting{display:grid;gap:2px}
+.simo-topbar-greeting strong{font-size:19px;line-height:1.1}
+.simo-topbar-greeting span{font-size:11px;color:#80a2bf}
+.simo-premium-topbar .pill{min-height:34px;padding:7px 12px;font-size:11px;background:rgba(3,26,48,.74);border-color:rgba(82,156,226,.25)}
+.simo-premium-topbar .online-pill{padding:7px 11px;font-size:11px;background:rgba(1,34,33,.65);border-color:rgba(52,241,138,.25);color:#9dffc5}
+
+.simo-premium-home{
+  flex:0 0 auto;border:1px solid rgba(28,139,224,.17);border-radius:17px;overflow:hidden;
+  background:
+    radial-gradient(circle at 72% 12%,rgba(25,116,212,.16),transparent 34%),
+    linear-gradient(180deg,rgba(2,14,27,.93),rgba(2,12,23,.96));
+  box-shadow:0 24px 80px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.02);
+}
+.simo-home-hero{
+  position:relative;min-height:315px;display:grid;grid-template-columns:110px 360px minmax(360px,1fr);
+  align-items:center;gap:20px;padding:22px 36px 16px;overflow:hidden;
+  background:
+    linear-gradient(90deg,rgba(1,14,28,.97) 0%,rgba(2,22,40,.82) 44%,rgba(3,18,34,.58) 100%),
+    radial-gradient(ellipse at 75% 15%,rgba(221,95,113,.16),transparent 28%),
+    radial-gradient(ellipse at 70% 52%,rgba(24,83,153,.36),transparent 46%);
+}
+.simo-home-hero::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:43%;
+  background:
+    linear-gradient(180deg,transparent,rgba(1,9,17,.78)),
+    linear-gradient(135deg,transparent 0 36%,rgba(20,54,82,.25) 36% 42%,transparent 42% 55%,rgba(19,51,77,.18) 55% 62%,transparent 62%);
+  opacity:.9;pointer-events:none;
+}
+.simo-trust-stack{position:relative;z-index:1;display:grid;gap:9px;align-self:start;margin-top:32px}
+.simo-trust-stack span,.simo-trust-stack strong{font-size:9px;letter-spacing:.28em;font-weight:800;color:#8fb5d4}
+.simo-trust-stack strong{color:#35ee7b}
+.simo-hero-brand{position:relative;z-index:2;text-align:center}
+.simo-hero-mark{
+  position:relative;height:155px;display:grid;place-items:center;
+  filter:drop-shadow(0 0 19px rgba(0,178,255,.35));
+}
+.simo-hero-mark>span{
+  font-size:180px;line-height:.8;font-weight:950;font-style:italic;letter-spacing:-28px;
+  background:linear-gradient(145deg,#6cf1ff 0%,#00c7ff 22%,#087cff 57%,#1b4fff 76%,#c1e8ff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 0 30px rgba(0,134,255,.08);
+}
+.simo-hero-mark>i{
+  position:absolute;font-style:normal;font-size:64px;font-weight:950;color:#fff;left:56%;top:50px;
+  transform:translateX(-50%);text-shadow:0 0 20px rgba(255,255,255,.55);
+}
+.simo-hero-mark>b{
+  position:absolute;width:28px;height:28px;border-radius:50%;background:#23f06e;right:41px;bottom:21px;
+  box-shadow:0 0 20px #23f06e;
+}
+.simo-hero-word{
+  font-size:69px;line-height:.83;font-weight:950;letter-spacing:-.06em;color:white;
+  text-shadow:0 5px 18px rgba(0,0,0,.5);
+}
+.simo-hero-word span{display:inline-block;width:16px;height:16px;border-radius:50%;background:#2af278;margin-left:8px;box-shadow:0 0 14px #2af278}
+.simo-hero-tag{margin-top:12px;color:#1edcff;font-size:13px;letter-spacing:.34em;font-weight:800}
+.simo-hero-copy{position:relative;z-index:3;max-width:480px;padding-left:8px}
+.simo-hero-copy h1{margin:0;font-size:39px;line-height:1.02;letter-spacing:-.035em}
+.simo-hero-copy h1 span{color:#23c9ff}
+.simo-hero-copy h2{font-size:19px;margin:11px 0 16px;color:#f2f7ff}
+.simo-hero-copy p{max-width:430px;color:#abc0d6;line-height:1.55;margin:0 0 17px}
+.simo-primary-cta{
+  min-width:180px;border-radius:999px;padding:12px 20px;border:1px solid rgba(87,209,255,.55);
+  background:linear-gradient(135deg,#15baff,#075fff);color:white;font-weight:800;cursor:pointer;
+  box-shadow:0 0 26px rgba(0,121,255,.26),inset 0 1px 0 rgba(255,255,255,.2);
+}
+.simo-primary-cta span{margin-left:10px}
+.simo-hand-note{
+  position:absolute;right:-10px;bottom:-3px;color:#25deef;font-size:14px;font-style:italic;
+  transform:rotate(-8deg);line-height:1.2;text-align:center;text-shadow:0 0 12px rgba(0,226,255,.25);
+}
+.simo-capability-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;padding:13px 20px 10px}
+.simo-cap-card{
+  min-height:105px;border-radius:14px;border:1px solid rgba(30,157,244,.27);
+  background:linear-gradient(180deg,rgba(3,25,45,.94),rgba(2,17,32,.94));color:white;
+  display:grid;place-items:center;align-content:center;gap:6px;padding:11px 8px;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transition:.17s ease;
+}
+.simo-cap-card:hover{transform:translateY(-2px);border-color:rgba(21,201,255,.62);box-shadow:0 12px 30px rgba(0,117,255,.10)}
+.simo-cap-card>span{font-size:29px;line-height:1;color:#12c7ff;text-shadow:0 0 14px rgba(18,199,255,.25)}
+.simo-cap-card strong{font-size:12px}
+.simo-cap-card small{color:#9bb3c9;font-size:10px;line-height:1.35;max-width:140px}
+.simo-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 20px 14px}
+.simo-status-card{
+  min-height:64px;border:1px solid rgba(52,144,223,.18);border-radius:13px;
+  background:linear-gradient(180deg,rgba(8,27,46,.82),rgba(4,18,32,.82));
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+}
+.simo-status-icon{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:10px;color:#67eaff;font-size:21px;
+  background:linear-gradient(145deg,rgba(14,109,204,.48),rgba(73,43,146,.38));box-shadow:0 0 18px rgba(0,123,255,.11)
+}
+.simo-status-card>div{display:grid;gap:2px}
+.simo-status-card strong{font-size:11px}
+.simo-status-card small{font-size:9px;color:#89a6bf}
+.simo-usage-track{height:5px;border-radius:999px;background:#0c2b48;overflow:hidden;width:100%;margin:3px 0}
+.simo-usage-track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#12c7ff,#2175ff);border-radius:inherit}
+.simo-usage-card>div{width:100%}
+.simo-hidden-state{position:fixed!important;left:-99999px!important;top:-99999px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+
+.simo-home-chat{
+  flex:1 1 auto;min-height:72px;border-radius:16px;background:rgba(2,12,23,.82);border-color:rgba(36,131,210,.14);
+}
+.simo-home-chat:empty{display:none}
+.simo-premium-composer{
+  flex:0 0 auto;border-radius:15px;background:linear-gradient(180deg,rgba(5,19,34,.95),rgba(2,13,25,.95));
+  border-color:rgba(54,143,222,.23);box-shadow:0 12px 40px rgba(0,0,0,.28);
+}
+.simo-premium-composer:focus-within{border-color:rgba(20,195,255,.46);box-shadow:0 0 24px rgba(0,130,255,.08),0 12px 40px rgba(0,0,0,.30)}
+.simo-premium-composer #chatInput{color:#f4f9ff!important;-webkit-text-fill-color:#f4f9ff!important}
+.simo-premium-composer #chatInput::placeholder{color:#9bb2c9!important;-webkit-text-fill-color:#9bb2c9!important}
+.simo-premium-composer #sendBtn{background:linear-gradient(145deg,#147bff,#304bc8);border-color:rgba(92,187,255,.45);box-shadow:0 7px 22px rgba(0,99,255,.22)}
+#loadingHint{font-size:10px;color:#68839d;min-height:14px!important;margin:0 3px!important}
+
+@media(max-width:1180px){
+  .app-shell{grid-template-columns:200px minmax(0,1fr)}
+  .simo-home-hero{grid-template-columns:80px 300px minmax(320px,1fr);padding-left:24px;padding-right:24px}
+  .simo-hero-mark>span{font-size:150px}
+  .simo-hero-word{font-size:58px}
+  .simo-hero-copy h1{font-size:34px}
+}
+@media(max-width:900px){
+  .simo-trust-stack{display:none}
+  .simo-home-hero{grid-template-columns:280px 1fr}
+  .simo-capability-grid{grid-template-columns:repeat(3,1fr)}
+  .simo-status-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC3 — REFINED AI MARK + SIGNED-IN IDENTITY
+   Visual/account-display refinement only.
+   ========================================================= */
+
+/* Signed-in state is explicit: status + exact account identifier. */
+.simo-premium-brand-copy{
+  max-width:132px;
+}
+.simo-best-friend-label{
+  display:block;
+  margin-top:3px;
+}
+.simo-account-id{
+  display:block;
+  max-width:128px;
+  margin-top:2px;
+  color:#9fc6df !important;
+  font-size:9px;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.simo-account-id[hidden]{display:none !important;}
+
+.simo-signed-line b{
+  background:#557187;
+  box-shadow:0 0 8px rgba(80,120,150,.22);
+  transition:background .18s ease,box-shadow .18s ease;
+}
+.simo-signed-line.is-signed{
+  color:#55f39a;
+}
+.simo-signed-line.is-signed b{
+  background:#32f07d;
+  box-shadow:0 0 7px #32f07d,0 0 16px rgba(50,240,125,.58);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+@keyframes simoActivePulse{
+  0%,100%{transform:scale(.92);opacity:.82}
+  50%{transform:scale(1.12);opacity:1}
+}
+
+/* Refined geometric AI mark: symmetric A, centered i, active green indicator.
+   No font-glyph A is used, so the two legs remain balanced across browsers. */
+.simo-premium-mini-mark,
+.simo-hero-mark{
+  isolation:isolate;
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after,
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  content:"";
+  position:absolute;
+  z-index:1;
+  transform-origin:50% 100%;
+  background:
+    linear-gradient(165deg,#c8fbff 0%,#52e8ff 10%,#0ec3ff 34%,#0878ff 65%,#1748ef 84%,#7dbdff 100%);
+  box-shadow:
+    inset 1px 1px 1px rgba(255,255,255,.48),
+    inset -2px -2px 5px rgba(0,34,132,.30),
+    0 0 18px rgba(0,177,255,.26);
+}
+
+/* large mark */
+.simo-hero-mark{
+  width:230px;
+  height:164px;
+  margin:0 auto;
+  filter:drop-shadow(0 0 21px rgba(0,178,255,.36));
+}
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  width:47px;
+  height:157px;
+  bottom:4px;
+  border-radius:27px 27px 12px 12px;
+}
+.simo-hero-mark::before{
+  left:58px;
+  transform:rotate(28deg);
+}
+.simo-hero-mark::after{
+  right:58px;
+  transform:rotate(-28deg);
+}
+.simo-hero-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:92px;
+  width:104px;
+  height:24px;
+  transform:translateX(-50%);
+  border-radius:12px;
+  background:linear-gradient(90deg,#0a6ff4,#20d8ff 48%,#b8f5ff 72%,#5794ff);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.52),
+    0 0 14px rgba(0,181,255,.22);
+}
+.simo-hero-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:67px;
+  width:30px;
+  height:61px;
+  transform:translateX(-50%);
+  border-radius:17px 17px 12px 12px;
+  background:linear-gradient(180deg,#fff 0%,#eafaff 48%,#98d8ff 100%);
+  box-shadow:
+    inset 0 0 8px rgba(43,149,218,.26),
+    0 0 12px rgba(255,255,255,.30);
+}
+.simo-hero-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-24px;
+  width:28px;
+  height:28px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:linear-gradient(180deg,#fff,#dff6ff);
+  box-shadow:0 0 13px rgba(255,255,255,.42);
+}
+.simo-hero-mark>b{
+  z-index:5;
+  width:25px;
+  height:25px;
+  right:36px;
+  bottom:8px;
+  background:#30f077;
+  box-shadow:0 0 8px #30f077,0 0 24px rgba(48,240,119,.72);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* compact sidebar mark uses the same geometry */
+.simo-premium-mini-mark{
+  width:52px;
+  height:52px;
+  flex:0 0 52px;
+  filter:drop-shadow(0 0 13px rgba(0,181,255,.34));
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after{
+  width:14px;
+  height:45px;
+  bottom:4px;
+  border-radius:9px 9px 4px 4px;
+}
+.simo-premium-mini-mark::before{
+  left:13px;
+  transform:rotate(28deg);
+}
+.simo-premium-mini-mark::after{
+  right:13px;
+  transform:rotate(-28deg);
+}
+.simo-premium-mini-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:29px;
+  width:31px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:6px;
+  background:linear-gradient(90deg,#0870f6,#22dfff 52%,#91d8ff);
+  box-shadow:0 0 8px rgba(0,181,255,.22);
+}
+.simo-premium-mini-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:22px;
+  width:9px;
+  height:18px;
+  transform:translateX(-50%);
+  border-radius:6px 6px 4px 4px;
+  background:linear-gradient(180deg,#fff,#a8e1ff);
+  box-shadow:0 0 7px rgba(255,255,255,.28);
+}
+.simo-premium-mini-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-8px;
+  width:8px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 6px rgba(255,255,255,.45);
+}
+.simo-premium-mini-mark>b{
+  position:absolute;
+  z-index:5;
+  width:8px;
+  height:8px;
+  right:3px;
+  bottom:6px;
+  border-radius:50%;
+  background:#30f077;
+  box-shadow:0 0 6px #30f077,0 0 12px rgba(48,240,119,.64);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* The wordmark dot is also an active-state light. */
+.simo-hero-word span{
+  background:#30f077;
+  box-shadow:0 0 8px #30f077,0 0 18px rgba(48,240,119,.60);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC4 — AI MARK REFINEMENT
+   Bring the A/i mark closer to the approved concept:
+   cleaner apex, more even legs, better interior spacing.
+   ========================================================= */
+
+/* Sidebar / hero A mark refined to a true A silhouette instead of a skewed X */
+.simo-hero-mark,
+.simo-premium-mini-mark{
+  position:relative;
+}
+
+/* Large hero mark */
+.simo-hero-mark{
+  width:250px;
+  height:176px;
+  margin:0 auto 2px;
+  filter:drop-shadow(0 0 22px rgba(0,178,255,.34));
+}
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  content:"";
+  position:absolute;
+  bottom:5px;
+  width:58px;
+  height:156px;
+  border-radius:26px;
+  z-index:1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.30),
+    0 0 18px rgba(0,176,255,.20);
+}
+.simo-hero-mark::before{
+  left:50px;
+  clip-path:polygon(100% 0, 66% 0, 0 100%, 36% 100%);
+  background:linear-gradient(180deg,#63ecff 0%,#1fc9ff 30%,#097dff 70%,#234dff 100%);
+}
+.simo-hero-mark::after{
+  right:50px;
+  clip-path:polygon(34% 0, 0 0, 64% 100%, 100% 100%);
+  background:linear-gradient(180deg,#77f1ff 0%,#93f8ff 18%,#dffcff 34%,#afdfff 62%,#7eaef7 100%);
+}
+.simo-hero-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:95px;
+  width:86px;
+  height:20px;
+  transform:translateX(-50%);
+  border-radius:12px;
+  background:linear-gradient(90deg,#157cff 0%,#40d7ff 58%,#8fddff 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.40),
+    0 0 14px rgba(0,181,255,.20);
+}
+.simo-hero-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:67px;
+  width:31px;
+  height:58px;
+  transform:translateX(-50%);
+  border-radius:16px 16px 11px 11px;
+  background:linear-gradient(180deg,#ffffff 0%,#eefbff 52%,#b6e3ff 100%);
+  box-shadow:
+    inset 0 -3px 8px rgba(33,121,196,.18),
+    0 0 12px rgba(255,255,255,.20);
+}
+.simo-hero-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-28px;
+  width:28px;
+  height:28px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:linear-gradient(180deg,#ffffff,#e9fbff);
+  box-shadow:0 0 14px rgba(255,255,255,.40);
+}
+.simo-hero-mark>b{
+  position:absolute;
+  z-index:5;
+  right:42px;
+  bottom:17px;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:#34f07a;
+  box-shadow:0 0 8px #34f07a,0 0 24px rgba(52,240,122,.65);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* Small sidebar mark */
+.simo-premium-mini-mark{
+  width:52px;
+  height:52px;
+  flex:0 0 52px;
+  filter:drop-shadow(0 0 10px rgba(0,181,255,.32));
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after{
+  content:"";
+  position:absolute;
+  bottom:4px;
+  width:14px;
+  height:42px;
+  border-radius:8px;
+  z-index:1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.26),
+    0 0 8px rgba(0,176,255,.18);
+}
+.simo-premium-mini-mark::before{
+  left:11px;
+  clip-path:polygon(100% 0, 65% 0, 0 100%, 36% 100%);
+  background:linear-gradient(180deg,#66ecff 0%,#18c9ff 28%,#0b7eff 74%,#2752ff 100%);
+}
+.simo-premium-mini-mark::after{
+  right:11px;
+  clip-path:polygon(35% 0, 0 0, 64% 100%, 100% 100%);
+  background:linear-gradient(180deg,#74f1ff 0%,#bef9ff 28%,#a4dbff 56%,#7faef7 100%);
+}
+.simo-premium-mini-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:29px;
+  width:22px;
+  height:6px;
+  transform:translateX(-50%);
+  border-radius:6px;
+  background:linear-gradient(90deg,#157bff 0%,#39d7ff 60%,#8adfff 100%);
+  box-shadow:0 0 7px rgba(0,181,255,.18);
+}
+.simo-premium-mini-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:21px;
+  width:8px;
+  height:17px;
+  transform:translateX(-50%);
+  border-radius:5px 5px 3px 3px;
+  background:linear-gradient(180deg,#ffffff,#bbe6ff);
+  box-shadow:0 0 7px rgba(255,255,255,.22);
+}
+.simo-premium-mini-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-8px;
+  width:8px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:#ffffff;
+  box-shadow:0 0 6px rgba(255,255,255,.35);
+}
+.simo-premium-mini-mark>b{
+  position:absolute;
+  z-index:5;
+  right:3px;
+  bottom:6px;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#34f07a;
+  box-shadow:0 0 6px #34f07a,0 0 12px rgba(52,240,122,.55);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC5 — APPROVED A/i SVG MARK
+   Restores the original A concept using actual vector geometry.
+   This intentionally overrides RC3/RC4 pseudo-element attempts.
+   ========================================================= */
+
+.simo-ai-svg-mark::before,
+.simo-ai-svg-mark::after,
+.simo-ai-svg-mark > span,
+.simo-ai-svg-mark > i,
+.simo-ai-svg-mark > b{
+  content:none !important;
+  display:none !important;
+}
+
+.simo-ai-svg-mark{
+  display:block !important;
+  position:relative;
+  overflow:visible;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+
+.simo-ai-svg-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+.simo-hero-mark.simo-ai-svg-mark{
+  width:258px;
+  height:190px;
+  margin:0 auto -4px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.26));
+}
+
+.simo-premium-mini-mark.simo-ai-svg-mark{
+  width:50px;
+  height:48px;
+  flex:0 0 50px;
+  filter:drop-shadow(0 0 9px rgba(0,171,255,.24));
+}
+
+.simo-ai-svg-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #32ef78) drop-shadow(0 0 10px rgba(50,239,120,.62));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC6 — COSMIC ORBIT A/i
+   Recovered earlier Simo direction: integrated A+i, luminous
+   blue/cyan orbit, polished dark-mode tech feel, green active.
+   ========================================================= */
+
+.simo-cosmic-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-cosmic-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.simo-hero-mark.simo-cosmic-mark{
+  width:278px;
+  height:206px;
+  margin:0 auto -10px;
+  filter:drop-shadow(0 0 22px rgba(0,164,255,.28));
+}
+.simo-premium-mini-mark.simo-cosmic-mark{
+  width:54px;
+  height:50px;
+  flex:0 0 54px;
+  filter:drop-shadow(0 0 10px rgba(0,164,255,.25));
+}
+
+/* subtle cosmic halo behind the main emblem */
+.simo-hero-brand::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:17%;
+  width:330px;
+  height:210px;
+  transform:translate(-50%,-50%);
+  background:
+    radial-gradient(circle at center,rgba(24,164,255,.14) 0%,rgba(24,164,255,.06) 34%,transparent 70%),
+    radial-gradient(circle at 72% 48%,rgba(91,72,255,.08),transparent 46%);
+  filter:blur(10px);
+  pointer-events:none;
+  z-index:-1;
+}
+
+/* Green light = Simo active / available, not decorative. */
+.simo-cosmic-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #31ef77) drop-shadow(0 0 12px rgba(49,239,119,.68));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC7 — RESTORE ORIGINAL A/i DIRECTION
+   Removes the confusing cosmic/orbit treatment and brings the
+   emblem back toward the approved simple A+i reference.
+   ========================================================= */
+
+.simo-original-ai-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-original-ai-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+/* turn off the RC6 cosmic halo */
+.simo-hero-brand::before{
+  content:none !important;
+}
+
+.simo-hero-mark.simo-original-ai-mark{
+  width:246px;
+  height:188px;
+  margin:0 auto -6px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.24));
+}
+.simo-premium-mini-mark.simo-original-ai-mark{
+  width:47px;
+  height:45px;
+  flex:0 0 47px;
+  filter:drop-shadow(0 0 9px rgba(0,171,255,.20));
+}
+
+.simo-original-ai-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #31ef77) drop-shadow(0 0 10px rgba(49,239,119,.60));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC8 — SHARPENED A/i
+   Pushes the emblem closer to the approved sharp reference:
+   crisper triangular A, darker interior, cleaner white i.
+   ========================================================= */
+
+.simo-sharp-ai-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-sharp-ai-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  shape-rendering:geometricPrecision;
+}
+
+.simo-hero-mark.simo-sharp-ai-mark{
+  width:252px;
+  height:192px;
+  margin:0 auto -7px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.22));
+}
+.simo-premium-mini-mark.simo-sharp-ai-mark{
+  width:48px;
+  height:46px;
+  flex:0 0 48px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+
+.simo-sharp-ai-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #33ef79) drop-shadow(0 0 11px rgba(51,239,121,.56));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC9 — APPROVED STATIC LOGO ASSETS
+   Uses the approved sharp 3D logo artwork instead of code-drawn
+   geometry, so the A/i stays faithful to the intended design.
+   ========================================================= */
+.simo-approved-mark,
+.simo-approved-hero-brand{
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-approved-mark img,
+.simo-approved-hero-logo{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.simo-premium-mini-mark.simo-approved-mark{
+  width:48px;
+  height:46px;
+  flex:0 0 48px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+.simo-approved-hero-brand{
+  position:relative;
+  z-index:2;
+  width:290px;
+  height:252px;
+  align-self:center;
+  justify-self:center;
+}
+.simo-approved-hero-logo{
+  filter:drop-shadow(0 0 14px rgba(0,175,255,.16));
+}
+/* suppress old generated-logo sizing rules if still present */
+.simo-approved-hero-brand::before{content:none !important;}
+
+
+/* =========================================================
+   SIMO 10.34 RC10 — LOGO CLEANUP
+   Fixes the RC9 issues:
+   - use clean compact mark in upper-left
+   - remove cut-off hero crop and green smudge
+   - rebuild hero wordmark separately so the logo stays clean
+   ========================================================= */
+.simo-clean-mini-mark,
+.simo-clean-hero-brand{
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-clean-mini-mark img,
+.simo-clean-hero-mark{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.simo-premium-mini-mark.simo-clean-mini-mark{
+  width:50px;
+  height:48px;
+  flex:0 0 50px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+.simo-clean-hero-brand{
+  position:relative;
+  z-index:2;
+  width:300px;
+  min-height:255px;
+  display:grid;
+  justify-items:center;
+  align-content:start;
+  text-align:center;
+}
+.simo-clean-hero-mark{
+  width:188px;
+  height:184px;
+  margin:2px auto -4px;
+  filter:drop-shadow(0 0 12px rgba(0,175,255,.18));
+}
+.simo-clean-wordmark{
+  margin-top:0;
+  font-size:72px;
+  line-height:.9;
+  font-weight:950;
+  letter-spacing:-.06em;
+  color:#f7fbff;
+  text-shadow:0 3px 12px rgba(0,0,0,.36), 0 0 10px rgba(255,255,255,.08);
+}
+.simo-clean-wordmark span{
+  display:inline-block;
+  width:15px;
+  height:15px;
+  margin-left:8px;
+  border-radius:50%;
+  background:#31ef77;
+  box-shadow:0 0 8px #31ef77,0 0 18px rgba(49,239,119,.62);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+  vertical-align:middle;
+}
+.simo-clean-tag{
+  margin-top:10px;
+  color:#17ddff;
+  font-size:13px;
+  letter-spacing:.34em;
+  font-weight:800;
+}
+
+
+/* =========================================================
+   SIMO RC11 — EXACT USER-SUPPLIED LOGO
+   The uploaded PNG is used directly. No SVG/CSS redraw.
+   ========================================================= */
+
+.simo-exact-sidebar-brand{
+  display:grid !important;
+  justify-items:center;
+  gap:3px;
+  padding:8px 6px 12px !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-exact-sidebar-logo{
+  display:block;
+  width:116px;
+  height:78px;
+  object-fit:contain;
+  object-position:center;
+  filter:drop-shadow(0 0 8px rgba(0,170,255,.18));
+}
+.simo-exact-sidebar-status{
+  display:grid;
+  justify-items:center;
+  gap:1px;
+  max-width:150px;
+}
+.simo-exact-sidebar-status .simo-account-id{
+  max-width:145px;
+  text-align:center;
+}
+
+.simo-exact-hero-brand{
+  position:relative;
+  z-index:2;
+  width:340px;
+  height:270px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  align-self:center;
+  justify-self:center;
+  overflow:visible;
+}
+.simo-exact-hero-logo{
+  display:block;
+  width:340px;
+  height:225px;
+  max-width:100%;
+  object-fit:contain;
+  object-position:center;
+  filter:drop-shadow(0 0 16px rgba(0,171,255,.16));
+}
+.simo-exact-hero-tag{
+  margin-top:-4px;
+  color:#18dcff;
+  font-size:13px;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:.32em;
+  text-align:center;
+  white-space:nowrap;
+}
+
+
+/* SIMO RC11 — tagline alignment only
+   Visual-only adjustment. No other layout or behavior changes. */
+.simo-exact-hero-tag{
+  transform:translateX(7px) !important;
+}
+
+
+/* =========================================================
+   SIMO RC11 — FINAL SYMMETRICAL LOGO INSTALL
+   Logo-only presentation override.
+   ========================================================= */
+
+.simo-exact-sidebar-brand{
+  justify-items:center !important;
+  text-align:center !important;
+}
+
+.simo-exact-sidebar-logo{
+  display:block !important;
+  width:122px !important;
+  height:96px !important;
+  margin:0 auto 2px !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  transform:none !important;
+  filter:drop-shadow(0 0 8px rgba(0,174,255,.18)) !important;
+}
+
+.simo-exact-sidebar-status{
+  width:100% !important;
+  justify-items:center !important;
+  text-align:center !important;
+}
+
+.simo-exact-hero-brand{
+  width:390px !important;
+  height:286px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  justify-self:center !important;
+  align-self:center !important;
+  overflow:visible !important;
+}
+
+.simo-exact-hero-logo{
+  display:block !important;
+  width:390px !important;
+  height:286px !important;
+  max-width:100% !important;
+  margin:0 auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  transform:none !important;
+  filter:drop-shadow(0 0 15px rgba(0,174,255,.16)) !important;
+}
+
+/* New artwork already contains "YOUR BEST FRIEND AI". */
+.simo-exact-hero-tag,
+.simo-best-friend-label{
+  display:none !important;
+}
+
+@media (max-width: 1100px){
+  .simo-exact-hero-brand{
+    width:340px !important;
+    height:250px !important;
+  }
+  .simo-exact-hero-logo{
+    width:340px !important;
+    height:250px !important;
+  }
+}
