@@ -1,4613 +1,9936 @@
-// SIMO PHASE 14M-R10.60Z1 SEND QUOTE TEST-MODE CONFIRMATION — PRESERVES R10.60Z NORTH STAR
-// SIMO PHASE 14M-R10.60Z2 QUOTE TEST MODE MODAL POLISH — PRESERVES R10.60Z/Z1 NORTH STAR
-// SIMO PHASE 14M-R10.60Z3 BUILDER EDIT/PREVIEW CLARITY — PRESERVES R10.60Z2 QUOTE TEST MODE
-// SIMO PHASE 14M-R10.60Z5 BUILDER ADD MEDIA + SOCIAL LINKS — PRESERVES R10.60Z4
-// SIMO PHASE 14M-R10.60Z6 BUILDER EASY MEDIA PLACEMENT — PRESERVES R10.60Z5
-// SIMO PHASE 14M-R10.60V BUILDER TRUE INLINE EDITOR + LIVE PREVIEW FIX — PRESERVES R10.60S NORTH STAR
-// SIMO PHASE 14M-R10.60M NORTH STAR LANE BRAIN + MOTIVATOR PANEL — PRESERVES R10.60I/L
-// SIMO PHASE 14M-R10.60P FIRST-WORD + WAKE-NAME + BUILDER PROMPT CLEANUP
-// SIMO PHASE 14M-R10.60H INLINE MIC SAFE FIX — PRESERVES R10.60F RECOVERED COMPOSER + NORTH STAR
-// SIMO PHASE 14M-R10.60O BRAND NAME + LANGUAGE SETTINGS — PRESERVES R10.60M NORTH STAR LANE BRAIN
-// SIMO PHASE 14M-R10.60B SIGNUP RESTORE + HONEST BROWSER VOICE LABEL — PRESERVES R10.59J CORE + R10.59L COMPOSER
-// SIMO PHASE 14M-R10.59J VERIFIED CREDIT PILL + SETTINGS + IMAGE ANALYSIS READY
-// SIMO PHASE 14M-R10.59B VERIFIED CREDIT PILL SAFE POSITION + SERVER LIBRARY BRIDGE
-// PHASE 10.7B — Exact Object + Persistent Workspace
-// Runs after the legacy script and stays isolated from its internals.
-(function () {
-  "use strict";
+// Simo — Phase 2.6 Memory Upgrade
+// PHASE 5.2 FINAL — real visual action buttons
+// full-file replacement
+(() => {
+  if (window.__SIMO_BOOTED__) return;
+  window.__SIMO_BOOTED__ = true;
 
-  const PHASE = "PHASE 14M-R10.59J VERIFIED — Credit Pill + Settings + Library Click Isolation + Server Library Bridge Compatible";
-  const ACTIVE_KEY = "simo_phase105d_active_visual_project_v1";
-  const LEGACY_ACTIVE_KEY = "simo_active_visual_project_v1";
+  const $ = (id) => document.getElementById(id);
+  const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+
   const LIB_KEY = "simo_builder_library_v5_1_builder_first";
   const LAST_PREVIEW_KEY = "simo_last_preview_v2";
   const PREVIEW_HISTORY_KEY = "simo_preview_history_v1";
-  const VISUAL_CONCEPTS_KEY = "simo_visual_concepts_v1";
-  const CREATIVE_KEY = "simo_active_creative_context_v1";
+  const SETTINGS_KEY = "simo_ui_settings_v2";
 
-  window.__SIMO_PHASE_MARKER__ = PHASE;
+  const SIMO = window.SIMO_BOOT || {};
 
-  const $ = (id) => document.getElementById(id);
-  const esc = (value) => String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-
-  function clean(value) {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
+  function simpleScopeHash(value) {
+    let h = 2166136261;
+    const str = String(value || "").trim().toLowerCase();
+    for (let i = 0; i < str.length; i += 1) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0).toString(36);
   }
 
-  function getCreativeContext() {
+  function isAccountOwnedSession() {
+    return !!(state && state.me && state.me.loggedIn && state.me.pro);
+  }
+
+  function storageScope() {
+    if (!isAccountOwnedSession()) return "guest_free";
+    return `pro_${simpleScopeHash(state.me.email || "account")}`;
+  }
+
+  function scopedKey(baseKey) {
+    return `${baseKey}__${storageScope()}`;
+  }
+
+  function publishAccountContext() {
+    const context = {
+      loggedIn: !!state.me.loggedIn,
+      pro: !!state.me.pro,
+      email: state.me.email || "",
+      accountOwned: isAccountOwnedSession(),
+      scope: storageScope(),
+    };
+    window.__SIMO_ACCOUNT_CONTEXT__ = context;
     try {
-      const raw = localStorage.getItem(CREATIVE_KEY);
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed && typeof parsed === "object" ? parsed : null;
+      window.dispatchEvent(new CustomEvent("simo:account-context", { detail: context }));
+    } catch {}
+    return context;
+  }
+
+  const state = {
+    booted: false,
+    sending: false,
+
+    me: {
+      loggedIn: !!SIMO.loggedIn,
+      email: SIMO.email || "",
+      name: SIMO.name || "",
+      pro: !!SIMO.pro,
+      team: !!SIMO.team,
+    },
+
+    freeDailyLimit: Number(SIMO.freeDailyLimit || 25),
+    usageToday: Number(SIMO.usageToday || 0),
+    creditStatus: SIMO.credits || SIMO.imageCredits || null,
+
+    selectedImageUrl: "",
+    selectedImageFilename: "",
+    lastAssistantText: "",
+
+    draftHtml: "",
+    lastPreviewHtml: "",
+    lastPreviewTitle: "",
+    currentPreviewMode: "render",
+
+    lastOpened3DUrl: "",
+    activeRecommendedOpenUrl: "",
+
+    currentSearch: "",
+    currentSort: "newest",
+    currentFilter: "all",
+    showArchived: false,
+
+    publish: {
+      busy: false,
+      lastUrl: "",
+      lastSlug: "",
+    },
+
+    ui: {
+      theme: "default",
+      accent: "blue",
+    },
+
+    previewHistoryLimit: 8,
+  };
+
+  // -----------------------------
+  // utils
+  // -----------------------------
+  function safeJsonParse(text, fallback) {
+    try {
+      return JSON.parse(text);
     } catch {
-      return null;
+      return fallback;
     }
   }
 
-  function isPureWritingPrompt(prompt) {
-    const t = clean(prompt);
-    if (!t) return false;
-    const writingWords = /\b(write|writing|autobiography|memoir|essay|story|novel|biography|chapter|outline|manuscript|book)\b/.test(t);
-    const explicitVisual = /\b(book cover|book jacket|dust jacket|cover design|poster|flyer|illustration|image|visual|render|mockup|design a cover|build me a book cover|make me a book cover)\b/.test(t);
-    const textOnlyAsk = /\b(help me write|write me|write an|write a|draft|outline|ghostwrite|summarize|edit this writing)\b/.test(t);
-    if (explicitVisual) return false;
-    return writingWords && textOnlyAsk;
+  function nowIso() {
+    return new Date().toISOString();
   }
 
-  function enrichPromptWithCreativeContext(prompt) {
-    const raw = String(prompt || "").trim();
-    const t = clean(raw);
-    const creative = getCreativeContext();
-    if (!creative || !creative.prompt) return raw;
-    if (!/\b(book cover|book jacket|dust jacket|cover design)\b/.test(t)) return raw;
-    return `${raw}\n\nActive writing project context: ${creative.prompt}\nDesign this as a visual continuation of that writing project. Keep the story theme and subject matter connected.`;
+  function prettyDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleString();
+  }
+
+  function slugify(str) {
+    return (
+      String(str || "")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80) || "simo-build"
+    );
+  }
+
+  function escapeHtml(str) {
+    return String(str ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
+  }
+
+  function setText(el, value) {
+    if (el) el.textContent = value;
+  }
+
+  function show(el) {
+    if (!el) return;
+    el.hidden = false;
+    el.style.display = "";
+  }
+
+  function hide(el) {
+    if (!el) return;
+    el.hidden = true;
+    el.style.display = "none";
+  }
+
+  function revealPill(el, displayValue = "inline-flex") {
+    if (!el) return;
+    el.classList.remove("hidden");
+    el.hidden = false;
+    el.style.display = displayValue;
+  }
+
+  function concealPill(el) {
+    if (!el) return;
+    el.classList.add("hidden");
+    el.hidden = true;
+    el.style.display = "none";
+  }
+
+  function autoGrow(el) {
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, 260) + "px";
+  }
+
+  function cssEscapeSafe(value) {
+    const raw = String(value ?? "");
+    if (window.CSS && typeof window.CSS.escape === "function") {
+      return window.CSS.escape(raw);
+    }
+    return raw.replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  function uniqueElements(list) {
+    return Array.from(new Set((Array.isArray(list) ? list : []).filter(Boolean)));
+  }
+
+  function toAbsoluteUrl(value) {
+    const raw = String(value || "").trim();
+    if (!raw) return "";
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  async function api(path, opts = {}) {
+    const isFormData = opts.body instanceof FormData;
+
+    const res = await fetch(path, {
+      credentials: "same-origin",
+      headers: {
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...(opts.headers || {}),
+      },
+      ...opts,
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+
+    if (!res.ok) {
+      const msg =
+        (data && data.error) ||
+        (data && data.message) ||
+        (typeof data === "string" ? data : `Request failed: ${res.status}`);
+      throw new Error(msg);
+    }
+
+    return data;
+  }
+
+  function toast(message, type = "info", ms = 2600) {
+    let wrap = $("toastWrap");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "toastWrap";
+      wrap.style.position = "fixed";
+      wrap.style.right = "18px";
+      wrap.style.bottom = "18px";
+      wrap.style.zIndex = "999999";
+      wrap.style.display = "flex";
+      wrap.style.flexDirection = "column";
+      wrap.style.gap = "10px";
+      document.body.appendChild(wrap);
+    }
+
+    const item = document.createElement("div");
+    item.className = `simo-toast simo-toast-${type}`;
+    item.style.maxWidth = "390px";
+    item.style.padding = "12px 14px";
+    item.style.borderRadius = "14px";
+    item.style.backdropFilter = "blur(10px)";
+    item.style.color = "#fff";
+    item.style.border = "1px solid rgba(255,255,255,.12)";
+    item.style.boxShadow = "0 8px 30px rgba(0,0,0,.25)";
+    item.style.fontSize = "14px";
+    item.style.background =
+      type === "error"
+        ? "rgba(180,30,60,.92)"
+        : type === "success"
+        ? "rgba(24,110,72,.92)"
+        : "rgba(16,22,36,.92)";
+    item.textContent = message;
+
+    wrap.appendChild(item);
+
+    setTimeout(() => {
+      item.style.opacity = "0";
+      item.style.transform = "translateY(8px)";
+      item.style.transition = "all .25s ease";
+      setTimeout(() => item.remove(), 250);
+    }, ms);
+  }
+
+  function styleActionButton(btn) {
+    if (!btn) return;
+    btn.style.padding = "8px 10px";
+    btn.style.borderRadius = "12px";
+    btn.style.cursor = "pointer";
+    btn.style.border = "1px solid rgba(255,255,255,.10)";
+    btn.style.background = "rgba(255,255,255,.06)";
+    btn.style.color = "#eef4ff";
+  }
+
+  function styleSidebarPill(btn) {
+    if (!btn) return;
+    btn.classList.add("pill");
+    btn.style.display = "none";
+    btn.style.width = "";
   }
 
   function titleCase(value) {
     return String(value || "")
       .replace(/[_-]+/g, " ")
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/\b\w/g, (m) => m.toUpperCase());
+      .replace(/\b\w/g, (m) => m.toUpperCase())
+      .trim();
   }
 
-  function slugify(value) {
-    return clean(value).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-  }
-
-  function simo14fTextBlob(value) {
-    if (!value || typeof value !== "object") return clean(value || "");
-    return clean([
-      value.lockedSubject, value.exactSubject, value.requestedAsset, value.item,
-      value.title, value.alt, value.prompt, value.sourcePrompt, value.latestPrompt,
-      value.category, value.domain, value.projectType,
-      value.designState && value.designState.lockedSubject,
-      value.designState && value.designState.item,
-      value.designState && value.designState.domain,
-    ].filter(Boolean).join(" "));
-  }
-
-  function simo14fIsRimText(value) {
-    return /\b(tire\s+rim|wheel\s+rim|alloy\s+wheel|forged\s+wheel|custom\s+wheel|rim|rims)\b/i.test(clean(value || ""));
-  }
-
-  function simo14fIsGuitarText(value) {
-    return /\b(bass\s+guitar|electric\s+guitar|guitar|headstock|fretboard|pickups?|strings?)\b/i.test(clean(value || ""));
-  }
-
-  function simo14fExactLockFromProject(project, fallbackPrompt) {
-    const blob = `${simo14fTextBlob(project)} ${clean(fallbackPrompt || "")}`;
-    if (simo14fIsRimText(blob)) return { kind: "rim", category: "product", item: "single standalone custom tire rim / alloy wheel", title: "Tire Rim — Product Concept" };
-    if (simo14fIsGuitarText(blob)) return { kind: "guitar", category: "instrument", item: "single standalone custom guitar / bass guitar", title: "Instrument Concept" };
-    return null;
-  }
-
-  function simo14fApplyExactLock(project, promptText) {
-    if (!project || typeof project !== "object") return project;
-    const lock = simo14fExactLockFromProject(project, promptText);
-    if (!lock) return project;
-    project.category = lock.category;
-    project.kind = lock.category === "product" ? "product" : (project.kind || lock.category);
-    project.item = lock.item;
-    project.lockedSubject = lock.item;
-    project.title = lock.title;
-    project.controls = controlsFor(project.category);
-    project.exactObjectLock = lock;
-    return project;
-  }
-
-  function getChat() {
-    return $("chatMessages") || $("chat") || document.querySelector(".chat-wrap") || document.body;
-  }
-
-  function getInput() {
-    return $("chatInput") || document.querySelector("textarea, input[type='text']");
-  }
-
-  function scrollDown() {
-    const chatWrap = document.querySelector(".chat-wrap") || $("chat") || document.scrollingElement || document.documentElement;
-    try { chatWrap.scrollTop = chatWrap.scrollHeight; } catch {}
-    try { window.scrollTo(0, document.documentElement.scrollHeight); } catch {}
-  }
-
-  function clearInput() {
-    const input = getInput();
-    if (!input) return;
-    input.value = "";
-    try { input.dispatchEvent(new Event("input", { bubbles: true })); } catch {}
-  }
-
-  function addRow(role, html) {
-    const chat = getChat();
-    const row = document.createElement("div");
-    row.className = `msg-row msg-${role} simo105d-row`;
-    row.innerHTML = html;
-    chat.appendChild(row);
-    scrollDown();
-    return row;
-  }
-
-  function addUser(text) {
-    return addRow("user", `<div class="msg-bubble msg-bubble-user">${esc(text)}</div>`);
-  }
-
-  function addAssistant(html) {
-    return addRow("assistant", `<div class="msg-bubble msg-bubble-assistant" style="max-width:min(1080px,96%);width:100%;">${html}</div>`);
-  }
-
-  function removeRow(row) {
-    try { row && row.remove(); } catch {}
-  }
-
-  function getStatusEl() {
-    return $("loadingHint") || $("statusText") || $("readyStatus") || document.querySelector(".status, .footer-status, .loading-hint, [data-simo-status]");
-  }
-
-  function setSimoStatus(text, busy) {
-    const value = String(text || "Ready.");
-    const el = getStatusEl();
-    if (el) {
-      el.textContent = value;
-      el.dataset.simoBusy = busy ? "true" : "false";
-      el.style.opacity = busy ? "1" : "";
-      el.style.color = busy ? "#dce8ff" : "";
+  async function copyTextToClipboard(text, successMessage = "Copied.") {
+    const value = String(text || "");
+    if (!value) {
+      toast("Nothing to copy.", "error", 1800);
+      return false;
     }
+
     try {
-      window.__SIMO_VISUAL_STATUS__ = { text: value, busy: !!busy, at: Date.now() };
-      window.dispatchEvent(new CustomEvent("simo:visual-status", { detail: window.__SIMO_VISUAL_STATUS__ }));
-    } catch {}
-  }
-
-  function setButtonBusy(btn, busy, label) {
-    if (!btn) return;
-    if (busy) {
-      if (!btn.dataset.simoOriginalText) btn.dataset.simoOriginalText = btn.textContent || "";
-      btn.disabled = true;
-      btn.style.opacity = "0.72";
-      btn.style.pointerEvents = "none";
-      btn.textContent = label || "Working…";
-      btn.setAttribute("aria-busy", "true");
-    } else {
-      btn.disabled = false;
-      btn.style.opacity = "";
-      btn.style.pointerEvents = "";
-      btn.textContent = btn.dataset.simoOriginalText || btn.textContent || "Done";
-      btn.removeAttribute("aria-busy");
-    }
-  }
-
-  function statusTextForAction(action, category) {
-    const a = clean(action || "base");
-    const c = titleCase(category || "design");
-    if (a.includes("render")) return `Generating stronger ${c} render…`;
-    if (a.includes("variation")) return `Generating ${c} variations…`;
-    if (a.includes("workspace")) return `Opening ${c} rotate/design workspace…`;
-    if (actionIsMeaningful(action)) return `Refining ${c} design…`;
-    return `Building ${c} visual result…`;
-  }
-
-  function api(path, payload) {
-    return fetch(path, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload || {}),
-    }).then(async (res) => {
-      const ct = res.headers.get("content-type") || "";
-      const data = ct.includes("application/json") ? await res.json() : await res.text();
-      if (!res.ok) {
-        const msg = data && (data.error || data.message) ? (data.error || data.message) : `Request failed: ${res.status}`;
-        throw new Error(msg);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(value);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = value;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        ta.remove();
       }
-      return data;
+      toast(successMessage, "success", 1600);
+      return true;
+    } catch {
+      toast("Copy failed.", "error", 1800);
+      return false;
+    }
+  }
+
+// -----------------------------
+// scrolling
+// -----------------------------
+function getMainScrollContainer() {
+  return $(".main") || document.scrollingElement || document.documentElement;
+}
+
+function getChatScrollContainer() {
+  return $("chat") || $(".chat-wrap") || getMainScrollContainer();
+}
+
+function scrollElementToBottom(el) {
+  if (!el) return;
+  try {
+    el.scrollTop = el.scrollHeight;
+  } catch {}
+}
+
+function scrollWindowToBottom() {
+  try {
+    window.scrollTo({
+      top: document.documentElement.scrollHeight,
+      behavior: "smooth",
     });
+  } catch {
+    window.scrollTo(0, document.documentElement.scrollHeight);
   }
-
-
-  function safeJsonParse(raw, fallback) {
-    try { return JSON.parse(raw); } catch { return fallback; }
-  }
-
-
-function normalizeTitleWords(value) {
-  return String(value || "")
-    .replace(/[_-]+/g, " ")
-    .replace(/\b(show me|show|make|create|build|design|generate|give me|i want|for me to design|for me|please|can you|could you|concept|render|visualize|view|draw|draft|mockup|prototype|3d|three d|3 d|model|viewer|rotate|rotating|to design|for design|to edit|for editing)\b/gi, " ")
-    .replace(/\b(a|an|the)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
 }
 
-function extractSubjectPhrase(value, fallback) {
-  let text = String(value || "").trim();
-  if (!text) return normalizeTitleWords(fallback) || "Visual Concept";
+function scrollChatToBottom(forceWindow = false) {
+  const chatContainer = getChatScrollContainer();
+  const mainContainer = getMainScrollContainer();
 
-  text = text
-    .replace(/^continue this same active visual\/design project\s*:\s*/i, "")
-    .replace(/^user wants\s*:\s*/i, "")
-    .replace(/\bdo not switch domains\b[\s\S]*$/i, "")
-    .replace(/\bpreserve project identity\b[\s\S]*$/i, "")
-    .replace(/\btreat this like a chatgpt\/grok image-first design refinement\b[\s\S]*$/i, "")
-    .replace(/^(please\s+)?(can you\s+|could you\s+|would you\s+|i want\s+|i want you to\s+|i need\s+|show me\s+|show us\s+|build me\s+|build us\s+|build\s+|make me\s+|make us\s+|make\s+|create me\s+|create us\s+|create\s+|design me\s+|design us\s+|design\s+|generate me\s+|generate us\s+|generate\s+|give me\s+|give us\s+|render\s+|visualize\s+|draft\s+|draw\s+)/i, "")
-    .replace(/^an?\s+/i, "")
-    .replace(/^the\s+/i, "")
-    .replace(/\b(that|which)\s+i\s+can\s+(edit|design|refine).*$/i, "")
-    .replace(/\bfor me to\s+(edit|design|refine).*$/i, "")
-    .replace(/\bto\s+(edit|design|refine).*$/i, "")
-    .replace(/\b(with|featuring|including)\b\s+/i, " with ")
-    .replace(/\s+/g, " ")
-    .trim();
+  const run = () => {
+    scrollElementToBottom(chatContainer);
+    if (mainContainer && mainContainer !== chatContainer) {
+      scrollElementToBottom(mainContainer);
+    }
+    if (forceWindow) scrollWindowToBottom();
+  };
 
-  if (!text) return normalizeTitleWords(fallback) || "Visual Concept";
-  const clipped = text.split(/\s+/).filter(Boolean).slice(0, 12).join(" ");
-  return normalizeTitleWords(clipped) || normalizeTitleWords(fallback) || "Visual Concept";
+  run();
+  requestAnimationFrame(run);
+  setTimeout(run, 30);
+  setTimeout(run, 80);
+  setTimeout(run, 160);
+  setTimeout(run, 280);
 }
 
-function smartShortTitle(value, fallback) {
-  const cleaned = extractSubjectPhrase(value, fallback);
-  const words = cleaned.split(/\s+/).filter(Boolean);
-  const clipped = words.slice(0, 8).join(" ");
-  return titleCase(clipped || "Visual Concept");
+function scrollAfterUiChange() {
+  scrollChatToBottom(true);
+  setTimeout(() => scrollChatToBottom(true), 90);
+  setTimeout(() => scrollChatToBottom(true), 180);
+  setTimeout(() => scrollChatToBottom(true), 320);
+  setTimeout(() => scrollChatToBottom(true), 520);
 }
 
-function displayTitle(project) {
+window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
+  scrollAfterUiChange();
+}
 
-    const item = smartShortTitle(project && (project.item || project.latestPrompt || project.prompt), "Visual Concept");
-    const category = String(project && project.category || "object").toLowerCase();
-    const suffixMap = {
-      vehicle: "Vehicle Concept",
-      marine: "Marine Concept",
-      instrument: "Instrument Concept",
-      home: "Architecture Concept",
-      interior: "Interior Concept",
-      product: "Product Concept",
-      industrial: "Industrial Product Concept",
-      wearable: "Wearable Concept",
-      furniture: "Furniture Concept",
-      brand: "Brand Concept",
-      digital: "Digital Product Concept",
-      editorial: "Book Cover Concept",
-      object: "Design Concept",
-    };
-    const suffix = suffixMap[category] || "Design Concept";
-    const itemLow = item.toLowerCase();
-    const core = suffix.toLowerCase().replace(" concept", "");
-    if (itemLow.includes(core) || itemLow.endsWith("concept")) return item;
-    return `${item} — ${suffix}`;
+  // -----------------------------
+  // storage
+  // -----------------------------
+  function isDesignLibraryItem(item) {
+    item = item && typeof item === "object" ? item : {};
+
+    const sourceText = String(item.sourceText || item.source_text || "");
+    const html = String(item.html || item.canonicalHtml || item.previewHtml || "");
+    const tags = Array.isArray(item.tags)
+      ? item.tags.map((x) => String(x || "").toLowerCase())
+      : String(item.tags || "").toLowerCase().split(/\s+/).filter(Boolean);
+
+    const blob = [
+      item.type, item.kind, item.projectType, item.builderType, item.source,
+      item.notes, item.title, item.projectTitle, item.workspaceSubject,
+      sourceText, tags.join(" ")
+    ].join(" ").toLowerCase();
+
+    const hasWorkspaceData = !!(
+      item.workspaceData &&
+      typeof item.workspaceData === "object" &&
+      Object.keys(item.workspaceData).length
+    );
+
+    if (hasWorkspaceData || item.isDesignWorkspace === true) return true;
+    if (/\[simo_visual_concept\]|\[simo_clean_workspace_saved\]|\[simo_visual_project\]/i.test(sourceText)) return true;
+    if (/saved simo workspace design|saved visual concept|visual design workspace/i.test(html)) return true;
+    if (/\bdesign_workspace\b|\bdesign workspace\b|\bworkspace design\b|\bsimo_visual_project\b|\bvisual concept\b|\bproduct design\b|\bgenerated image\b|\bimage concept\b/.test(blob)) return true;
+
+    let designTagHits = 0;
+    ["visual", "design", "workspace", "concept"].forEach((tag) => {
+      if (tags.includes(tag)) designTagHits += 1;
+    });
+    if (designTagHits >= 2 && !/\[simo_website_builder_saved\]/i.test(sourceText)) return true;
+
+    return false;
   }
 
-  function libraryTagsFor(project) {
-    const category = String(project && project.category || "visual").toLowerCase();
-    return Array.from(new Set(["visual", "design", "image-first", category].filter(Boolean)));
+  function isWebsiteLibraryItem(item) {
+    item = item && typeof item === "object" ? item : {};
+    if (isDesignLibraryItem(item)) return false;
+    const kind = String(item.kind || "").toLowerCase();
+    const type = String(item.type || "").toLowerCase();
+    const owner = String(item.owner || "").toLowerCase();
+    const source = String(item.source || "").toLowerCase();
+    const sourceText = String(item.sourceText || item.source_text || "");
+    const html = String(item.html || "");
+    const tags = Array.isArray(item.tags) ? item.tags.map((x) => String(x || "").toLowerCase()) : [];
+    return item.website_builder === true || item.isWebsiteBuilder === true || item.websiteBuilder === true ||
+      kind === "website" || kind === "website_builder" ||
+      type === "website" || type === "website_builder" || type === "website_builder_html" ||
+      owner.includes("webbuilder") || owner.includes("website") || source.includes("website") ||
+      tags.includes("website") || /\[SIMO_WEBSITE_BUILDER_SAVED\]/i.test(sourceText) ||
+      (/<(?:!doctype\s+html|html\b)/i.test(html) && /<\/html>/i.test(html));
   }
 
-  function projectSourceText(project) {
-    const title = displayTitle(project);
-    const payload = {
-      phase: PHASE,
-      type: "simo_visual_project",
-      title,
-      category: project?.category || "object",
-      kind: project?.kind || "design",
-      item: project?.item || "",
-      prompt: project?.prompt || "",
-      latestPrompt: project?.latestPrompt || "",
-      imageUrl: project?.imageUrl || "",
-      controls: Array.isArray(project?.controls) ? project.controls : [],
-      updatedAt: new Date().toISOString(),
-    };
-    return `[SIMO_VISUAL_PROJECT]\n${JSON.stringify(payload, null, 2)}`;
+  function publishAccountLibraryCounts(rawItems) {
+    const all = Array.isArray(rawItems) ? rawItems : [];
+    const website = all.filter(isWebsiteLibraryItem).length;
+    const design = all.filter(isDesignLibraryItem).length;
+    window.__SIMO_ACCOUNT_LIBRARY_COUNTS__ = { website, design };
+    const b = $("builderLibrarySidebarCount");
+    const d = $("designLibrarySidebarCount");
+    if (b) b.textContent = String(website);
+    if (d) d.textContent = String(design);
+    if (libraryCountValueEl) setText(libraryCountValueEl, String(website));
+    return { website, design };
   }
 
-  function setLastPreviewForVisual(html, title) {
-    const now = new Date().toISOString();
-    const payload = { html: String(html || ""), title: String(title || "Simo Visual Concept"), savedAt: now };
-    try { localStorage.setItem(LAST_PREVIEW_KEY, JSON.stringify(payload)); } catch {}
+  function normalizeLibraryArray(items) {
+    if (!Array.isArray(items)) return [];
 
-    try {
-      const existing = safeJsonParse(localStorage.getItem(PREVIEW_HISTORY_KEY), []);
-      const list = Array.isArray(existing) ? existing : [];
-      const next = [
-        { id: `preview_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, title: payload.title, html: payload.html, savedAt: now },
-        ...list.filter((item) => item && !(item.title === payload.title && item.html === payload.html)),
-      ].slice(0, 8);
-      localStorage.setItem(PREVIEW_HISTORY_KEY, JSON.stringify(next));
-    } catch {}
+    return items
+      .filter(Boolean)
+      .filter((item) => !isDesignLibraryItem(item))
+      .map((item) => ({
+        id: item.id || "build_" + Math.random().toString(36).slice(2, 10),
+        title: String(item.title || "Untitled Build"),
+        html: String(item.html || ""),
+        sourceText: String(item.sourceText || item.source_text || ""),
+        notes: String(item.notes || ""),
+        tags: Array.isArray(item.tags) ? item.tags.filter(Boolean).map(String) : [],
+        pinned: !!item.pinned,
+        archived: !!item.archived,
+        createdAt: item.createdAt || item.created_at || nowIso(),
+        updatedAt:
+          item.updatedAt ||
+          item.updated_at ||
+          item.createdAt ||
+          item.created_at ||
+          nowIso(),
+      }));
   }
 
-  function rememberVisualConcept(item, project) {
-    try {
-      const existing = safeJsonParse(localStorage.getItem(VISUAL_CONCEPTS_KEY), []);
-      const list = Array.isArray(existing) ? existing : [];
-      const next = [
-        {
-          id: item.id,
-          title: item.title,
-          url: project?.imageUrl || "",
-          imageUrl: project?.imageUrl || "",
-          category: project?.category || "object",
-          item: project?.item || item.title,
-          libraryId: item.id,
-          savedAt: item.createdAt || new Date().toISOString(),
-        },
-        ...list.filter((x) => x && x.id !== item.id && x.url !== project?.imageUrl),
-      ].slice(0, 40);
-      localStorage.setItem(VISUAL_CONCEPTS_KEY, JSON.stringify(next));
-    } catch {}
-  }
-
-
-  function actionIsMeaningful(action) {
-    const a = clean(action || "");
-    return !!a && !["base", "open", "workspace", "workspace-edit"].includes(a);
-  }
-
-  function actionTitleFromPrompt(prompt, fallback) {
-    const raw = String(prompt || "");
-    const match = raw.match(/User wants:\s*([^\.]+)\./i);
-    const label = match && match[1] ? match[1].trim() : "";
-    return label || fallback || "Refine";
-  }
-
-  function domainActionBrief(category, label) {
-    const cat = String(category || "object").toLowerCase();
-    const action = String(label || "Refine").trim() || "Refine";
-    const actionLow = clean(action);
-
-    const shared = {
-      headline: `${action} design pass`,
-      visual: "Create a visibly updated render, not just a text response.",
-      keep: "Keep the same object, same project identity, and same domain.",
-      camera: "Use a premium studio/product-render presentation unless the domain needs architecture or UI context.",
-      details: ["visible form change", "material/finish change", "lighting upgrade", "clear design rationale"],
-    };
-
-    const map = {
-      instrument: {
-        headline: `${action} instrument pass`,
-        visual: "Show a clearly changed guitar/instrument concept with visible body, neck, headstock, pickups, bridge, knobs, strings, graphics, and finish decisions.",
-        keep: "Stay only in instrument/guitar/product design mode. No homes, garages, pools, cars, driveways, or buildings.",
-        camera: "Use a clean studio turntable/product render angle so the user can imagine rotating and editing it.",
-        details: ["body silhouette", "neck/headstock", "pickup/electronics", "hardware", "finish/graphics"],
-      },
-      home: {
-        headline: `${action} architecture pass`,
-        visual: "Show a visibly updated premium architectural render with clear exterior massing, garage/pool/landscape/material changes when relevant.",
-        keep: "Stay only in home/architecture design mode. Keep the same luxury house direction.",
-        camera: "Use a high-end architectural visualization angle with realistic lighting and depth.",
-        details: ["exterior massing", "garage/pool options", "glass/windows", "materials", "landscape/lighting"],
-      },
-      digital: {
-        headline: `${action} digital UI pass`,
-        visual: "Show a visibly improved app/web UI screen with stronger layout, hierarchy, navigation, components, CTA flow, spacing, and polish.",
-        keep: "Stay only in digital product/UI mode. Do not turn this into a house, product render, or physical object.",
-        camera: "Use a crisp modern screen mockup, dashboard frame, or mobile/desktop product preview.",
-        details: ["screen layout", "navigation", "components", "visual hierarchy", "CTA flow"],
-      },
-      editorial: {
-        headline: `${action} book-cover pass`,
-        visual: "Show a visibly changed premium book-cover concept with stronger typography, cover imagery, copy hierarchy, mood, and print-finish direction.",
-        keep: "Stay only in editorial/book-cover design mode. Keep it tied to the same book/story theme.",
-        camera: "Use a clean front-cover mockup or premium editorial presentation angle.",
-        details: ["title hierarchy", "cover imagery", "author/subtitle", "palette", "print finish"],
-      },
-      vehicle: {
-        headline: `${action} vehicle pass`,
-        visual: "Show a visibly changed vehicle concept with updated stance, body lines, wheels, lighting, aero, paint, and cockpit direction.",
-        keep: "Stay only in vehicle/automotive design mode.",
-        camera: "Use a studio turntable or cinematic automotive render angle.",
-        details: ["stance", "body/aero", "wheels", "lighting", "paint/interior"],
-      },
-      industrial: {
-        headline: `${action} industrial product pass`,
-        visual: "Show a visibly changed industrial product with function, mounting, weatherproofing, optics, materials, installation context, and safety details.",
-        keep: "Stay only in industrial/product design mode.",
-        camera: "Use a clean engineering/product render angle with practical installation context.",
-        details: ["fixture head", "mounting", "materials", "weatherproofing", "light pattern/safety"],
-      },
-      brand: {
-        headline: `${action} brand pass`,
-        visual: "Show a visibly improved logo/identity direction with mark, typography, color, mockup usage, and brand system polish.",
-        keep: "Stay only in brand/logo identity mode.",
-        camera: "Use a premium brand board or clean mockup presentation.",
-        details: ["logo mark", "type", "palette", "mockups", "brand variants"],
-      },
-      product: {
-        headline: `${action} product pass`,
-        visual: "Show a visibly updated physical product/accessory concept with clearer shape, material, function, finish, usability, and packaging direction.",
-        keep: "Stay only in the same product/accessory category.",
-        camera: "Use a clean studio product render angle.",
-        details: ["shape", "materials", "function", "finish", "packaging/usability"],
-      },
-      furniture: {
-        headline: `${action} furniture pass`,
-        visual: "Show a visibly updated furniture concept with changed form, ergonomics, frame, cushions, materials, legs/base, finish, and room context.",
-        keep: "Stay only in furniture design mode.",
-        camera: "Use a premium room/studio product angle.",
-        details: ["frame", "ergonomics", "materials", "comfort", "room context"],
-      },
-      wearable: {
-        headline: `${action} wearable pass`,
-        visual: "Show a visibly updated wearable/fashion product with silhouette, fit, materials, hardware, finish, colorway, and branding.",
-        keep: "Stay only in wearable/fashion product mode.",
-        camera: "Use a clean lookbook/product render presentation.",
-        details: ["silhouette", "fit", "materials", "hardware", "branding/colorway"],
-      },
-      interior: {
-        headline: `${action} interior pass`,
-        visual: "Show a visibly updated interior design with layout, furniture, walls, flooring, lighting, materials, ceiling details, and mood.",
-        keep: "Stay only in interior design mode.",
-        camera: "Use a premium interior visualization angle.",
-        details: ["layout", "furniture", "materials", "lighting", "wall/floor/ceiling details"],
-      },
-    };
-
-    const picked = map[cat] || shared;
-
-    if (actionLow.includes("variation")) {
-      return {
-        ...picked,
-        headline: `${action} — multiple directions`,
-        visual: picked.visual + " Include distinct alternatives while keeping the same exact object/domain.",
-        details: [...picked.details, "3 distinct variations"],
-      };
+  function migrateGuestLibraryOnce() {
+    const guestKey = `${LIB_KEY}__guest_free`;
+    const marker = `${LIB_KEY}__guest_free_migrated_v1`;
+    if (localStorage.getItem(marker)) return;
+    const existingGuest = safeJsonParse(localStorage.getItem(guestKey), []);
+    const legacy = safeJsonParse(localStorage.getItem(LIB_KEY), []);
+    if ((!Array.isArray(existingGuest) || !existingGuest.length) && Array.isArray(legacy) && legacy.length) {
+      localStorage.setItem(guestKey, JSON.stringify(normalizeLibraryArray(legacy)));
     }
-
-    if (actionLow.includes("realistic") || actionLow.includes("render")) {
-      return {
-        ...picked,
-        headline: `${action} — realistic render`,
-        visual: picked.visual + " Make it feel like a premium finished render the user can react to immediately.",
-        details: [...picked.details, "realistic lighting", "premium presentation"],
-      };
-    }
-
-    return picked;
-  }
-
-  function designPassSvg(project, actionLabel, sourceText) {
-    const title = displayTitle(project || {});
-    const cat = String(project?.category || "object").toLowerCase();
-    if (["digital", "brand", "product", "industrial", "wearable", "furniture", "interior", "object"].includes(cat)) {
-      return mockVisualSvg(project, { actionLabel: actionLabel || "Visible refinement pass", sourceText });
-    }
-    const brief = domainActionBrief(cat, actionLabel);
-    const controls = Array.isArray(project?.controls) ? project.controls.slice(0, 5) : controlsFor(cat).slice(0, 5);
-    const details = (brief.details || []).slice(0, 5);
-    const action = String(actionLabel || project?.action || "Refine").trim() || "Refine";
-    const src = String(sourceText || project?.latestPrompt || project?.prompt || "").slice(0, 150);
-
-    const chips = details.map((d, i) => `
-      <g transform="translate(110 ${455 + i * 54})">
-        <rect width="500" height="38" rx="19" fill="${i % 2 ? '#122036' : '#162844'}" stroke="#ffffff" stroke-opacity=".14"/>
-        <text x="22" y="25" fill="#dce8ff" font-family="Arial" font-size="18" font-weight="800">${esc(d).slice(0, 44)}</text>
-      </g>`).join("");
-
-    const controlRows = controls.map((d, i) => `
-      <g transform="translate(745 ${455 + i * 54})">
-        <rect width="540" height="38" rx="19" fill="${i % 2 ? '#171d31' : '#1b2540'}" stroke="#ffffff" stroke-opacity=".13"/>
-        <text x="22" y="25" fill="#eaf1ff" font-family="Arial" font-size="18" font-weight="800">${esc(d).slice(0, 48)}</text>
-      </g>`).join("");
-
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
-      <defs>
-        <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset=".48" stop-color="#101b32"/><stop offset="1" stop-color="#030712"/></linearGradient>
-        <radialGradient id="glow" cx="50%" cy="30%" r="70%"><stop offset="0" stop-color="#6ea8ff" stop-opacity=".30"/><stop offset=".52" stop-color="#b982ff" stop-opacity=".15"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
-      </defs>
-      <rect width="1400" height="900" fill="url(#bg)"/><rect width="1400" height="900" fill="url(#glow)"/>
-      <rect x="70" y="64" width="1260" height="772" rx="48" fill="#0b1425" fill-opacity=".91" stroke="#ffffff" stroke-opacity=".18"/>
-      <text x="110" y="128" fill="#9fb4dd" font-family="Arial" font-size="20" font-weight="900" letter-spacing="4">SIMO STRONG DESIGN PASS · ${esc(cat.toUpperCase())}</text>
-      <text x="110" y="205" fill="#f6f8ff" font-family="Arial" font-size="48" font-weight="900">${esc(title).slice(0, 62)}</text>
-      <rect x="110" y="250" width="1180" height="112" rx="28" fill="#050b14" fill-opacity=".78" stroke="#ffffff" stroke-opacity=".12"/>
-      <text x="144" y="294" fill="#ffffff" font-family="Arial" font-size="28" font-weight="900">${esc(action).slice(0, 60)}</text>
-      <text x="144" y="331" fill="#c7d3ea" font-family="Arial" font-size="20">${esc(brief.visual).slice(0, 112)}</text>
-      <text x="110" y="418" fill="#b9c8e7" font-family="Arial" font-size="19" font-weight="900" letter-spacing="2">VISIBLE REFINEMENTS</text>
-      ${chips}
-      <text x="745" y="418" fill="#b9c8e7" font-family="Arial" font-size="19" font-weight="900" letter-spacing="2">EDITABLE CONTROLS</text>
-      ${controlRows}
-      <rect x="110" y="755" width="1180" height="54" rx="27" fill="#10213c" stroke="#6ea8ff" stroke-opacity=".25"/>
-      <text x="140" y="789" fill="#dce8ff" font-family="Arial" font-size="18" font-weight="800">${esc(src || brief.keep).slice(0, 125)}</text>
-    </svg>`;
-    return svgDataUri(svg);
-  }
-
-
-  function controlPrompt(project, actionLabel) {
-    const label = String(actionLabel || "Refine").trim();
-    const category = String(project?.category || "design").toLowerCase();
-    const title = displayTitle(project);
-    const source = project?.prompt || project?.latestPrompt || project?.item || title;
-    const brief = domainActionBrief(category, label);
-    return [
-      `Continue this same active visual/design project: ${title}.`,
-      `User wants: ${label}.`,
-      `${brief.keep}`,
-      `${brief.visual}`,
-      `${brief.camera}`,
-      `Make the next result visibly different from the current card. Do not only describe the change. Change at least three visible design details from this list: ${(brief.details || []).join(", ")}.`,
-      `Use a new view, crop, version board, or refined render so the user can instantly tell the button did something.`,
-      `Treat this like a ChatGPT/Grok image-first design refinement: show the closest updated visual result first, then keep the controls relevant.`,
-      `Preserve project identity from the original prompt: ${source}.`,
-      `Do not switch domains. Do not use unrelated fallback subjects. If exact 3D is unavailable, keep the connected rotate/design workspace and show a stronger visual design pass.`,
-    ].join(" ");
-  }
-
-  function actionButton(label, special, tone = "normal") {
-    const border = tone === "gold" ? "rgba(255,215,106,.28)" : tone === "blue" ? "rgba(110,168,255,.28)" : tone === "green" ? "rgba(86,240,169,.26)" : "rgba(255,255,255,.14)";
-    const bg = tone === "gold" ? "rgba(255,215,106,.12)" : tone === "blue" ? "rgba(110,168,255,.13)" : tone === "green" ? "rgba(86,240,169,.11)" : "rgba(255,255,255,.06)";
-    const color = tone === "gold" ? "#fff6d8" : tone === "green" ? "#eafff4" : "#eef4ff";
-    return `<button type="button" data-simo-vc-special="${esc(special)}" style="border:1px solid ${border};background:${bg};color:${color};border-radius:999px;padding:10px 13px;font-size:12px;font-weight:950;cursor:pointer;box-shadow:0 8px 20px rgba(0,0,0,.12);">${esc(label)}</button>`;
-  }
-
-  function controlButton(label) {
-    return `<button type="button" data-simo-vc-action="${esc(label)}" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:850;cursor:pointer;">${esc(label)}</button>`;
-  }
-
-  function visualProjectHtml(project) {
-    const title = displayTitle(project);
-    const img = project && (project.imageUrl || fallbackImageFor(project) || boardSvg(project));
-    const controls = (project && Array.isArray(project.controls) ? project.controls : []).slice(0, 12);
-    const source = String(project && (project.latestPrompt || project.prompt || project.item) || "");
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>${esc(title)}</title>
-  <style>
-    :root{color-scheme:dark;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:#050b14;color:#eef4ff;}
-    body{margin:0;min-height:100vh;background:radial-gradient(circle at top left,rgba(110,168,255,.20),transparent 34%),radial-gradient(circle at bottom right,rgba(185,130,255,.14),transparent 30%),linear-gradient(180deg,#07111f,#050b14);}
-    .wrap{max-width:1120px;margin:0 auto;padding:28px;display:grid;gap:18px;}
-    .card{border:1px solid rgba(255,255,255,.12);border-radius:28px;overflow:hidden;background:rgba(255,255,255,.045);box-shadow:0 24px 80px rgba(0,0,0,.38);}
-    .head{padding:18px 20px;border-bottom:1px solid rgba(255,255,255,.10);display:flex;justify-content:space-between;gap:14px;align-items:flex-start;flex-wrap:wrap;}
-    .eyebrow{font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#9fb4dd;font-weight:900;}
-    h1{font-size:clamp(28px,4vw,48px);line-height:1.05;margin:8px 0 0;font-weight:950;}
-    .muted{color:#c7d3ea;line-height:1.55;}
-    img{display:block;width:100%;max-height:760px;object-fit:contain;background:#050b14;}
-    .body{padding:18px 20px;display:grid;gap:14px;}
-    .chips{display:flex;flex-wrap:wrap;gap:8px;}
-    .chip{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);border-radius:999px;padding:8px 11px;font-size:12px;font-weight:800;color:#eaf1ff;}
-  </style>
-</head>
-<body>
-  <main class="wrap">
-    <section class="card">
-      <div class="head">
-        <div>
-          <div class="eyebrow">Simo saved visual concept</div>
-          <h1>${esc(title)}</h1>
-          <p class="muted">${esc(source)}</p>
-        </div>
-      </div>
-      <img src="${esc(img)}" alt="${esc(title)}" />
-      <div class="body">
-        <div class="muted">Saved from the real image-first design flow. Reopen this concept in Simo and continue refining the style, materials, layout, features, or details.</div>
-        <div class="chips">${controls.map((c) => `<span class="chip">${esc(c)}</span>`).join("")}</div>
-      </div>
-    </section>
-  </main>
-</body>
-</html>`;
+    localStorage.setItem(marker, nowIso());
   }
 
   function getLibrary() {
-    const raw = safeJsonParse(localStorage.getItem(LIB_KEY), []);
-    return Array.isArray(raw) ? raw.filter(Boolean) : [];
+    if (!isAccountOwnedSession()) migrateGuestLibraryOnce();
+    return normalizeLibraryArray(
+      safeJsonParse(localStorage.getItem(scopedKey(LIB_KEY)), [])
+    );
+  }
+
+  async function migrateLegacyLibraryToProOnce(serverItems) {
+    if (!isAccountOwnedSession()) return serverItems || [];
+    const marker = `${LIB_KEY}__legacy_claimed__${storageScope()}__v1`;
+    if (localStorage.getItem(marker)) return serverItems || [];
+
+    const legacy = normalizeLibraryArray(safeJsonParse(localStorage.getItem(LIB_KEY), []));
+    const guestCopy = normalizeLibraryArray(safeJsonParse(localStorage.getItem(`${LIB_KEY}__guest_free`), []));
+    const candidates = legacy.length ? legacy : guestCopy;
+    if (!candidates.length) {
+      localStorage.setItem(marker, nowIso());
+      return serverItems || [];
+    }
+
+    const known = new Set((serverItems || []).map((item) => String(item.id || "")));
+    let imported = 0;
+    for (const item of candidates) {
+      if (!item || !item.id || known.has(String(item.id))) continue;
+      try {
+        await api("/api/library/save", { method: "POST", body: JSON.stringify(item) });
+        known.add(String(item.id));
+        imported += 1;
+      } catch (err) {
+        console.warn("legacy Pro Library recovery skipped one item:", err);
+      }
+    }
+    localStorage.setItem(marker, nowIso());
+    if (imported) toast(`Recovered ${imported} earlier build${imported === 1 ? "" : "s"} into your Pro Account Library.`, "success", 3200);
+    return serverItems || [];
+  }
+
+  async function backendLoadLibrary() {
+    // The server is authoritative for account ownership.  Do not let a stale
+    // client-side Pro flag make a signed-in Pro account look like Guest/Free.
+    if (!state.me.loggedIn) {
+      updateDashboardUi();
+      return getLibrary();
+    }
+
+    try {
+      let data = await api("/api/library");
+      if (!data || data.account_owned !== true) {
+        // Signed-in Free remains local-only.  Never overwrite its local store
+        // with the server's intentionally empty guest/free response.
+        updateDashboardUi();
+        return getLibrary();
+      }
+
+      // A successful account-owned Library response is authoritative evidence
+      // that this session is Pro.  Publish that state before choosing the
+      // scoped storage key.
+      state.me.pro = true;
+      updateUserUi();
+
+      publishAccountLibraryCounts(data.items);
+      let items = normalizeLibraryArray(data.items);
+      await migrateLegacyLibraryToProOnce(items);
+      data = await api("/api/library");
+      publishAccountLibraryCounts(data && data.items);
+      items = normalizeLibraryArray(data && data.items);
+
+      const existing = getLibrary();
+      if (items.length || !existing.length) {
+        localStorage.setItem(scopedKey(LIB_KEY), JSON.stringify(items));
+      } else {
+        console.warn("Simo Pro Library server returned zero items; preserving existing account cache.");
+        items = existing;
+      }
+
+      updateDashboardUi();
+      return items;
+    } catch (err) {
+      console.warn("backendLoadLibrary failed:", err);
+      updateDashboardUi();
+      return getLibrary();
+    }
+  }
+
+  async function backendSaveLibraryItem(item) {
+    if (!isAccountOwnedSession() || !item) return;
+
+    try {
+      await api("/api/library/save", {
+        method: "POST",
+        body: JSON.stringify({
+          id: item.id,
+          title: item.title,
+          html: item.html,
+          sourceText: item.sourceText,
+          notes: item.notes,
+          tags: item.tags,
+          pinned: !!item.pinned,
+          archived: !!item.archived,
+        }),
+      });
+    } catch (err) {
+      console.warn("backendSaveLibraryItem failed:", err);
+      toast("Saved locally, but cloud sync failed.", "error", 2600);
+    }
+  }
+
+  async function backendDeleteLibraryItem(id) {
+    if (!isAccountOwnedSession() || !id) return;
+
+    try {
+      await api("/api/library/delete", {
+        method: "POST",
+        body: JSON.stringify({ id }),
+      });
+    } catch (err) {
+      console.warn("backendDeleteLibraryItem failed:", err);
+      toast("Deleted locally, but cloud delete failed.", "error", 2600);
+    }
   }
 
   function setLibrary(items) {
-    try { localStorage.setItem(LIB_KEY, JSON.stringify(Array.isArray(items) ? items : [])); } catch {}
-    const count = document.getElementById("libraryCountValue");
-    if (count) count.textContent = String((Array.isArray(items) ? items : []).length);
+    localStorage.setItem(
+      scopedKey(LIB_KEY),
+      JSON.stringify(normalizeLibraryArray(items))
+    );
+    updateDashboardUi();
   }
 
-  function showSaveNotice(message, success) {
-    addAssistant(`
-      <div style="border:1px solid ${success ? 'rgba(86,240,169,.25)' : 'rgba(255,215,106,.25)'};border-radius:18px;padding:13px 14px;background:${success ? 'rgba(86,240,169,.10)' : 'rgba(255,215,106,.10)'};color:#eef4ff;display:grid;gap:5px;">
-        <div style="font-weight:950;font-size:15px;">${success ? 'Saved to Library' : 'Saved locally'}</div>
-        <div style="font-size:13px;color:#dce8ff;line-height:1.45;">${esc(message)}</div>
-      </div>
-    `);
+  function getLastPreview() {
+    return safeJsonParse(localStorage.getItem(scopedKey(LAST_PREVIEW_KEY)), null);
   }
 
-  async function saveVisualProject(project) {
-    if (!project) return false;
-    const now = new Date().toISOString();
-    const title = displayTitle(project);
-    const item = {
-      id: `visual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      title,
-      html: visualProjectHtml(project),
-      sourceText: projectSourceText(project),
-      notes: "Saved from Simo real image-first visual card. Continue this concept from the same visual prompt and controls.",
-      tags: libraryTagsFor(project),
+  function normalizePreviewHistory(items) {
+    if (!Array.isArray(items)) return [];
+    return items
+      .filter(Boolean)
+      .map((item) => ({
+        id: item.id || `preview_${Math.random().toString(36).slice(2, 10)}`,
+        title: String(item.title || "Untitled Preview"),
+        html: String(item.html || ""),
+        savedAt: item.savedAt || item.createdAt || item.updatedAt || "",
+      }))
+      .filter((item) => item.html && item.savedAt && !Number.isNaN(new Date(item.savedAt).getTime()));
+  }
+
+  function getPreviewHistory() {
+    return normalizePreviewHistory(
+      safeJsonParse(localStorage.getItem(scopedKey(PREVIEW_HISTORY_KEY)), [])
+    );
+  }
+
+  function setPreviewHistory(items) {
+    const clean = normalizePreviewHistory(items).slice(0, state.previewHistoryLimit);
+    localStorage.setItem(scopedKey(PREVIEW_HISTORY_KEY), JSON.stringify(clean));
+    updateRecentBuildsVisibility();
+    renderRecentBuilds();
+  }
+
+  function savePreviewToHistory(html, title = "") {
+    const cleanHtml = String(html || "").trim();
+    if (!cleanHtml) return;
+
+    const cleanTitle =
+      String(title || "Untitled Preview").trim() || "Untitled Preview";
+    const existing = getPreviewHistory();
+
+    const withoutDupes = existing.filter(
+      (item) => !(item.html === cleanHtml && item.title === cleanTitle)
+    );
+
+    const next = [
+      {
+        id: `preview_${Math.random().toString(36).slice(2, 10)}`,
+        title: cleanTitle,
+        html: cleanHtml,
+        savedAt: nowIso(),
+      },
+      ...withoutDupes,
+    ].slice(0, state.previewHistoryLimit);
+
+    setPreviewHistory(next);
+  }
+
+  function clearPreviewHistory() {
+    localStorage.removeItem(scopedKey(PREVIEW_HISTORY_KEY));
+    updateRecentBuildsVisibility();
+    renderRecentBuilds();
+  }
+
+  function saveLastPreview(html, title = "") {
+    const payload = {
+      html: String(html || ""),
+      title: String(title || ""),
+      savedAt: nowIso(),
+    };
+    localStorage.setItem(scopedKey(LAST_PREVIEW_KEY), JSON.stringify(payload));
+    state.lastPreviewHtml = payload.html;
+    state.lastPreviewTitle = payload.title;
+    savePreviewToHistory(payload.html, payload.title);
+    updateReopenLastPreviewVisibility();
+  }
+
+  function getUiSettings() {
+    return safeJsonParse(localStorage.getItem(SETTINGS_KEY), {
+      theme: "default",
+      accent: "blue",
+    });
+  }
+
+  function saveUiSettings() {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.ui));
+  }
+
+  function generateLibraryItem({ title, html, sourceText = "" }) {
+    const now = nowIso();
+    return {
+      id: "build_" + Math.random().toString(36).slice(2, 10),
+      title: String(title || "Untitled Build"),
+      html: String(html || ""),
+      sourceText: String(sourceText || ""),
+      notes: "",
+      tags: [],
       pinned: false,
       archived: false,
       createdAt: now,
       updatedAt: now,
     };
+  }
 
-    const items = [item, ...getLibrary().filter((x) => x && x.id !== item.id)];
-    setLibrary(items);
-    setLastPreviewForVisual(item.html, title);
-    rememberVisualConcept(item, project);
-
-    let cloudSynced = false;
-    try {
-      await api("/api/library/save", item);
-      cloudSynced = true;
-    } catch (err) {
-      cloudSynced = false;
-      console.warn("SimoVisualCore library cloud sync skipped/failed:", err);
-    }
-
-    showSaveNotice(
-      cloudSynced
-        ? `${title} was saved and synced to the Builder Library.`
-        : `${title} was saved to this browser's Builder Library. Sign in to sync it to your account.`,
-      cloudSynced
+  function exportLibraryJson() {
+    return JSON.stringify(
+      {
+        version: "5.1-builder-first",
+        exportedAt: nowIso(),
+        items: getLibrary(),
+      },
+      null,
+      2
     );
-    return true;
   }
 
-  function removeNegatedTerms(text) {
-    let t = clean(text);
-    [
-      "sports car", "concept car", "supercar", "hypercar", "race car", "car", "vehicle", "truck", "motorcycle", "boat", "yacht",
-      "house", "home", "villa", "mansion", "building", "architecture", "garage", "driveway", "pool", "interior", "room",
-      "guitar", "instrument", "dog leash", "leash", "watch", "sneaker", "shoe", "chair", "light fixture", "logo", "app screen"
-    ].sort((a, b) => b.length - a.length).forEach((term) => {
-      const re = new RegExp(`\\b(no|not|without|exclude|excluding|avoid|remove)\\s+(a\\s+|an\\s+|the\\s+)?${term.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\b`, "g");
-      t = t.replace(re, " ");
-    });
-    return t.replace(/\s+/g, " ").trim();
-  }
-
-
-function inferItem(prompt, fallback) {
-  return smartShortTitle(extractSubjectPhrase(prompt, fallback || "visual concept"), fallback || "visual concept").toLowerCase();
-}
-
-function wants3D(prompt) {
-  return /\b(3d|three d|3 d|model|viewer|rotate|rotating|turntable|spin)\b/i.test(String(prompt || ""));
-}
-
-function classifyPrompt(prompt) {
-  const raw = String(prompt || "").trim();
-  const t = removeNegatedTerms(raw);
-  const has = (re) => re.test(t);
-  const item = (fallback) => inferItem(raw, fallback);
-
-  if (has(/\b(book cover|book jacket|dust jacket|paperback cover|hardcover cover)\b/)) {
-    return { category: "editorial", item: item("book cover"), title: "Book Cover Concept", kind: "graphic" };
-  }
-  if (has(/\b(logo|brand identity|branding|brand mark|wordmark|mascot|identity system)\b/)) {
-    return { category: "brand", item: item("brand identity"), title: "Brand / Logo Concept", kind: "graphic" };
-  }
-  if (has(/\b(app screen|dashboard|ui|interface|mobile app|website mockup|software|saas|landing page|web app|webpage|website|portal|figma)\b/)) {
-    return { category: "digital", item: item("app screen"), title: "Digital Product Concept", kind: "screen" };
-  }
-  if (has(/\b(kitchen|bathroom|bedroom|living room|office interior|interior design|interior|moodboard|mood board)\b/)) {
-    return { category: "interior", item: item("interior space"), title: "Interior Concept", kind: "space" };
-  }
-  if (has(/\b(computer keyboard|mechanical keyboard|gaming keyboard|rgb keyboard|keycap|keycaps|keyboard and mouse)\b/)) {
-    return { category: "product", item: item("keyboard product"), title: "Keyboard Product Concept", kind: "product" };
-  }
-  if (has(/\b(guitar|electric guitar|bass guitar|instrument|violin|piano|drum kit|synthesizer|keyboard|microphone|amp|amplifier|pickups?|headstock|fretboard|strings?)\b/)) {
-    return { category: "instrument", item: has(/\bguitar\b/) ? item("guitar concept") : item("instrument concept"), title: "Instrument Concept", kind: "product" };
-  }
-  if (has(/\b(home|house|villa|mansion|estate|architecture|architectural|floor plan|floorplan|blueprint|garage|pool|landscape|exterior)\b/)) {
-    return { category: "home", item: item("luxury home"), title: "Architecture / Home Concept", kind: "architecture" };
-  }
-  if (has(/\b(yacht|boat|marine|speedboat|catamaran)\b/)) {
-    return { category: "marine", item: item("marine concept"), title: "Marine Concept", kind: "vehicle" };
-  }
-  if (has(/\b(rim|rims|wheel|wheels|tire rim|alloy wheel|forged wheel|custom wheel)\b/)) {
-    return { category: "product", item: item("tire rim"), title: "Wheel / Rim Product Concept", kind: "product" };
-  }
-  if (has(/\b(sports car|sportscar|concept car|supercar|hypercar|race car|car|vehicle|automotive|truck|motorcycle|widebody|spoiler|diffuser|carbon fiber|stance)\b/)) {
-    return { category: "vehicle", item: item("sports car"), title: "Vehicle Concept", kind: "vehicle" };
-  }
-  if (has(/\b(light fixture|parking lot light|street light|fixture|industrial light|pole light|floodlight|lamp post|outdoor light|industrial product)\b/)) {
-    return { category: "industrial", item: item("industrial product"), title: "Industrial Product Concept", kind: "product" };
-  }
-  if (has(/\b(chair|gaming chair|desk|table|sofa|couch|bed frame|shelf|cabinet|stool|furniture)\b/)) {
-    return { category: "furniture", item: item("furniture piece"), title: "Furniture Concept", kind: "product" };
-  }
-  if (has(/\b(sneaker|shoe|footwear|watch|bag|handbag|helmet|sunglasses|jacket|shirt|dress|fashion|clothing|wearable)\b/)) {
-    return { category: "wearable", item: item("wearable product"), title: "Wearable / Fashion Concept", kind: "product" };
-  }
-  if (has(/\b(barbecue grill|bbq grill|gas grill|charcoal grill|pellet grill|smoker grill|outdoor grill|barbeque grill|barbecue|bbq|grill|smoker|toaster|soap dispenser|dispenser|fire extinguisher|extinguisher|water bottle|drink bottle|bottle|tumbler|flask|mouse|computer mouse|phone case|toy|tool|device|accessory|product|lamp|appliance|dog leash|leash|collar|pet accessory|package|packaging|box|jar|poster|flyer|brochure|menu)\b/)) {
-    const productItem = item("product concept");
-    const productTitle = productItem ? `${toTitleCase(productItem)} Design` : "Product / Accessory Concept";
-    return { category: "product", item: productItem, title: productTitle, kind: "product" };
-  }
-  return { category: "object", item: item("design concept"), title: "Object Design Concept", kind: "object" };
-}
-
-const SCHEMAS = {
-
-    vehicle: ["Body Style", "Front Fascia", "Rear Design", "Wheels & Tires", "Paint / Finish", "Aero Package", "Interior Cockpit", "Lighting", "Performance Theme", "Materials", "Generate Variations"],
-    marine: ["Hull Shape", "Deck Layout", "Cabin Design", "Materials", "Lighting", "Performance", "Waterline Profile", "Luxury Features", "Interior Cabin", "Generate Variations"],
-    instrument: ["Body Shape", "Neck & Headstock", "Pickups", "Hardware", "Materials & Finish", "Colors & Graphics", "Strings & Tuning", "Electronics", "Case & Accessories", "Generate Variations"],
-    home: ["Exterior Style", "Garage Design", "Pool & Outdoor Living", "Windows & Glass", "Roofline", "Materials", "Landscape", "Lighting", "Interior Plan", "Luxury Features", "Generate Variations"],
-    interior: ["Layout", "Furniture Plan", "Material Palette", "Lighting", "Feature Wall", "Flooring", "Ceiling Detail", "Storage", "Styling", "Generate Variations"],
-    product: ["Material", "Size / Proportions", "Handle Design", "Hardware", "Comfort", "Color / Pattern", "Functional Details", "Brand Tag", "Packaging", "Generate Variations"],
-    industrial: ["Fixture Head", "Pole / Mount", "Light Pattern", "Weatherproofing", "Power Source", "Materials", "Finish", "Installation Layout", "Safety Rating", "Generate Variations"],
-    wearable: ["Shape / Silhouette", "Materials", "Colorway", "Texture", "Straps / Fasteners", "Comfort", "Branding", "Premium Details", "Packaging", "Generate Variations"],
-    furniture: ["Shape / Frame", "Ergonomics", "Materials", "Cushioning", "Legs / Base", "Color / Finish", "Storage Features", "Lighting / Tech", "Room Context", "Generate Variations"],
-    brand: ["Logo Mark", "Typography", "Color Palette", "Icon System", "Pattern / Texture", "Mockups", "Packaging", "Social Avatar", "Brand Variations"],
-    digital: ["Layout", "Navigation", "Hero Screen", "Components", "Color Theme", "Typography", "Mobile Version", "Dashboard Widgets", "CTA Flow", "Generate Variations"],
-    editorial: ["Title Typography", "Cover Imagery", "Subtitle / Copy", "Author Name", "Spine Design", "Back Cover", "Color Palette", "Finish / Texture", "Target Audience", "Generate Variations"],
-    object: ["Shape / Form", "Materials", "Color / Finish", "Functional Details", "Size / Proportions", "Texture", "Accessories", "Use Case", "Generate Variations"],
-  };
-
-  function productControlSet(itemOrSubject) {
-    const t = clean(itemOrSubject || "");
-    if (/\b(barbecue grill|bbq grill|gas grill|charcoal grill|pellet grill|smoker grill|outdoor grill|barbeque grill|barbecue|bbq|grill|smoker)\b/.test(t)) {
-      return ["Lid / Hood", "Cooking Grates", "Burners / Firebox", "Front Panel", "Side Shelves", "Handle / Hardware", "Thermometer / Gauge", "Wheels / Cart Base", "Vent / Chimney", "Finish / Color", "Logo / Badge", "Generate Variations", "Generate Realistic Render"];
+  async function mergeImportedLibrary(payload) {
+    if (!payload || !Array.isArray(payload.items)) {
+      throw new Error("Invalid library file.");
     }
-    if (/\btoaster\b/.test(t)) {
-      return ["Controls", "Bread Slots", "Lever", "Feet / Base", "Finish", "Branding", "Functional Details", "Color / Panel", "Generate Variations", "Generate Realistic Render"];
+
+    const existing = getLibrary();
+    const map = new Map(existing.map((x) => [x.id, x]));
+
+    for (const item of normalizeLibraryArray(payload.items)) {
+      map.set(item.id, item);
     }
-    if (/\b(bottle|drink bottle|tumbler|flask)\b/.test(t)) {
-      return ["Material", "Size / Proportions", "Handle Design", "Hardware", "Comfort", "Color / Pattern", "Functional Details", "Brand Tag", "Packaging", "Generate Variations"];
+
+    const merged = Array.from(map.values());
+    setLibrary(merged);
+
+    if (isAccountOwnedSession()) {
+      for (const item of merged) {
+        await backendSaveLibraryItem(item);
+      }
     }
-    if (/\b(soap dispenser|dispenser)\b/.test(t)) {
-      return ["Pump Head", "Nozzle / Spout", "Bottle Shape", "Material / Finish", "Label / Branding", "Window / Level View", "Base / Grip", "Color / Pattern", "Generate Variations", "Generate Realistic Render"];
-    }
-    if (/\b(fire extinguisher|extinguisher)\b/.test(t)) {
-      return ["Body Finish", "Handle & Grip", "Nozzle / Hose", "Gauge & Safety Pin", "Label / Branding", "Mount / Base", "Size / Proportions", "Color Scheme", "Generate Variations", "Generate Realistic Render"];
-    }
-    if (/\b(keyboard|mechanical keyboard|gaming keyboard)\b/.test(t)) {
-      return ["Keycaps", "Switch Feel", "Case Material", "Layout", "Knob / Controls", "Backlighting", "Legends / Fonts", "Cable / Port", "Generate Variations", "Generate Realistic Render"];
-    }
-    if (/\b(rim|wheel|alloy wheel|tire rim)\b/.test(t)) {
-      return ["Spoke Shape", "Center Cap", "Lip / Depth", "Finish", "Color Accents", "Bolt Pattern", "Performance Theme", "Side Profile", "Generate Variations", "Generate Realistic Render"];
-    }
-    return SCHEMAS.product;
+
+    return merged.length;
   }
 
-  function controlsFor(category, itemOrSubject) {
-    if (String(category || "").toLowerCase() === "product") return productControlSet(itemOrSubject);
-    return SCHEMAS[category] || SCHEMAS.object;
+  // -----------------------------
+  // dom refs
+  // -----------------------------
+  const inputEl = $("chatInput");
+  const sendBtn = $("sendBtn");
+  const imageInput = $("imageInput");
+  const imageBtn = $("imageBtn");
+  const analyzeImageBtn = $("analyzeImageBtn");
+  const upgradeBtn = $("upgradeBtn");
+  const loginBtn = $("loginBtn");
+  const logoutBtn = $("logoutBtn");
+  const userEmailEl = $("userEmail");
+  const proBadgeEl = $("proBadge");
+
+  const accountValueEl = $("accountValue");
+  const planValueEl = $("planValue");
+  const usageValueEl = $("usageTodayValue");
+  const libraryCountValueEl = $("libraryCountValue");
+  const loadingHintEl = $("loadingHint");
+
+  const clearHistoryBtn = $("clearHistoryBtn");
+  const newChatBtn = $("newChatBtn");
+  const settingsBtn = $("settingsBtn");
+  const easySignupBtn = $("signupBtn");
+  const profileBtn = $("profileBtn");
+  const builderLibraryCard = $("builderLibraryCard");
+  const openLibraryBtn = $("openLibraryBtn");
+  let reopenLastPreviewBtn = $("reopenLastPreviewBtn");
+  if (!reopenLastPreviewBtn && openLibraryBtn && openLibraryBtn.parentNode) {
+    reopenLastPreviewBtn = document.createElement("button");
+    reopenLastPreviewBtn.id = "reopenLastPreviewBtn";
+    reopenLastPreviewBtn.type = "button";
+    reopenLastPreviewBtn.className = "pill";
+    reopenLastPreviewBtn.textContent = "Reopen Last Build";
+    openLibraryBtn.insertAdjacentElement("beforebegin", reopenLastPreviewBtn);
+  }
+  const publishBtn =
+    $("publishBtn") ||
+    $("openPublishBtn") ||
+    document.querySelector('[data-role="publish-build"]');
+
+  function getRecentBuildsBtn() {
+    return $("recentBuildsBtn");
   }
 
-
-function isTextFirstIntent(prompt) {
-  const t = clean(prompt);
-  if (!t) return false;
-
-  // R10.60J: Simo North Star intent guard.
-  // "Show me a business plan..." is a text/business request, not a visual design request.
-  // Keep plain chat/business/planning routed to the normal chat brain unless the user
-  // explicitly asks for a visual asset, design concept, render, mockup, logo, cover, etc.
-  const explicitVisual =
-    /\b(i can design|can design|to design|for me to design|editable design|design card|visual card|open workspace|workspace)\b/.test(t) ||
-    /\b(render|visualize|image|picture|photo|illustration|drawing|mockup|wireframe|prototype|concept art|product concept|design concept|logo|brand identity|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup)\b/.test(t);
-
-  const businessText =
-    /\b(business plan|business idea|startup idea|start up idea|side hustle|business model|marketing plan|sales plan|revenue plan|profit plan|budget|under\s*\$?\d+|less than\s*\$?\d+|for under\s*\$?\d+|low budget|customer|customers|market|niche|pricing|expenses|costs|steps to start|how to start|can start|i can start)\b/.test(t);
-
-  const adviceText =
-    /\b(how do i|how can i|what should i|tell me|explain|write|draft|outline|summarize|give me steps|step by step|plan for|strategy|advice|ideas for|help me figure out)\b/.test(t);
-
-  if ((businessText || adviceText) && !explicitVisual) return true;
-  return false;
-}
-
-function isDesignPrompt(prompt) {
-  const t = clean(prompt);
-  if (!t || /^\[simo_/i.test(t)) return false;
-  if (isPureWritingPrompt(prompt)) return false;
-  if (isTextFirstIntent(prompt)) return false;
-  if (isBuilderIntent(prompt)) return false;
-
-  const create = /\b(show me|show|make|create|build|design|generate|give me|i want|render|visualize|view|draw|draft|concept|mockup|prototype)\b/.test(t);
-  const explicitDesignAsk =
-    /\b(i can design|can design|to design|for me to design|editable design|design this|design a|design an|design me|product concept|design concept|render|visualize|mockup|prototype|logo|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup)\b/.test(t);
-
-  const objecty = /\b(car|vehicle|guitar|instrument|home|house|logo|brand|app|screen|dashboard|website|web app|dog leash|leash|light fixture|watch|sneaker|shoe|chair|desk|product|accessory|toy|tool|device|furniture|parking lot|fixture|kitchen|bedroom|interior|yacht|boat|helmet|bag|bottle|package|packaging|lamp|rim|rims|wheel|wheels|tire rim|alloy wheel|book cover|book jacket|poster|flyer|brochure|menu|razor|shaver|spoon|fork|utensil|mug|cup|toaster|grill|flashlight|keyboard|mouse|fire extinguisher|soap dispenser)\b/.test(t);
-  const edity = /\b(add|change|make it|refine|remove|adjust|update|variation|variations|modern|luxury|futuristic|matte|gloss|carbon|gold|black|white|premium|sleek|minimal)\b/.test(t);
-
-  if (explicitDesignAsk && (create || objecty)) return true;
-  if (create && objecty && /\b(design|render|visualize|mockup|prototype|concept|image|picture|logo|cover|poster|flyer|i can design|can design|to design)\b/.test(t)) return true;
-  return edity && !!getActive();
-}
-
-function isVagueEdit(prompt) {
-  const t = clean(prompt);
-  return /\b(make it|change|add|remove|adjust|refine|more|less|bigger|smaller|black|white|gold|blue|red|material|materials|color|colors|finish|lighting|style|variation|variations|futuristic|modern|luxury|premium)\b/.test(t) && !isClearNewObject(prompt);
-}
-
-function isClearNewObject(prompt) {
-  const t = clean(prompt);
-  const active = getActive();
-  const typed = inferItem(t, "");
-  const create = /\b(show me|show|make|create|build|design|generate|give me|i want|render|visualize|view|draw|draft|prototype|concept|mockup)\b/.test(t);
-  const strongObject = /\b(car|vehicle|guitar|instrument|home|house|logo|brand|app|screen|dashboard|website|web app|dog leash|leash|light fixture|watch|sneaker|shoe|chair|desk|product|accessory|toy|tool|device|furniture|parking lot|fixture|kitchen|bedroom|interior|yacht|boat|helmet|bag|bottle|drink bottle|tumbler|flask|toaster|soap dispenser|dispenser|fire extinguisher|extinguisher|keyboard|mouse|package|packaging|lamp|rim|rims|wheel|wheels|tire rim|alloy wheel|book cover|poster|flyer|brochure|menu)\b/.test(t);
-  if (!typed) return false;
-  if (!active) return !!typed && (create || strongObject || typed.split(/\s+/).length >= 1);
-  const activeItem = inferItem(active.item || active.title || active.prompt || "", "");
-  if (typed === activeItem) return false;
-  return create || strongObject || typed.split(/\s+/).length >= 1;
-}
-
-function seededRealImageUrl(project) {
-
-    const category = String(project && project.category || "object").toLowerCase();
-    const item = clean(project && (project.item || project.prompt || project.latestPrompt) || "product design concept");
-    const baseTerms = {
-      vehicle: "futuristic sports car concept,automotive design,studio render",
-      marine: "luxury yacht design,boat,marine concept",
-      instrument: "custom electric guitar,product design,studio",
-      home: "modern luxury house architecture,exterior,pool,garage",
-      interior: "luxury interior design,modern room,architecture",
-      industrial: "industrial product design,street light fixture,engineering",
-      furniture: "modern furniture design,studio,chair",
-      wearable: "wearable product design,studio,fashion",
-      product: "product design,industrial design,studio render",
-      brand: "logo design,brand identity,premium mockup",
-      digital: "app dashboard interface,ui design,software",
-      object: "product design concept,studio render,industrial design"
+  // -----------------------------
+  // theme / settings
+  // -----------------------------
+  function syncLibraryTriggerVisuals() {
+    const accentMap = {
+      blue: "#6ea8ff",
+      purple: "#b982ff",
+      pink: "#ff8fca",
+      emerald: "#56f0a9",
     };
-    const fallback = baseTerms[category] || baseTerms.object;
-    const promptTerms = item.replace(/[^a-z0-9\s-]+/g, " ").replace(/\s+/g, ",").slice(0, 90);
-    const query = encodeURIComponent(`${promptTerms || fallback},${fallback}`);
-    return `https://source.unsplash.com/1400x900/?${query}`;
-  }
 
-  function looksLikeDynamicBoardUrl(url) {
-    const raw = String(url || "");
-    if (!raw) return false;
-    if (!raw.startsWith("data:image/svg+xml")) return false;
-    try {
-      const decoded = decodeURIComponent(raw.split(",").slice(1).join(",") || "");
-      return /SIMO DYNAMIC DESIGN BOARD|Live image generation can replace this board|Prompt-driven controls generated/i.test(decoded);
-    } catch {
-      return /SIMO%20DYNAMIC%20DESIGN%20BOARD|Live%20image%20generation/i.test(raw);
-    }
-  }
+    const accent = accentMap[state.ui.accent] || accentMap.blue;
+    const libraryTriggers = uniqueElements([
+      builderLibraryCard,
+      openLibraryBtn,
+      reopenLastPreviewBtn,
+      getRecentBuildsBtn(),
+    ]);
 
-  function shouldOverrideBoardImage(project, url) {
-    const cat = String(project?.category || "").toLowerCase();
-    return looksLikeDynamicBoardUrl(url) && ["digital", "product", "brand", "industrial", "wearable", "furniture", "interior", "object"].includes(cat);
-  }
+    libraryTriggers.forEach((el) => {
+      if (!el) return;
+      el.style.cursor = "pointer";
 
-  function fallbackImageFor(project) {
-    if (project.category === "vehicle") return "/static/demo_visuals/simo_vehicle_sports_car.png";
-    if (project.category === "instrument") return "/static/demo_visuals/simo_instrument_wild_guitar.png";
-    if (project.category === "home") return "/static/demo_visuals/simo_home_luxury_pool_garage.png";
-    if (["digital", "brand", "product", "industrial", "wearable", "furniture", "interior", "object"].includes(String(project.category || "").toLowerCase())) {
-      return mockVisualSvg(project, { actionLabel: "Closest visual starting point" });
-    }
-    return seededRealImageUrl(project);
-  }
+      if (el.dataset.libraryTriggerStyled === "true") return;
+      el.dataset.libraryTriggerStyled = "true";
 
-  function boardSvg(project) {
-    const title = displayTitle(project);
-    const controls = project.controls.slice(0, 8).join(" • ");
-    const note = project.wants3D ? "3D-aware flow detected. Open 3D View can route to a real asset viewer when available." : "Live image generation can replace this board when configured, while the design logic stays dynamic.";
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
-      <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset=".55" stop-color="#111827"/><stop offset="1" stop-color="#030712"/></linearGradient><radialGradient id="g" cx="50%" cy="34%" r="70%"><stop offset="0" stop-color="#6ea8ff" stop-opacity=".22"/><stop offset=".55" stop-color="#b982ff" stop-opacity=".12"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
-      <rect width="1400" height="900" fill="url(#bg)"/><rect width="1400" height="900" fill="url(#g)"/>
-      <rect x="95" y="90" width="1210" height="720" rx="46" fill="#111827" fill-opacity=".86" stroke="#ffffff" stroke-opacity=".16"/>
-      <text x="150" y="170" fill="#9fb4dd" font-family="Arial" font-size="22" font-weight="900" letter-spacing="4">SIMO DYNAMIC DESIGN BOARD</text>
-      <text x="150" y="255" fill="#eef4ff" font-family="Arial" font-size="48" font-weight="900">${esc(title).slice(0, 80)}</text>
-      <text x="150" y="320" fill="#c7d3ea" font-family="Arial" font-size="24">Category: ${esc(project.category)} • Prompt-driven controls generated for this exact item</text>
-      <rect x="150" y="390" width="1100" height="180" rx="26" fill="#050b14" fill-opacity=".72" stroke="#ffffff" stroke-opacity=".12"/>
-      <text x="190" y="455" fill="#eaf1ff" font-family="Arial" font-size="28" font-weight="800">Editable controls:</text>
-      <text x="190" y="515" fill="#c7d3ea" font-family="Arial" font-size="22">${esc(controls).slice(0, 120)}</text>
-      <text x="150" y="685" fill="#9fb4dd" font-family="Arial" font-size="22">${esc(note).slice(0, 150)}</text>
-    </svg>`;
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  }
+      el.style.transition =
+        "transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease";
 
-  function svgDataUri(svg) {
-    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
-  }
+      el.addEventListener("mouseenter", () => {
+        el.style.transform = "translateY(-1px)";
+        el.style.boxShadow = `0 12px 30px rgba(0,0,0,.18), 0 0 0 1px ${accent}22 inset`;
+        el.style.borderColor = `${accent}55`;
+      });
 
-  function accentFor(category) {
-    const cat = String(category || "object").toLowerCase();
-    const map = {
-      digital: ["#67e8f9", "#60a5fa", "#8b5cf6"],
-      brand: ["#f59e0b", "#f97316", "#fb7185"],
-      product: ["#34d399", "#2dd4bf", "#60a5fa"],
-      industrial: ["#60a5fa", "#38bdf8", "#22d3ee"],
-      interior: ["#fbbf24", "#f59e0b", "#fb7185"],
-      furniture: ["#a78bfa", "#60a5fa", "#34d399"],
-      wearable: ["#fb7185", "#c084fc", "#60a5fa"],
-      object: ["#34d399", "#60a5fa", "#8b5cf6"],
-    };
-    return map[cat] || map.object;
-  }
-
-  function mockVisualSvg(project, options = {}) {
-    const cat = String(project?.category || "object").toLowerCase();
-    const title = displayTitle(project || {});
-    const item = esc(project?.item || project?.latestPrompt || project?.prompt || title);
-    const actionLabel = esc(options.actionLabel || "Closest visual starting point");
-    const controls = (Array.isArray(project?.controls) ? project.controls : controlsFor(cat)).slice(0, 5);
-    const [c1, c2, c3] = accentFor(cat);
-    const chips = controls.map((d, i) => `<g transform="translate(${100 + (i % 3) * 210} ${760 + Math.floor(i / 3) * 54})"><rect width="184" height="34" rx="17" fill="#0d1729" stroke="#ffffff" stroke-opacity=".14"/><text x="14" y="22" fill="#e8f1ff" font-family="Arial" font-size="15" font-weight="800">${esc(d).slice(0, 20)}</text></g>`).join("");
-
-    if (cat === "digital") {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
-        <defs>
-          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#07111f"/><stop offset=".55" stop-color="#0e1a31"/><stop offset="1" stop-color="#020617"/></linearGradient>
-          <linearGradient id="hero" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}" stop-opacity=".95"/><stop offset=".52" stop-color="${c2}" stop-opacity=".88"/><stop offset="1" stop-color="${c3}" stop-opacity=".82"/></linearGradient>
-          <radialGradient id="glow" cx="50%" cy="24%" r="72%"><stop offset="0" stop-color="${c2}" stop-opacity=".22"/><stop offset=".5" stop-color="${c3}" stop-opacity=".14"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
-        </defs>
-        <rect width="1400" height="900" fill="url(#bg)"/><rect width="1400" height="900" fill="url(#glow)"/>
-        <text x="86" y="98" fill="#a8c4ef" font-family="Arial" font-size="20" font-weight="900" letter-spacing="4">SIMO DIGITAL VISUAL</text>
-        <text x="86" y="150" fill="#eef4ff" font-family="Arial" font-size="46" font-weight="900">${esc(title).slice(0, 58)}</text>
-        <text x="86" y="185" fill="#c8d7ef" font-family="Arial" font-size="20">${actionLabel.slice(0, 60)}</text>
-        <rect x="72" y="220" width="1256" height="590" rx="34" fill="#0a1220" stroke="#ffffff" stroke-opacity=".12"/>
-        <rect x="104" y="254" width="760" height="522" rx="28" fill="#0e172a" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="104" y="254" width="760" height="110" rx="28" fill="url(#hero)"/>
-        <text x="150" y="320" fill="#ffffff" font-family="Arial" font-size="34" font-weight="900">${esc(title).slice(0, 34)}</text>
-        <text x="150" y="352" fill="#eef4ff" font-family="Arial" font-size="18">Responsive UI concept • strong image-first fallback</text>
-        <rect x="146" y="404" width="290" height="118" rx="22" fill="#111c31" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="462" y="404" width="166" height="118" rx="22" fill="#111c31" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="652" y="404" width="166" height="118" rx="22" fill="#111c31" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="146" y="548" width="672" height="184" rx="22" fill="#0c1424" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="180" y="588" width="610" height="16" rx="8" fill="#1a2944"/>
-        <rect x="180" y="620" width="560" height="12" rx="6" fill="#15233c"/>
-        <rect x="180" y="648" width="520" height="12" rx="6" fill="#15233c"/>
-        <rect x="180" y="678" width="460" height="12" rx="6" fill="#15233c"/>
-        <rect x="916" y="258" width="368" height="514" rx="34" fill="#0b1526" stroke="#ffffff" stroke-opacity=".12"/>
-        <rect x="952" y="292" width="296" height="56" rx="18" fill="url(#hero)"/>
-        <rect x="952" y="374" width="296" height="110" rx="22" fill="#121d33" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="952" y="506" width="296" height="86" rx="22" fill="#121d33" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="952" y="614" width="138" height="118" rx="22" fill="#121d33" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="1110" y="614" width="138" height="118" rx="22" fill="#121d33" stroke="#ffffff" stroke-opacity=".10"/>
-        <circle cx="240" cy="463" r="34" fill="${c1}" fill-opacity=".9"/>
-        <rect x="516" y="432" width="58" height="58" rx="16" fill="${c2}" fill-opacity=".88"/>
-        <rect x="704" y="430" width="58" height="58" rx="16" fill="${c3}" fill-opacity=".88"/>
-        <text x="952" y="850" fill="#8fa8d5" font-family="Arial" font-size="18">${item.slice(0, 44)}</text>
-        ${chips}
-      </svg>`;
-      return svgDataUri(svg);
-    }
-
-    if (cat === "product" || cat === "object" || cat === "industrial" || cat === "wearable" || cat === "furniture") {
-      const isBottle = /\bbottle\b/i.test(item);
-      const isLamp = /\b(light|lamp|fixture)\b/i.test(item);
-      const isChair = /\b(chair|stool|sofa|desk|table)\b/i.test(item);
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
-        <defs>
-          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#06101d"/><stop offset=".5" stop-color="#101b30"/><stop offset="1" stop-color="#020617"/></linearGradient>
-          <radialGradient id="spot" cx="50%" cy="40%" r="44%"><stop offset="0" stop-color="${c2}" stop-opacity=".24"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
-          <linearGradient id="metal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d9f1ff"/><stop offset=".5" stop-color="${c2}"/><stop offset="1" stop-color="#20324f"/></linearGradient>
-        </defs>
-        <rect width="1400" height="900" fill="url(#bg)"/><rect width="1400" height="900" fill="url(#spot)"/>
-        <text x="86" y="98" fill="#a8c4ef" font-family="Arial" font-size="20" font-weight="900" letter-spacing="4">SIMO PRODUCT VISUAL</text>
-        <text x="86" y="150" fill="#eef4ff" font-family="Arial" font-size="46" font-weight="900">${esc(title).slice(0, 58)}</text>
-        <text x="86" y="186" fill="#c8d7ef" font-family="Arial" font-size="20">${actionLabel.slice(0, 64)}</text>
-        <rect x="74" y="224" width="1252" height="600" rx="36" fill="#09111d" stroke="#ffffff" stroke-opacity=".10"/>
-        <ellipse cx="614" cy="720" rx="290" ry="58" fill="#02060d" opacity=".72"/>
-        ${'<g>' + (isRim ? `
-          <circle cx="614" cy="476" r="164" fill="url(#metal)" stroke="#ffffff" stroke-opacity=".18"/>
-          <circle cx="614" cy="476" r="112" fill="#08111f" stroke="#ffffff" stroke-opacity=".14"/>
-          <circle cx="614" cy="476" r="44" fill="#1d2e49" stroke="#ffffff" stroke-opacity=".18"/>
-          <rect x="602" y="328" width="24" height="128" rx="12" fill="#d9f1ff" fill-opacity=".72" transform="rotate(0 614 476)"/>
-          <rect x="602" y="328" width="24" height="128" rx="12" fill="#d9f1ff" fill-opacity=".72" transform="rotate(45 614 476)"/>
-          <rect x="602" y="328" width="24" height="128" rx="12" fill="#d9f1ff" fill-opacity=".72" transform="rotate(90 614 476)"/>
-          <rect x="602" y="328" width="24" height="128" rx="12" fill="#d9f1ff" fill-opacity=".72" transform="rotate(135 614 476)"/>
-          <rect x="602" y="328" width="24" height="128" rx="12" fill="#d9f1ff" fill-opacity=".72" transform="rotate(180 614 476)"/>
-          <circle cx="686" cy="476" r="12" fill="#050b14"/><circle cx="636" cy="544" r="12" fill="#050b14"/><circle cx="554" cy="518" r="12" fill="#050b14"/><circle cx="554" cy="434" r="12" fill="#050b14"/><circle cx="636" cy="408" r="12" fill="#050b14"/>` : isBottle ? `
-          <rect x="522" y="330" width="184" height="334" rx="82" fill="url(#metal)" stroke="#ffffff" stroke-opacity=".16"/>
-          <rect x="570" y="250" width="88" height="110" rx="26" fill="url(#metal)"/>
-          <rect x="556" y="232" width="116" height="38" rx="16" fill="#0d1729"/>
-          <rect x="544" y="418" width="140" height="98" rx="22" fill="#ffffff" fill-opacity=".18" stroke="#ffffff" stroke-opacity=".14"/>` : isLamp ? `
-          <rect x="594" y="300" width="40" height="290" rx="18" fill="url(#metal)"/>
-          <rect x="520" y="260" width="188" height="80" rx="40" fill="url(#metal)"/>
-          <rect x="538" y="584" width="152" height="28" rx="14" fill="#1f304c"/>
-          <ellipse cx="614" cy="632" rx="120" ry="34" fill="#0d1729"/>` : isChair ? `
-          <rect x="504" y="360" width="220" height="132" rx="42" fill="url(#metal)"/>
-          <rect x="534" y="282" width="160" height="118" rx="44" fill="url(#metal)"/>
-          <rect x="540" y="492" width="18" height="118" rx="9" fill="#1d2e49"/>
-          <rect x="670" y="492" width="18" height="118" rx="9" fill="#1d2e49"/>
-          <rect x="570" y="492" width="18" height="144" rx="9" fill="#1d2e49"/>
-          <rect x="640" y="492" width="18" height="144" rx="9" fill="#1d2e49"/>
-          ` : `
-          <rect x="498" y="318" width="232" height="260" rx="52" fill="url(#metal)" stroke="#ffffff" stroke-opacity=".16"/>
-          <rect x="540" y="360" width="148" height="42" rx="18" fill="#0d1729"/>
-          <rect x="530" y="428" width="168" height="98" rx="24" fill="#ffffff" fill-opacity=".10" stroke="#ffffff" stroke-opacity=".14"/>`) + '</g>'}
-        <rect x="850" y="290" width="360" height="206" rx="28" fill="#0d1729" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="850" y="522" width="360" height="188" rx="28" fill="#0d1729" stroke="#ffffff" stroke-opacity=".10"/>
-        <text x="886" y="338" fill="#eef4ff" font-family="Arial" font-size="28" font-weight="900">Product direction</text>
-        <text x="886" y="378" fill="#c7d3ea" font-family="Arial" font-size="18">Material-driven concept • studio visual fallback</text>
-        <text x="886" y="560" fill="#eef4ff" font-family="Arial" font-size="24" font-weight="900">Focus areas</text>
-        ${chips}
-      </svg>`;
-      return svgDataUri(svg);
-    }
-
-    if (cat === "brand") {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
-        <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#081120"/><stop offset=".55" stop-color="#151a2f"/><stop offset="1" stop-color="#020617"/></linearGradient><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c3}"/></linearGradient></defs>
-        <rect width="1400" height="900" fill="url(#bg)"/>
-        <text x="86" y="98" fill="#a8c4ef" font-family="Arial" font-size="20" font-weight="900" letter-spacing="4">SIMO BRAND VISUAL</text>
-        <text x="86" y="150" fill="#eef4ff" font-family="Arial" font-size="46" font-weight="900">${esc(title).slice(0, 58)}</text>
-        <rect x="84" y="210" width="1230" height="610" rx="36" fill="#09111d" stroke="#ffffff" stroke-opacity=".10"/>
-        <circle cx="340" cy="430" r="120" fill="url(#g)"/>
-        <rect x="540" y="292" width="626" height="136" rx="30" fill="#10192d" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="540" y="460" width="300" height="220" rx="28" fill="#10192d" stroke="#ffffff" stroke-opacity=".10"/>
-        <rect x="866" y="460" width="300" height="220" rx="28" fill="#10192d" stroke="#ffffff" stroke-opacity=".10"/>
-        <text x="298" y="450" fill="#ffffff" font-family="Arial" font-size="44" font-weight="900">S</text>
-        <text x="580" y="352" fill="#eef4ff" font-family="Arial" font-size="34" font-weight="900">${esc(item).slice(0, 26)}</text>
-        <text x="580" y="388" fill="#c7d3ea" font-family="Arial" font-size="18">Premium logo/identity presentation fallback</text>
-        ${chips}
-      </svg>`;
-      return svgDataUri(svg);
-    }
-
-    if (cat === "interior") {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900"><defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#081120"/><stop offset=".55" stop-color="#1c1f2f"/><stop offset="1" stop-color="#020617"/></linearGradient><linearGradient id="wall" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#1a2740"/><stop offset="1" stop-color="#0f1728"/></linearGradient></defs><rect width="1400" height="900" fill="url(#bg)"/><text x="86" y="98" fill="#a8c4ef" font-family="Arial" font-size="20" font-weight="900" letter-spacing="4">SIMO INTERIOR VISUAL</text><text x="86" y="150" fill="#eef4ff" font-family="Arial" font-size="46" font-weight="900">${esc(title).slice(0, 58)}</text><rect x="98" y="222" width="1204" height="586" rx="34" fill="url(#wall)" stroke="#ffffff" stroke-opacity=".10"/><rect x="170" y="330" width="540" height="260" rx="24" fill="#121d30"/><rect x="232" y="460" width="226" height="106" rx="26" fill="#213351"/><rect x="846" y="404" width="272" height="146" rx="26" fill="#20314d"/><rect x="802" y="574" width="360" height="16" rx="8" fill="#caa267"/><text x="180" y="774" fill="#c7d3ea" font-family="Arial" font-size="18">Interior visualization fallback • keeps the concept visual instead of text-only board</text>${chips}</svg>`;
-      return svgDataUri(svg);
-    }
-
-    return boardSvg(project);
-  }
-
-  function buildProject(prompt, action, overrides) {
-    const active = getActive();
-    const promptText = String(prompt || "");
-    const continuationPrompt = /continue this same active visual\/design project|continue this same visual concept|same exact design object|same project identity/i.test(promptText);
-    const useActive = !!(active && ((isVagueEdit(prompt) && !isClearNewObject(prompt)) || (actionIsMeaningful(action) && action !== "base") || continuationPrompt));
-    const seed = useActive ? { ...active } : classifyPrompt(prompt);
-    const project = {
-      id: useActive ? active.id : `vc_${Math.random().toString(36).slice(2, 10)}`,
-      prompt: useActive ? active.prompt : String(prompt || "design concept").trim(),
-      latestPrompt: String(prompt || "").trim(),
-      lockedSubject: useActive ? (active.lockedSubject || active.exactSubject || active.requestedAsset || active.item || active.title || "") : (seed.item || seed.title || ""),
-      category: seed.category,
-      item: seed.item,
-      title: seed.title,
-      kind: seed.kind || seed.category,
-      controls: controlsFor(seed.category, seed.item || seed.title),
-      imageUrl: useActive ? (active.imageUrl || "") : "",
-      wants3D: useActive ? !!active.wants3D || wants3D(prompt) : wants3D(prompt),
-      last3dAsset: useActive ? (active.last3dAsset || null) : null,
-      editHistory: useActive && Array.isArray(active.editHistory) ? active.editHistory : [],
-      versionIndex: useActive ? Number(active.versionIndex || 1) : 1,
-      updatedAt: new Date().toISOString(),
-      phase: PHASE,
-      action: action || "base",
-      ...(overrides || {}),
-    };
-    return project;
-  }
-
-  function setActive(project) {
-    project = simo14fApplyExactLock(project, project && (project.latestPrompt || project.prompt || project.item || project.title));
-    try { localStorage.setItem(ACTIVE_KEY, JSON.stringify(project)); } catch {}
-    try { localStorage.setItem(LEGACY_ACTIVE_KEY, JSON.stringify({ ...project, domain: project.category, projectType: project.category, sourcePrompt: project.prompt, lockedSubject: project.lockedSubject || project.item })); } catch {}
-    try { localStorage.setItem("simo_phase12_active_visual_project_v1", JSON.stringify({ ...project, domain: project.category, exactSubject: project.lockedSubject || project.item, requestedAsset: project.lockedSubject || project.item })); } catch {}
-    return project;
-  }
-
-  function getActive() {
-    try {
-      return JSON.parse(localStorage.getItem(ACTIVE_KEY) || localStorage.getItem("simo_phase105c_active_visual_project_v1") || localStorage.getItem(LEGACY_ACTIVE_KEY) || "null");
-    } catch {
-      return null;
-    }
-  }
-
-  function safeProjectForCard(project) {
-    const p = project && typeof project === "object" ? project : {};
-    return {
-      id: p.id || `vc_${Math.random().toString(36).slice(2, 10)}`,
-      prompt: p.prompt || p.latestPrompt || p.item || "design concept",
-      latestPrompt: p.latestPrompt || p.prompt || p.item || "design concept",
-      lockedSubject: p.lockedSubject || p.item || p.title || "",
-      category: p.category || "object",
-      item: p.item || p.latestPrompt || p.prompt || "design concept",
-      title: p.title || "Design Concept",
-      kind: p.kind || p.category || "design",
-      controls: Array.isArray(p.controls) ? p.controls : controlsFor(p.category || "object", p.lockedSubject || p.item || p.title),
-      imageUrl: p.imageUrl || "",
-      wants3D: !!p.wants3D,
-      last3dAsset: p.last3dAsset || null,
-      editHistory: Array.isArray(p.editHistory) ? p.editHistory : [],
-      versionIndex: Number(p.versionIndex || 1),
-      updatedAt: p.updatedAt || new Date().toISOString(),
-      phase: PHASE,
-      action: p.action || "base",
-    };
-  }
-
-  function encodeProjectAttr(project) {
-    try { return encodeURIComponent(JSON.stringify(safeProjectForCard(project))); } catch { return ""; }
-  }
-
-  function projectFromElement(el) {
-    try {
-      const card = el && el.closest ? el.closest(".simo-vc-card[data-simo-project]") : null;
-      if (!card) return null;
-      const raw = card.getAttribute("data-simo-project") || "";
-      if (!raw) return null;
-      const parsed = JSON.parse(decodeURIComponent(raw));
-      const p = safeProjectForCard(parsed);
-      const img = card.querySelector ? card.querySelector("img") : null;
-      if (img && img.src) p.imageUrl = img.src;
-      return p;
-    } catch (err) {
-      console.warn("SimoVisualCore projectFromElement failed:", err);
-      return null;
-    }
-  }
-
-  function activeFromClickTarget(target) {
-    const fromCard = projectFromElement(target);
-    if (fromCard) {
-      setActive(fromCard);
-      return fromCard;
-    }
-    return getActive();
-  }
-
-  function isFakeFallbackVisualUrl(url) {
-    const raw = String(url || "").trim();
-    const low = raw.toLowerCase();
-    if (!raw) return true;
-    if (low.startsWith("data:image/svg")) return true;
-    if (/\.svg(?:$|[?#])/i.test(low)) return true;
-    if (low.includes("simo_visual_fallback_")) return true;
-    if (low.includes("/static/demo_visuals/")) return true;
-    if (low.includes("source.unsplash.com")) return true;
-    return false;
-  }
-
-  function renderRealImageRequired(project, message) {
-    const safeTitle = esc(displayTitle(project || { category: "design", item: "visual concept" }));
-    const safeCat = esc(titleCase(project?.category || "design"));
-    const safePrompt = esc(project?.latestPrompt || project?.prompt || project?.item || "visual design");
-    const safeMessage = esc(message || "Simo blocked the SVG/demo fallback. The next result must come from the real image generation route.");
-    return `
-      <div class="simo-vc-card simo-real-image-required" data-simo-project="${encodeProjectAttr(project || {})}" style="display:grid;gap:14px;width:100%;">
-        <div style="border:1px solid rgba(255,190,90,.28);border-radius:24px;overflow:hidden;background:linear-gradient(180deg,rgba(255,190,90,.10),rgba(255,255,255,.035));box-shadow:0 22px 60px rgba(0,0,0,.30);">
-          <div style="padding:18px;border-bottom:1px solid rgba(255,255,255,.08);">
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#ffdca8;font-weight:950;">SIMO REAL IMAGE REQUIRED</div>
-            <div style="font-size:clamp(22px,3vw,32px);font-weight:1000;color:#f6f8ff;line-height:1.05;margin-top:6px;">${safeTitle}</div>
-            <div style="font-size:13px;color:#c7d3ea;margin-top:8px;line-height:1.45;">${safePrompt}</div>
-          </div>
-          <div style="padding:18px;display:grid;gap:12px;background:#050b14;">
-            <div style="border:1px solid rgba(255,190,90,.22);background:rgba(255,190,90,.08);border-radius:18px;padding:14px;color:#ffe4bd;font-size:14px;line-height:1.5;">${safeMessage}</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px;">
-              <button type="button" data-simo-vc-special="rerender" style="display:inline-flex;border:1px solid rgba(110,168,255,.28);background:rgba(110,168,255,.14);color:#dce8ff;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:950;cursor:pointer;">Retry real render</button>
-              <button type="button" data-simo-vc-special="continue" style="display:inline-flex;border:1px solid rgba(86,240,169,.25);background:rgba(86,240,169,.12);color:#dfffee;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:950;cursor:pointer;">Continue same concept</button>
-              <span style="display:inline-flex;border:1px solid rgba(255,190,90,.22);background:rgba(255,190,90,.10);color:#fff1d6;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:900;">No SVG fallback</span>
-              <span style="display:inline-flex;border:1px solid rgba(110,168,255,.22);background:rgba(110,168,255,.10);color:#dce8ff;border-radius:999px;padding:8px 11px;font-size:12px;font-weight:900;">${safeCat}</span>
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function renderProject(project, note) {
-    let img = String(project.imageUrl || "").trim();
-    if (isFakeFallbackVisualUrl(img)) {
-      return renderRealImageRequired(project, "Simo refused to display a fake fallback image. This card needs a real generated PNG/JPG/WebP from /api/generate-visual.");
-    }
-    project.imageUrl = img;
-    const cardProject = safeProjectForCard(project);
-    cardProject.imageUrl = img;
-    const projectAttr = encodeProjectAttr(cardProject);
-    setActive(cardProject);
-
-    const title = displayTitle(cardProject);
-    const safeTitle = esc(title);
-    const safeCat = esc(titleCase(project.category || "design"));
-    const sourcePrompt = String(project.latestPrompt || project.prompt || project.item || title);
-    const safePrompt = esc(sourcePrompt);
-    const controls = (Array.isArray(project.controls) ? project.controls : controlsFor(project.category))
-      .filter(Boolean)
-      .filter((label, idx, arr) => arr.findIndex((x) => clean(x) === clean(label)) === idx)
-      .filter((label) => !/\bgenerate variations?\b/i.test(String(label)));
-    const controlButtons = controls.map(controlButton).join("");
-
-    const utilityButtons = [
-      actionButton("Generate Realistic Render", "rerender", "blue"),
-      actionButton("Generate Variations", "variation", "normal"),
-      actionButton("Continue Editing", "continue", "green"),
-      actionButton("Open Workspace", "open-3d", "blue"),
-      actionButton("Save to Library", "save-library", "gold"),
-      `<a href="${esc(img)}" target="_blank" rel="noopener" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:950;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Open Image</a>`
-    ];
-
-    const lead = note || "Here is the closest real visual starting point. Simo is staying with the user’s exact request, showing the result first, then giving relevant controls and an editable workspace option to keep designing from here.";
-    const chips = [
-      `<span style="display:inline-flex;border:1px solid rgba(86,240,169,.25);background:rgba(86,240,169,.10);color:#dfffee;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;">Real image-first</span>`,
-      `<span style="display:inline-flex;border:1px solid rgba(110,168,255,.22);background:rgba(110,168,255,.10);color:#dce8ff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;">${safeCat}</span>`,
-      `<span style="display:inline-flex;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#dce8ff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:800;">Result first</span>`,
-      project.versionIndex && project.versionIndex > 1 ? `<span style="display:inline-flex;border:1px solid rgba(255,215,106,.22);background:rgba(255,215,106,.10);color:#fff6d8;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;">Version ${esc(project.versionIndex)}</span>` : ""
-    ].filter(Boolean).join("");
-
-    return `
-      <div class="simo-vc-card" data-simo-project="${projectAttr}" style="display:grid;gap:14px;width:100%;">
-        <div style="border:1px solid rgba(255,255,255,.13);border-radius:26px;overflow:hidden;background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.032));box-shadow:0 22px 60px rgba(0,0,0,.30);">
-          <div style="display:grid;gap:12px;padding:16px 18px 14px;border-bottom:1px solid rgba(255,255,255,.08);background:linear-gradient(90deg,rgba(110,168,255,.10),rgba(185,130,255,.06),rgba(86,240,169,.045));">
-            <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;flex-wrap:wrap;">
-              <div style="min-width:min(540px,100%);">
-                <div style="font-size:11px;text-transform:uppercase;letter-spacing:.15em;color:#9fb4dd;font-weight:950;">SIMO VISUAL DESIGN</div>
-                <div style="font-size:clamp(22px,3vw,32px);font-weight:1000;color:#f6f8ff;line-height:1.05;margin-top:5px;">${safeTitle}</div>
-                <div style="font-size:13px;color:#c7d3ea;margin-top:7px;line-height:1.45;">${safePrompt}</div>
-              </div>
-              <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;align-items:flex-start;">${chips}</div>
-            </div>
-            <div style="font-size:13px;color:#dce8ff;line-height:1.45;max-width:100%;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;max-width:980px;">${esc(lead)}</div>
-          </div>
-
-          <figure style="margin:0;background:#050b14;">
-            <div style="display:flex;align-items:center;justify-content:center;min-height:260px;background:radial-gradient(circle at center,rgba(110,168,255,.08),transparent 46%),#050b14;">
-              <img src="${esc(img)}" alt="${safeTitle}" onload="try{ window.__SIMO_SCROLL_AFTER_VISUAL__ && window.__SIMO_SCROLL_AFTER_VISUAL__(); }catch(e){}" onerror="this.style.display='none';this.parentElement.innerHTML='<div style=&quot;padding:18px;color:#ffd8e0;font-size:14px;line-height:1.5;text-align:center;&quot;>The generated image URL could not load. Simo did not swap in a fake SVG fallback.</div>';" style="display:block;width:100%;max-height:700px;object-fit:contain;background:#050b14;" />
-            </div>
-          </figure>
-
-          <div style="display:grid;gap:13px;padding:15px 18px 18px;background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.02));">
-            <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">${utilityButtons.join("")}</div>
-            <div style="height:1px;background:rgba(255,255,255,.08);"></div>
-            <div style="display:grid;gap:8px;">
-              <div style="font-size:12px;font-weight:950;color:#b9c8e7;text-transform:uppercase;letter-spacing:.10em;">Design controls for this exact concept</div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px;">${controlButtons}</div>
-            </div>
-          </div>
-        </div>
-      </div>`;
-  }
-
-  function renderWorking(prompt, modeText) {
-    return addAssistant(`<div style="border:1px solid rgba(110,168,255,.22);border-radius:20px;padding:15px;background:linear-gradient(180deg,rgba(110,168,255,.12),rgba(255,255,255,.04));"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.13em;color:#cfe0ff;font-weight:950;">SIMO REAL IMAGE-FIRST</div><div style="font-size:18px;font-weight:950;color:#f6f8ff;margin-top:6px;">${esc(modeText || "Building the visual design result…")}</div><div style="font-size:13px;color:#c7d3ea;margin-top:8px;">${esc(prompt)}</div></div>`);
-  }
-
-  function normalize3DAsset(asset) {
-    if (!asset || typeof asset !== "object") return null;
-    const url = String(asset.url || asset.model_url || asset.modelUrl || asset.fallback_model_url || asset.fallbackModelUrl || "").trim();
-    if (!url) return null;
-    return { ...asset, url };
-  }
-
-  function mark3DUserOpen() {
-    window.__SIMO_USER_OPENING_3D__ = Date.now();
-    window.__SIMO_ALLOW_3D_AUTO_OPEN__ = true;
-    setTimeout(() => {
-      try { window.__SIMO_ALLOW_3D_AUTO_OPEN__ = false; } catch {}
-    }, 1800);
-  }
-
-  function assetLooksWrongForProject(asset, project) {
-    const cat = String(project && project.category || "").toLowerCase();
-    const text = clean(`${project?.item || ""} ${project?.prompt || ""} ${asset?.title || ""} ${asset?.url || ""} ${asset?.model_url || ""}`);
-    const wrongRobot = /\b(robotexpressive|robot|astronaut|neilarmstrong|damagedhelmet|horse)\b/.test(text);
-    if (["instrument", "industrial", "product", "vehicle", "marine", "wearable", "furniture"].includes(cat) && wrongRobot) return true;
-    if (cat === "instrument" && !/\b(guitar|instrument|bass|violin|piano|drum|music|fret|string|pickup)\b/.test(text)) return true;
-    if (cat === "industrial" && !/\b(light|fixture|lamp|pole|industrial|street|flood|product)\b/.test(text)) return true;
-    return false;
-  }
-
-
-  function workspaceBlueprintFor(category, project) {
-    const cat = String(category || project?.category || "object").toLowerCase();
-    const title = displayTitle(project || {});
-    const map = {
-      instrument: {
-        headline: "Instrument design workspace",
-        promise: "Shape, hardware, pickups, finish, tuning, and stage-ready details stay connected to the same guitar/instrument concept.",
-        stages: ["Visual source", "Body/neck design", "Hardware/electronics", "Materials/finish", "3D-ready notes"],
-        refine: ["More aggressive silhouette", "Premium hardware pass", "Alternate finish", "Stage lighting render"],
-      },
-      home: {
-        headline: "Architecture design workspace",
-        promise: "Exterior, garage, pool, glass, materials, landscaping, and future 3D walkthrough planning stay tied to the same home concept.",
-        stages: ["Visual source", "Exterior massing", "Garage/pool/landscape", "Interior plan notes", "3D walkthrough route"],
-        refine: ["Add 3-car garage", "Add pool/outdoor living", "Modernize exterior", "Create interior plan"],
-      },
-      vehicle: {
-        headline: "Vehicle design workspace",
-        promise: "Body lines, stance, wheels, lighting, aero, paint, and cockpit direction stay tied to the same vehicle concept.",
-        stages: ["Visual source", "Body/aero", "Wheel/stance", "Lighting/interior", "3D turntable notes"],
-        refine: ["More aggressive stance", "Luxury interior", "New paint finish", "Front/rear angle"],
-      },
-      industrial: {
-        headline: "Industrial product workspace",
-        promise: "Function, mounting, safety, weatherproofing, materials, and install context stay tied to the same product concept.",
-        stages: ["Visual source", "Mounting/function", "Materials/safety", "Environment fit", "3D product mockup notes"],
-        refine: ["Improve mounting", "Weatherproof version", "Premium materials", "Installation view"],
-      },
-      digital: {
-        headline: "Digital product workspace",
-        promise: "Screens, layout, navigation, components, hierarchy, and conversion path stay tied to the same app/site concept.",
-        stages: ["Visual source", "Screen layout", "UX flow", "Components", "Prototype notes"],
-        refine: ["Improve dashboard", "Mobile version", "Better navigation", "Premium UI pass"],
-      },
-      editorial: {
-        headline: "Book-cover design workspace",
-        promise: "Title, imagery, author name, spine, back cover, palette, and print finish stay tied to the same book-cover concept.",
-        stages: ["Visual source", "Front-cover hierarchy", "Imagery & mood", "Spine/back details", "Print/mockup notes"],
-        refine: ["Stronger typography", "New cover imagery", "Memoir mood pass", "Spine/back-cover version"],
-      },
-      brand: {
-        headline: "Brand design workspace",
-        promise: "Logo, typography, color, mockups, identity system, and brand usage stay tied to the same concept.",
-        stages: ["Visual source", "Logo mark", "Typography/color", "Mockups", "Brand system notes"],
-        refine: ["Alternate logo mark", "Premium colorway", "Packaging mockup", "Social avatar"],
-      },
-      interior: {
-        headline: "Interior design workspace",
-        promise: "Layout, furniture, lighting, materials, walls, flooring, and mood stay tied to the same interior concept.",
-        stages: ["Visual source", "Room layout", "Furniture/materials", "Lighting/mood", "Walkthrough notes"],
-        refine: ["Warmer lighting", "Luxury materials", "New furniture layout", "Night view"],
-      },
-      furniture: {
-        headline: "Furniture design workspace",
-        promise: "Form, ergonomics, materials, finish, room fit, and build details stay tied to the same furniture concept.",
-        stages: ["Visual source", "Form/ergonomics", "Materials/finish", "Room context", "3D product notes"],
-        refine: ["Premium material pass", "Ergonomic revision", "Room mockup", "Alternate color"],
-      },
-      wearable: {
-        headline: "Wearable design workspace",
-        promise: "Silhouette, fit, fabric/materials, hardware, finish, and branding stay tied to the same wearable concept.",
-        stages: ["Visual source", "Silhouette/fit", "Materials/hardware", "Branding", "Lookbook notes"],
-        refine: ["Alternate colorway", "Premium materials", "Lifestyle render", "Detail close-up"],
-      },
-      product: {
-        headline: "Product design workspace",
-        promise: "Shape, function, materials, usability, packaging, and presentation stay tied to the same product concept.",
-        stages: ["Visual source", "Shape/function", "Materials/usability", "Packaging", "3D product notes"],
-        refine: ["Improve usability", "Premium finish", "Packaging mockup", "Exploded detail view"],
-      },
-      object: {
-        headline: "Design workspace",
-        promise: "Simo keeps the same object, image, and design direction connected while you refine it step by step.",
-        stages: ["Visual source", "Shape", "Materials", "Details", "3D-ready notes"],
-        refine: ["More realistic", "Alternate angle", "Premium materials", "Generate variations"],
-      },
-    };
-    const base = map[cat] || map.object;
-    return {
-      ...base,
-      title,
-      category: cat,
-    };
-  }
-
-  function workspaceButton(label, prompt) {
-    return `<button type="button" data-simo-workspace-action="${esc(label)}" data-simo-workspace-prompt="${esc(prompt)}" style="min-height:38px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.065);color:#eef4ff;font-size:12px;font-weight:850;cursor:pointer;padding:8px 10px;text-align:left;">${esc(label)}</button>`;
-  }
-
-  function openVisualPreviewInNewTab(project) {
-    const p = project || getActive();
-    if (!p) return false;
-    const html = visualProjectHtml(p);
-    try {
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const win = window.open(url, "_blank", "noopener");
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-      return !!win;
-    } catch (err) {
-      console.warn("SimoVisualCore openVisualPreviewInNewTab failed:", err);
-      const img = p.imageUrl || fallbackImageFor(p) || boardSvg(p);
-      try { window.open(img, "_blank", "noopener"); return true; } catch {}
-      return false;
-    }
-  }
-
-  function openConnectedWorkspace(project, sourcePrompt, reason) {
-    setSimoStatus("Opening rotate/design workspace…", true);
-    const old = document.getElementById("simoVcWorkspaceModal");
-    try { old && old.remove(); } catch {}
-
-    const title = titleCase(project?.item || sourcePrompt || "Design Concept");
-    const cat = String(project?.category || "design").toLowerCase();
-    const img = project?.imageUrl || fallbackImageFor(project) || boardSvg(project);
-    const controls = controlsFor(cat).slice(0, 10);
-    const blueprint = workspaceBlueprintFor(cat, project);
-    const stageChips = blueprint.stages.map((s) => `<span style="display:inline-flex;border:1px solid rgba(110,168,255,.18);background:rgba(110,168,255,.09);border-radius:999px;padding:7px 10px;font-size:12px;font-weight:850;color:#dce8ff;">${esc(s)}</span>`).join("");
-    const refineButtons = blueprint.refine.map((label) => workspaceButton(label, controlPrompt(project, label))).join("");
-    const controlButtons = controls.map((label) => workspaceButton(label, controlPrompt(project, label))).join("");
-
-    const modal = document.createElement("div");
-    modal.id = "simoVcWorkspaceModal";
-    modal.style.position = "fixed";
-    modal.style.inset = "0";
-    modal.style.zIndex = "999999";
-    modal.style.background = "rgba(2,6,14,.82)";
-    modal.style.backdropFilter = "blur(10px)";
-    modal.style.display = "flex";
-    modal.style.alignItems = "center";
-    modal.style.justifyContent = "center";
-    modal.style.padding = "24px";
-
-    modal.innerHTML = `
-      <div style="width:min(1180px,96vw);height:min(760px,90vh);border:1px solid rgba(255,255,255,.14);border-radius:26px;background:linear-gradient(180deg,rgba(13,24,42,.98),rgba(6,12,23,.98));box-shadow:0 30px 90px rgba(0,0,0,.55);overflow:hidden;color:#eef4ff;display:grid;grid-template-rows:auto 1fr;">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.10);background:linear-gradient(90deg,rgba(110,168,255,.12),rgba(86,240,169,.07));">
-          <div>
-            <div style="font-size:11px;letter-spacing:.15em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">ChatGPT/Grok-style design workspace</div>
-            <div style="font-size:22px;font-weight:950;line-height:1.15;margin-top:4px;">${esc(blueprint.headline)}</div>
-          </div>
-          <button type="button" data-close style="width:40px;height:40px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);color:#fff;font-size:22px;cursor:pointer;">×</button>
-        </div>
-        <div style="display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:0;">
-          <div style="position:relative;overflow:hidden;background:radial-gradient(circle at center,rgba(110,168,255,.14),transparent 48%),#050b14;perspective:1300px;display:flex;align-items:center;justify-content:center;padding:34px;">
-            <div id="simoVcWorkspaceObject" style="width:min(720px,90%);max-height:88%;transform-style:preserve-3d;transform:rotateX(0deg) rotateY(-12deg);transition:transform .12s ease;">
-              <div style="position:relative;border-radius:28px;overflow:hidden;border:1px solid rgba(255,255,255,.18);box-shadow:0 26px 80px rgba(0,0,0,.46);background:#050b14;transform:translateZ(24px);">
-                <img src="${esc(img)}" alt="${esc(title)}" style="display:block;width:100%;height:auto;max-height:560px;object-fit:contain;background:#050b14;" />
-              </div>
-              <div style="height:34px;margin:0 8%;background:linear-gradient(90deg,rgba(110,168,255,.20),rgba(86,240,169,.16));filter:blur(15px);transform:rotateX(80deg) translateZ(-28px);"></div>
-            </div>
-            <div style="position:absolute;left:20px;bottom:18px;border:1px solid rgba(255,255,255,.12);background:rgba(5,11,20,.76);border-radius:999px;padding:10px 13px;color:#dce8ff;font-size:12px;">Drag to rotate preview • scroll to zoom • this stays tied to the image/design</div>
-          </div>
-          <div style="border-left:1px solid rgba(255,255,255,.10);padding:16px;overflow:auto;background:rgba(255,255,255,.035);display:grid;align-content:start;gap:12px;">
-            <div style="font-weight:950;font-size:15px;">${esc(blueprint.title)}</div>
-            <div style="font-size:13px;line-height:1.55;color:#c7d3ea;">${esc(blueprint.promise)}</div>
-            <div style="font-size:12px;line-height:1.5;color:#9fb4dd;">${esc(reason || "This workspace keeps the real visual concept as the source of truth. If an exact 3D model is not available yet, Simo will not show an unrelated fallback.")}</div>
-            <div style="display:grid;grid-template-columns:1fr;gap:8px;margin-top:2px;">
-              <button type="button" data-save-workspace style="min-height:42px;border-radius:14px;border:1px solid rgba(255,215,106,.32);background:rgba(255,215,106,.13);color:#fff6d8;font-weight:950;cursor:pointer;">Save Workspace to Library</button>
-              <button type="button" data-open-workspace-tab style="min-height:42px;border-radius:14px;border:1px solid rgba(110,168,255,.30);background:rgba(110,168,255,.12);color:#eef4ff;font-weight:900;cursor:pointer;">Open Workspace in New Tab</button>
-              <a href="${esc(img)}" target="_blank" rel="noopener" style="min-height:38px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font-weight:850;text-decoration:none;display:flex;align-items:center;justify-content:center;">Open Source Image</a>
-            </div>
-            <div style="height:1px;background:rgba(255,255,255,.08);"></div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#b9c8e7;font-weight:950;">Design path</div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">${stageChips}</div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#b9c8e7;font-weight:950;margin-top:4px;">Suggested next edits</div>
-            <div style="display:grid;gap:8px;">${refineButtons}</div>
-            <div style="font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#b9c8e7;font-weight:950;margin-top:4px;">Exact controls</div>
-            <div style="display:grid;gap:8px;">${controlButtons}</div>
-            <button type="button" data-render style="min-height:42px;border-radius:14px;border:1px solid rgba(110,168,255,.30);background:linear-gradient(135deg,rgba(110,168,255,.22),rgba(185,130,255,.16));color:#fff;font-weight:900;cursor:pointer;">Generate matching render</button>
-            <button type="button" data-variation style="min-height:42px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font-weight:850;cursor:pointer;">Generate variations</button>
-            <a href="${esc(img)}" target="_blank" rel="noopener" style="min-height:42px;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;font-weight:850;text-decoration:none;display:flex;align-items:center;justify-content:center;">Open visual in new tab</a>
-          </div>
-        </div>
-      </div>`;
-
-    try {
-      window.__SIMO_LAST_WORKSPACE_PROJECT__ = JSON.parse(JSON.stringify(project || {}));
-      localStorage.setItem("simo_last_workspace_project_v1", JSON.stringify(window.__SIMO_LAST_WORKSPACE_PROJECT__));
-    } catch {}
-
-    document.body.appendChild(modal);
-    document.body.classList.add("modal-open");
-    setSimoStatus("Workspace open — ready to refine.", false);
-
-    const close = () => { try { modal.remove(); } catch {}; document.body.classList.remove("modal-open"); setSimoStatus("Ready.", false); };
-    modal.querySelector("[data-close]")?.addEventListener("click", close);
-    modal.addEventListener("click", (e) => { if (e.target === modal) { e.preventDefault(); e.stopPropagation(); } });
-
-    const obj = modal.querySelector("#simoVcWorkspaceObject");
-    let rx = 0, ry = -12, scale = 1, dragging = false, sx = 0, sy = 0;
-    const apply = () => { if (obj) obj.style.transform = `scale(${scale}) rotateX(${rx}deg) rotateY(${ry}deg)`; };
-    modal.addEventListener("pointerdown", (e) => { if (e.target.closest("button,a")) return; dragging = true; sx = e.clientX; sy = e.clientY; modal.setPointerCapture?.(e.pointerId); });
-    modal.addEventListener("pointermove", (e) => { if (!dragging) return; ry += (e.clientX - sx) * 0.25; rx -= (e.clientY - sy) * 0.18; rx = Math.max(-35, Math.min(35, rx)); sx = e.clientX; sy = e.clientY; apply(); });
-    modal.addEventListener("pointerup", () => { dragging = false; });
-    modal.addEventListener("wheel", (e) => { e.preventDefault(); scale += e.deltaY < 0 ? 0.05 : -0.05; scale = Math.max(0.65, Math.min(1.65, scale)); apply(); }, { passive:false });
-
-    modal.querySelector("[data-save-workspace]")?.addEventListener("click", async () => {
-      await saveVisualProject(project);
-    });
-    modal.querySelector("[data-open-workspace-tab]")?.addEventListener("click", () => {
-      openVisualPreviewInNewTab(project);
-    });
-
-    modal.querySelectorAll("[data-simo-workspace-prompt]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const prompt = btn.getAttribute("data-simo-workspace-prompt") || "";
-        const label = btn.getAttribute("data-simo-workspace-action") || "Workspace refinement";
-        const actionSlug = slugify(label) || "workspace-refine";
-        setButtonBusy(btn, true, "Refining…");
-        setSimoStatus(statusTextForAction(actionSlug, project.category), true);
-        close();
-        run(prompt || controlPrompt(project, label) || `Continue this same ${title}`, actionSlug);
+      el.addEventListener("mouseleave", () => {
+        el.style.transform = "translateY(0)";
+        el.style.boxShadow = "";
+        el.style.borderColor = "";
       });
     });
-    modal.querySelector("[data-render]")?.addEventListener("click", () => { close(); run(controlPrompt(project, "Generate matching realistic render"), "render"); });
-    modal.querySelector("[data-variation]")?.addEventListener("click", () => { close(); run(controlPrompt(project, "Generate stronger visual variations"), "variation"); });
-
-    project.wants3D = true;
-    project.last3dAsset = { title: `${title} connected workspace`, url: "connected-workspace", source_label: "Simo visual workspace", exact: false };
-    setActive(project);
-    return true;
   }
 
+  function applyUiSettings() {
+    const body = document.body;
+    if (!body) return;
 
+    body.dataset.simoTheme = state.ui.theme || "default";
+    body.dataset.simoAccent = state.ui.accent || "blue";
 
-  function simoR1060DWorkspaceLabel(value, fallback) {
-    let s = String(value || fallback || "").replace(/\s+/g, " ").trim();
-    if (!s) return "Current Design Workspace";
-    s = s
-      .replace(/\bTags:\s*[\s\S]*$/i, "")
-      .replace(/\bVisual\s*,?\s*Design\s*,?\s*Workspace\s*,?\s*Prompt[- ]First\b[\s\S]*$/i, "")
-      .replace(/\bWorkspace\s+Design\d{4}[\s\S]*$/i, "Workspace")
-      .replace(/\bDesign\d{4}-\d{2}-\d{2}[\s\S]*$/i, "Design")
-      .replace(/\d{4}-\d{2}-\d{2}[T\s][\s\S]*$/i, "")
-      .replace(/\s*[—-]\s*(Product|Object|Design|Visual)?\s*Concept\s*$/i, "")
-      .replace(/\s*[—-]\s*Workspace\s*Design\s*$/i, " Workspace")
-      .replace(/\s*[—-]\s*Design\s*$/i, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    const low = s.toLowerCase();
-    const known = [
-      ["spoon", /\bspoon\b/],
-      ["razor", /\b(razor|shaver|safety razor)\b/],
-      ["coffee mug", /\b(coffee mug|tea mug|\bmug\b|\bcup\b)/],
-      ["barbecue grill", /\b(barbecue grill|bbq grill|gas grill|charcoal grill|pellet grill|smoker grill|outdoor grill|barbeque grill|barbecue|bbq|grill|smoker)\b/],
-      ["fire extinguisher", /\b(fire extinguisher|extinguisher)\b/],
-      ["soap dispenser", /\b(soap dispenser|dispenser)\b/],
-      ["led flashlight", /\b(led flashlight|flashlight|torch)\b/],
-      ["water bottle", /\b(water bottle|bottle|tumbler|flask)\b/],
-      ["soda can", /\b(soda can|beverage can|aluminum can|drink can|pop can)\b/],
-      ["toaster", /\btoaster\b/],
-      ["tire rim", /\b(tire\s+rim|wheel\s+rim|alloy\s+wheel|automotive\s+wheel|custom\s+wheel|\brims?\b|\bwheels?\b)\b/],
-      ["guitar", /\bguitar\b/],
-      ["book cover", /\bbook cover\b/]
-    ];
-    for (const pair of known) {
-      if (pair[1].test(low)) return titleCase(pair[0] + " Workspace");
-    }
-
-    s = s.replace(/\b(i can|can design|can customize|to design|to customize|for me to design|workspace design|product concept|design concept|visual concept)\b/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (/workspace$/i.test(s)) return titleCase(s);
-    return titleCase((s || "Current Design") + " Workspace");
-  }
-
-  function deriveWorkspaceSubject(promptText, activeProject, title) {
-    const raw = String(promptText || "").trim();
-    const blob = clean([raw, activeProject && activeProject.item, activeProject && activeProject.lockedSubject, title].filter(Boolean).join(" "));
-    const low = blob.toLowerCase();
-    const known = [
-      ["spoon", /\bspoon\b/],
-      ["razor", /\b(razor|shaver|safety razor)\b/],
-      ["ceiling fan", /\b(ceiling fan|fan blade|fan blades|fan light|fan motor|overhead fan)\b/],
-      ["toothbrush", /\b(toothbrush|tooth brush|electric toothbrush|manual toothbrush)\b/],
-      ["soda can", /\b(soda can|beverage can|aluminum can|drink can|pop can|12\s*(oz|ounce)\s*can)\b/],
-      ["tire rim", /\b(tire\s+rim|wheel\s+rim|alloy\s+wheel|automotive\s+wheel|custom\s+wheel|rim|rims)\b/],
-      ["led flashlight", /\b(led flashlight|flashlight|torch)\b/],
-      ["barbecue grill", /\b(barbecue grill|bbq grill|gas grill|charcoal grill|pellet grill|smoker grill|outdoor grill|barbeque grill|barbecue|bbq|grill|smoker)\b/],
-      ["soap dispenser", /\b(soap dispenser|dispenser)\b/],
-      ["fire extinguisher", /\b(fire extinguisher|extinguisher)\b/],
-      ["water bottle", /\b(water bottle|bottle|tumbler|flask)\b/],
-      ["toaster", /\b(toaster)\b/]
-    ];
-    for (const pair of known) {
-      if (pair[1].test(low)) return pair[0];
-    }
-    let extracted = extractSubjectPhrase(raw || (activeProject && activeProject.latestPrompt) || title || "", "");
-    extracted = clean(extracted)
-      .replace(/\b(i can|can design|can customize|to design|to customize|product concept|design concept|workspace)\b/gi, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-    if (extracted && !/^(make|add|remove|change|edit|put|place|keep|preserve)$/i.test(extracted)) return extracted.toLowerCase();
-    return clean((activeProject && (activeProject.lockedSubject || activeProject.item)) || title || "current design").toLowerCase();
-  }
-
-  async function open3D(project, sourcePrompt) {
-    const activeProject = project || getActive() || buildProject(sourcePrompt || "design concept", "workspace");
-    const promptText = sourcePrompt || activeProject.latestPrompt || activeProject.prompt || activeProject.item || "this design concept";
-
-    function cleanUrl(value) {
-      return String(value || "").trim();
-    }
-
-    function absoluteImageUrl(value) {
-      const raw = cleanUrl(value);
-      if (!raw) return "";
-      if (/^(data:image\/|blob:|https?:\/\/)/i.test(raw)) return raw;
-      try { return new URL(raw, window.location.origin).href; } catch { return raw; }
-    }
-
-    function sourceImageUrl(value) {
-      const raw = absoluteImageUrl(value);
-      if (!raw) return "";
-      if (/^data:image\//i.test(raw)) return raw;
-      if (/^blob:/i.test(raw)) return raw;
-      try {
-        const u = new URL(raw);
-        if (u.origin === window.location.origin) return u.pathname + u.search;
-      } catch {}
-      return raw;
-    }
-
-    let title = displayTitle(activeProject);
-    const workspaceSubject = deriveWorkspaceSubject(promptText, activeProject, title);
-    title = simoR1060DWorkspaceLabel(workspaceSubject || title, title);
-    const imageUrl = absoluteImageUrl(
-      activeProject.imageUrl ||
-      activeProject.generated_visual_url ||
-      activeProject.generatedImageUrl ||
-      activeProject.previewUrl ||
-      activeProject.thumbnail ||
-      activeProject.visualUrl ||
-      ""
-    );
-
-    if (!imageUrl) {
-      addAssistant(renderProject(
-        activeProject,
-        "I found the design card, but I could not find the current image source for the workspace. Generate the image again, then click Open Workspace."
-      ));
-      return true;
-    }
-
-    const payload = {
-      id: activeProject.id || ("simo_workspace_" + Date.now().toString(36)),
-      phase: PHASE,
-      title: title,
-      name: title,
-      projectTitle: title,
-      workspaceSubject: workspaceSubject || activeProject.lockedSubject || activeProject.item || title || "current design",
-      subject: workspaceSubject || activeProject.lockedSubject || activeProject.item || title || "current design",
-      objectType: workspaceSubject || activeProject.lockedSubject || activeProject.item || title || "current design",
-      prompt: promptText,
-      originalPrompt: activeProject.prompt || promptText,
-      image: imageUrl,
-      currentImage: imageUrl,
-      displayImageUrl: imageUrl,
-      previewUrl: imageUrl,
-      thumbnail: imageUrl,
-      originalImage: activeProject.originalImage || activeProject.originalImageUrl || imageUrl,
-      sourceImage: sourceImageUrl(imageUrl),
-      currentSourceImage: sourceImageUrl(imageUrl),
-      originalSourceImage: sourceImageUrl(activeProject.originalImage || activeProject.originalImageUrl || imageUrl),
-      edits: Array.isArray(activeProject.editHistory) ? activeProject.editHistory.slice() : [],
-      category: activeProject.category || "design",
-      kind: activeProject.kind || "design",
-      source: "simo_main_visual_card_open_workspace",
-      createdAt: new Date().toISOString()
+    const themes = {
+      default: {
+        bg:
+          "radial-gradient(circle at top left, rgba(87,125,255,.18) 0%, transparent 28%), radial-gradient(circle at top right, rgba(177,110,255,.14) 0%, transparent 26%), radial-gradient(circle at bottom center, rgba(40,76,150,.22) 0%, transparent 30%), linear-gradient(180deg, #09111d 0%, #08101b 38%, #060d17 100%)",
+      },
+      midnight: {
+        bg:
+          "radial-gradient(circle at top left, rgba(55,95,190,.15) 0%, transparent 26%), radial-gradient(circle at top right, rgba(85,95,150,.12) 0%, transparent 24%), radial-gradient(circle at bottom center, rgba(30,50,100,.18) 0%, transparent 28%), linear-gradient(180deg, #060b13 0%, #050910 42%, #04070d 100%)",
+      },
+      aurora: {
+        bg:
+          "radial-gradient(circle at top left, rgba(72,170,255,.16) 0%, transparent 26%), radial-gradient(circle at top right, rgba(120,255,210,.12) 0%, transparent 22%), radial-gradient(circle at bottom center, rgba(180,120,255,.14) 0%, transparent 28%), linear-gradient(180deg, #09131d 0%, #07111a 38%, #061019 100%)",
+      },
     };
 
-    activeProject.wants3D = false;
-    activeProject.workspaceOpen = true;
-    activeProject.lastWorkspacePayload = payload;
-    setActive(activeProject);
-
-    const bridges = [
-      window.SimoWorkspaceBridge,
-      window.SimoLiveWorkspaceIsolated,
-      window.SimoLiveWorkspace
-    ].filter(Boolean);
-
-    for (const bridge of bridges) {
-      try {
-        if (typeof bridge.openTab === "function") {
-          bridge.openTab(payload);
-          setSimoStatus("Opened clean design workspace.", false);
-          return true;
-        }
-        if (typeof bridge.openWorkspace === "function") {
-          bridge.openWorkspace(payload);
-          setSimoStatus("Opened clean design workspace.", false);
-          return true;
-        }
-        if (typeof bridge.open === "function") {
-          bridge.open(payload);
-          setSimoStatus("Opened clean design workspace.", false);
-          return true;
-        }
-        if (typeof bridge.openSavedItem === "function") {
-          bridge.openSavedItem(payload);
-          setSimoStatus("Opened clean design workspace.", false);
-          return true;
-        }
-      } catch (err) {
-        console.warn("Simo clean workspace bridge attempt failed:", err);
-      }
-    }
-
-    try {
-      openConnectedWorkspace(
-        activeProject,
-        promptText,
-        "Clean workspace bridge was unavailable, so Simo opened the older connected preview as a fallback. The card image is still the source of truth."
-      );
-      return true;
-    } catch (err) {
-      console.error("Simo workspace open failed:", err);
-      addAssistant(renderProject(
-        activeProject,
-        "Simo caught the Open Workspace click, but no workspace bridge accepted the payload. Check that simo-live-workspace-isolated.js is loaded before this script."
-      ));
-      return true;
-    }
-  }
-
-  async function run(prompt, action = "base") {
-    const text = String(prompt || "").trim();
-    if (!text) return false;
-    const effectiveText = enrichPromptWithCreativeContext(text);
-    const creative = getCreativeContext();
-    const project = buildProject(effectiveText, action);
-    const busyText = statusTextForAction(action, project.category);
-    setSimoStatus(busyText, true);
-    addUser(text);
-    clearInput();
-    const working = renderWorking(text, busyText);
-    try {
-      let imageUrl = "";
-      let apiData = null;
-      try {
-        apiData = await api("/api/generate-visual", {
-          prompt: effectiveText,
-          message: text,
-          original_prompt: text,
-          active_creative_context: creative && creative.prompt ? creative.prompt : "",
-          action,
-          domain: project.category,
-          strict_domain: project.category,
-          wants_3d: project.wants3D,
-          active_visual_project: {
-            ...project,
-            domain: project.category,
-            projectType: project.category,
-            exactSubject: project.lockedSubject || project.item,
-            requestedAsset: project.lockedSubject || project.item,
-            object_lock: project.exactObjectLock || null,
-          },
-          exact_object_lock: project.exactObjectLock || null,
-          locked_subject: project.lockedSubject || project.item || project.title,
-          visual_core_phase: "14F",
-          refinement_strength: actionIsMeaningful(action) ? "strong-visible-multi-detail" : "base-visual-first",
-          requested_visible_changes: actionIsMeaningful(action) ? domainActionBrief(project.category, actionTitleFromPrompt(text, action)).details : [],
-        });
-        imageUrl = apiData.image_url || apiData.generated_visual_url || apiData.generated_visual?.url || (Array.isArray(apiData.visuals) && apiData.visuals[0] && (apiData.visuals[0].url || apiData.visuals[0].image_url)) || "";
-      } catch (err) {
-        console.warn("SimoVisualCore real image route failed - SVG/demo fallback blocked:", err);
-        throw err;
-      }
-
-      const previousImageUrl = String(project.imageUrl || "");
-      const actionLabel = actionTitleFromPrompt(text, action);
-      if (!imageUrl || isFakeFallbackVisualUrl(imageUrl)) {
-        throw new Error("/api/generate-visual did not return a real generated PNG/JPG/WebP image. SVG/demo fallback is blocked in Phase 11.1.");
-      }
-      project.imageUrl = imageUrl;
-      const looksLikeStaticSeed =
-        imageUrl &&
-        previousImageUrl &&
-        String(imageUrl) === previousImageUrl &&
-        actionIsMeaningful(action);
-      if (looksLikeStaticSeed) {
-        throw new Error("The edit action returned the same image URL. Simo blocked fake visual evolution; the action must generate a fresh real image from the same locked concept.");
-      }
-      project.lastActionLabel = actionLabel;
-      project.editHistory = Array.isArray(project.editHistory) ? project.editHistory : [];
-      if (actionIsMeaningful(action)) {
-        project.versionIndex = Number(project.versionIndex || 1) + 1;
-        project.editHistory = [
-          { label: actionLabel, action, prompt: text, at: new Date().toISOString(), version: project.versionIndex },
-          ...project.editHistory,
-        ].slice(0, 12);
-      }
-      setSimoStatus("Ready.", false);
-      removeRow(working);
-      addAssistant(renderProject(project, actionIsMeaningful(action)
-        ? `Updated this same ${project.category || "design"} concept with a visible ${actionLabel} pass. Use Open Workspace to keep refining from this exact design.`
-        : undefined));
-      return true;
-    } catch (err) {
-      setSimoStatus("Ready.", false);
-      removeRow(working);
-      addAssistant(renderRealImageRequired(project, `The visual core stayed in ${project.category} mode, but the live render failed: ${err.message || err}`));
-      return true;
-    }
-  }
-
-  /* -------------------------------------------------- */
-  /* R10.60L — North Star Builder Lane Restore           */
-  /* -------------------------------------------------- */
-  function isBuilderIntent(prompt) {
-    const t = clean(prompt);
-    if (!t) return false;
-
-    // R10.60S: whole-prompt Website/App Builder lane.
-    // A word like "home" only means architecture when the full prompt asks for a house/design.
-    // "selling computers out of my home" stays a website/business context.
-    const digitalAsset = /\b(website|web site|landing page|homepage|home page|webpage|web page|sales page|squeeze page|portfolio site|business site|ecommerce site|e-commerce site|online store|shop page|storefront page|app|web app|mobile app|dashboard|saas|portal|booking page|checkout page|pricing page|contact page|signup page|sign up page|web tool|software page)\b/.test(t);
-    const buildVerb = /\b(build|create|make|generate|design|show me|can you show me|can you build|can you create|i need|i want|put together|draft|start|make me|build me)\b/.test(t);
-    const editVerb = /\b(edit|change|update|refine|add|remove|improve|publish|go public|download|copy html|launch|make live)\b/.test(t);
-
-    if (digitalAsset && (buildVerb || editVerb)) return true;
-
-    // Existing builder project follow-up: allow section edits to stay in builder when the active card is a builder card.
-    try {
-      const hasBuilder = !!(window.__SIMO_R1060L_BUILDER_STORE__ && Object.keys(window.__SIMO_R1060L_BUILDER_STORE__).length);
-      if (hasBuilder && /\b(hero|cta|button|buttons|services|products|pricing|contact form|testimonials|colors|theme|mobile|seo|domain|publish|download html|copy html)\b/.test(t)) return true;
-    } catch {}
-
-    return false;
-  }
-
-  function stripAssistantAddressForIntent(prompt){
-    let raw = String(prompt || '').replace(/\s+/g, ' ').trim();
-    if (!raw) return '';
-    const configured = (typeof assistantBrandName === 'function' ? assistantBrandName() : 'Simo');
-    const escaped = String(configured || 'Simo').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const brandRe = new RegExp('^(hi|hey|hello|ok|okay|yo)?\\s*' + escaped + '[,.:;!]?\\s+', 'i');
-    raw = raw.replace(brandRe, '');
-    raw = raw.replace(/^(hi|hey|hello|ok|okay|yo)\s+/i, '');
-    return raw.replace(/\s+/g, ' ').trim();
-  }
-
-  function capitalizeFirstVisibleLetter(value) {
-    const raw = String(value || '');
-    return raw.replace(/^([^A-Za-z0-9]*)([a-z])/, function(_, lead, ch){ return lead + ch.toUpperCase(); });
-  }
-
-  function builderTitleFromPrompt(prompt) {
-    let raw = stripAssistantAddressForIntent(prompt);
-    raw = raw.replace(/^(please\s+)?(can you\s+show\s+me\s+|can you\s+build\s+me\s+|can you\s+create\s+me\s+|can you\s+|could you\s+|would you\s+|i want\s+|i need\s+|show me\s+|build me\s+|build\s+|create me\s+|create\s+|make me\s+|make\s+|generate\s+|design\s+)/i, '');
-    raw = raw.replace(/^\s*(a|an|the)\s+(?=(landing page|website|web site|homepage|home page|webpage|web page|app|web app|mobile app|dashboard|store|shop|portal|saas|page)\b)/i, '');
-    raw = raw.replace(/\b(that|which)?\s*i\s+can\s+(edit|use|launch|customize|sell).*$/i, '');
-    raw = raw.replace(/\bfor me\b.*$/i, '');
-    raw = raw.replace(/\b(out of my home|from my home|from home|home based|home-based|work from home|working from home)\b/ig, 'home-based');
-    raw = raw.replace(/\s+/g, ' ').trim();
-    if (!raw) raw = 'Digital Build';
-    return capitalizeFirstVisibleLetter(titleCase(raw));
-  }
-
-  function builderKind(prompt) {
-    const t = clean(prompt);
-    if (/\b(dashboard|admin|analytics|portal)\b/.test(t)) return 'dashboard';
-    if (/\b(app|mobile app|web app|saas)\b/.test(t)) return 'app';
-    if (/\b(store|shop|ecommerce|e-commerce|checkout|product catalog)\b/.test(t)) return 'store';
-    return 'landing';
-  }
-
-  function builderSubject(prompt) {
-    let t = stripAssistantAddressForIntent(prompt);
-    t = t.replace(/^(please\s+)?(can you\s+|could you\s+|would you\s+|i want\s+|i need\s+|show me\s+|can you show me\s+|build me\s+|build\s+|create me\s+|create\s+|make me\s+|make\s+|generate\s+|design\s+|put together\s+)/i, '');
-    t = t.replace(/\b(a|an|the)\b\s*/i, '');
-    t = t.replace(/\b(landing page|website|web site|homepage|home page|webpage|web page|app|web app|mobile app|dashboard|store|shop|portal|saas|page)\b/ig, '');
-    t = t.replace(/\b(out of my home|from my home|from home|home based|home-based|work from home|working from home)\b/ig, 'home-based');
-    t = t.replace(/\b(for|about|that|which|i can|can)\b/ig, ' ');
-    t = t.replace(/\b(edit hero|edit buttons|edit services|edit products|edit pricing|edit contact|testimonials|mobile layout|seo|domain help|publish|download html|copy html)\b/ig, ' ');
-    t = t.replace(/[^a-z0-9\s$-]/ig, ' ').replace(/\s+/g, ' ').trim();
-    return titleCase(t || 'Your Business');
-  }
-
-
-
-  // R10.60Z4: professional builder content profile — restores rich testimonials + image-style sections without touching other lanes.
-  function builderProfile(prompt) {
-    const raw = String(prompt || '');
-    const t = clean(raw);
-    const subject = builderSubject(raw || 'your business');
-    const base = {
-      kicker: 'Professional local website',
-      heroBody: `A polished, conversion-focused website for ${subject}. Clear services, trust proof, image-style sections, testimonials, and quote-ready actions are included from the first build.`,
-      visualLabel: 'Professional service preview',
-      services: ['Signature service', 'Premium package', 'Fast booking'],
-      gallery: [
-        ['Featured work', 'Clean before-and-after style showcase'],
-        ['Customer experience', 'What the finished service feels like'],
-        ['Professional process', 'Simple steps from request to delivery']
-      ],
-      testimonials: [
-        ['“The page feels trustworthy right away.”', 'Local customer'],
-        ['“Easy to understand and easy to contact.”', 'Happy client'],
-        ['“Professional, clean, and ready to launch.”', 'Repeat customer']
-      ],
-      stats: ['Fast setup', 'Clear offer', 'Easy contact'],
-      offerTitle: 'Simple offers customers can understand',
-      offerBody: 'Use this section for starter packages, premium services, seasonal specials, bundles, or a clear starting price.',
-      trust: ['Clear next step', 'Mobile-friendly layout', 'Built-in quote test mode']
+    const accents = {
+      blue: { color: "#6ea8ff", glow: "rgba(110,168,255,.22)" },
+      purple: { color: "#b982ff", glow: "rgba(185,130,255,.22)" },
+      pink: { color: "#ff8fca", glow: "rgba(255,143,202,.22)" },
+      emerald: { color: "#56f0a9", glow: "rgba(86,240,169,.22)" },
     };
 
-    const profiles = [
-      {
-        re: /\b(mobile detailing|auto detailing|car detailing|detailing|wash|ceramic|paint correction)\b/,
-        data: {
-          kicker: 'Mobile detailing website',
-          heroBody: 'A premium mobile detailing landing page with service packages, polished vehicle-care visuals, trust proof, reviews, and a safe quote request flow.',
-          visualLabel: 'Detailing service preview',
-          services: ['Exterior detail', 'Interior deep clean', 'Ceramic protection'],
-          gallery: [['Mirror-finish exterior', 'Show polished paint, wheels, and shine'], ['Fresh interior reset', 'Show clean seats, mats, vents, and trim'], ['Mobile service setup', 'Show van, tools, water, towels, and convenience']],
-          testimonials: [['“My car looked showroom-ready.”', 'SUV owner'], ['“Booking was simple and the results were spotless.”', 'Busy parent'], ['“Professional, on time, and worth every dollar.”', 'Local customer']],
-          stats: ['Same-day quotes', 'Mobile service', 'Premium finish'],
-          offerTitle: 'Detailing packages made simple',
-          offerBody: 'Show starter washes, full details, ceramic upgrades, fleet packages, and add-ons customers can choose quickly.',
-          trust: ['Before/after friendly', 'Quote form ready', 'Great for local SEO']
-        }
-      },
-      {
-        re: /\b(bakery|cupcake|cake|cakes|pastry|pastries|bread|dessert|cookie|cookies)\b/,
-        data: {
-          kicker: 'Bakery website',
-          heroBody: 'A warm bakery website with fresh product imagery, popular items, custom order calls-to-action, reviews, and a friendly contact flow.',
-          visualLabel: 'Fresh bakery preview',
-          services: ['Custom cakes', 'Fresh pastries', 'Catering boxes'],
-          gallery: [['Signature cakes', 'Show decorated cakes and celebration orders'], ['Fresh daily case', 'Show pastries, bread, cookies, and sweets'], ['Custom events', 'Show weddings, birthdays, and catering trays']],
-          testimonials: [['“The cake was beautiful and delicious.”', 'Birthday customer'], ['“Everything looked fresh and professional.”', 'Local regular'], ['“Ordering was easy and the display was stunning.”', 'Event client']],
-          stats: ['Fresh daily', 'Custom orders', 'Local favorite'],
-          offerTitle: 'Bakery offers customers can act on',
-          offerBody: 'Feature daily specials, custom cake deposits, catering boxes, holiday pre-orders, and pickup instructions.',
-          trust: ['Custom order CTA', 'Menu-ready sections', 'Review proof included']
-        }
-      },
-      {
-        re: /\b(bike|bikes|bicycle|bicycles|cycling|bike shop|repair shop|e-bike|ebike)\b/,
-        data: {
-          kicker: 'Bike shop website',
-          heroBody: 'A sharp bike website with product/service cards, tune-up offers, image-style bike sections, testimonials, and quote or booking actions.',
-          visualLabel: 'Bike shop preview',
-          services: ['Bike tune-ups', 'New bike sales', 'E-bike service'],
-          gallery: [['Performance bikes', 'Show clean bikes, wheels, frames, and gear'], ['Repair bench', 'Show tune-ups, brakes, chains, and expert service'], ['Local rides', 'Show community, trails, accessories, and riders']],
-          testimonials: [['“They made my bike ride like new.”', 'Weekend rider'], ['“Fast service and honest recommendations.”', 'Commuter'], ['“The site makes booking a tune-up easy.”', 'Cycling customer']],
-          stats: ['Tune-ups', 'Parts & gear', 'Local rides'],
-          offerTitle: 'Bike offers and service packages',
-          offerBody: 'Use this section for tune-up tiers, seasonal repairs, accessory bundles, e-bike checks, and new bike promotions.',
-          trust: ['Service-first CTA', 'Local shop feel', 'Gallery/reviews included']
-        }
-      },
-      {
-        re: /\b(computer|computers|pc repair|laptop|laptops|it support|tech support|electronics)\b/,
-        data: {
-          kicker: 'Computer service website',
-          heroBody: 'A clean tech-service website with service cards, trust proof, repair/support visuals, testimonials, and quick contact actions.',
-          visualLabel: 'Tech service preview',
-          services: ['Computer sales', 'Repair support', 'Setup help'],
-          gallery: [['Workstation setup', 'Show clean computers, monitors, and desk setup'], ['Repair/support', 'Show diagnostics, parts, and careful service'], ['Small business help', 'Show reliable tech support and setup']],
-          testimonials: [['“Fast help and clear pricing.”', 'Home office customer'], ['“They explained everything simply.”', 'Laptop owner'], ['“Professional setup from start to finish.”', 'Small business client']],
-          stats: ['Fast support', 'Clear pricing', 'Local help'],
-          offerTitle: 'Tech offers customers can understand',
-          offerBody: 'Feature computer packages, diagnostics, setup help, repairs, support plans, and local pickup options.',
-          trust: ['Plain-English support', 'Quote-ready form', 'Professional service cards']
-        }
-      }
-    ];
+    const theme = themes[state.ui.theme] || themes.default;
+    const accent = accents[state.ui.accent] || accents.blue;
 
-    const found = profiles.find(function(profile){ return profile.re.test(t); });
-    return Object.assign({}, base, found ? found.data : {});
-  }
+    body.style.background = theme.bg;
+    document.documentElement.style.setProperty("--blue", accent.color);
+    document.documentElement.style.setProperty("--blue2", accent.color);
+    document.documentElement.style.setProperty("--focus-glow", accent.glow);
 
-  function builderProfessionalSections(profile) {
-    const safeStats = (profile.stats || []).slice(0, 3);
-    const safeGallery = (profile.gallery || []).slice(0, 3);
-    const safeTestimonials = (profile.testimonials || []).slice(0, 3);
-    const safeTrust = (profile.trust || []).slice(0, 3);
-    return `
-    <section id="gallery" class="section pro-section"><div class="section-head"><div><div class="eyebrow">Gallery / Image Direction</div><h2>Professional image sections are already planned</h2><p>These visual cards show what photos or generated images should represent, so the page feels complete instead of empty.</p></div></div><div class="image-grid">${safeGallery.map(function(item, i){ return `<div class="photo-card photo-${i + 1}"><div><strong>${esc(item[0])}</strong><span>${esc(item[1])}</span></div></div>`; }).join('')}</div></section>
-    <section id="reviews" class="section pro-section"><div class="section-head"><div><div class="eyebrow">Testimonials</div><h2>Social proof is built in</h2><p>Short, believable review cards help the page feel like a real professional business site from the first draft.</p></div></div><div class="grid testimonials">${safeTestimonials.map(function(item){ return `<div class="card"><p style="font-size:18px;color:#111827;font-weight:850;line-height:1.55;margin-bottom:14px;">${esc(item[0])}</p><p style="font-size:13px;color:#64748b;font-weight:900;margin:0;">${esc(item[1])}</p></div>`; }).join('')}</div></section>
-    <section id="trust" class="section pro-section"><div class="card trust-card"><div><div class="eyebrow">Why customers trust it</div><h2>Clear, polished, and action-focused</h2><p>Every generated website should feel useful right away: services, images, reviews, offers, and buttons that make sense.</p></div><div class="trust-list">${safeTrust.map(function(item){ return `<span>${esc(item)}</span>`; }).join('')}</div></div></section>`;
-  }
-
-
-  // R10.60Z7: builder-only easy media placement + exact gallery card picker + clear quote close. No AI image generation, no image analysis, no credits.
-  function simoR1060Z5IsImageUrl(url) {
-    return /^(data:image\/|blob:|https?:\/\/[^\s]+\.(png|jpe?g|webp|gif|avif)(\?[^\s]*)?$)/i.test(String(url || '').trim());
-  }
-
-  function simoR1060Z5VideoEmbed(url) {
-    const raw = String(url || '').trim();
-    if (!raw) return '';
-    let id = '';
-    let vimeo = '';
-    try {
-      const u = new URL(raw);
-      if (/youtube\.com$/i.test(u.hostname.replace(/^www\./,'')) || /youtube\.com/i.test(u.hostname)) id = u.searchParams.get('v') || '';
-      if (/youtu\.be$/i.test(u.hostname.replace(/^www\./,''))) id = u.pathname.replace(/^\//,'').split('/')[0] || '';
-      if (/vimeo\.com/i.test(u.hostname)) vimeo = u.pathname.replace(/^\//,'').split('/')[0] || '';
-    } catch {}
-    if (id) return 'https://www.youtube.com/embed/' + encodeURIComponent(id);
-    if (vimeo) return 'https://player.vimeo.com/video/' + encodeURIComponent(vimeo);
-    return '';
-  }
-
-  function simoR1060Z5SocialLabel(url) {
-    const t = clean(url);
-    if (/instagram/.test(t)) return 'Instagram';
-    if (/facebook|fb\.com/.test(t)) return 'Facebook';
-    if (/tiktok/.test(t)) return 'TikTok';
-    if (/youtube|youtu\.be/.test(t)) return 'YouTube';
-    if (/x\.com|twitter/.test(t)) return 'X / Twitter';
-    if (/linkedin/.test(t)) return 'LinkedIn';
-    if (/pinterest/.test(t)) return 'Pinterest';
-    return 'Social link';
-  }
-
-  function simoR1060Z5SocialAnchors(value) {
-    return String(value || '')
-      .split(/[\n,]+/)
-      .map(function(x){ return x.trim(); })
-      .filter(function(x){ return /^https?:\/\//i.test(x); })
-      .slice(0, 8)
-      .map(function(url){ return '<a class="btn secondary" href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + esc(simoR1060Z5SocialLabel(url)) + '</a>'; })
-      .join('');
-  }
-
-  function simoR1060Z5FileToDataUrl(file) {
-    return new Promise(function(resolve){
-      if (!file) return resolve('');
-      if (!/^image\//i.test(file.type || '')) return resolve('');
-      const reader = new FileReader();
-      reader.onload = function(){ resolve(String(reader.result || '')); };
-      reader.onerror = function(){ resolve(''); };
-      try { reader.readAsDataURL(file); } catch { resolve(''); }
+    $$("[data-simo-accent-preview]").forEach((el) => {
+      const value = el.getAttribute("data-simo-accent-preview");
+      const active = value === state.ui.accent;
+      el.style.outline = active ? `2px solid ${accent.color}` : "none";
+      el.style.boxShadow = active ? `0 0 0 4px ${accent.glow}` : "none";
     });
+
+    $$("[data-simo-theme-option]").forEach((el) => {
+      const value = el.getAttribute("data-simo-theme-option");
+      const active = value === state.ui.theme;
+      el.style.borderColor = active ? accent.color : "rgba(255,255,255,.10)";
+      el.style.boxShadow = active ? `0 8px 24px ${accent.glow}` : "none";
+      el.style.background = active ? "rgba(255,255,255,.08)" : "rgba(255,255,255,.04)";
+    });
+
+    syncLibraryTriggerVisuals();
   }
 
+  // -----------------------------
+  // account ui
+  // -----------------------------
+  function updateCreditUsageCard() {
+    const usageEl = $("usageTodayValue");
+    const bar = $("simoUsageBar");
+    const card = usageEl ? usageEl.closest(".simo-usage-card") : null;
+    const smalls = card ? Array.from(card.querySelectorAll("small")) : [];
+    const credit = state.creditStatus && typeof state.creditStatus === "object" ? state.creditStatus : null;
 
-  function simoR1060Z6PlacementLabel(value) {
-    const key = clean(value || 'gallery');
-    const map = { hero: 'Hero / Top of Page', gallery: 'Gallery / Results', services: 'Services / Products', beforeafter: 'Before & After', testimonials: 'Reviews / Testimonials', about: 'About / Story', contact: 'Contact / Quote Area' };
-    return map[key] || map.gallery;
-  }
-
-  function simoR1060Z6MediaEditKey(value) {
-    return 'media-' + clean(value || 'gallery').replace(/[^a-z0-9]+/g, '-');
-  }
-
-  function simoR1060Z6InjectMediaBlock(html, placement, block) {
-    const key = clean(placement || 'gallery');
-    if (key === 'hero') return html.replace(/<\/section>\s*<section id="features"/i, '</section>' + block + '<section id="features"');
-    const patterns = { services: /<section id="features"/i, gallery: /<section id="gallery"/i, beforeafter: /<section id="gallery"/i, testimonials: /<section id="reviews"/i, contact: /<section id="quote"/i, about: /<section id="trust"/i };
-    const pattern = patterns[key] || patterns.gallery;
-    if (pattern.test(html)) return html.replace(pattern, block + html.match(pattern)[0]);
-    return html.replace(/<section id="quote"/i, block + '<section id="quote"');
-  }
-
-
-  function simoR1060Z7CardChoiceLabel(value) {
-    const key = clean(value || 'new');
-    const map = {
-      new: 'Add as new media section',
-      'gallery-card-1': 'Replace gallery card 1',
-      'gallery-card-2': 'Replace gallery card 2',
-      'gallery-card-3': 'Replace gallery card 3'
+    const setTextIfChanged = (el, value) => {
+      if (!el) return;
+      const next = String(value ?? "");
+      if (el.textContent !== next) el.textContent = next;
     };
-    return map[key] || map.new;
+    const setWidthIfChanged = (el, value) => {
+      if (!el) return;
+      const next = String(value || "0%");
+      if (el.style.width !== next) el.style.width = next;
+    };
+
+    if (state.me.pro && credit && credit.unlimited) {
+      setTextIfChanged(usageEl, "Unlimited");
+      setWidthIfChanged(bar, "100%");
+      setTextIfChanged(smalls[0], "Simo Credits");
+      setTextIfChanged(smalls[1], "Unlimited admin testing");
+      return;
+    }
+
+    if (state.me.pro && credit && Number.isFinite(Number(credit.limit))) {
+      const limit = Math.max(0, Number(credit.limit || 0));
+      const included = Math.max(0, Number(credit.included_remaining || 0));
+      const purchased = Math.max(0, Number(credit.purchased_remaining || 0));
+      const total = Math.max(0, Number(credit.remaining || 0));
+
+      // The main number is the funded monthly allowance, not the retired 0/25
+      // daily-message counter. Purchased rollover stays visible underneath.
+      setTextIfChanged(usageEl, `${included} / ${limit}`);
+      setWidthIfChanged(bar, `${limit > 0 ? Math.max(0, Math.min(100, (included / limit) * 100)) : 0}%`);
+      setTextIfChanged(smalls[0], state.me.team ? "Team Simo Credits" : "Simo Credits");
+      setTextIfChanged(
+        smalls[1],
+        purchased > 0
+          ? `${included} included remaining · +${purchased} rollover · ${total} total`
+          : `${included} included remaining`
+      );
+      return;
+    }
+
+    setTextIfChanged(usageEl, "0 credits");
+    setWidthIfChanged(bar, "0%");
+    setTextIfChanged(smalls[0], "Simo Credits");
+    setTextIfChanged(smalls[1], "Paid credits required before provider use");
   }
 
-  function simoR1060Z7MediaCardHtml(url, caption, cardIndex) {
-    const safeCaption = esc(caption || 'Customer photo');
-    const safeUrl = esc(url || '');
-    const n = Math.max(1, Math.min(3, Number(cardIndex || 1)));
-    return '<div class="photo-card photo-' + n + '" style="background-image:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.64)),url(&quot;' + safeUrl + '&quot;);background-size:cover;background-position:center;"><div><strong>' + safeCaption + '</strong><span>Uploaded by the business owner</span></div></div>';
+  // Keep the credit card authoritative even if an older dashboard helper tries
+  // to repaint the retired daily-message counter after the new credit UI loads.
+  let __simoCreditCardObserver = null;
+  let __simoCreditCardSyncTimer = null;
+  function scheduleSimoCreditCardSync(delay = 0) {
+    if (__simoCreditCardSyncTimer) clearTimeout(__simoCreditCardSyncTimer);
+    __simoCreditCardSyncTimer = setTimeout(() => {
+      __simoCreditCardSyncTimer = null;
+      updateCreditUsageCard();
+    }, Math.max(0, Number(delay) || 0));
   }
 
-  function simoR1060Z7ReplaceGalleryCard(html, cardChoice, url, caption) {
-    const match = String(cardChoice || '').match(/gallery-card-(\d+)/i);
-    const n = match ? Math.max(1, Math.min(3, Number(match[1] || 1))) : 0;
-    if (!n || !url) return html;
-    const cardRe = new RegExp('<div class="photo-card photo-' + n + '"[\s\S]*?<\/div>\s*<\/div>', 'i');
-    if (!cardRe.test(html)) return html;
-    return html.replace(cardRe, simoR1060Z7MediaCardHtml(url, caption, n));
+  function installSimoCreditCardGuard() {
+    if (__simoCreditCardObserver) return;
+    const usageEl = $("usageTodayValue");
+    const card = usageEl ? usageEl.closest(".simo-usage-card") : null;
+    if (!card || typeof MutationObserver === "undefined") return;
+    __simoCreditCardObserver = new MutationObserver(() => {
+      if (state.me.pro && state.creditStatus) scheduleSimoCreditCardSync(0);
+    });
+    __simoCreditCardObserver.observe(card, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ["style"] });
   }
 
-  function builderHtml(prompt) {
-    const kind = builderKind(prompt);
-    const subject = builderSubject(prompt);
-    const title = builderTitleFromPrompt(prompt);
-    const isDashboard = kind === 'dashboard';
-    const isApp = kind === 'app';
-    const isStore = kind === 'store';
-    const primary = isDashboard ? 'View Dashboard' : isApp ? 'Launch App' : isStore ? 'Shop Now' : 'Request a Quote';
-    const secondary = isStore ? 'View Deals' : 'See Services';
-    const profile = builderProfile(prompt);
-    const cards = isDashboard
-      ? ['Revenue snapshot', 'Customer activity', 'Open tasks']
-      : isApp
-        ? ['Fast onboarding', 'Clean account flow', 'Smart notifications']
-        : isStore
-          ? ['Featured products', 'Bundle offers', 'Local pickup']
-          : (profile.services || ['Clear offer', 'Trust section', 'Strong call-to-action']);
-    const safeTitle = esc(title);
-    const safeSubject = esc(subject);
-    const proSections = builderProfessionalSections(profile);
+  function updatePremiumHomeUi() {
+    const hour = new Date().getHours();
+    const greeting = $("simoGreeting");
+    if (greeting) greeting.textContent = hour < 12 ? "Good morning!" : hour < 18 ? "Good afternoon!" : "Good evening!";
+
+    const signedText = $("simoSidebarSignedText");
+    if (signedText) signedText.textContent = state.me.loggedIn ? "Signed in" : "Ready";
+    const signedLine = signedText && signedText.closest(".simo-signed-line");
+    if (signedLine) signedLine.classList.toggle("is-signed", !!state.me.loggedIn);
+
+    const accountId = $("simoSidebarAccountId");
+    if (accountId) {
+      const identity = String(state.me.email || state.me.name || "").trim();
+      accountId.hidden = !state.me.loggedIn || !identity;
+      accountId.textContent = state.me.loggedIn && identity ? identity : "";
+      accountId.title = state.me.loggedIn && identity ? `Signed in as ${identity}` : "";
+    }
+
+    updateCreditUsageCard();
+    installSimoCreditCardGuard();
+    scheduleSimoCreditCardSync(0);
+
+    const counts = window.__SIMO_ACCOUNT_LIBRARY_COUNTS__;
+    if (counts) {
+      const b = $("builderLibrarySidebarCount");
+      const d = $("designLibrarySidebarCount");
+      if (b) b.textContent = String(Number(counts.website || 0));
+      if (d) d.textContent = String(Number(counts.design || 0));
+    }
+  }
+
+  function updateDashboardUi() {
+    updatePremiumHomeUi();
+    if (accountValueEl) {
+      setText(accountValueEl, isAccountOwnedSession() ? (state.me.email || "Pro account") : "Guest / Free");
+    }
+
+    if (planValueEl) {
+      if (state.me.team) setText(planValueEl, "Team");
+      else setText(planValueEl, state.me.pro ? "Pro" : "Free / Guest");
+    }
+
+    updateCreditUsageCard();
+
+    if (libraryCountValueEl) {
+      const counts = window.__SIMO_ACCOUNT_LIBRARY_COUNTS__;
+      const count = counts && Number.isFinite(Number(counts.website))
+        ? Number(counts.website)
+        : getLibrary().length;
+      setText(libraryCountValueEl, String(count));
+      const side = $("builderLibrarySidebarCount");
+      if (side) side.textContent = String(count);
+    }
+
+    if (builderLibraryCard) {
+      const textNodes = Array.from(builderLibraryCard.querySelectorAll("div,small,span,p"));
+      const detail = textNodes.find((el) => /saved\s+(local\s+)?builds|account\s+builds|local\s+library/i.test(String(el.textContent || "")));
+      const scopeText = isAccountOwnedSession() ? "Saved Pro account builds" : "Saved Guest / Free local builds";
+      if (detail) detail.textContent = scopeText;
+      Array.from(builderLibraryCard.childNodes).forEach((node) => {
+        if (node.nodeType === Node.TEXT_NODE && /saved\s+(local\s+)?builds/i.test(String(node.textContent || ""))) node.textContent = scopeText;
+      });
+      builderLibraryCard.querySelectorAll("*").forEach((el) => {
+        if (el.children.length === 0 && /saved\s+local\s+builds/i.test(String(el.textContent || ""))) el.textContent = scopeText;
+      });
+      builderLibraryCard.title = isAccountOwnedSession()
+        ? "Open your Pro Account Library"
+        : "Open the Guest / Free Local Library stored in this browser";
+    }
+
+    syncLibraryTriggerVisuals();
+  }
+
+     function closeAuthModal() {
+    const modal = $("simoAuthModal");
+    if (!modal) return;
+
+    modal.hidden = true;
+    modal.style.display = "none";
+    document.body.classList.remove("modal-open");
+    document.body.style.overflow = "";
+  }
+
+  function openAuthModal(mode = "signup") {
+    let modal = $("simoAuthModal");
+
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "simoAuthModal";
+      modal.hidden = true;
+      modal.style.position = "fixed";
+      modal.style.inset = "0";
+      modal.style.zIndex = "999999";
+      modal.style.display = "none";
+      modal.style.alignItems = "center";
+      modal.style.justifyContent = "center";
+      modal.style.padding = "20px";
+      modal.style.background = "rgba(3,7,14,.68)";
+      modal.style.backdropFilter = "blur(10px)";
+
+      modal.innerHTML = `
+        <div
+          id="simoAuthCard"
+          style="
+            width:min(460px, 100%);
+            border-radius:24px;
+            border:1px solid rgba(255,255,255,.10);
+            background:linear-gradient(180deg, rgba(14,20,34,.98), rgba(10,16,28,.98));
+            box-shadow:0 30px 90px rgba(0,0,0,.42);
+            padding:22px;
+            display:grid;
+            gap:14px;
+            color:#eef4ff;
+          "
+        >
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+            <div style="display:grid; gap:4px;">
+              <div id="simoAuthTitle" style="font-size:22px; font-weight:800;">Create your account</div>
+              <div id="simoAuthSubtitle" style="font-size:13px; color:rgba(235,242,255,.72);">
+                Sign up to save your place inside Simo.
+              </div>
+            </div>
+
+            <button
+              id="simoAuthCloseBtn"
+              type="button"
+              style="
+                width:40px;
+                height:40px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-size:18px;
+                line-height:1;
+              "
+            >×</button>
+          </div>
+
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button
+              id="simoAuthModeSignup"
+              type="button"
+              style="
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(110,168,255,.16);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Easy Signup</button>
+
+            <button
+              id="simoAuthModeLogin"
+              type="button"
+              style="
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Sign In</button>
+
+            <button
+              id="simoAuthGoogleBtn"
+              type="button"
+              style="
+                margin-left:auto;
+                padding:9px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.05);
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:700;
+              "
+            >Google</button>
+          </div>
+
+          <form id="simoAuthForm" style="display:grid; gap:12px;">
+            <div id="simoAuthNameWrap" style="display:grid; gap:6px;">
+              <label for="simoAuthName" style="font-size:12px; color:rgba(235,242,255,.78);">Name</label>
+              <input
+                id="simoAuthName"
+                type="text"
+                autocomplete="name"
+                placeholder="Your name"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div style="display:grid; gap:6px;">
+              <label for="simoAuthEmail" style="font-size:12px; color:rgba(235,242,255,.78);">Email</label>
+              <input
+                id="simoAuthEmail"
+                type="email"
+                autocomplete="email"
+                placeholder="you@example.com"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div style="display:grid; gap:6px;">
+              <label for="simoAuthPassword" style="font-size:12px; color:rgba(235,242,255,.78);">Password</label>
+              <input
+                id="simoAuthPassword"
+                type="password"
+                autocomplete="current-password"
+                placeholder="At least 6 characters"
+                style="
+                  width:100%;
+                  min-height:46px;
+                  border-radius:14px;
+                  border:1px solid rgba(255,255,255,.10);
+                  background:rgba(255,255,255,.05);
+                  color:#eef4ff;
+                  padding:0 14px;
+                  outline:none;
+                "
+              />
+            </div>
+
+            <div
+              id="simoAuthError"
+              style="
+                display:none;
+                padding:10px 12px;
+                border-radius:12px;
+                border:1px solid rgba(255,120,140,.20);
+                background:rgba(160,32,64,.14);
+                color:#ffd8e0;
+                font-size:13px;
+                line-height:1.4;
+              "
+            ></div>
+
+            <button
+              id="simoAuthSubmitBtn"
+              type="submit"
+              style="
+                min-height:48px;
+                border-radius:14px;
+                border:1px solid rgba(110,168,255,.25);
+                background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(150,115,255,.20));
+                color:#eef4ff;
+                cursor:pointer;
+                font-weight:800;
+                font-size:14px;
+              "
+            >Create account</button>
+          </form>
+
+          <div id="simoAuthFooterText" style="font-size:12px; color:rgba(235,242,255,.66);">
+            Create a simple account now and keep moving.
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeAuthModal();
+      });
+
+      $("simoAuthCloseBtn")?.addEventListener("click", closeAuthModal);
+
+      $("simoAuthGoogleBtn")?.addEventListener("click", () => {
+        window.location.href = "/login";
+      });
+
+      $("simoAuthModeSignup")?.addEventListener("click", () => {
+        openAuthModal("signup");
+      });
+
+      $("simoAuthModeLogin")?.addEventListener("click", () => {
+        openAuthModal("login");
+      });
+
+      $("simoAuthForm")?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const currentMode = modal.dataset.mode || "signup";
+        const nameEl = $("simoAuthName");
+        const emailEl = $("simoAuthEmail");
+        const passwordEl = $("simoAuthPassword");
+        const submitBtn = $("simoAuthSubmitBtn");
+        const errorEl = $("simoAuthError");
+
+        const payload = {
+          name: (nameEl?.value || "").trim(),
+          email: (emailEl?.value || "").trim(),
+          password: (passwordEl?.value || "").trim(),
+        };
+
+        if (errorEl) {
+          errorEl.style.display = "none";
+          errorEl.textContent = "";
+        }
+
+        if (!payload.email || !payload.password || (currentMode === "signup" && !payload.name)) {
+          if (errorEl) {
+            errorEl.textContent =
+              currentMode === "signup"
+                ? "Please enter your name, email, and password."
+                : "Please enter your email and password.";
+            errorEl.style.display = "block";
+          }
+          return;
+        }
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = "0.7";
+          submitBtn.textContent = currentMode === "signup" ? "Creating account..." : "Signing in...";
+        }
+
+        try {
+          const endpoint = currentMode === "signup" ? "/api/signup" : "/api/login";
+          const body =
+            currentMode === "signup"
+              ? payload
+              : { email: payload.email, password: payload.password };
+
+          const data = await api(endpoint, {
+            method: "POST",
+            body: JSON.stringify(body),
+          });
+
+          state.me.loggedIn = !!data.loggedIn;
+          state.me.email = data.email || "";
+          state.me.name = data.name || "";
+          state.me.pro = !!data.pro;
+          state.me.team = false;
+
+          await refreshMe();
+          await backendLoadLibrary();
+          updateUserUi();
+          closeAuthModal();
+
+          toast(
+            currentMode === "signup"
+              ? "Account created. You’re in."
+              : "Signed in successfully.",
+            "success",
+            2200
+          );
+        } catch (err) {
+          if (errorEl) {
+            errorEl.textContent = err.message || "Authentication failed.";
+            errorEl.style.display = "block";
+          }
+        } finally {
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = "1";
+            submitBtn.textContent = currentMode === "signup" ? "Create account" : "Sign in";
+          }
+        }
+      });
+    }
+
+    modal.dataset.mode = mode;
+    modal.hidden = false;
+    modal.style.display = "flex";
+    document.body.classList.add("modal-open");
+    document.body.style.overflow = "hidden";
+
+    const titleEl = $("simoAuthTitle");
+    const subtitleEl = $("simoAuthSubtitle");
+    const footerEl = $("simoAuthFooterText");
+    const nameWrap = $("simoAuthNameWrap");
+    const submitBtn = $("simoAuthSubmitBtn");
+    const signupModeBtn = $("simoAuthModeSignup");
+    const loginModeBtn = $("simoAuthModeLogin");
+    const errorEl = $("simoAuthError");
+    const nameEl = $("simoAuthName");
+    const emailEl = $("simoAuthEmail");
+    const passwordEl = $("simoAuthPassword");
+
+    if (errorEl) {
+      errorEl.style.display = "none";
+      errorEl.textContent = "";
+    }
+
+    const isSignup = mode === "signup";
+
+    if (titleEl) titleEl.textContent = isSignup ? "Create your account" : "Welcome back";
+    if (subtitleEl) {
+      subtitleEl.textContent = isSignup
+        ? "Sign up to save your place inside Simo."
+        : "Sign in with your email and password.";
+    }
+    if (footerEl) {
+      footerEl.textContent = isSignup
+        ? "Create a simple account now and keep moving."
+        : "Use the account you already created.";
+    }
+    if (nameWrap) nameWrap.style.display = isSignup ? "grid" : "none";
+    if (submitBtn) submitBtn.textContent = isSignup ? "Create account" : "Sign in";
+
+    if (signupModeBtn) {
+      signupModeBtn.style.background = isSignup ? "rgba(110,168,255,.16)" : "rgba(255,255,255,.05)";
+      signupModeBtn.style.borderColor = isSignup ? "rgba(110,168,255,.30)" : "rgba(255,255,255,.10)";
+    }
+
+    if (loginModeBtn) {
+      loginModeBtn.style.background = !isSignup ? "rgba(110,168,255,.16)" : "rgba(255,255,255,.05)";
+      loginModeBtn.style.borderColor = !isSignup ? "rgba(110,168,255,.30)" : "rgba(255,255,255,.10)";
+    }
+
+    setTimeout(() => {
+      try {
+        if (isSignup && nameEl) nameEl.focus();
+        else if (emailEl) emailEl.focus();
+      } catch {}
+    }, 30);
+
+    if (!isSignup && passwordEl) {
+      passwordEl.setAttribute("autocomplete", "current-password");
+    } else if (passwordEl) {
+      passwordEl.setAttribute("autocomplete", "new-password");
+    }
+  }
+
+  function syncProActiveUi() {
+    if (!upgradeBtn) return;
+
+    if (state.me.pro) {
+      upgradeBtn.disabled = true;
+      upgradeBtn.textContent = "✦ Pro Active";
+      upgradeBtn.title = "Paid Pro account active";
+      upgradeBtn.setAttribute("aria-label", "Paid Pro account active");
+      upgradeBtn.style.opacity = "1";
+      upgradeBtn.style.cursor = "default";
+      upgradeBtn.style.color = "#b8ffd6";
+      upgradeBtn.style.background = "linear-gradient(180deg, rgba(17,91,61,.96), rgba(5,51,35,.98))";
+      upgradeBtn.style.borderColor = "rgba(64,255,153,.72)";
+      upgradeBtn.style.boxShadow = "0 0 0 1px rgba(64,255,153,.10), 0 0 18px rgba(48,239,136,.26), inset 0 1px 0 rgba(255,255,255,.08)";
+      upgradeBtn.style.textShadow = "0 0 10px rgba(111,255,177,.35)";
+    } else {
+      upgradeBtn.disabled = false;
+      upgradeBtn.textContent = "Upgrade";
+      upgradeBtn.title = "Upgrade to Pro";
+      upgradeBtn.setAttribute("aria-label", "Upgrade to Pro");
+      upgradeBtn.style.opacity = "1";
+      upgradeBtn.style.cursor = "pointer";
+      upgradeBtn.style.color = "";
+      upgradeBtn.style.background = "";
+      upgradeBtn.style.borderColor = "";
+      upgradeBtn.style.boxShadow = "";
+      upgradeBtn.style.textShadow = "";
+    }
+  }
+
+  function updateUserUi() {
+    updatePremiumHomeUi();
+    publishAccountContext();
+    setText(userEmailEl, state.me.email || "");
+
+    if (proBadgeEl) {
+      proBadgeEl.textContent = state.me.pro ? "Pro" : "Free";
+      proBadgeEl.dataset.pro = state.me.pro ? "true" : "false";
+    }
+
+    if (profileBtn) {
+      const identity = String(state.me.name || state.me.email || "").trim();
+      const compactIdentity = state.me.name
+        ? state.me.name.split(/\s+/)[0]
+        : (state.me.email ? state.me.email.split("@")[0] : "You");
+      profileBtn.textContent = state.me.loggedIn ? `◉ ${compactIdentity}` : "◉ You";
+      profileBtn.title = state.me.loggedIn && identity ? `Signed in as ${identity}` : "Account";
+    }
+
+    if (loginBtn) {
+      loginBtn.textContent = state.me.loggedIn ? "Signed In" : "Sign in";
+      loginBtn.disabled = !!state.me.loggedIn;
+      loginBtn.style.opacity = state.me.loggedIn ? "0.68" : "1";
+      loginBtn.style.cursor = state.me.loggedIn ? "default" : "pointer";
+      loginBtn.onclick = () => {
+        if (state.me.loggedIn) return;
+        openAuthModal("login");
+      };
+    }
+
+    if (logoutBtn) {
+      logoutBtn.disabled = !state.me.loggedIn;
+      logoutBtn.style.opacity = state.me.loggedIn ? "1" : "0.68";
+      logoutBtn.style.cursor = state.me.loggedIn ? "pointer" : "default";
+      logoutBtn.onclick = async () => {
+        if (!state.me.loggedIn) return;
+
+        try {
+          await api("/api/logout", { method: "POST" });
+          state.me.loggedIn = false;
+          state.me.email = "";
+          state.me.name = "";
+          state.me.pro = false;
+          state.me.team = false;
+          await refreshMe();
+          await backendLoadLibrary();
+          renderLibrary();
+          updateRecentBuildsVisibility();
+          renderRecentBuilds();
+          updateUserUi();
+          toast("Logged out. Guest / Free local work is active.", "success", 2200);
+        } catch (err) {
+          toast(err.message || "Logout failed.", "error");
+        }
+      };
+    }
+
+    if (easySignupBtn) {
+      easySignupBtn.onclick = () => {
+        // Easy Signup is intentionally a new-user entry point even when
+        // an existing Pro session is active. Opening the modal does not
+        // alter the current account unless the user completes signup/sign-in.
+        openAuthModal("signup");
+      };
+    }
+
+    syncProActiveUi();
+    updateDashboardUi();
+  }
+
+  async function refreshMe() {
+    try {
+      const data = await api("/api/me");
+      state.me.loggedIn = !!data.loggedIn;
+      state.me.email = data.email || "";
+      state.me.name = data.name || "";
+      state.me.pro = !!data.pro;
+      state.me.team = !!data.team;
+      state.usageToday = Number(data.usage_today || 0);
+      state.freeDailyLimit = Number(data.free_daily_limit || state.freeDailyLimit || 25);
+      state.creditStatus = data.credits || data.image_credits || state.creditStatus || null;
+      updateUserUi();
+      return data;
+    } catch (err) {
+      console.warn("refreshMe failed:", err);
+      return null;
+    }
+  }
+
+  async function refreshProStatus() {
+    try {
+      const data = await api("/api/pro-status");
+      state.me.loggedIn = !!data.loggedIn;
+      state.me.email = data.email || "";
+      state.me.pro = !!data.pro;
+      state.me.team = !!data.team;
+      state.creditStatus = data.credits || state.creditStatus || null;
+      updateUserUi();
+      return data;
+    } catch (err) {
+      console.warn("refreshProStatus failed:", err);
+      return null;
+    }
+  }
+
+  async function startUpgradeFlow() {
+    try {
+      const proStatus = await api("/api/pro-status");
+
+      if (proStatus && proStatus.pro) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        syncProActiveUi();
+        return;
+      }
+
+      const data = await api("/api/create-checkout-session", {
+        method: "POST",
+        body: JSON.stringify({}),
+      });
+
+      if (data && data.ok && data.url) {
+        window.location.href = data.url;
+        return;
+      }
+
+      if (data && data.ok && data.already_pro) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        syncProActiveUi();
+        return;
+      }
+
+      throw new Error((data && data.error) || "Could not start checkout.");
+    } catch (err) {
+      const msg = String(err?.message || "");
+
+      if (msg.toLowerCase().includes("already pro")) {
+        state.me.pro = true;
+        updateUserUi();
+        toast("You already have Pro.", "success", 2200);
+
+        syncProActiveUi();
+        return;
+      }
+
+      if (msg.toLowerCase().includes("logged in")) {
+        openAuthModal("signup");
+        toast("Create your account or sign in before upgrading.", "info", 2600);
+        return;
+      }
+
+      toast(msg || "Upgrade failed.", "error");
+    }
+  }
+
+        
+  // -----------------------------
+  // chat rendering
+  // -----------------------------
+  function ensureChatShell() {
+    const existing = $("chatMessages");
+    if (existing) return existing;
+
+    const wrap = document.createElement("div");
+    wrap.id = "chatMessages";
+    wrap.style.maxWidth = "980px";
+    wrap.style.margin = "20px auto";
+    wrap.style.padding = "0 14px 120px";
+
+    const host = $("chat") || document.body;
+    host.appendChild(wrap);
+    return wrap;
+  }
+
+  function normalizeReplyText(text) {
+    return String(text || "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\u00a0/g, " ")
+      .trim();
+  }
+
+  function formatInlineText(text) {
+    let html = escapeHtml(String(text || ""));
+    html = html.replace(
+      /`([^`\n]+)`/g,
+      '<code style="padding:2px 6px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);font-size:.95em;color:#f4f7ff;">$1</code>'
+    );
+    html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
+    return html;
+  }
+
+  function renderAssistantTextHtml(text) {
+    const raw = normalizeReplyText(text);
+    if (!raw) {
+      return `<div style="color:#eef4ff;">Done.</div>`;
+    }
+
+    const codeBlocks = [];
+    const placeholderPrefix = "__SIMO_CODE_BLOCK__";
+    let working = raw.replace(/```([a-zA-Z0-9_-]+)?\n?([\s\S]*?)```/g, (_, lang, code) => {
+      const idx =
+        codeBlocks.push({
+          lang: String(lang || "").trim(),
+          code: String(code || "").replace(/^\n+|\n+$/g, ""),
+        }) - 1;
+      return `${placeholderPrefix}${idx}__`;
+    });
+
+    const lines = working.split("\n");
+    const out = [];
+    let paragraph = [];
+    let listType = null;
+
+    function flushParagraph() {
+      if (!paragraph.length) return;
+      const content = paragraph.join(" ").trim();
+      if (content) {
+        out.push(
+          `<p style="margin:0; line-height:1.55; color:#eef4ff;">${formatInlineText(content)}</p>`
+        );
+      }
+      paragraph = [];
+    }
+
+    function closeList() {
+      if (listType) {
+        out.push(listType === "ul" ? "</ul>" : "</ol>");
+        listType = null;
+      }
+    }
+
+    for (const lineRaw of lines) {
+      const line = lineRaw.trim();
+
+      const codeMatch = line.match(new RegExp(`^${placeholderPrefix}(\\d+)__$`));
+      if (codeMatch) {
+        flushParagraph();
+        closeList();
+        const block = codeBlocks[Number(codeMatch[1])] || { lang: "", code: "" };
+        out.push(`
+          <div style="display:grid; gap:6px; margin:2px 0;">
+            ${
+              block.lang
+                ? `<div style="font-size:11px; color:rgba(235,242,255,.65); text-transform:uppercase; letter-spacing:.08em;">${escapeHtml(block.lang)}</div>`
+                : ""
+            }
+            <pre style="margin:0; padding:14px; border-radius:14px; background:rgba(6,12,22,.94); border:1px solid rgba(255,255,255,.08); overflow:auto; color:#eef4ff; line-height:1.45;"><code>${escapeHtml(block.code)}</code></pre>
+          </div>
+        `);
+        continue;
+      }
+
+      if (!line) {
+        flushParagraph();
+        closeList();
+        continue;
+      }
+
+      if (/^---+$/.test(line)) {
+        flushParagraph();
+        closeList();
+        out.push(`<div style="height:1px; background:rgba(255,255,255,.08); margin:2px 0;"></div>`);
+        continue;
+      }
+
+      const h = line.match(/^(#{1,3})\s+(.*)$/);
+      if (h) {
+        flushParagraph();
+        closeList();
+        const level = h[1].length;
+        const sizes = { 1: "18px", 2: "16px", 3: "14px" };
+        out.push(
+          `<div style="margin:0; font-weight:800; font-size:${sizes[level]}; line-height:1.35; color:#eef4ff;">${formatInlineText(h[2])}</div>`
+        );
+        continue;
+      }
+
+      const ul = line.match(/^[-*•]\s+(.*)$/);
+      if (ul) {
+        flushParagraph();
+        if (listType !== "ul") {
+          closeList();
+          out.push(`<ul style="margin:0; padding-left:18px; display:grid; gap:6px; color:#eef4ff;">`);
+          listType = "ul";
+        }
+        out.push(`<li style="line-height:1.5;">${formatInlineText(ul[1])}</li>`);
+        continue;
+      }
+
+      const ol = line.match(/^(\d+)[.)]\s+(.*)$/);
+      if (ol) {
+        flushParagraph();
+        if (listType !== "ol") {
+          closeList();
+          out.push(`<ol style="margin:0; padding-left:20px; display:grid; gap:6px; color:#eef4ff;">`);
+          listType = "ol";
+        }
+        out.push(`<li style="line-height:1.5;">${formatInlineText(ol[2])}</li>`);
+        continue;
+      }
+
+      paragraph.push(line);
+    }
+
+    flushParagraph();
+    closeList();
+
+    return `<div style="display:grid; gap:10px;">${out.join("")}</div>`;
+  }
+
+  function buildAssistantUtilityBar(rawText) {
+    const safeText = encodeURIComponent(String(rawText || ""));
+    return `
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:2px;">
+        <button
+          type="button"
+          data-copy-assistant="${safeText}"
+          style="
+            padding:7px 10px;
+            border-radius:10px;
+            border:1px solid rgba(255,255,255,.10);
+            background:rgba(255,255,255,.05);
+            color:#eef4ff;
+            cursor:pointer;
+            font-size:12px;
+          "
+        >Copy reply</button>
+      </div>
+    `;
+  }
+
+  function getAssistantVisualImageMatches(text) {
+    const raw = String(text || "");
+    const out = [];
+    const seen = new Set();
+
+    raw.replace(/!\[([^\]]*)\]\(([^)\s]+(?:\s+"[^"]*")?)\)/g, (match, alt, urlPart) => {
+      let url = String(urlPart || "").trim();
+      url = url.replace(/\s+"[^"]*"$/, "").trim();
+      url = url.replace(/^<|>$/g, "").trim();
+
+      if (!url) return match;
+
+      const cleanUrl = url.replace(/[),.;]+$/, "").trim();
+      const lower = cleanUrl.toLowerCase();
+      const isImage =
+        /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(lower) ||
+        lower.includes("/generated-images/") ||
+        lower.includes("/uploads/");
+
+      if (!isImage) return match;
+
+      const key = cleanUrl;
+      if (seen.has(key)) return match;
+      seen.add(key);
+
+      out.push({
+        markdown: match,
+        alt: String(alt || "Simo visual").trim() || "Simo visual",
+        url: cleanUrl,
+      });
+
+      return match;
+    });
+
+    return out;
+  }
+
+  function stripAssistantVisualMarkdown(text, images) {
+    let clean = String(text || "");
+    (Array.isArray(images) ? images : []).forEach((img) => {
+      if (img && img.markdown) {
+        clean = clean.replace(img.markdown, "");
+      }
+    });
+    return clean
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function visualActionPrompt(action, url, alt) {
+    const cleanUrl = toAbsoluteUrl(url);
+    const cleanAlt = String(alt || "Simo visual concept").trim() || "Simo visual concept";
+
+    if (action === "refine") {
+      return `[SIMO_VISUAL_EDIT]\nREQUEST: Refine this visual concept and make it more polished, realistic, and production-ready. Keep the same core idea as the starting point.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+    }
+
+    if (action === "style") {
+      return `[SIMO_VISUAL_EDIT]\nREQUEST: Change the style and materials of this concept. Ask me what style, exterior materials, color palette, mood, and luxury level I want, then help update the design from this visual.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+    }
+
+    if (action === "features") {
+      return `[SIMO_VISUAL_EDIT]\nREQUEST: Help me add or change features on this concept. Use this image as the base and ask what I want to add, remove, resize, or redesign.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+    }
+
+    if (action === "variations") {
+      return `[SIMO_VISUAL_VARIATIONS]\nREQUEST: Generate several improved design variations based on this visual concept. Keep the same main idea, but explore different layouts, materials, and luxury directions.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+    }
+
+    if (action === "studio") {
+      return `[SIMO_DESIGN_STUDIO]\nREQUEST: Turn this visual into a structured design project. Create a design brief with style direction, materials, layout ideas, feature list, refinement options, and next steps.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+    }
+
+    return `[SIMO_VISUAL_EDIT]\nREQUEST: Continue designing from this visual concept.\nREFERENCE_IMAGE: ${cleanUrl}\nCONCEPT: ${cleanAlt}`;
+  }
+
+  function buildVisualActionButton(label, action, url, alt, primary = false) {
+    return `
+      <button
+        type="button"
+        data-visual-action="${escapeHtml(action)}"
+        data-visual-url="${encodeURIComponent(toAbsoluteUrl(url))}"
+        data-visual-alt="${encodeURIComponent(String(alt || "Simo visual concept"))}"
+        style="
+          appearance:none;
+          border:1px solid ${primary ? "rgba(110,168,255,.34)" : "rgba(255,255,255,.10)"};
+          background:${primary ? "linear-gradient(135deg, rgba(110,168,255,.18), rgba(155,120,255,.12))" : "rgba(255,255,255,.055)"};
+          color:#eef4ff;
+          border-radius:999px;
+          padding:8px 10px;
+          cursor:pointer;
+          font:inherit;
+          font-size:11.5px;
+          font-weight:800;
+          white-space:nowrap;
+          box-shadow:${primary ? "0 10px 26px rgba(80,120,255,.16)" : "none"};
+        "
+      >${escapeHtml(label)}</button>
+    `;
+  }
+
+  function buildVisualConceptLibraryHtml(imageUrl, title) {
+    const safeUrl = String(imageUrl || "").replace(/"/g, "&quot;");
+    const safeTitle = String(title || "Visual Concept").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <base target="_self" />
   <title>${safeTitle}</title>
   <style>
-    :root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#101827;background:#f7f9fc;scroll-behavior:smooth;}
-    *{box-sizing:border-box} body{margin:0;background:linear-gradient(180deg,#f8fbff,#eef3f9);color:#101827;}
-    .nav{display:flex;justify-content:space-between;align-items:center;padding:22px 6vw;background:rgba(255,255,255,.82);backdrop-filter:blur(12px);border-bottom:1px solid #e6edf5;position:sticky;top:0;z-index:5;}
-    .brand{font-weight:900;font-size:20px;letter-spacing:-.02em}.links{display:flex;gap:22px;color:#536170;font-size:14px}.links a{color:inherit;text-decoration:none}.btn{display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:999px;padding:13px 20px;background:#111827;color:#fff;font-weight:800;text-decoration:none;cursor:pointer}.btn.secondary{background:#e9eef6;color:#111827}
-    .hero{display:grid;grid-template-columns:1.05fr .95fr;gap:42px;align-items:center;padding:74px 6vw 56px}.eyebrow{color:#2563eb;font-weight:900;letter-spacing:.16em;text-transform:uppercase;font-size:12px}.hero h1{font-size:clamp(42px,6vw,78px);line-height:.95;margin:16px 0 18px;letter-spacing:-.06em}.hero p{font-size:19px;line-height:1.7;color:#536170;max-width:650px}.actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:28px}
-    .visual{border-radius:32px;background:linear-gradient(135deg,#111827,#1e3a8a);min-height:420px;padding:24px;box-shadow:0 30px 80px rgba(15,23,42,.22);color:#fff;position:relative;overflow:hidden}.visual:before{content:"";position:absolute;inset:-20%;background:radial-gradient(circle at 70% 20%,rgba(255,255,255,.28),transparent 34%),radial-gradient(circle at 20% 80%,rgba(96,165,250,.35),transparent 30%)}.panel{position:relative;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.10);border-radius:24px;padding:20px;margin-top:40px}.metric{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:18px}.metric div{background:rgba(255,255,255,.12);border-radius:18px;padding:16px}.mock{position:relative;height:210px;border-radius:22px;background:#fff;color:#111827;padding:20px;margin-top:18px}.mock .bar{height:12px;background:#dbeafe;border-radius:999px;margin:12px 0}.mock .wide{width:78%}.mock .mid{width:58%}.mock .short{width:38%}
-    .section{padding:36px 6vw 72px;scroll-margin-top:96px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card{background:#fff;border:1px solid #e6edf5;border-radius:24px;padding:26px;box-shadow:0 18px 50px rgba(15,23,42,.07)}.card h3{margin:0 0 10px;font-size:20px}.card p{margin:0;color:#64748b;line-height:1.6}.section-head{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:18px}.section-head h2{font-size:clamp(28px,4vw,46px);line-height:1;margin:8px 0 8px;letter-spacing:-.04em}.section-head p{color:#64748b;line-height:1.65;max-width:760px}.image-grid{display:grid;grid-template-columns:1.2fr .9fr .9fr;gap:18px}.photo-card{min-height:280px;border-radius:28px;overflow:hidden;position:relative;display:flex;align-items:flex-end;padding:22px;color:#fff;box-shadow:0 22px 60px rgba(15,23,42,.16);background:linear-gradient(135deg,#0f172a,#2563eb)}.photo-card:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 70% 20%,rgba(255,255,255,.35),transparent 28%),linear-gradient(180deg,transparent,rgba(0,0,0,.60));}.photo-card div{position:relative}.photo-card strong{display:block;font-size:24px;margin-bottom:8px}.photo-card span{display:block;color:#eaf2ff;line-height:1.45}.photo-2{background:linear-gradient(135deg,#134e4a,#22c55e)}.photo-3{background:linear-gradient(135deg,#581c87,#f97316)}.testimonials .card{background:linear-gradient(180deg,#ffffff,#f8fbff)}.trust-card{display:grid;grid-template-columns:1fr auto;gap:22px;align-items:center}.trust-list{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}.trust-list span{border:1px solid #dbeafe;background:#eff6ff;color:#1e3a8a;border-radius:999px;padding:10px 13px;font-size:13px;font-weight:900}.footer{padding:30px 6vw;color:#64748b;border-top:1px solid #e6edf5;background:#fff}
-    .quote-form{display:grid;gap:10px;margin-top:16px;max-width:620px}.quote-form input,.quote-form textarea{width:100%;padding:13px;border:1px solid #dbe3ef;border-radius:12px;font:inherit}.quote-form textarea{min-height:96px;resize:vertical}.simo-target-flash{outline:3px solid rgba(37,99,235,.25);outline-offset:6px;transition:outline .25s ease}.simo-quote-test-backdrop{display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(15,23,42,.62);padding:22px}.simo-quote-test-card{width:min(620px,96vw);max-height:92vh;overflow:auto;background:#fff;color:#101827;border-radius:26px;padding:24px;box-shadow:0 30px 90px rgba(15,23,42,.32);position:relative}.simo-quote-close-main{position:sticky;top:0;float:right;border:0;background:#111827;color:#fff;border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:900;z-index:2}.simo-test-pill{display:inline-flex;border-radius:999px;background:#dbeafe;color:#1d4ed8;padding:8px 11px;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase}.simo-preview-note{margin-top:12px;border-radius:14px;background:#ecfdf5;color:#065f46;padding:12px;font-weight:850;line-height:1.45}
-    @media(max-width:850px){.hero{grid-template-columns:1fr;padding-top:42px}.grid,.image-grid,.trust-card{grid-template-columns:1fr}.links{display:none}.hero h1{font-size:44px}.photo-card{min-height:220px}.trust-list{justify-content:flex-start}}
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: #050b14;
+      color: #eef4ff;
+      font-family: Arial, sans-serif;
+    }
+    .wrap {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 28px;
+      box-sizing: border-box;
+      background:
+        radial-gradient(circle at top left, rgba(110,168,255,.16), transparent 26%),
+        radial-gradient(circle at top right, rgba(185,130,255,.12), transparent 24%),
+        linear-gradient(180deg, #07111f, #050b14);
+    }
+    .card {
+      width: min(1180px, 100%);
+      border-radius: 26px;
+      border: 1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.045);
+      box-shadow: 0 24px 70px rgba(0,0,0,.36);
+      overflow: hidden;
+    }
+    .top {
+      padding: 16px 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      border-bottom: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.04);
+    }
+    .title {
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .tag {
+      font-size: 12px;
+      color: rgba(235,242,255,.72);
+    }
+    .image-stage {
+      background: #020711;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 420px;
+    }
+    img {
+      display: block;
+      width: 100%;
+      max-height: 82vh;
+      object-fit: contain;
+    }
+    .footer {
+      padding: 14px 18px 18px;
+      color: rgba(235,242,255,.78);
+      font-size: 13px;
+      line-height: 1.5;
+    }
   </style>
 </head>
 <body>
-  <nav class="nav"><div class="brand">${safeSubject}</div><div class="links"><a href="#features" data-simo-page-cta data-simo-target="features">Services</a><a href="#gallery" data-simo-page-cta data-simo-target="gallery">Gallery</a><a href="#reviews" data-simo-page-cta data-simo-target="reviews">Reviews</a><a href="#quote" data-simo-page-cta data-simo-target="quote">Contact</a></div><a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">${esc(primary)}</a></nav>
-  <main>
-    <section class="hero">
-      <div><div class="eyebrow">Simo Builder Preview</div><h1>${safeTitle}</h1><p>${esc(profile.heroBody)}</p><div class="actions"><a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">${esc(primary)}</a><a class="btn secondary" href="#features" data-simo-page-cta data-simo-target="features">${esc(secondary)}</a></div></div>
-      <div class="visual"><div class="panel"><div class="eyebrow" style="color:#bfdbfe">Live page mockup</div><h2 style="font-size:32px;margin:10px 0 4px">${safeSubject}</h2><p style="color:#dbeafe">${esc(profile.visualLabel)} with clear offer, trust proof, image sections, and conversion-focused buttons.</p><div class="mock"><strong>${safeTitle}</strong><div class="bar wide"></div><div class="bar mid"></div><div class="bar short"></div><div class="metric">${(profile.stats || ['Offer','Trust','CTA']).slice(0,3).map(function(x){ return `<div>${esc(x)}</div>`; }).join('')}</div></div></div></div>
+  <main class="wrap">
+    <section class="card">
+      <div class="top">
+        <div class="title">${safeTitle}</div>
+        <div class="tag">Saved visual concept</div>
+      </div>
+      <div class="image-stage">
+        <img src="${safeUrl}" alt="${safeTitle}" />
+      </div>
+      <div class="footer">
+        Continue editing this concept in Simo by reopening it from the Builder Library.
+      </div>
     </section>
-    <section id="features" class="section"><div class="grid">${cards.map(function(c){ return `<div class="card"><h3>${esc(c)}</h3><p>Professional section content that Simo can keep editing based on the user’s next instruction.</p></div>`; }).join('')}</div></section>
-    <section id="deals" class="section"><div class="card"><div class="eyebrow">Offers</div><h2>${esc(profile.offerTitle)}</h2><p>${esc(profile.offerBody)}</p></div></section>
-    ${proSections}
-    <section id="quote" class="section"><div class="card"><div class="eyebrow">Request a Quote</div><h2>Quote form test mode is ready</h2><p>This preview uses a safe test form. Nothing is sent from the builder preview. When published, connect this form to email, CRM, or Simo’s form handler.</p><div class="actions"><button class="btn" type="button" data-simo-page-cta data-simo-target="quote">Open Quote Form Test</button><a class="btn secondary" href="#deals" data-simo-page-cta data-simo-target="deals">See Packages</a></div></div></section>
   </main>
-  <footer id="contact" class="footer">Built by Simo Builder • Buttons stay on this page. Ready for refinement, preview, and library save.</footer>
-  <div id="simo-quote-modal" class="simo-quote-test-backdrop" aria-hidden="true">
-    <div class="simo-quote-test-card">
-      <button type="button" data-simo-close-quote class="simo-quote-close-main">Close Test ×</button>
-      <div class="simo-test-pill">Quote Form Test Mode</div>
-      <h2 style="margin:12px 0 8px;font-size:30px;letter-spacing:-.03em;">This is a preview. Nothing will be sent.</h2>
-      <p style="margin:0 0 14px;color:#536170;line-height:1.55;">Fill this out to test the button behavior. When published, connect it to email, CRM, or Simo’s form handler.</p>
-      <form class="quote-form" data-simo-preview-form>
-        <input name="name" placeholder="Name" />
-        <input name="phone" placeholder="Phone" />
-        <input name="email" placeholder="Email" />
-        <input name="service" placeholder="Service needed" />
-        <textarea name="message" placeholder="Message"></textarea>
-        <button class="btn" type="submit">Send Quote Request</button>
-      </form>
-      <div id="simo-form-preview-note" class="simo-preview-note" role="status" aria-live="polite" style="display:none;"></div>
-      <button type="button" data-simo-close-quote class="btn secondary" style="margin-top:14px;width:100%;">Back to website preview</button>
-    </div>
-  </div>
-  <script>
-    (function(){
-      function clean(v){return String(v||'').toLowerCase().replace(/\s+/g,' ').trim();}
-      function targetFromLabel(label){var t=clean(label); if(/deal|offer|special|discount|coupon|promo|package|pricing|price/.test(t)) return 'deals'; if(/service|learn|more|feature|product/.test(t)) return 'features'; if(/quote|estimate|book|schedule|contact|get started|call|message|request/.test(t)) return 'quote'; return null;}
-      function openQuote(){var m=document.getElementById('simo-quote-modal'); if(m){m.style.display='flex';m.setAttribute('aria-hidden','false');var first=m.querySelector('input,textarea,button');try{first&&first.focus();}catch(e){} return;} var el=document.getElementById('quote')||document.getElementById('contact'); if(el){el.scrollIntoView({behavior:'smooth',block:'start'});}}
-      function closeQuote(){var m=document.getElementById('simo-quote-modal'); if(m){m.style.display='none';m.setAttribute('aria-hidden','true');}}
-      document.addEventListener('keydown',function(e){if(e.key==='Escape')closeQuote();},true);
-      function go(target){if(target==='quote'){openQuote();return;} var el=document.getElementById(target)||document.getElementById('features')||document.getElementById('quote'); if(!el) return; el.scrollIntoView({behavior:'smooth',block:'start'}); el.classList.add('simo-target-flash'); setTimeout(function(){el.classList.remove('simo-target-flash');},900);}
-      document.addEventListener('click',function(e){var modal=document.getElementById('simo-quote-modal'); if(modal&&e.target===modal){e.preventDefault();e.stopPropagation();closeQuote();return;} var hit=e.target&&e.target.closest?e.target.closest('a,button'):null; if(!hit) return; if(hit.hasAttribute('data-simo-close-quote')){e.preventDefault();e.stopPropagation();closeQuote();return;} var target=hit.getAttribute('data-simo-target')||targetFromLabel(hit.textContent||hit.value||hit.getAttribute('aria-label')||''); if(!target) return; e.preventDefault(); e.stopPropagation(); go(target);},true);
-      document.addEventListener('submit',function(e){var form=e.target&&e.target.closest?e.target.closest('[data-simo-preview-form]'):null; if(!form) return; e.preventDefault(); var note=document.getElementById('simo-form-preview-note'); var message='Test received — nothing was actually sent. When published, connect this form to email, CRM, or Simo’s form handler.'; if(note){note.textContent=message;note.style.display='block';}else{alert(message);}},true);
-    })();
-  <\/script>
 </body>
 </html>`;
   }
 
-  function ensureBuilderStore() {
-    window.__SIMO_R1060L_BUILDER_STORE__ = window.__SIMO_R1060L_BUILDER_STORE__ || {};
-    return window.__SIMO_R1060L_BUILDER_STORE__;
-  }
-
-
-  function builderWorkspaceSuggestions(project) {
-    const kind = builderKind(project && project.prompt || 'landing page');
-    const common = [
-      ['Hero Section', 'hero'],
-      ['CTA Buttons', 'buttons'],
-      ['Products / Services', 'products'],
-      ['Pricing / Offer', 'pricing'],
-      ['Contact Form', 'contact'],
-      ['Testimonials', 'testimonials'],
-      ['Add Media', 'media'],
-      ['Social Links', 'social'],
-      ['Colors / Theme', 'colors'],
-      ['Mobile Layout', 'mobile'],
-      ['SEO Basics', 'seo'],
-      ['Domain Help', 'domain']
-    ];
-    if (kind === 'app' || kind === 'dashboard') {
-      return [
-        ['Hero / App Intro', 'hero'],
-        ['Navigation', 'navigation'],
-        ['Dashboard Widgets', 'widgets'],
-        ['CTA Buttons', 'buttons'],
-        ['Pricing / Plans', 'pricing'],
-        ['Contact / Signup', 'contact'],
-        ['Add Media', 'media'],
-        ['Social Links', 'social'],
-        ['Colors / Theme', 'colors'],
-        ['Mobile Layout', 'mobile'],
-        ['SEO Basics', 'seo'],
-        ['Domain Help', 'domain']
-      ];
-    }
-    if (kind === 'store') {
-      return [
-        ['Hero / Offer', 'hero'],
-        ['Shop Buttons', 'buttons'],
-        ['Featured Products', 'products'],
-        ['Pricing / Deals', 'pricing'],
-        ['Checkout Trust', 'trust'],
-        ['Contact / Pickup', 'contact'],
-        ['Testimonials', 'testimonials'],
-        ['Add Media', 'media'],
-        ['Social Links', 'social'],
-        ['Colors / Theme', 'colors'],
-        ['Mobile Layout', 'mobile'],
-        ['Domain Help', 'domain']
-      ];
-    }
-    return common;
-  }
-
-  function builderEditCopy(project, action) {
-    const subject = builderSubject(project && project.prompt || 'your business');
-    const title = builderTitleFromPrompt(project && project.prompt || 'website');
-    const a = clean(action);
-    const map = {
-      hero: ['Hero section upgraded', `A stronger opening section for ${subject}: clearer headline, sharper promise, trust message, and one primary action.`],
-      buttons: ['CTA buttons upgraded', 'Primary and secondary buttons were clarified so the visitor knows exactly what to click next.'],
-      products: ['Products / services section added', `A focused products/services area for ${subject}, with simple cards the user can keep editing.`],
-      pricing: ['Pricing / offer section added', 'A clean offer block with starter pricing, value points, and a low-friction call-to-action.'],
-      contact: ['Contact form section added', 'A simple contact/request section with name, email, message, and a clear submit action.'],
-      testimonials: ['Testimonials section added', 'Trust-building customer quote cards and social proof were added to support conversion.'],
-      media: ['Media section added', 'A photo/video area was added so customers can visually see results, examples, before/after work, or a walkthrough.'],
-      social: ['Social links section added', 'Social media links were added so visitors can follow the business and verify the brand on other platforms.'],
-      colors: ['Theme polish applied', 'A more premium visual theme was applied with stronger contrast, deeper accent color, and cleaner section rhythm.'],
-      mobile: ['Mobile layout guidance added', 'Mobile-first notes and responsive section behavior were added so the page is easier to use on phones.'],
-      seo: ['SEO basics added', `Title, description, and launch copy guidance were added for ${title}.`],
-      domain: ['Domain / launch guidance added', 'Domain name ideas, where to buy a URL, and simple publishing next steps were added.'],
-      publish: ['Publish guidance prepared', 'Simo prepared the page for publishing and will try the app publish endpoint if available.'],
-      navigation: ['Navigation improved', 'Navigation labels and page flow were clarified for a cleaner app/website experience.'],
-      widgets: ['Dashboard widgets improved', 'Useful dashboard cards and app-style components were added for the user to refine.'],
-      trust: ['Trust section added', 'Shipping, pickup, warranty, payment, and safety trust points were added to support online purchases.']
-    };
-    return map[a] || [titleCase(action || 'Website edit'), 'Simo applied a focused website/app builder edit while keeping this in the builder lane.'];
-  }
-
-  function injectBeforeClosing(html, marker, insert) {
-    const raw = String(html || '');
-    const idx = raw.lastIndexOf(marker);
-    if (idx < 0) return raw + insert;
-    return raw.slice(0, idx) + insert + raw.slice(idx);
-  }
-
-  function updateBuilderLiveNote(html, title, body) {
-    let raw = String(html || '');
-    const note = `
-<section class="simo-builder-live-note" style="padding:18px 6vw 0">
-  <div style="border:1px solid #bfdbfe;background:#eff6ff;border-radius:18px;padding:16px 18px;color:#1e293b;box-shadow:0 12px 32px rgba(15,23,42,.08)">
-    <div style="font-size:12px;text-transform:uppercase;letter-spacing:.14em;color:#2563eb;font-weight:900">Latest Simo edit</div>
-    <h2 style="margin:8px 0 6px;font-size:24px;letter-spacing:-.03em;">${esc(title || 'Website edit applied')}</h2>
-    <p style="margin:0;color:#475569;line-height:1.55">${esc(body || 'The preview was updated. Keep refining sections, buttons, layout, copy, and launch details.')}</p>
-  </div>
-</section>
-`;
-    raw = raw.replace(/<section class="simo-builder-live-note"[\s\S]*?<\/section>\s*/i, '');
-    if (/<main[^>]*>/i.test(raw)) return raw.replace(/<main[^>]*>/i, function(m){ return m + note; });
-    return note + raw;
-  }
-
-  function injectAfterFirstSection(html, insert) {
-    const raw = String(html || '');
-    const match = /<\/section>/i.exec(raw);
-    if (!match) return injectBeforeClosing(raw, '</main>', insert);
-    const pos = match.index + match[0].length;
-    return raw.slice(0, pos) + insert + raw.slice(pos);
-  }
-
-  function applyBuilderEdit(project, action) {
-    if (!project) return null;
-    project.edits = Array.isArray(project.edits) ? project.edits : [];
-    const cleanAction = clean(action || 'edit');
-    const subject = builderSubject(project.prompt || 'your business');
-    const pair = builderEditCopy(project, cleanAction);
-    const sectionTitle = pair[0];
-    const sectionBody = pair[1];
-    let html = String(project.html || builderHtml(project.prompt || 'website'));
-
-    if (cleanAction === 'hero') {
-      html = html.replace(/<div class="eyebrow">Simo Builder Preview<\/div><h1>[\s\S]*?<\/h1><p>[\s\S]*?<\/p>/i, `<div class="eyebrow">Simo Builder Preview</div><h1>${esc(project.title || builderTitleFromPrompt(project.prompt))}</h1><p>${esc(sectionBody)}</p>`);
-    }
-    if (cleanAction === 'buttons') {
-      html = html.replace(/>Get Started<\/a>/g, '>Request a Quote</a>').replace(/>See Services<\/a>/g, '>See Packages</a>').replace(/>Shop Now<\/a>/g, '>Shop Deals</a>').replace(/>Launch App<\/a>/g, '>Start Free</a>');
-    }
-    if (cleanAction === 'mobile') {
-      html = injectBeforeClosing(html, '</head>', `<style id="simo-mobile-polish">\n@media(max-width:650px){.hero{padding:34px 5vw}.hero h1{font-size:38px}.actions .btn{width:100%}.visual{min-height:320px}.mock{height:auto}.metric{grid-template-columns:1fr}}\n</style>\n`);
-    }
-
-    if (cleanAction === 'colors') {
-      html = injectBeforeClosing(html, '</head>', `<style id="simo-theme-polish">\n.hero{background:linear-gradient(135deg,rgba(37,99,235,.08),rgba(14,165,233,.06));}.btn{box-shadow:0 12px 26px rgba(17,24,39,.18)}.card{border-color:#d9e6f5}.eyebrow{color:#1d4ed8}\n</style>\n`);
-    }
-    if (cleanAction === 'seo') {
-      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(project.title || builderTitleFromPrompt(project.prompt))}</title>\n  <meta name="description" content="${esc(sectionBody).slice(0, 155)}" />`);
-    }
-
-    html = updateBuilderLiveNote(html, sectionTitle, sectionBody);
-
-    const block = `\n<section class="section simo-builder-edit-section" data-simo-builder-edit="${esc(cleanAction)}">\n  <div class="card" style="border:2px solid #dbeafe;background:#ffffff;">\n    <div class="eyebrow">Simo Builder Edit</div>\n    <h2 style="margin:10px 0 8px;font-size:30px;letter-spacing:-.03em;">${esc(sectionTitle)}</h2>\n    <p>${esc(sectionBody)}</p>\n    ${cleanAction === 'contact' ? '<div style="display:grid;gap:10px;margin-top:16px;max-width:520px"><input placeholder="Name" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px"><input placeholder="Email" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px"><textarea placeholder="Message" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px;min-height:90px"></textarea><button class="btn" type="button">Send Request</button></div>' : ''}\n    ${cleanAction === 'pricing' ? '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:16px"><div class="card" style="box-shadow:none"><strong>Starter Offer</strong><p>Simple entry offer the user can edit.</p></div><div class="card" style="box-shadow:none"><strong>Premium Offer</strong><p>Higher-value option with support or extras.</p></div></div>' : ''}\n    ${cleanAction === 'domain' ? `<ul style="line-height:1.8;color:#475569"><li>Possible names: ${esc(subject).replace(/\s+/g,'')}.com, Go${esc(subject).replace(/\s+/g,'')}.com, ${esc(subject).replace(/\s+/g,'')}HQ.com</li><li>Buy domains from GoDaddy, Namecheap, Squarespace Domains, Cloudflare Registrar, or similar registrars.</li><li>After publishing, connect the domain to the hosting URL from Simo or your hosting provider.</li></ul>` : ''}\n  </div>\n</section>\n`;
-
-    html = injectAfterFirstSection(html, block);
-    project.html = html;
-    project.edits.unshift({ action: cleanAction, label: sectionTitle, at: new Date().toISOString() });
-    project.edits = project.edits.slice(0, 12);
-    return project;
-  }
-
-  function downloadBuilderHtml(project) {
-    const html = String(project && project.html || '');
-    const name = slugify(project && project.title || 'simo-builder-page') || 'simo-builder-page';
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${name}.html`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(function(){ try { URL.revokeObjectURL(url); a.remove(); } catch {} }, 400);
-  }
-
-  function domainIdeasFor(project) {
-    const subject = builderSubject(project && project.prompt || 'your business').replace(/[^a-z0-9 ]/ig,'').trim();
-    const compact = subject.replace(/\s+/g, '');
-    const base = compact || 'YourSite';
-    return [`${base}.com`, `Go${base}.com`, `${base}HQ.com`, `${base}Online.com`, `My${base}.com`].slice(0, 5);
-  }
-
-  function showBuilderGuidance(project, publishedUrl) {
-    const ideas = domainIdeasFor(project);
-    const urlLine = publishedUrl ? `<div style="margin-top:8px;color:#d7ffec;font-weight:900;">Published URL: ${esc(publishedUrl)}</div>` : `<div style="margin-top:8px;color:#ffeeb0;">Publish endpoint was not available yet, but Copy HTML and Download HTML are ready.</div>`;
-    addAssistant(`
-      <div style="border:1px solid rgba(110,168,255,.22);border-radius:18px;padding:14px;background:rgba(110,168,255,.09);display:grid;gap:8px;color:#eef4ff;">
-        <div style="font-weight:950;font-size:16px;">Website/App launch guidance</div>
-        ${urlLine}
-        <div style="font-size:13px;color:#c7d3ea;line-height:1.55;">Next steps: review the page, test buttons/contact form, download a backup, then connect a domain when you are ready.</div>
-        <div style="font-size:13px;color:#dce8ff;"><b>Domain ideas:</b> ${ideas.map(esc).join(' • ')}</div>
-        <div style="font-size:13px;color:#c7d3ea;">Domain registrars to compare: GoDaddy, Namecheap, Squarespace Domains, Cloudflare Registrar. Choose a short name that is easy to spell and close to the business.</div>
-      </div>
-    `);
-  }
-
-  async function publishBuilderProject(project) {
-    let publishedUrl = '';
+  async function saveVisualConcept(imageUrl, alt = "Simo Visual Concept") {
+    const cleanUrl = toAbsoluteUrl(imageUrl);
+    if (!cleanUrl) { toast("No visual found to save.", "error", 2200); return false; }
+    const title = String(alt || "Simo Visual Concept").trim() || "Simo Visual Concept";
+    const now = nowIso();
+    const designData = { id: "visual_" + Math.random().toString(36).slice(2, 10), title, projectTitle: title, workspaceSubject: title, image: cleanUrl, currentImage: cleanUrl, displayImageUrl: cleanUrl, sourceImage: cleanUrl, currentSourceImage: cleanUrl, originalImage: cleanUrl, edits: [], tags: ["visual", "design", "concept", "workspace"], type: "design_workspace", kind: "design_workspace", createdAt: now, updatedAt: now };
     try {
-      const data = await api('/api/publish', { title: project.title, html: project.html, source: 'simo_builder', prompt: project.prompt });
-      publishedUrl = data && (data.url || data.public_url || data.published_url || data.display_url || (data.slug ? `/p/${data.slug}` : '')) || '';
-    } catch (err) {
-      console.warn('Simo Builder publish endpoint unavailable:', err);
+      if (!window.SimoLibrary || typeof window.SimoLibrary.saveWorkspace !== "function") throw new Error("Design Library owner is not ready.");
+      const result = await window.SimoLibrary.saveWorkspace(designData);
+      if (!result || result.ok === false) throw new Error((result && result.error) || "Design Library save failed.");
+      toast("Concept saved to Design Library.", "success", 2200); return true;
+    } catch (err) { console.error("Save visual concept failed:", err); toast(err.message || "Could not save this concept to Design Library.", "error", 2600); return false; }
+  }
+
+  function extractVisualUrlFromLibraryItem(item) {
+    if (!item) return "";
+
+    const sourceText = String(item.sourceText || item.source_text || "");
+    let match = sourceText.match(/IMAGE:\s*(https?:\/\/[^\s]+|\/[^\s]+)/i);
+    if (match && match[1]) return toAbsoluteUrl(match[1].trim());
+
+    const html = String(item.html || "");
+    match = html.match(/<img[^>]+src=["']([^"']+)["']/i);
+    if (match && match[1]) return toAbsoluteUrl(match[1].trim());
+
+    match = html.match(/(https?:\/\/[^\s"'<>]+\.(?:png|jpe?g|webp|gif)|\/generated-images\/[^\s"'<>]+\.(?:png|jpe?g|webp|gif))/i);
+    if (match && match[1]) return toAbsoluteUrl(match[1].trim());
+
+    return "";
+  }
+
+  function isVisualLibraryItem(item) {
+    if (!item) return false;
+
+    const tags = Array.isArray(item.tags) ? item.tags.map((x) => String(x || "").toLowerCase()) : [];
+    if (tags.includes("visual") || tags.includes("concept")) return true;
+
+    const sourceText = String(item.sourceText || item.source_text || "").toLowerCase();
+    if (sourceText.includes("[simo_visual_concept]") ||
+        sourceText.includes("[simo_visual_project]") ||
+        sourceText.includes("[simo_clean_workspace_saved]") ||
+        sourceText.includes("saved visual concept")) return true;
+
+    return !!extractVisualUrlFromLibraryItem(item);
+  }
+
+  function continueFromVisualLibraryItem(item) {
+    const imageUrl = extractVisualUrlFromLibraryItem(item);
+    const title = String(item?.title || "Saved visual concept").trim() || "Saved visual concept";
+
+    if (!imageUrl) {
+      openPreviewModal(item?.html || "", title);
+      return;
     }
-    showBuilderGuidance(project, publishedUrl);
-    return publishedUrl;
-  }
 
-  // R10.60V: true inline website/app editor — section button -> editable fields -> apply -> visible preview update.
-  function simoR1060VEditorStyle(active) {
-    return active
-      ? 'border:1px solid rgba(110,168,255,.78);background:rgba(110,168,255,.24);color:#ffffff;box-shadow:0 0 0 3px rgba(110,168,255,.14);border-radius:999px;padding:9px 12px;font-size:12px;font-weight:950;cursor:pointer;'
-      : 'border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:9px 12px;font-size:12px;font-weight:850;cursor:pointer;';
-  }
+    closeLibrary();
 
-  function simoR1060VEditorDefaults(project, action) {
-    const a = clean(action || 'hero');
-    const subject = builderSubject(project && project.prompt || 'your business');
-    const title = builderTitleFromPrompt(project && project.prompt || 'website');
-    const map = {
-      hero: { headline: title, body: `A clear, trustworthy landing page for ${subject}. Show the offer fast, explain the value, and make it easy for customers to contact you.`, primary: 'Request a Quote', secondary: 'See Packages' },
-      buttons: { headline: 'Call-To-Action Buttons', body: 'Make the main buttons direct and useful so visitors know whether to request a quote, see products, call, or contact the business.', primary: 'Request a Quote', secondary: 'See Deals' },
-      products: { headline: 'Products / Services', body: `Show the main products or services for ${subject}. Keep it simple, local, and easy to understand.`, primary: 'View Products', secondary: 'Ask Availability' },
-      pricing: { headline: 'Pricing / Offer', body: 'Add a starter offer, premium option, financing or bundle details, and a clear reason to contact you.', primary: 'Get Pricing', secondary: 'Compare Options' },
-      contact: { headline: 'Contact Form', body: 'Let visitors send their name, email, phone number, and message so the business can reply quickly.', primary: 'Send Request', secondary: 'Call Today' },
-      testimonials: { headline: 'Testimonials', body: 'Add short reviews, trust proof, guarantees, delivery/pickup notes, and local credibility.', primary: 'Read Reviews', secondary: 'Become a Customer' },
-      media: { headline: 'Results Gallery', body: 'Add a photo, image link, or video link so customers can visually see real results, examples, or proof of work.', primary: 'View Results', secondary: 'Request a Quote' },
-      social: { headline: 'Follow Us Online', body: 'Add Instagram, Facebook, TikTok, YouTube, X, LinkedIn, or other social links so visitors can verify and follow the business.', primary: 'Follow Us', secondary: 'Contact Us' },
-      colors: { headline: 'Colors / Theme', body: 'Make the page feel more premium with stronger contrast, cleaner spacing, and a professional color direction.', primary: 'Keep This Style', secondary: 'Try Another Theme' },
-      mobile: { headline: 'Mobile Layout', body: 'Make the mobile version easier to read with shorter sections, stacked buttons, and a clear contact action.', primary: 'Preview Mobile', secondary: 'Keep Editing' },
-      seo: { headline: 'SEO Basics', body: `Improve the title, description, and search-friendly page copy for ${subject}.`, primary: 'Improve SEO', secondary: 'Review Copy' },
-      domain: { headline: 'Domain Help', body: 'Suggest simple domain names, explain where to buy one, and guide the user toward publishing the page.', primary: 'Show Domain Ideas', secondary: 'Publish Next' },
-      navigation: { headline: 'Navigation', body: 'Make the menu clearer and easier to use for visitors.', primary: 'Start Now', secondary: 'View Features' },
-      widgets: { headline: 'Dashboard Widgets', body: 'Add dashboard cards, key metrics, action buttons, and status summaries.', primary: 'Open Dashboard', secondary: 'View Reports' },
-      trust: { headline: 'Trust Section', body: 'Add reassurance, safe-buying details, warranty, pickup/delivery notes, and credibility.', primary: 'Build Trust', secondary: 'Learn More' }
-    };
-    return map[a] || { headline: titleCase(a || 'Website Section'), body: 'Edit this section and apply it to the live preview.', primary: 'Get Started', secondary: 'Learn More' };
-  }
+    const introText =
+      `Continuing from your saved concept: **${title}**\n\n` +
+      `Tell me what you want to change next — style, rooms, materials, size, lighting, landscape, garage, pool, or luxury level.`;
 
-  function simoR1060VEditorPanel() {
-    return `
-      <div data-simo-builder-editor-panel data-simo-builder-active-edit="hero" style="margin:0 16px 16px;border:1px solid rgba(110,168,255,.26);background:rgba(8,15,29,.78);border-radius:18px;padding:14px;display:grid;gap:10px;">
-        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-          <div>
-            <div style="font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Active website/app editor</div>
-            <div data-simo-builder-editor-title style="font-size:16px;font-weight:950;color:#f6f8ff;margin-top:5px;">Editing: Hero</div>
-            <div data-simo-builder-editor-help style="font-size:12px;color:#c7d3ea;line-height:1.45;margin-top:4px;">Edit here in Simo. Then click Apply to Preview. The mini preview updates below; click Open Latest Preview to test the page like a visitor.</div>
-          </div>
-          <button type="button" data-simo-builder-action="apply-editor" style="border:1px solid rgba(86,240,169,.32);background:rgba(86,240,169,.13);color:#eafff4;border-radius:999px;padding:10px 14px;font-size:12px;font-weight:950;cursor:pointer;">Apply to Preview</button>
+    const bubble = addMessage("assistant", "", {
+      visual: true,
+      html: `
+        <div style="display:grid; gap:14px;">
+          ${renderAssistantVisualImagesHtml([{ url: imageUrl, alt: title }])}
+          ${renderAssistantTextHtml(introText)}
         </div>
-        <input data-simo-builder-editor-headline placeholder="Headline / section title" style="width:100%;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;font-weight:800;outline:none;" />
-        <textarea data-simo-builder-editor-body placeholder="What should this section say?" style="width:100%;min-height:88px;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;line-height:1.45;outline:none;resize:vertical;"></textarea>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          <input data-simo-builder-editor-primary placeholder="Primary button text" style="min-width:0;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;font-weight:800;outline:none;" />
-          <input data-simo-builder-editor-secondary placeholder="Secondary button text" style="min-width:0;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;font-weight:800;outline:none;" />
-        </div>
-        <div data-simo-builder-media-tools style="display:none;border:1px solid rgba(110,168,255,.28);background:rgba(110,168,255,.09);border-radius:16px;padding:13px;gap:10px;">
-          <div style="font-size:13px;color:#f6f8ff;font-weight:950;line-height:1.45;">Add Photo or Video</div>
-          <div style="font-size:12px;color:#dce8ff;font-weight:800;line-height:1.45;">Step 1: choose where customers should see it. Step 2: upload a photo or paste an image/video link. Step 3: click Apply to Preview. This does not use image credits.</div>
-          <label style="display:grid;gap:6px;font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Where should this go?
-            <select data-simo-builder-media-placement style="width:100%;border:1px solid rgba(255,255,255,.18);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;font-weight:900;outline:none;">
-              <option value="gallery">Gallery / Results</option>
-              <option value="beforeafter">Before & After</option>
-              <option value="hero">Hero / Top of Page</option>
-              <option value="services">Services / Products</option>
-              <option value="testimonials">Reviews / Testimonials</option>
-              <option value="about">About / Story</option>
-              <option value="contact">Contact / Quote Area</option>
-            </select>
-          </label>
-          <label style="display:grid;gap:6px;font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Exact spot in Gallery / Results
-            <select data-simo-builder-media-card style="width:100%;border:1px solid rgba(255,255,255,.18);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;font-weight:900;outline:none;">
-              <option value="new">Add as a new media section</option>
-              <option value="gallery-card-1">Replace card 1 / left card</option>
-              <option value="gallery-card-2">Replace card 2 / middle card</option>
-              <option value="gallery-card-3">Replace card 3 / right card</option>
-            </select>
-          </label>
-          <label style="display:grid;gap:6px;font-size:11px;letter-spacing:.10em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Upload picture from computer
-            <input type="file" accept="image/*" data-simo-builder-media-file style="width:100%;color:#dce8ff;font-size:12px;" />
-          </label>
-          <input data-simo-builder-media-url placeholder="Or paste image link, YouTube link, Vimeo link, or video link" style="width:100%;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;outline:none;" />
-          <input data-simo-builder-media-caption placeholder="Caption, example: Before and after ceramic coating" style="width:100%;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;outline:none;" />
-          <div style="border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.05);border-radius:12px;padding:10px;color:#c7d3ea;font-size:12px;line-height:1.45;">Tip: to replace cards like Signature cakes / Fresh daily case / Custom events, choose <b>Gallery / Results</b>, then choose card 1, 2, or 3 above.</div>
-        </div>
-        <div data-simo-builder-social-tools style="display:none;border:1px solid rgba(255,215,106,.22);background:rgba(255,215,106,.08);border-radius:14px;padding:12px;gap:9px;">
-          <div style="font-size:12px;color:#fff6d8;font-weight:900;line-height:1.45;">Add Social Links — paste one link per line. Example: Instagram, Facebook, TikTok, YouTube, X, LinkedIn.</div>
-          <textarea data-simo-builder-social-links placeholder="https://instagram.com/yourbusiness
-https://facebook.com/yourbusiness" style="width:100%;min-height:82px;border:1px solid rgba(255,255,255,.16);background:#08111f;color:#f8fbff;border-radius:12px;padding:12px 13px;line-height:1.45;outline:none;resize:vertical;"></textarea>
-        </div>
-        <div style="font-size:12px;color:#9fb4dd;line-height:1.45;">Simple rule: edit in this Simo panel. Test visitor buttons in Open Latest Preview. If a preview tab is already open, refresh it after applying edits.</div>
-      </div>`;
-  }
-
-  function simoR1060VFillEditor(card, project, action, btn) {
-    const a = clean(action || 'hero');
-    const fields = simoR1060VEditorDefaults(project, a);
-    const panel = card && card.querySelector('[data-simo-builder-editor-panel]');
-    if (!panel) return;
-    panel.setAttribute('data-simo-builder-active-edit', a);
-    const titleEl = panel.querySelector('[data-simo-builder-editor-title]');
-    const helpEl = panel.querySelector('[data-simo-builder-editor-help]');
-    const h = panel.querySelector('[data-simo-builder-editor-headline]');
-    const b = panel.querySelector('[data-simo-builder-editor-body]');
-    const p = panel.querySelector('[data-simo-builder-editor-primary]');
-    const s = panel.querySelector('[data-simo-builder-editor-secondary]');
-    const mediaTools = panel.querySelector('[data-simo-builder-media-tools]');
-    const socialTools = panel.querySelector('[data-simo-builder-social-tools]');
-    if (mediaTools) mediaTools.style.display = a === 'media' ? 'grid' : 'none';
-    if (socialTools) socialTools.style.display = a === 'social' ? 'grid' : 'none';
-    if (titleEl) titleEl.textContent = `Editing: ${titleCase(a)}`;
-    if (helpEl) helpEl.textContent = a === 'media'
-      ? 'Choose where the photo/video goes, upload or paste a link, then click Apply to Preview. The media will appear in that part of the page.'
-      : a === 'social'
-        ? 'Paste social media links here in Simo, then click Apply to Preview so the full page can show them.'
-        : `Editing ${titleCase(a)}. Change the fields here in Simo, then click Apply to Preview. Use Open Latest Preview to test visitor buttons.`;
-    if (h) h.value = fields.headline || '';
-    if (b) b.value = fields.body || '';
-    if (p) p.value = fields.primary || '';
-    if (s) s.value = fields.secondary || '';
-    try {
-      card.querySelectorAll('[data-simo-builder-action="select-edit"]').forEach(function(x){ x.setAttribute('style', simoR1060VEditorStyle(false)); x.removeAttribute('data-simo-builder-active'); });
-      if (btn) { btn.setAttribute('style', simoR1060VEditorStyle(true)); btn.setAttribute('data-simo-builder-active', 'true'); }
-    } catch {}
-    const status = card.querySelector('[data-simo-builder-status]');
-    if (status) status.textContent = `Selected ${titleCase(a)}. Edit here in Simo, apply it, then open or refresh the preview window to test it like a visitor.`;
-    try { panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch {}
-  }
-
-  function simoR1060VReadFields(card, project, action) {
-    const panel = card && card.querySelector('[data-simo-builder-editor-panel]');
-    const defaults = simoR1060VEditorDefaults(project, action);
-    const val = function(sel, fallback){ const el = panel && panel.querySelector(sel); return capitalizeFirstVisibleLetter(String((el && el.value) || fallback || '').trim()); };
-    return {
-      headline: val('[data-simo-builder-editor-headline]', defaults.headline),
-      body: val('[data-simo-builder-editor-body]', defaults.body),
-      primary: val('[data-simo-builder-editor-primary]', defaults.primary),
-      secondary: val('[data-simo-builder-editor-secondary]', defaults.secondary)
-    };
-  }
-
-
-  async function simoR1060Z5ReadFieldsAsync(card, project, action) {
-    const fields = simoR1060VReadFields(card, project, action);
-    const panel = card && card.querySelector('[data-simo-builder-editor-panel]');
-    const fileInput = panel && panel.querySelector('[data-simo-builder-media-file]');
-    const mediaUrlInput = panel && panel.querySelector('[data-simo-builder-media-url]');
-    const placementInput = panel && panel.querySelector('[data-simo-builder-media-placement]');
-    const mediaCardInput = panel && panel.querySelector('[data-simo-builder-media-card]');
-    const captionInput = panel && panel.querySelector('[data-simo-builder-media-caption]');
-    const socialInput = panel && panel.querySelector('[data-simo-builder-social-links]');
-    const file = fileInput && fileInput.files && fileInput.files[0] ? fileInput.files[0] : null;
-    const fileUrl = await simoR1060Z5FileToDataUrl(file);
-    fields.mediaUrl = fileUrl || String((mediaUrlInput && mediaUrlInput.value) || '').trim();
-    fields.mediaPlacement = String((placementInput && placementInput.value) || 'gallery').trim();
-    fields.mediaCard = String((mediaCardInput && mediaCardInput.value) || 'new').trim();
-    fields.mediaCaption = capitalizeFirstVisibleLetter(String((captionInput && captionInput.value) || '').trim());
-    fields.socialLinks = String((socialInput && socialInput.value) || '').trim();
-    return fields;
-  }
-
-  function simoR1060VSectionHtml(project, action, fields) {
-    const a = clean(action || 'hero');
-    let extra = '';
-    if (a === 'contact') extra = '<form class="quote-form" data-simo-preview-form style="display:grid;gap:10px;margin-top:16px;max-width:560px"><input name="name" placeholder="Name" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px"><input name="email" placeholder="Email" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px"><input name="phone" placeholder="Phone" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px"><textarea name="message" placeholder="Message" style="padding:13px;border:1px solid #dbe3ef;border-radius:12px;min-height:90px"></textarea><button class="btn" type="submit">Send Request</button></form>';
-    if (a === 'products') { const prof = builderProfile(project && project.prompt || ''); extra = '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px">' + (prof.services || []).slice(0,3).map(function(x){ return '<div class="card" style="box-shadow:none"><strong>' + esc(x) + '</strong><p>Professional service card the user can keep editing.</p></div>'; }).join('') + '</div>'; }
-    if (a === 'testimonials') { const prof = builderProfile(project && project.prompt || ''); extra = '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px">' + (prof.testimonials || []).slice(0,3).map(function(x){ return '<div class="card" style="box-shadow:none"><strong>' + esc(x[0]) + '</strong><p>' + esc(x[1]) + '</p></div>'; }).join('') + '</div>'; }
-    if (a === 'media') {
-      const url = String(fields.mediaUrl || '').trim();
-      const cap = fields.mediaCaption || fields.body || 'Customer results and visual proof';
-      const embed = simoR1060Z5VideoEmbed(url);
-      const placeLabel = simoR1060Z6PlacementLabel(fields.mediaPlacement || 'gallery');
-      if (embed) {
-        extra = '<div style="margin-top:16px;border-radius:20px;overflow:hidden;border:1px solid #dbeafe;background:#0f172a"><iframe title="Website video" src="' + esc(embed) + '" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen style="display:block;width:100%;aspect-ratio:16/9;border:0"></iframe></div><p style="margin-top:10px;color:#64748b;font-weight:800">' + esc(cap) + '</p><p style="margin-top:4px;color:#94a3b8;font-size:13px">Placed in: ' + esc(placeLabel) + '</p>';
-      } else if (url) {
-        extra = '<figure style="margin:16px 0 0;border-radius:20px;overflow:hidden;border:1px solid #dbeafe;background:#f8fbff"><img src="' + esc(url) + '" alt="' + esc(cap) + '" style="display:block;width:100%;max-height:560px;object-fit:cover"><figcaption style="padding:12px 14px;color:#475569;font-weight:800">' + esc(cap) + '<span style="display:block;color:#94a3b8;font-size:13px;margin-top:4px">Placed in: ' + esc(placeLabel) + '</span></figcaption></figure>';
-      } else {
-        extra = '<div style="margin-top:16px;border:1px dashed #93c5fd;border-radius:20px;padding:22px;background:#f8fbff;color:#475569;font-weight:850">No media added yet. Choose where it goes, upload a photo or paste an image/video link, then click Apply to Preview.</div>';
-      }
-    }
-    if (a === 'social') {
-      const links = simoR1060Z5SocialAnchors(fields.socialLinks);
-      extra = links ? '<div class="actions" style="margin-top:16px">' + links + '</div>' : '<div style="margin-top:16px;border:1px dashed #fbbf24;border-radius:20px;padding:18px;background:#fffbeb;color:#92400e;font-weight:850">No social links added yet. Paste one link per line, then Apply to Preview.</div>';
-    }
-    if (a === 'pricing') extra = '<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:16px"><div class="card" style="box-shadow:none"><strong>Starter Offer</strong><p>Simple entry offer the user can edit.</p></div><div class="card" style="box-shadow:none"><strong>Premium Offer</strong><p>Higher-value option with support or extras.</p></div></div>';
-    if (a === 'domain') extra = `<ul style="line-height:1.8;color:#475569"><li>Suggested names: ${domainIdeasFor(project).map(esc).join(' • ')}</li><li>Compare GoDaddy, Namecheap, Squarespace Domains, or Cloudflare Registrar.</li><li>Use Publish / Go Public, then connect the domain to the published URL.</li></ul>`;
-    if (a === 'mobile') extra = '<div style="margin-top:16px;border:1px solid #dbeafe;border-radius:20px;padding:18px;background:#f8fbff;max-width:360px"><strong>Mobile preview notes</strong><p style="margin-bottom:0;color:#64748b">Keep headline short, stack buttons, and make contact easy to tap.</p></div>';
-    const editKey = a === 'media' ? simoR1060Z6MediaEditKey(fields.mediaPlacement || 'gallery') : a;
-    const editLabel = a === 'media' ? ('Media · ' + simoR1060Z6PlacementLabel(fields.mediaPlacement || 'gallery')) : titleCase(a);
-    return `
-<section class="section simo-builder-edit-section" data-simo-builder-edit="${esc(editKey)}">
-  <div class="card" style="border:2px solid #bfdbfe;background:#ffffff;">
-    <div class="eyebrow">Latest Simo edit · ${esc(editLabel)}</div>
-    <h2 style="margin:10px 0 8px;font-size:30px;letter-spacing:-.03em;">${esc(fields.headline)}</h2>
-    <p>${esc(fields.body)}</p>
-    <div class="actions" style="margin-top:16px"><a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">${esc(fields.primary)}</a><a class="btn secondary" href="#features" data-simo-page-cta data-simo-target="features">${esc(fields.secondary)}</a></div>
-    ${extra}
-  </div>
-</section>
-`;
-  }
-
-  function simoR1060VApplyEditor(project, action, fields) {
-    const a = clean(action || 'hero');
-    let html = String(project && project.html || builderHtml(project && project.prompt || 'website'));
-    // Make hero edits show instantly at the top, so the user cannot miss the result.
-    html = html.replace(/<section class="hero">\s*<div><div class="eyebrow">Simo Builder Preview<\/div><h1>[\s\S]*?<\/h1><p>[\s\S]*?<\/p><div class="actions">[\s\S]*?<\/div><\/div>/i,
-      `<section class="hero">\n      <div><div class="eyebrow">Simo Builder Preview</div><h1>${esc(fields.headline)}</h1><p>${esc(fields.body)}</p><div class="actions"><a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">${esc(fields.primary)}</a><a class="btn secondary" href="#features" data-simo-page-cta data-simo-target="features">${esc(fields.secondary)}</a></div></div>`);
-    html = html.replace(/<nav class="nav"><div class="brand">[\s\S]*?<\/div><div class="links">[\s\S]*?<\/div><a class="btn"[\s\S]*?<\/a><\/nav>/i,
-      function(m){ return m.replace(/<a class="btn"[\s\S]*?<\/a>/i, `<a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">${esc(fields.primary)}</a>`); });
-    html = html.replace(/<div class="mock"><strong>[\s\S]*?<\/strong>/i, `<div class="mock"><strong>${esc(fields.headline)}</strong>`);
-    if (a === 'colors') {
-      html = html.replace('</style>', `\n/* Simo theme edit */\nbody{background:linear-gradient(180deg,#f8fbff,#eaf2ff)}.visual{background:linear-gradient(135deg,#0f172a,#1d4ed8)}.btn{box-shadow:0 14px 30px rgba(29,78,216,.20)}.card{border-color:#dbeafe}\n</style>`);
-    }
-    if (a === 'seo') {
-      html = html.replace(/<title>[\s\S]*?<\/title>/i, `<title>${esc(fields.headline)}</title>\n  <meta name="description" content="${esc(fields.body).slice(0,155)}" />`);
-    }
-    // Replace previous edit block for this section, then inject latest version where the user chose.
-    const editKey = a === 'media' ? simoR1060Z6MediaEditKey(fields.mediaPlacement || 'gallery') : a;
-    const re = new RegExp('<section class=\"section simo-builder-edit-section\" data-simo-builder-edit=\"' + editKey.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\">[\\s\\S]*?<\\/section>\\s*', 'i');
-    html = html.replace(re, '');
-    const block = simoR1060VSectionHtml(project, a, fields);
-    if (a === 'media') {
-      const cardChoice = String(fields.mediaCard || 'new');
-      const mediaUrl = String(fields.mediaUrl || '').trim();
-      if (clean(fields.mediaPlacement || 'gallery') === 'gallery' && /^gallery-card-/i.test(cardChoice) && simoR1060Z5IsImageUrl(mediaUrl)) {
-        html = simoR1060Z7ReplaceGalleryCard(html, cardChoice, mediaUrl, fields.mediaCaption || fields.headline || 'Customer photo');
-      } else {
-        html = simoR1060Z6InjectMediaBlock(html, fields.mediaPlacement || 'gallery', block);
-      }
-    }
-    else html = html.replace(/<\/section>\s*<section id="features"/i, '</section>' + block + '<section id="features"');
-    project.html = html;
-    project.edits = Array.isArray(project.edits) ? project.edits : [];
-    project.edits.unshift({ action: a, headline: fields.headline, body: fields.body, primary: fields.primary, secondary: fields.secondary, at: new Date().toISOString() });
-    project.edits = project.edits.slice(0, 20);
-    return project;
-  }
-
-  function renderBuilderCard(project) {
-    const id = project.id;
-    const suggestions = builderWorkspaceSuggestions(project);
-    const editButtons = suggestions.map(function(pair){
-      const active = pair[1] === 'hero';
-      return `<button type="button" data-simo-builder-action="select-edit" data-simo-builder-edit="${esc(pair[1])}" style="${simoR1060VEditorStyle(active)}"${active ? ' data-simo-builder-active="true"' : ''}>${esc(pair[0])}</button>`;
-    }).join('');
-    // Seed the visible editor with Hero defaults immediately.
-    const defaults = simoR1060VEditorDefaults(project, 'hero');
-    setTimeout(function(){
-      try {
-        const card = document.querySelector('[data-simo-builder-id="' + String(id).replace(/"/g, '\\"') + '"]');
-        if (!card) return;
-        const h = card.querySelector('[data-simo-builder-editor-headline]');
-        const b = card.querySelector('[data-simo-builder-editor-body]');
-        const p = card.querySelector('[data-simo-builder-editor-primary]');
-        const s = card.querySelector('[data-simo-builder-editor-secondary]');
-        if (h && !h.value) h.value = defaults.headline;
-        if (b && !b.value) b.value = defaults.body;
-        if (p && !p.value) p.value = defaults.primary;
-        if (s && !s.value) s.value = defaults.secondary;
-      } catch {}
-    }, 0);
-    return `
-      <div class="simo-builder-card" data-simo-builder-id="${esc(id)}" style="border:1px solid rgba(255,255,255,.12);border-radius:22px;overflow:hidden;background:rgba(255,255,255,.045);box-shadow:0 18px 50px rgba(0,0,0,.18);">
-        <div style="padding:16px 18px;border-bottom:1px solid rgba(255,255,255,.10);background:linear-gradient(180deg,rgba(255,255,255,.07),rgba(255,255,255,.035));">
-          <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Simo Website/App Builder Workspace</div>
-          <div style="font-size:23px;font-weight:950;margin-top:8px;color:#f6f8ff;">${esc(project.title)}</div>
-          <div style="font-size:13px;color:#c7d3ea;margin-top:8px;line-height:1.5;">Simple flow: edit inside Simo, apply to the mini preview, then use Open Latest Preview to test buttons like a real visitor.</div>
-        </div>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;border-bottom:1px solid rgba(255,255,255,.08);">
-          <button type="button" data-simo-builder-action="open" style="border:1px solid rgba(110,168,255,.30);background:rgba(110,168,255,.12);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer;">Open Latest Preview</button>
-          <button type="button" data-simo-builder-action="save" style="border:1px solid rgba(255,215,106,.30);background:rgba(255,215,106,.12);color:#fff6d8;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer;">Save to Library</button>
-          <button type="button" data-simo-builder-action="copy" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer;">Copy HTML</button>
-          <button type="button" data-simo-builder-action="download" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer;">Download HTML</button>
-          <button type="button" data-simo-builder-action="publish" style="border:1px solid rgba(86,240,169,.28);background:rgba(86,240,169,.11);color:#eafff4;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:900;cursor:pointer;">Publish / Go Public</button>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;padding:14px 16px 12px;border-bottom:1px solid rgba(255,255,255,.06);">
-          <div style="width:100%;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#9fb4dd;font-weight:950;">Choose what to edit</div>
-          <div data-simo-builder-status style="width:100%;font-size:12px;color:#c7d3ea;line-height:1.45;margin-bottom:2px;">Hero is selected. Edit here in Simo, click Apply to Preview, then Open Latest Preview to test visitor buttons.</div>
-          ${editButtons}
-        </div>
-        ${simoR1060VEditorPanel()}
-        <div style="background:#050b14;padding:14px;">
-          <iframe data-simo-builder-preview title="${esc(project.title)}" srcdoc="${esc(project.html)}" style="width:100%;height:560px;border:1px solid rgba(255,255,255,.10);border-radius:16px;background:white;"></iframe>
-        </div>
-      </div>`;
-  }
-
-  function saveBuilderProject(project) {
-    const now = new Date().toISOString();
-    const item = {
-      id: project.id || (`builder_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
-      title: project.title,
-      html: project.html,
-      sourceText: `[SIMO_BUILDER_PROJECT]\n${JSON.stringify({ title: project.title, prompt: project.prompt, phase: 'R10.60Z7', type: 'builder_html_workspace', edits: project.edits || [] }, null, 2)}`,
-      notes: 'Saved from Simo Website/App Builder Workspace. Reopen as an editable website/app build.',
-      tags: ['builder', 'website', 'app', 'landing-page', 'html', 'publish-ready'],
-      pinned: false,
-      archived: false,
-      createdAt: now,
-      updatedAt: now
-    };
-    const items = [item, ...getLibrary().filter((x) => x && x.id !== item.id)];
-    setLibrary(items);
-    try { localStorage.setItem(LAST_PREVIEW_KEY, JSON.stringify({ html: project.html, title: project.title, savedAt: now })); } catch {}
-    try { api('/api/library/save', item).catch(function(){}); } catch {}
-    return item;
-  }
-
-  function runBuilder(prompt) {
-    const text = String(prompt || '').trim();
-    if (!text) return false;
-    const id = `builder_${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
-    const project = { id, prompt: text, title: builderTitleFromPrompt(text), html: builderHtml(text) };
-    ensureBuilderStore()[id] = project;
-    setSimoStatus('Building editable page preview…', true);
-    addUser(text);
-    clearInput();
-    addAssistant(renderBuilderCard(project));
-    setSimoStatus('Ready.', false);
-    return true;
-  }
-
-
-  function submitCapture(forceText) {
-    const input = getInput();
-    const text = String(forceText || (input && input.value) || "").trim();
-    if (!isDesignPrompt(text)) return false;
-    run(text, "base");
-    return true;
-  }
-
-
-  function hardOpenWorkspaceFromClick(e) {
-    const target = e && e.target;
-    if (!target || !target.closest) return false;
-
-    // R10.59/R10.57: Do not let the main chat visual-core workspace catcher steal clicks
-    // from the recovered Builder Library modal. The Library owner must open the
-    // exact clicked saved card. Without this guard, the global active project can
-    // win and every Library card may reopen the last active design, such as a
-    // flashlight.
-    if (target.closest(
-      "#simoLiveLibraryFixModal, [data-simo-live-library-id], [data-simo-live-open], [data-simo-live-preview], [data-simo-live-delete], [data-simo-live-tags], [data-simo-live-rename]"
-    )) {
-      return false;
-    }
-
-    const special = target.closest("[data-simo-vc-special='open-3d'], [data-simo-vc-special=\"open-3d\"]");
-    const btn = target.closest("button, a, [role='button']");
-    const label = clean((btn && (btn.textContent || btn.getAttribute("aria-label") || btn.getAttribute("title"))) || "");
-    const looksLikeWorkspace = !!special || (label.includes("open") && label.includes("workspace")) || (label.includes("3d") && label.includes("rotate") && label.includes("workspace"));
-
-    if (!looksLikeWorkspace) return false;
-
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-
-    let active = activeFromClickTarget(target);
-    if (!active) active = buildProject("design concept", "workspace");
-
-    // R4: workspace must use the clicked card as source of truth, not the last global project.
-    try {
-      const card = target.closest(".simo-vc-card, .simo105d-row, .msg-row, .msg-bubble, section, article, div");
-      const img = card && card.querySelector ? card.querySelector("img") : null;
-      if (img && img.src) active.imageUrl = img.src;
-    } catch {}
-
-    active.wants3D = true;
-    setActive(active);
-
-    try {
-      open3D(
-        active,
-        active.latestPrompt || active.prompt || active.item || "this exact visual concept"
-      );
-      return true;
-    } catch (err) {
-      console.error("Simo hard workspace open failed:", err);
-      addAssistant(renderProject(active, "I caught the workspace click, but the modal failed to open. The visual concept is still active, so the next fix can target only the modal renderer."));
-      return true;
-    }
-  }
-
-  function bind() {
-    window.__SIMO_PHASE_MARKER__ = PHASE;
-
-    window.addEventListener("click", function (e) {
-      if (hardOpenWorkspaceFromClick(e)) return;
-      const builderBtn = e.target && e.target.closest ? e.target.closest("[data-simo-builder-action]") : null;
-      if (builderBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        const card = builderBtn.closest("[data-simo-builder-id]");
-        const id = card && card.getAttribute("data-simo-builder-id");
-        const project = id && ensureBuilderStore()[id];
-        if (!project) return;
-        const action = builderBtn.getAttribute("data-simo-builder-action");
-        if (action === "select-edit") {
-          simoR1060VFillEditor(card, project, builderBtn.getAttribute("data-simo-builder-edit") || "hero", builderBtn);
-          return;
-        }
-        if (action === "apply-editor") {
-          const panel = card && card.querySelector ? card.querySelector("[data-simo-builder-editor-panel]") : null;
-          const active = (panel && panel.getAttribute("data-simo-builder-active-edit")) || "hero";
-          builderBtn.textContent = active === 'media' ? "Adding media…" : active === 'social' ? "Adding links…" : "Applying…";
-          simoR1060Z5ReadFieldsAsync(card, project, active).then(function(fields){
-            simoR1060VApplyEditor(project, active, fields);
-            try {
-              const iframe = card.querySelector("[data-simo-builder-preview], iframe");
-              if (iframe) {
-                iframe.onload = function(){ try { iframe.contentWindow.scrollTo(0, 0); } catch {} };
-                iframe.srcdoc = project.html;
-              }
-              const status = card.querySelector("[data-simo-builder-status]");
-              if (status) status.textContent = active === 'media'
-                ? "Media added to " + simoR1060Z6PlacementLabel(fields.mediaPlacement || "gallery") + " — " + simoR1060Z7CardChoiceLabel(fields.mediaCard || "new") + ". The mini preview updated below. Click Open Latest Preview — or refresh your already-open preview tab — to see the photo/video on the full page."
-                : active === 'social'
-                  ? "Social links added. The mini preview updated below. Click Open Latest Preview — or refresh your already-open preview tab — to test the full page."
-                  : `Applied ${titleCase(active)}. The mini preview updated below. Click Open Latest Preview — or refresh your already-open preview tab — to see and test the latest full page.`;
-            } catch {}
-            try { saveBuilderProject(project); } catch {}
-            builderBtn.textContent = "Applied";
-            setTimeout(function(){ try { builderBtn.textContent = "Apply to Preview"; } catch {} }, 1000);
-          }).catch(function(err){
-            console.warn('Simo builder apply failed:', err);
-            builderBtn.textContent = "Try Again";
-          });
-          return;
-        }
-        if (action === "open") {
-          const blob = new Blob([project.html], { type: "text/html" });
-          window.open(URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
-          return;
-        }
-        if (action === "save") {
-          saveBuilderProject(project);
-          builderBtn.textContent = "Saved";
-          return;
-        }
-        if (action === "copy") {
-          try { navigator.clipboard && navigator.clipboard.writeText(project.html); builderBtn.textContent = "Copied"; } catch(e) { builderBtn.textContent = "Copy failed"; }
-          return;
-        }
-        if (action === "download") {
-          downloadBuilderHtml(project);
-          builderBtn.textContent = "Downloaded";
-          return;
-        }
-        if (action === "publish") {
-          builderBtn.textContent = "Publishing…";
-          publishBuilderProject(project).then(function(){ builderBtn.textContent = "Publish / Go Public"; });
-          return;
-        }
-        if (action === "edit") {
-          const edit = builderBtn.getAttribute("data-simo-builder-edit") || builderBtn.textContent || "edit";
-          const beforeText = builderBtn.textContent || "Edit";
-          applyBuilderEdit(project, edit);
-          try {
-            const iframe = card && card.querySelector ? card.querySelector("iframe") : null;
-            if (iframe) {
-              iframe.onload = function(){ try { iframe.contentWindow.scrollTo(0, 0); } catch {} };
-              iframe.srcdoc = project.html;
-            }
-            const status = card && card.querySelector ? card.querySelector("[data-simo-builder-status]") : null;
-            if (status) status.textContent = `Updated: ${titleCase(edit)}. The preview refreshed. Open Latest Preview shows the full page; refresh any already-open preview tab to test the latest buttons.`;
-          } catch {}
-          saveBuilderProject(project);
-          builderBtn.textContent = "Updated";
-          setTimeout(function(){ try { builderBtn.textContent = beforeText; } catch {} }, 900);
-          return;
-        }
-      }
-      const specialBtn = e.target && e.target.closest ? e.target.closest("[data-simo-vc-special]") : null;
-      if (specialBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const specialOriginalLabel = specialBtn.textContent || "Working";
-        setButtonBusy(specialBtn, true, "Working…");
-        setTimeout(() => setButtonBusy(specialBtn, false, specialOriginalLabel), 900);
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        const active = activeFromClickTarget(specialBtn) || buildProject("design concept", "base");
-        setActive(active);
-        const mode = specialBtn.getAttribute("data-simo-vc-special");
-        if (mode === "save-library") {
-          saveVisualProject(active);
-          return;
-        }
-        if (mode === "open-3d") {
-          open3D(active, active.latestPrompt || active.prompt || active.item);
-          return;
-        }
-        if (mode === "continue") {
-          run(controlPrompt(active, "continue editing this same concept with one stronger design pass"), "continue");
-          return;
-        }
-        if (mode === "variation") {
-          run(controlPrompt(active, "generate several stronger visual variations while keeping the same object and domain"), "variation");
-          return;
-        }
-        if (mode === "rerender") {
-          run(controlPrompt(active, "create the strongest realistic render with premium lighting, materials, and detail"), "render");
-          return;
-        }
-      }
-
-      const actionBtn = e.target && e.target.closest ? e.target.closest("[data-simo-vc-action]") : null;
-      if (actionBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const actionOriginalLabel = actionBtn.textContent || "Refine";
-        setButtonBusy(actionBtn, true, "Refining…");
-        setTimeout(() => setButtonBusy(actionBtn, false, actionOriginalLabel), 900);
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        const active = activeFromClickTarget(actionBtn);
-        if (active) setActive(active);
-        const actionLabel = actionBtn.getAttribute("data-simo-vc-action") || "Refine";
-        const actionSlug = slugify(actionLabel) || "refine";
-        run(controlPrompt(active, actionLabel), actionSlug);
-        return;
-      }
-
-      const send = e.target && e.target.closest ? e.target.closest("#sendBtn, .send-btn, [data-role='send'], button[type='submit']") : null;
-      if (!send) return;
-      const input = getInput();
-      const text = String(input && input.value || "").trim();
-      if (isBuilderIntent(text)) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        runBuilder(text);
-        return;
-      }
-      if (!isDesignPrompt(text)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      submitCapture(text);
-    }, true);
-
-    window.addEventListener("keydown", function (e) {
-      const input = getInput();
-      if (!input || e.target !== input) return;
-      if (e.key !== "Enter" || e.shiftKey) return;
-      const text = String(input.value || "").trim();
-      if (isBuilderIntent(text)) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-        runBuilder(text);
-        return;
-      }
-      if (!isDesignPrompt(text)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      submitCapture(text);
-    }, true);
-  }
-
-  window.SimoVisualCore = {
-    phase: PHASE,
-    classifyPrompt,
-    controlsFor,
-    run,
-    runBuilder,
-    isBuilderIntent,
-    getActive,
-    displayTitle,
-    saveVisualProject,
-    open3D,
-    forceWorkspace() {
-      const active = getActive() || buildProject("design concept", "workspace");
-      return openConnectedWorkspace(active, active.latestPrompt || active.prompt || active.item || "this design concept", "Opened from SimoVisualCore.forceWorkspace().");
-    },
-    reset() {
-      try { localStorage.removeItem(ACTIVE_KEY); } catch {}
-    },
-  };
-
-  bind();
-  setTimeout(() => { window.__SIMO_PHASE_MARKER__ = PHASE; }, 0);
-  setTimeout(() => { window.__SIMO_PHASE_MARKER__ = PHASE; }, 250);
-  console.log("SimoVisualCore loaded:", PHASE);
-})();
-
-// PHASE 14M-R10.44 — Old R10.38 workspace direct-save bridge removed.
-// Workspace saves now write one clean native Library item from simo-live-workspace-isolated.js.
-
-
-/* SIMO R10.45G / V1.3.17 — Library duplicate-id/signature guard
-   Purpose: when workspace save causes both local and server/event paths to insert the same saved item,
-   keep only one card per exact id. This does not remove separate edited versions with different ids. */
-(function () {
-  "use strict";
-  var LIB_KEY = "simo_builder_library_v5_1_builder_first";
-  function dedupeLibraryExactIds(reason) {
-    try {
-      var raw = localStorage.getItem(LIB_KEY) || "[]";
-      var list = [];
-      try { list = JSON.parse(raw); } catch (e) { list = []; }
-      if (!Array.isArray(list)) return;
-      var seen = Object.create(null);
-      var next = [];
-      for (var i = 0; i < list.length; i += 1) {
-        var item = list[i];
-        if (!item) continue;
-        var id = String(item.id || "").trim();
-        var sig = String(item.simoWorkspaceSaveSignature || "").trim();
-        var saveUid = String(item.simoWorkspaceSaveUid || "").trim();
-        var key = saveUid ? ("uid:" + saveUid) : (id ? ("id:" + id) : (sig ? ("sig:" + sig) : ""));
-        if (key && seen[key]) continue;
-        if (key) seen[key] = true;
-        next.push(item);
-      }
-      if (next.length !== list.length) {
-        localStorage.setItem(LIB_KEY, JSON.stringify(next));
-        var count = document.getElementById("libraryCountValue");
-        if (count) count.textContent = String(next.length);
-        try { console.warn("SIMO library duplicate-id guard", reason || "", list.length, "->", next.length); } catch (e2) {}
-      }
-    } catch (err) {
-      try { console.warn("SIMO library duplicate-id guard skipped:", err); } catch (e3) {}
-    }
-  }
-  window.SimoLibraryDedupeExactIds = dedupeLibraryExactIds;
-  window.addEventListener("simo:library-updated", function () {
-    setTimeout(function () { dedupeLibraryExactIds("window event"); }, 50);
-    setTimeout(function () { dedupeLibraryExactIds("window event delayed"); }, 800);
-  });
-  document.addEventListener("simo:library-updated", function () {
-    setTimeout(function () { dedupeLibraryExactIds("document event"); }, 50);
-    setTimeout(function () { dedupeLibraryExactIds("document event delayed"); }, 800);
-  });
-  setTimeout(function () { dedupeLibraryExactIds("startup"); }, 1000);
-})();
-
-
-/* SIMO V1.3.23 — Design Credits UI + Credit Pack Checkout
-   Isolated helper. Shows remaining design credits and lets logged-in users buy credit packs. */
-(function () {
-  "use strict";
-  if (window.__SIMO_DESIGN_CREDITS_UI_V1323__) return;
-  window.__SIMO_DESIGN_CREDITS_UI_V1323__ = true;
-
-  function el(tag, attrs, html) {
-    var node = document.createElement(tag);
-    attrs = attrs || {};
-    Object.keys(attrs).forEach(function (k) {
-      if (k === "style") node.setAttribute("style", attrs[k]);
-      else node.setAttribute(k, attrs[k]);
+      `,
     });
-    if (html != null) node.innerHTML = html;
-    return node;
+
+    bindBubbleActions(bubble);
+
+    const activePrompt =
+      `[SIMO_ACTIVE_VISUAL_PROJECT]\n` +
+      `BASE_IMAGE: ${imageUrl}\n` +
+      `PROJECT_TITLE: ${title}\n` +
+      `REQUEST: Continue designing from this saved visual concept. Ask me what I want to change next, then help me refine it.`;
+
+    state.lastAssistantText = activePrompt;
+    localStorage.setItem("simo_active_visual_project_v1", JSON.stringify({
+      id: item.id || "",
+      title,
+      imageUrl,
+      sourceText: String(item.sourceText || item.source_text || ""),
+      openedAt: nowIso(),
+    }));
+
+    applyComposerText("");
+    scrollAfterUiChange();
+    toast("Saved concept reopened. Continue designing from here.", "success", 2200);
   }
 
-  function css() {
-    if (document.getElementById("simoDesignCreditStyles")) return;
-    var style = el("style", { id: "simoDesignCreditStyles" }, `
-      .simo-credit-pill{position:static;min-height:38px;height:38px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.075);color:#eef4ff;border-radius:999px;padding:0 14px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:none;font:inherit;font-size:13px;font-weight:850;white-space:nowrap;cursor:pointer;line-height:1;vertical-align:middle}
-      .simo-credit-pill:hover{border-color:rgba(255,255,255,.26);background:rgba(255,255,255,.11)}
-      .simo-credit-pill .simo-credit-label{opacity:.98}
-      .simo-credit-pill .simo-credit-buy{display:inline-flex;align-items:center;border-left:1px solid rgba(255,255,255,.18);padding-left:8px;color:#eef4ff;font-weight:900;font-size:12px;line-height:1}
-      .simo-credit-pill.simo-credit-low{border-color:rgba(255,199,89,.62);background:rgba(255,199,89,.16);box-shadow:0 0 0 1px rgba(255,199,89,.10) inset}
-      .simo-credit-pill.simo-credit-empty{border-color:rgba(255,120,120,.72);background:rgba(255,95,95,.18);box-shadow:0 0 0 1px rgba(255,120,120,.12) inset}
-      .simo-credit-pill.simo-credit-fallback-fixed{position:fixed;right:24px;top:96px;z-index:2147481200;box-shadow:0 18px 55px rgba(0,0,0,.32)}
-      @media (max-width: 920px){.simo-credit-pill{height:36px;min-height:36px;font-size:12px;padding:0 11px}.simo-credit-pill .simo-credit-buy{font-size:11px;padding-left:7px}}
-      @media (max-width: 720px){.simo-credit-pill.simo-credit-fallback-fixed{top:86px;right:12px;transform:scale(.94);transform-origin:top right}}
-      .simo-credit-modal-backdrop{position:fixed;inset:0;z-index:2147483001;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Inter,Arial,sans-serif}
-      .simo-credit-modal{width:min(560px,96vw);border:1px solid rgba(255,255,255,.16);background:#07111f;color:#eef4ff;border-radius:24px;box-shadow:0 30px 100px rgba(0,0,0,.55);padding:20px;display:grid;gap:14px}
-      .simo-credit-modal h3{margin:0;font-size:22px}.simo-credit-modal p{margin:0;color:#c7d3ea;line-height:1.45;font-size:13px}
-      .simo-pack-list{display:grid;gap:10px}.simo-pack{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);border-radius:18px;padding:14px;display:flex;justify-content:space-between;gap:14px;align-items:center}.simo-pack strong{display:block;font-size:15px}.simo-pack span{display:block;color:#c7d3ea;font-size:12px;margin-top:3px}.simo-pack button{border:1px solid rgba(86,240,169,.28);background:rgba(86,240,169,.13);color:#eafff4;border-radius:999px;padding:10px 12px;font-weight:950;cursor:pointer}.simo-credit-close{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#eef4ff;border-radius:999px;padding:10px 12px;font-weight:900;cursor:pointer;justify-self:end}
-    `);
-    document.head.appendChild(style);
+  function renderAssistantVisualImagesHtml(images) {
+    const cleanImages = (Array.isArray(images) ? images : []).filter((img) => img && img.url);
+    if (!cleanImages.length) return "";
+
+    const cards = cleanImages
+      .map((img, index) => {
+        const absoluteUrl = toAbsoluteUrl(img.url);
+        const safeUrl = escapeHtml(absoluteUrl);
+        const safeAlt = escapeHtml(img.alt || "Simo visual");
+        const rawAlt = img.alt || "Simo visual concept";
+        const label = index === 0 ? "Visual design workspace" : `Visual design workspace ${index + 1}`;
+
+        return `
+          <figure
+            class="simo-visual-output-card"
+            style="
+              margin:0;
+              display:grid;
+              gap:0;
+              width:100%;
+              overflow:hidden;
+              border-radius:20px;
+              border:1px solid rgba(255,255,255,.11);
+              background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.026));
+              box-shadow:0 18px 44px rgba(0,0,0,.24);
+            "
+          >
+            <div style="
+              display:flex;
+              align-items:center;
+              justify-content:space-between;
+              gap:10px;
+              padding:12px 14px;
+              color:rgba(235,242,255,.84);
+              font-size:12px;
+              font-weight:800;
+              border-bottom:1px solid rgba(255,255,255,.07);
+              background:rgba(255,255,255,.025);
+            ">
+              <span>${escapeHtml(label)}</span>
+              <a
+                href="${safeUrl}"
+                target="_blank"
+                rel="noopener noreferrer"
+                style="
+                  color:#cfe0ff;
+                  text-decoration:none;
+                  border:1px solid rgba(255,255,255,.12);
+                  background:rgba(255,255,255,.06);
+                  padding:7px 10px;
+                  border-radius:999px;
+                  font-size:11px;
+                  white-space:nowrap;
+                  font-weight:800;
+                "
+              >Open image</a>
+            </div>
+
+            <div style="
+              background:#050b14;
+              display:flex;
+              justify-content:center;
+              align-items:center;
+              min-height:260px;
+              border-bottom:1px solid rgba(255,255,255,.07);
+            ">
+              <img
+                src="${safeUrl}"
+                alt="${safeAlt}"
+                loading="lazy"
+                style="
+                  display:block;
+                  width:100%;
+                  max-height:720px;
+                  object-fit:contain;
+                  background:#050b14;
+                "
+                onload="try{ window.__SIMO_SCROLL_AFTER_VISUAL__ && window.__SIMO_SCROLL_AFTER_VISUAL__(); }catch(e){}"
+                onerror="this.style.display='none'; this.closest('figure').querySelector('[data-visual-error]')?.style.setProperty('display','block');"
+              />
+            </div>
+
+            <div
+              data-visual-error
+              style="
+                display:none;
+                padding:14px;
+                color:#ffd8e0;
+                font-size:13px;
+                line-height:1.45;
+                background:rgba(160,32,64,.12);
+                border-bottom:1px solid rgba(255,120,140,.14);
+              "
+            >
+              The image link was created, but the browser could not load it. Use “Open image” to test the file directly.
+            </div>
+
+            <div style="
+              display:grid;
+              gap:10px;
+              padding:12px 14px 14px;
+            ">
+              <figcaption style="
+                margin:0;
+                color:rgba(235,242,255,.74);
+                font-size:12px;
+                line-height:1.4;
+              ">${safeAlt}</figcaption>
+
+              <div style="
+                display:flex;
+                flex-wrap:wrap;
+                gap:8px;
+                align-items:center;
+              ">
+                ${buildVisualActionButton("Save Concept", "save", absoluteUrl, rawAlt, true)}
+                ${buildVisualActionButton("Refine This", "refine", absoluteUrl, rawAlt, true)}
+                ${buildVisualActionButton("Edit Style", "style", absoluteUrl, rawAlt)}
+                ${buildVisualActionButton("Add / Change Features", "features", absoluteUrl, rawAlt)}
+                ${buildVisualActionButton("Generate Variations", "variations", absoluteUrl, rawAlt)}
+                ${buildVisualActionButton("Send to Design Studio", "studio", absoluteUrl, rawAlt)}
+              </div>
+            </div>
+          </figure>
+        `;
+      })
+      .join("");
+
+    return `<div class="simo-visual-output-wrap" style="display:grid; gap:14px; width:100%;">${cards}</div>`;
   }
 
-  async function api(path, payload) {
-    var res = await fetch(path, { method: payload ? "POST" : "GET", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: payload ? JSON.stringify(payload) : undefined });
-    var data = await res.json().catch(function(){ return { ok:false, error:"Bad response" }; });
-    if (!res.ok || data.ok === false) throw new Error(data.error || ("Request failed: " + res.status));
+
+
+  function addMessage(role, text, meta = {}) {
+    const target = ensureChatShell();
+
+    const row = document.createElement("div");
+    row.className = `msg-row msg-${role}`;
+    row.style.display = "flex";
+    row.style.margin = "10px 0";
+    row.style.justifyContent = role === "user" ? "flex-end" : "flex-start";
+
+    const bubble = document.createElement("div");
+    bubble.className = `msg-bubble msg-bubble-${role}`;
+    const isVisualAssistantBubble = role === "assistant" && !!meta.visual;
+    bubble.style.maxWidth = isVisualAssistantBubble ? "min(1120px, 96%)" : "min(860px, 92%)";
+    bubble.style.width = isVisualAssistantBubble ? "min(1120px, 96%)" : "";
+    bubble.style.padding = "14px 16px";
+    bubble.style.borderRadius = "18px";
+    bubble.style.border = "1px solid rgba(255,255,255,.08)";
+    bubble.style.background =
+      role === "user"
+        ? "linear-gradient(180deg, rgba(95,130,255,.20), rgba(75,105,220,.14))"
+        : "linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,.035))";
+    bubble.style.color = "#eef4ff";
+    bubble.style.boxShadow = isVisualAssistantBubble ? "0 18px 46px rgba(0,0,0,.22)" : "0 12px 30px rgba(0,0,0,.16)";
+
+    if (meta.html) {
+      bubble.innerHTML = meta.html;
+    } else {
+      bubble.textContent = text || "";
+      bubble.style.whiteSpace = "pre-wrap";
+      bubble.style.lineHeight = "1.5";
+    }
+
+    row.appendChild(bubble);
+    target.appendChild(row);
+
+    scrollAfterUiChange();
+    return bubble;
+  }
+
+  function addImageBubble(url, filename = "") {
+    const safeUrl = escapeHtml(url);
+    const safeName = escapeHtml(filename || "Uploaded image");
+
+    addMessage("user", "", {
+      html: `
+        <div style="display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:12px; opacity:.82;">${safeName}</div>
+          <img src="${safeUrl}" alt="${safeName}" style="max-width:320px; width:100%; border-radius:14px; border:1px solid rgba(255,255,255,.08);" />
+        </div>
+      `,
+    });
+  }
+
+  // -----------------------------
+  // 3d helpers
+  // -----------------------------
+  function isHosted3DUrl(url) {
+    const value = String(url || "").trim().toLowerCase();
+    if (!value) return false;
+    const isHttp = value.startsWith("http://") || value.startsWith("https://");
+    const is3d = value.includes(".glb") || value.includes(".gltf");
+    return isHttp && is3d;
+  }
+
+  function isLocal3DUrl(url) {
+    const value = String(url || "").trim().toLowerCase();
+    if (!value) return false;
+    return /^\/static\/models\/.+\.(glb|gltf)(\?.*)?$/i.test(value);
+  }
+
+  function isAny3DUrl(url) {
+    return isHosted3DUrl(url) || isLocal3DUrl(url);
+  }
+
+  function normalize3DUrl(url) {
+    const raw = String(url || "").trim();
+    if (!raw) return "";
+    return raw.replace(/[),.;]+$/, "").trim();
+  }
+
+  function cleanTierLabel(value) {
+    const t = String(value || "").trim().toLowerCase();
+    if (!t) return "";
+    if (t === "verified") return "Verified";
+    if (t === "fallback") return "Backup";
+    if (t === "candidate") return "Creative";
+    if (t === "concept") return "Concept";
+    return titleCase(t);
+  }
+
+  function cleanStyleLabel(value) {
+    const t = String(value || "").trim().toLowerCase();
+    if (!t || t === "default" || t === "fallback") return "";
+    if (t === "realistic") return "Realistic";
+    if (t === "stylized") return "Stylized";
+    return titleCase(t);
+  }
+
+  function modelOptionSortScore(item) {
+    const tier = String(item?.tier || item?.source || "").toLowerCase();
+    const style = String(item?.style || "").toLowerCase();
+
+    const tierScore =
+      tier === "verified" ? 0 :
+      tier === "candidate" ? 1 :
+      tier === "fallback" ? 2 :
+      tier === "concept" ? 3 :
+      9;
+
+    const styleScore =
+      style === "realistic" ? 0 :
+      style === "default" ? 1 :
+      style === "stylized" ? 2 :
+      style === "fallback" ? 3 :
+      4;
+
+    return [tierScore, styleScore, String(item?.label || "").toLowerCase()];
+  }
+
+  function open3DUrl(src, titleOverride = "") {
+    const clean = normalize3DUrl(src);
+    if (!clean || !isAny3DUrl(clean) || !window.Simo3DViewer) return false;
+
+    state.lastOpened3DUrl = clean;
+    const label =
+      titleOverride ||
+      titleCase(
+        (clean.split("/").pop() || "3d model")
+          .split("?")[0]
+          .replace(/\.(glb|gltf)$/i, "")
+      );
+
+    window.Simo3DViewer.open(clean, `Simo 3D Viewer — ${label}`);
+    setTimeout(() => scrollChatToBottom(true), 60);
+    setTimeout(() => scrollChatToBottom(true), 180);
+    return true;
+  }
+
+  function normalizeModelOptions(model3d, topLevelOptions = []) {
+    const fromModel =
+      model3d && Array.isArray(model3d.model3d_options) ? model3d.model3d_options : [];
+
+    const fromTopLevel = Array.isArray(topLevelOptions) ? topLevelOptions : [];
+
+    const fromChoices =
+      model3d && Array.isArray(model3d.choices)
+        ? model3d.choices.map((item) => ({
+            label: item.label || item.title || "Option",
+            url: item.url || "",
+            verified: !!item.verified,
+            source: item.source || "candidate",
+            tier: item.tier || item.source || (item.verified ? "verified" : "candidate"),
+            style: item.style || "default",
+          }))
+        : [];
+
+    const merged = [...fromModel, ...fromTopLevel, ...fromChoices];
+    const seen = new Set();
+    const out = [];
+
+    for (const item of merged) {
+      if (!item || !item.url) continue;
+      const url = normalize3DUrl(item.url);
+      if (!url || !isAny3DUrl(url)) continue;
+      if (seen.has(url)) continue;
+      seen.add(url);
+
+      out.push({
+        label: String(item.label || item.title || "Option"),
+        url,
+        verified: !!item.verified,
+        source: String(item.source || ""),
+        tier: String(item.tier || item.source || (item.verified ? "verified" : "candidate")).toLowerCase(),
+        style: String(item.style || "default").toLowerCase(),
+      });
+    }
+
+    out.sort((a, b) => {
+      const aa = modelOptionSortScore(a);
+      const bb = modelOptionSortScore(b);
+      for (let i = 0; i < aa.length; i++) {
+        if (aa[i] < bb[i]) return -1;
+        if (aa[i] > bb[i]) return 1;
+      }
+      return 0;
+    });
+
+    return out;
+  }
+
+  function getPrimaryModelOption(model3d, topLevelOptions = []) {
+    const options = normalizeModelOptions(model3d, topLevelOptions);
+    const verified = options.find((x) => x.verified || x.tier === "verified");
+    return verified || options[0] || null;
+  }
+
+  function badgePill(text, bg, border) {
+    return `
+      <span style="
+        padding:4px 8px;
+        border-radius:999px;
+        font-size:11px;
+        line-height:1;
+        color:#eef4ff;
+        background:${bg};
+        border:1px solid ${border};
+        white-space:nowrap;
+      ">${escapeHtml(text)}</span>
+    `;
+  }
+
+  function renderChoiceMeta(item) {
+    const bits = [];
+    const tier = String(item?.tier || item?.source || "").toLowerCase();
+    const style = String(item?.style || "").toLowerCase();
+
+    if (tier === "verified") bits.push(badgePill("Verified", "rgba(72,170,110,.18)", "rgba(72,170,110,.26)"));
+    else if (tier === "fallback") bits.push(badgePill("Backup", "rgba(255,183,77,.16)", "rgba(255,183,77,.22)"));
+    else if (tier === "candidate") bits.push(badgePill("Creative", "rgba(110,168,255,.16)", "rgba(110,168,255,.24)"));
+    else if (tier === "concept") bits.push(badgePill("Concept", "rgba(176,120,255,.16)", "rgba(176,120,255,.24)"));
+
+    if (style === "realistic") bits.push(badgePill("Realistic", "rgba(255,255,255,.06)", "rgba(255,255,255,.10)"));
+    else if (style === "stylized") bits.push(badgePill("Stylized", "rgba(255,255,255,.06)", "rgba(255,255,255,.10)"));
+
+    return bits.join("");
+  }
+
+  function getChoiceDescription(item, isPrimary = false) {
+    const tier = String(item?.tier || item?.source || "").toLowerCase();
+    const style = String(item?.style || "").toLowerCase();
+
+    if (tier === "fallback") return "Reliable backup option you can still open right now.";
+    if (tier === "verified") return isPrimary ? "Best ready-to-open model for this request." : "Verified working model ready to preview.";
+    if (tier === "candidate" && style === "stylized") return isPrimary ? "Recommended creative option with a more stylized look." : "Creative alternative with a more stylized look.";
+    if (tier === "candidate") return isPrimary ? "Recommended preview option for this request." : "Alternative preview option to compare.";
+    if (tier === "concept") return "Concept-only direction for future expansion.";
+    return isPrimary ? "Recommended option for this request." : "Additional option to explore.";
+  }
+
+  function previewGradientForChoice(item, isPrimary = false) {
+    const tier = String(item?.tier || item?.source || "").toLowerCase();
+    const style = String(item?.style || "").toLowerCase();
+
+    if (isPrimary || tier === "verified") return "linear-gradient(135deg, rgba(90,140,255,.28), rgba(145,108,255,.18))";
+    if (tier === "fallback") return "linear-gradient(135deg, rgba(255,192,120,.18), rgba(255,160,100,.10))";
+    if (style === "stylized") return "linear-gradient(135deg, rgba(176,120,255,.20), rgba(110,168,255,.12))";
+    return "linear-gradient(135deg, rgba(110,168,255,.16), rgba(255,255,255,.04))";
+  }
+
+  function choiceButtonHtml(item, index, groupId, primary) {
+    const label = escapeHtml(item.label || `Option ${index + 1}`);
+    const rawUrl = String(item.url || "");
+    const safeUrl = encodeURIComponent(rawUrl);
+    const isSelected = primary && primary.url === item.url;
+    const description = escapeHtml(getChoiceDescription(item, isSelected));
+    const previewLabel = escapeHtml(cleanTierLabel(item?.tier || item?.source || "") || "Option");
+    const previewStyle = escapeHtml(cleanStyleLabel(item?.style || "") || "Ready");
+    const previewBg = previewGradientForChoice(item, isSelected);
+
+    return `
+      <button
+        type="button"
+        class="simo-model-choice-btn"
+        data-model-group="${escapeHtml(groupId)}"
+        data-model-choice-url="${safeUrl}"
+        data-model-choice-label="${label}"
+        style="
+          appearance:none;
+          border:1px solid ${isSelected ? "rgba(110,168,255,.46)" : "rgba(255,255,255,.10)"};
+          background:${isSelected ? "linear-gradient(180deg, rgba(110,168,255,.18), rgba(90,120,255,.10))" : "rgba(255,255,255,.055)"};
+          box-shadow:${isSelected ? "0 10px 28px rgba(80,120,255,.18), inset 0 0 0 1px rgba(255,255,255,.02)" : "none"};
+          color:#eef4ff;
+          padding:9px;
+          border-radius:13px;
+          cursor:pointer;
+          font:inherit;
+          display:flex;
+          flex-direction:column;
+          align-items:flex-start;
+          gap:6px;
+          min-width:210px;
+          flex:1 1 210px;
+          text-align:left;
+          transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease;
+        "
+      >
+        <div style="
+          width:100%;
+          height:48px;
+          border-radius:11px;
+          background:${previewBg};
+          border:1px solid rgba(255,255,255,.08);
+          display:flex;
+          align-items:flex-end;
+          justify-content:space-between;
+          padding:7px;
+          box-sizing:border-box;
+          overflow:hidden;
+        ">
+          <div style="display:grid; gap:2px;">
+            <div style="font-size:11px; font-weight:700; color:#eef4ff;">${previewLabel}</div>
+            <div style="font-size:10px; color:rgba(235,242,255,.78);">${previewStyle}</div>
+          </div>
+          <div style="
+            width:24px;
+            height:24px;
+            border-radius:999px;
+            background:rgba(255,255,255,.08);
+            border:1px solid rgba(255,255,255,.10);
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            font-size:11px;
+          ">✦</div>
+        </div>
+
+        <div style="display:flex; width:100%; justify-content:space-between; gap:7px; align-items:flex-start;">
+          <span style="font-weight:700; font-size:12px; line-height:1.22;">${label}</span>
+          ${isSelected ? `<span>${badgePill("Recommended", "rgba(110,168,255,.14)", "rgba(110,168,255,.22)")}</span>` : ""}
+        </div>
+
+        <div style="display:flex; gap:5px; flex-wrap:wrap;">
+          ${renderChoiceMeta(item)}
+        </div>
+
+        <div style="font-size:11.5px; line-height:1.28; color:rgba(235,242,255,.80); min-height:18px;">
+          ${description}
+        </div>
+
+        <div style="margin-top:2px; font-size:11.5px; font-weight:700; color:${isSelected ? "#cfe0ff" : "#eef4ff"};">
+          Open model →
+        </div>
+      </button>
+    `;
+  }
+
+  function buildChoiceGroups(options, primary) {
+    const groups = { recommended: [], creative: [], backup: [] };
+    options.forEach((item) => {
+      const tier = String(item?.tier || item?.source || "").toLowerCase();
+      const isPrimary = primary && primary.url === item.url;
+      if (isPrimary || tier === "verified") groups.recommended.push(item);
+      else if (tier === "fallback") groups.backup.push(item);
+      else groups.creative.push(item);
+    });
+    return groups;
+  }
+
+  function renderChoiceGroupSection(groupKey, items, groupId, primary) {
+    if (!items || !items.length) return "";
+
+    const label =
+      groupKey === "recommended" ? "Recommended" :
+      groupKey === "creative" ? "Creative" :
+      "Backup";
+
+    const sub =
+      groupKey === "recommended" ? "Best place to start" :
+      groupKey === "creative" ? "Alternative looks and directions" :
+      "Safer fallback choices";
+
+    const cards = items.map((item, index) => choiceButtonHtml(item, index, groupId, primary)).join("");
+
+    return `
+      <section style="display:grid; grid-template-columns:110px minmax(0,1fr); gap:6px; align-items:start;">
+        <div style="display:grid; gap:1px; padding-top:2px;">
+          <div style="font-size:12px; font-weight:700; color:#eaf1ff;">${escapeHtml(label)}</div>
+          <div style="font-size:10.5px; line-height:1.18; color:rgba(235,242,255,.65);">${escapeHtml(sub)}</div>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:stretch;">
+          ${cards}
+        </div>
+      </section>
+    `;
+  }
+
+  function build3DChoicesHtml(model3d, topLevelOptions = []) {
+    const options = normalizeModelOptions(model3d, topLevelOptions);
+    if (!options.length) return "";
+
+    const primary = getPrimaryModelOption(model3d, topLevelOptions) || options[0];
+    const safeObject = escapeHtml(
+      titleCase((model3d && (model3d.object_name || model3d.name || model3d.label)) || "3d model")
+    );
+
+    const groupId = `model-choice-group-${Math.random().toString(36).slice(2, 10)}`;
+    const summaryTier = cleanTierLabel(primary?.tier || primary?.source || "");
+    const summaryStyle = cleanStyleLabel(primary?.style || "");
+    const summaryLabel = [summaryTier, summaryStyle].filter(Boolean).join(" • ");
+    const grouped = buildChoiceGroups(options, primary);
+
+    return `
+      <div
+        data-model-choice-wrap="${escapeHtml(groupId)}"
+        data-primary-model-url="${encodeURIComponent(primary.url || "")}"
+        style="
+          margin-top:6px;
+          padding:8px;
+          border:1px solid rgba(255,255,255,.08);
+          background:linear-gradient(180deg, rgba(255,255,255,.032), rgba(255,255,255,.018));
+          border-radius:14px;
+          display:grid;
+          gap:6px;
+        "
+      >
+        <div style="
+          display:grid;
+          grid-template-columns:minmax(0,1fr) auto;
+          gap:8px;
+          align-items:start;
+          padding:2px 2px 4px;
+        ">
+          <div style="display:grid; gap:2px; min-width:0;">
+            <div style="font-size:.95rem; font-weight:700; color:#eef4ff;">3D options for ${safeObject}</div>
+            <div style="font-size:11px; color:rgba(235,242,255,.72); line-height:1.22;">
+              ${escapeHtml(summaryLabel ? `Recommended option ready • ${summaryLabel}` : "Recommended option ready")}
+            </div>
+          </div>
+          <button
+            type="button"
+            data-role="open-recommended"
+            data-model-group="${escapeHtml(groupId)}"
+            data-model-choice-url="${encodeURIComponent(primary.url)}"
+            data-model-choice-label="${escapeHtml(primary.label || "Recommended Model")}"
+            style="
+              padding:8px 10px;
+              border-radius:12px;
+              border:1px solid rgba(110,168,255,.24);
+              background:rgba(110,168,255,.12);
+              color:#eef4ff;
+              cursor:pointer;
+              font:inherit;
+              font-weight:700;
+              font-size:11.5px;
+              white-space:nowrap;
+            "
+          >Open recommended</button>
+        </div>
+
+        <div style="display:grid; gap:5px;">
+          ${renderChoiceGroupSection("recommended", grouped.recommended, groupId, primary)}
+          ${renderChoiceGroupSection("creative", grouped.creative, groupId, primary)}
+          ${renderChoiceGroupSection("backup", grouped.backup, groupId, primary)}
+        </div>
+      </div>
+    `;
+  }
+
+  function bindBubbleActions(scope) {
+    if (!scope) return;
+
+    $$("[data-copy-assistant]", scope).forEach((btn) => {
+      if (btn.dataset.boundCopy === "true") return;
+      btn.dataset.boundCopy = "true";
+
+      btn.addEventListener("click", async () => {
+        const raw = decodeURIComponent(btn.getAttribute("data-copy-assistant") || "");
+        await copyTextToClipboard(raw, "Reply copied.");
+      });
+    });
+
+    $$("[data-model-choice-url]", scope).forEach((btn) => {
+      if (btn.dataset.boundModelChoice === "true") return;
+      btn.dataset.boundModelChoice = "true";
+
+      btn.addEventListener("click", () => {
+        const url = decodeURIComponent(btn.getAttribute("data-model-choice-url") || "");
+        const label = btn.getAttribute("data-model-choice-label") || "3D Model";
+        if (!open3DUrl(url, label)) {
+          toast("That 3D model could not be opened.", "error", 3000);
+        }
+      });
+    });
+
+    $$('[data-visual-action]', scope).forEach((btn) => {
+      if (btn.dataset.boundVisualAction === "true") return;
+      btn.dataset.boundVisualAction = "true";
+
+      btn.addEventListener("click", () => {
+        const action = String(btn.getAttribute("data-visual-action") || "").trim();
+        const url = decodeURIComponent(btn.getAttribute("data-visual-url") || "");
+        const alt = decodeURIComponent(btn.getAttribute("data-visual-alt") || "Simo visual concept");
+
+        if (action === "save") {
+          saveVisualConcept(url, alt);
+          return;
+        }
+
+        const prompt = visualActionPrompt(action, url, alt);
+        if (!prompt) {
+          toast("Could not create that design prompt.", "error", 2200);
+          return;
+        }
+
+        applyComposerText(prompt);
+        toast("Working from this visual now.", "success", 1600);
+        sendMessage(prompt);
+      });
+    });
+  }
+
+  function addAssistantMessageWith3D(reply, model3d = null, topLevelOptions = []) {
+    const rawReply = String(reply || "Done.");
+    const visualImages = getAssistantVisualImageMatches(rawReply);
+    const cleanReply = stripAssistantVisualMarkdown(rawReply, visualImages) || (visualImages.length ? "Here is the first visual starting point. Tell me what to change next — style, size, materials, rooms, lighting, landscape, luxury level, or anything else." : "Done.");
+    const visualHtml = renderAssistantVisualImagesHtml(visualImages);
+    const formattedReply = renderAssistantTextHtml(cleanReply);
+    const utilityBar = buildAssistantUtilityBar(cleanReply);
+    const choicesHtml = build3DChoicesHtml(model3d, topLevelOptions);
+
+    const bubble = addMessage("assistant", "", {
+      html: `
+        <div style="display:grid; gap:${visualImages.length ? "14px" : "10px"}; width:100%;">
+          ${visualHtml}
+          <div style="display:grid; gap:10px; padding:${visualImages.length ? "2px 2px 0" : "0"};">
+            ${formattedReply}
+            ${utilityBar}
+          </div>
+          ${choicesHtml}
+        </div>
+      `,
+      visual: visualImages.length > 0,
+    });
+
+    bindBubbleActions(bubble);
+    return bubble;
+  }
+
+  function addCandidateMessage(reply, candidates = [], objectName = "") {
+    const cleanCandidates = (Array.isArray(candidates) ? candidates : []).filter(Boolean);
+    const rawReply = String(reply || "I found candidate assets to review.");
+
+    const choicesHtml = build3DChoicesHtml(
+      {
+        available: cleanCandidates.some((c) => c && c.url),
+        model3d_options: cleanCandidates.map((c, idx) => ({
+          label: c.label || c.title || `${titleCase(objectName || "Option")} ${idx + 1}`,
+          url: c.url || "",
+          verified: !!c.verified,
+          source: c.source || "candidate",
+          tier: c.tier || c.source || (c.verified ? "verified" : "candidate"),
+          style: c.style || "default",
+        })),
+        object_name: objectName || "3d model",
+        name: objectName || "3d model",
+      },
+      cleanCandidates
+    );
+
+    const cards = cleanCandidates
+      .map((item, idx) => {
+        const url = String(item.url || "");
+        const hasUrl = !!url;
+        const title = escapeHtml(
+          item.title || item.label || `${titleCase(objectName || "Candidate")} ${idx + 1}`
+        );
+        const description = escapeHtml(
+          getChoiceDescription(
+            {
+              tier: item.tier || item.source || (item.verified ? "verified" : "candidate"),
+              style: item.style || "default",
+            },
+            idx === 0
+          )
+        );
+
+        return `
+          <div style="
+            padding:10px;
+            border-radius:14px;
+            background:rgba(255,255,255,.05);
+            border:1px solid rgba(255,255,255,.08);
+            display:grid;
+            gap:6px;
+          ">
+            <div style="display:flex; justify-content:space-between; gap:8px; align-items:flex-start; flex-wrap:wrap;">
+              <div style="font-weight:700; color:#eef4ff;">${title}</div>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${renderChoiceMeta({
+                  tier: item.tier || item.source || (item.verified ? "verified" : "candidate"),
+                  source: item.source || "",
+                  style: item.style || "default",
+                })}
+              </div>
+            </div>
+
+            <div style="font-size:12px; color:rgba(235,242,255,.76); line-height:1.42;">
+              ${description}
+            </div>
+
+            ${
+              hasUrl
+                ? `
+                  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button
+                      type="button"
+                      data-candidate-open="${escapeHtml(url)}"
+                      data-candidate-title="${title}"
+                      style="
+                        padding:8px 10px;
+                        border-radius:12px;
+                        border:1px solid rgba(255,255,255,.10);
+                        background:rgba(255,255,255,.06);
+                        color:#eef4ff;
+                        cursor:pointer;
+                      "
+                    >Open Candidate</button>
+                  </div>
+                `
+                : `
+                  <div style="font-size:12px; color:#ffd7a8;">
+                    No direct model URL is loaded for this candidate yet.
+                  </div>
+                `
+            }
+          </div>
+        `;
+      })
+      .join("");
+
+    const bubble = addMessage("assistant", "", {
+      html: `
+        <div style="display:grid; gap:8px;">
+          ${renderAssistantTextHtml(rawReply)}
+          ${buildAssistantUtilityBar(rawReply)}
+          ${choicesHtml}
+          <div style="display:grid; gap:8px;">
+            ${cards || `<div style="font-size:13px; opacity:.85;">No candidate cards available yet.</div>`}
+          </div>
+        </div>
+      `,
+    });
+
+    bindBubbleActions(bubble);
+
+    $$("[data-candidate-open]", bubble).forEach((btn) => {
+      if (btn.dataset.boundCandidate === "true") return;
+      btn.dataset.boundCandidate = "true";
+
+      btn.addEventListener("click", () => {
+        const url = btn.getAttribute("data-candidate-open") || "";
+        const title = btn.getAttribute("data-candidate-title") || "Candidate";
+        if (!open3DUrl(url, title)) {
+          toast("That candidate URL is not a supported 3D model yet.", "error", 3000);
+        }
+      });
+    });
+  }
+
+  function setSending(isSending) {
+    state.sending = isSending;
+
+    if (sendBtn) {
+      sendBtn.disabled = isSending;
+      sendBtn.textContent = isSending ? "..." : "➤";
+    }
+
+    if (loadingHintEl) {
+      loadingHintEl.textContent = isSending ? "Simo is thinking..." : "Ready.";
+    }
+  }
+
+  // -----------------------------
+  // builder detection / preview
+  // -----------------------------
+  function isLikelyHtml(text) {
+    if (!text) return false;
+    const t = String(text).trim();
+    return (
+      t.startsWith("<!DOCTYPE html") ||
+      t.startsWith("<html") ||
+      (t.includes("<body") && t.includes("</")) ||
+      (t.includes("<div") && t.includes("</div>"))
+    );
+  }
+
+  function extractHtmlCandidate(text) {
+  const raw = String(text || "").trim();
+  if (!raw) return "";
+
+  const fenced = raw.match(/```html\s*([\s\S]*?)```/i);
+  if (fenced && fenced[1]) return fenced[1].trim();
+
+  if (isLikelyHtml(raw)) return raw;
+
+  const lowered = raw.toLowerCase();
+
+  const doctypeIndex = lowered.indexOf("<!doctype html");
+  if (doctypeIndex >= 0) return raw.slice(doctypeIndex).trim();
+
+  const htmlIndex = lowered.indexOf("<html");
+  if (htmlIndex >= 0) return raw.slice(htmlIndex).trim();
+
+  return "";
+}
+
+  function inferBuildTitleFromText(text) {
+    const raw = String(text || "").trim();
+    if (!raw) return "Untitled Build";
+
+    const html = extractHtmlCandidate(raw);
+    if (html) {
+      const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      if (titleMatch && titleMatch[1]) {
+        const title = titleMatch[1].replace(/\s+/g, " ").trim();
+        if (title) return title.slice(0, 80);
+      }
+    }
+
+    const firstLine = raw.split("\n").find(Boolean) || raw.slice(0, 60);
+    return firstLine.replace(/[#>*`]/g, "").trim().slice(0, 80) || "Untitled Build";
+  }
+
+function maybeHandleBuilderResponse(text) {
+    const html = extractHtmlCandidate(text);
+    if (!html) return { handled: false, html: "", title: "" };
+
+    state.draftHtml = html;
+    const title = inferBuildTitleFromText(text);
+    openPreviewModal(html, title);
+
+    return {
+        handled: true,
+        html,
+        title,
+    };
+}
+
+  function tryOpenVerified3DFromPayload(data) {
+    if (!data || !data.model3d) return false;
+
+    const model3d = data.model3d;
+    if (!model3d.available) return false;
+
+    const primary = getPrimaryModelOption(model3d, data.model3d_options || []);
+    if (!primary || !primary.url) return false;
+
+    const tier = String(
+      primary.tier || model3d.tier || model3d.route_type || primary.source || ""
+    ).toLowerCase();
+
+    if (!(primary.verified || tier === "verified")) return false;
+
+    const label = titleCase(
+      primary.label || model3d.label || model3d.name || model3d.object_name || "3d model"
+    );
+
+    return open3DUrl(primary.url, label);
+  }
+
+  function maybeToastRouteInfo(data) {
+    const model3d = data && data.model3d;
+    if (!model3d) return;
+
+    if (model3d.route_type === "concept") {
+      toast("Concept mode ready.", "info", 2200);
+    }
+  }
+
+  // -----------------------------
+  // uploads / analyze
+  // -----------------------------
+  async function uploadSelectedImage(file) {
+    if (!file) return null;
+
+    const fd = new FormData();
+    fd.append("image", file);
+
+    const res = await fetch("/api/upload-image", {
+      method: "POST",
+      body: fd,
+      credentials: "same-origin",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      throw new Error((data && data.error) || "Image upload failed.");
+    }
+
+    state.selectedImageUrl = data.url || "";
+    state.selectedImageFilename = data.filename || file.name || "";
+
+    if (state.selectedImageUrl) {
+      addImageBubble(state.selectedImageUrl, state.selectedImageFilename);
+      toast("Image uploaded.", "success");
+    }
+
     return data;
   }
 
-  function label(status) {
-    if (!status || !status.enabled) return "Credits";
-    if (status.unlimited) return "Credits: Admin";
-    var n = status.remaining == null ? 0 : Number(status.remaining || 0);
-    return "Credits: " + n;
-  }
-
-  function renderPill(status) {
-    css();
-    var old = document.getElementById("simoDesignCreditPill");
-    if (old) old.remove();
-
-    var pill = el("button", {
-      id: "simoDesignCreditPill",
-      class: "simo-credit-pill",
-      type: "button",
-      title: "Buy Simo design credits"
-    });
-    pill.innerHTML = '<span class="simo-credit-label">' + label(status) + '</span><span class="simo-credit-buy">Buy</span>';
-    if (status && status.enabled && !status.unlimited) {
-      var remaining = Number(status.remaining || 0);
-      if (remaining <= 0) pill.classList.add("simo-credit-empty");
-      else if (remaining <= 3) pill.classList.add("simo-credit-low");
-    }
-    pill.addEventListener("click", openModal);
-
-    var clearBtn = document.getElementById("clearHistoryBtn");
-    var actions = clearBtn && clearBtn.parentElement;
-    if (actions && actions.classList && actions.classList.contains("topbar-actions")) {
-      actions.insertBefore(pill, clearBtn);
-    } else {
-      pill.classList.add("simo-credit-fallback-fixed");
-      document.body.appendChild(pill);
-    }
-  }
-
-  async function refresh() {
+  async function analyzeLastImage() {
     try {
-      var data = await api("/api/design-credits/status");
-      renderPill(data.image_credits || {});
-    } catch (e) {}
-  }
+      const prompt =
+        (inputEl && inputEl.value && inputEl.value.trim()) ||
+        "Analyze this image in detail.";
 
-  async function openModal() {
-    css();
-    var options;
-    try { options = await api("/api/design-credits/options"); }
-    catch (e) { alert(e.message || "Could not load credit packs."); return; }
-    var packs = options.packs || [];
-    var backdrop = el("div", { class:"simo-credit-modal-backdrop" });
-    var modal = el("div", { class:"simo-credit-modal" });
-    modal.appendChild(el("h3", {}, "Buy Simo design credits"));
-    modal.appendChild(el("p", {}, "Use credits for image/design generation and workspace edits. Credits are added to your Simo account after Stripe checkout."));
-    var list = el("div", { class:"simo-pack-list" });
-    if (!packs.length) list.appendChild(el("p", {}, "Credit packs are not configured yet. Add Stripe price IDs in your .env file."));
-    packs.forEach(function (pack) {
-      var row = el("div", { class:"simo-pack" });
-      row.appendChild(el("div", {}, "<strong>" + pack.credits + " design credits</strong><span>" + (pack.description || "Extra Simo design usage") + "</span>"));
-      var b = el("button", { type:"button" }, "Buy");
-      b.addEventListener("click", async function () {
-        b.disabled = true; b.textContent = "Opening…";
-        try {
-          var data = await api("/api/create-credit-pack-checkout-session", { pack: pack.key });
-          if (data.url) window.location.href = data.url;
-        } catch (e) { alert(e.message || "Could not start checkout."); b.disabled = false; b.textContent = "Buy"; }
+      const data = await api("/api/analyze-image", {
+        method: "POST",
+        body: JSON.stringify({ prompt }),
       });
-      row.appendChild(b); list.appendChild(row);
-    });
-    modal.appendChild(list);
-    var close = el("button", { type:"button", class:"simo-credit-close" }, "Close");
-    close.addEventListener("click", function(){ backdrop.remove(); });
-    modal.appendChild(close); backdrop.appendChild(modal); document.body.appendChild(backdrop);
-  }
 
-  async function claimReturnCreditPack() {
-    try {
-      var url = new URL(window.location.href);
-      if (url.searchParams.get("credit_pack") !== "success") return;
-      var sessionId = url.searchParams.get("session_id") || "";
-      if (!sessionId) return;
-      var data = await api("/api/credit-packs/claim", { session_id: sessionId });
-      var grant = data.grant || {};
-      alert((grant.already_granted ? "Credits already added." : "Credits added to your Simo account.") + " Remaining: " + ((data.image_credits || {}).remaining ?? "unlimited"));
-      url.searchParams.delete("credit_pack"); url.searchParams.delete("session_id");
-      window.history.replaceState({}, document.title, url.pathname + (url.search ? url.search : "") + url.hash);
-      refresh();
-    } catch (e) { console.warn("Simo credit pack claim failed", e); }
-  }
+      if (data && data.ok) {
+        const reply = String(data.reply || "Done.");
+        state.lastAssistantText = reply;
+        addAssistantMessageWith3D(reply);
+        scrollAfterUiChange();
+        return data;
+      }
 
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", function(){ refresh(); claimReturnCreditPack(); });
-  else { refresh(); claimReturnCreditPack(); }
-  window.SimoDesignCreditsUI = { refresh: refresh, open: openModal };
-})();
-
-
-// SIMO PHASE 14M-R10.60B SAFE MIC + AUDIO RESPONSE SETTINGS UI
-// Preserves PHASE 14M-R10.59J core routing and R10.59L composer behavior.
-// Settings only: no auto-recording, no Send/Enter routing changes, no Library/Workspace/credit changes.
-(function () {
-  "use strict";
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-  if (window.__SIMO_R1060B_SETTINGS_MODAL__) return;
-  window.__SIMO_R1060B_SETTINGS_MODAL__ = true;
-
-  const SETTINGS_KEY = "simo_settings_v1";
-  const VOICE_SETTINGS_KEY = "simo_voice_settings_v1";
-  const THEMES = ["dark", "midnight", "warm", "light"];
-  const VOICES = ["Best Friend", "Focused", "Creative", "Direct"];
-  const AUDIO_VOICES = ["Browser Default", "Best available", "Friendly", "Calm", "Clear", "Fast"];
-  const SPEECH_LANGUAGES = [
-    "English (US)|en-US",
-    "English (Canada)|en-CA",
-    "English (UK)|en-GB",
-    "Spanish (US)|es-US",
-    "Spanish|es-ES",
-    "French|fr-FR",
-    "Arabic|ar",
-    "Albanian|sq",
-    "Italian|it-IT",
-    "German|de-DE"
-  ];
-
-  function $(id) { return document.getElementById(id); }
-  function esc(v) { return String(v == null ? "" : v).replace(/[&<>\"']/g, m => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m])); }
-  function readJson(key) { try { return JSON.parse(localStorage.getItem(key) || "{}"); } catch { return {}; } }
-  function writeJson(key, next) { try { localStorage.setItem(key, JSON.stringify(next || {})); } catch {} }
-  function readSettings() { return readJson(SETTINGS_KEY); }
-  function writeSettings(next) { writeJson(SETTINGS_KEY, next); }
-  function readVoiceSettings() { return readJson(VOICE_SETTINGS_KEY); }
-  function writeVoiceSettings(next) { writeJson(VOICE_SETTINGS_KEY, next); }
-  function checked(value) { return value ? " checked" : ""; }
-
-  function applySettings(settings, voiceSettings) {
-    settings = settings || readSettings();
-    voiceSettings = voiceSettings || readVoiceSettings();
-    const theme = settings.theme || "dark";
-    const accent = settings.accent || "#6ea8ff";
-    const voice = settings.voice || "Best Friend";
-    const safeVoice = {
-      micEnabled: !!voiceSettings.micEnabled,
-      audioResponsesEnabled: !!voiceSettings.audioResponsesEnabled,
-      audioAutoplay: !!voiceSettings.audioAutoplay,
-      audioVoice: voiceSettings.audioVoice || "Browser Default",
-      audioRate: Number(voiceSettings.audioRate || 1),
-      audioPitch: Number(voiceSettings.audioPitch || 1),
-      speechLanguage: voiceSettings.speechLanguage || "en-US",
-      assistantName: String(voiceSettings.assistantName || "Simo").trim() || "Simo",
-      updatedAt: voiceSettings.updatedAt || ""
-    };
-    document.documentElement.dataset.simoTheme = theme;
-    document.documentElement.style.setProperty("--simo-user-accent", accent);
-    window.SIMO_USER_SETTINGS = { theme, accent, voice, voiceSettings: safeVoice };
-    window.SIMO_VOICE_SETTINGS = safeVoice;
-    try { window.dispatchEvent(new CustomEvent("simo:settings-updated", { detail: window.SIMO_USER_SETTINGS })); } catch {}
-    try { window.dispatchEvent(new CustomEvent("simo:voice-settings-updated", { detail: safeVoice })); } catch {}
-  }
-
-  function optionHtml(values, selected) {
-    return values.map(v => '<option value="' + esc(v) + '"' + (v === selected ? ' selected' : '') + '>' + esc(v) + '</option>').join('');
-  }
-  function languageOptionHtml(values, selected) {
-    return values.map(function (entry) {
-      var parts = String(entry || '').split('|');
-      var label = parts[0] || entry;
-      var value = parts[1] || label;
-      return '<option value="' + esc(value) + '"' + (value === selected ? ' selected' : '') + '>' + esc(label) + '</option>';
-    }).join('');
-  }
-
-  function ensureStyles() {
-    if ($("simoR1060ASettingsStyles")) return;
-    const style = document.createElement("style");
-    style.id = "simoR1060ASettingsStyles";
-    style.textContent = `
-      .simo-settings-backdrop{position:fixed;inset:0;z-index:2147483002;background:rgba(0,0,0,.58);display:flex;align-items:center;justify-content:center;padding:18px;font-family:Inter,Arial,sans-serif}
-      .simo-settings-modal{width:min(640px,96vw);max-height:min(88vh,900px);overflow:auto;border:1px solid rgba(255,255,255,.16);background:#07111f;color:#eef4ff;border-radius:24px;box-shadow:0 30px 100px rgba(0,0,0,.55);padding:20px;display:grid;gap:14px}
-      .simo-settings-modal h3{margin:0;font-size:22px}.simo-settings-modal p{margin:0;color:#c7d3ea;line-height:1.45;font-size:13px}
-      .simo-settings-section{border:1px solid rgba(255,255,255,.10);background:rgba(255,255,255,.035);border-radius:18px;padding:14px;display:grid;gap:12px}
-      .simo-settings-section-title{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:13px;font-weight:950;color:#f4f7ff;letter-spacing:.02em}
-      .simo-settings-grid{display:grid;gap:12px}.simo-settings-row{display:grid;gap:6px}.simo-settings-row label{font-size:12px;color:#aebce4;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
-      .simo-settings-row select,.simo-settings-row input{border:1px solid rgba(255,255,255,.14);background:#111b2b;color:#eef4ff;border-radius:14px;padding:11px 12px;font-weight:800;outline:none;color-scheme:dark}.simo-settings-row select option{background:#111b2b;color:#eef4ff}.simo-settings-row select:focus,.simo-settings-row input:focus{border-color:rgba(110,168,255,.55);box-shadow:0 0 0 3px rgba(110,168,255,.15)}
-      .simo-settings-toggle{display:flex;align-items:center;justify-content:space-between;gap:14px;border:1px solid rgba(255,255,255,.09);background:rgba(0,0,0,.14);border-radius:16px;padding:12px}.simo-settings-toggle strong{display:block;font-size:13px;color:#f2f6ff}.simo-settings-toggle small{display:block;margin-top:3px;color:#93a4c9;font-size:11px;line-height:1.35}.simo-settings-toggle input{width:20px;height:20px;accent-color:#6ea8ff;flex:0 0 auto}
-      .simo-settings-range{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}.simo-settings-range input{width:100%}.simo-settings-value{font-size:12px;color:#c7d3ea;font-weight:900;min-width:34px;text-align:right}
-      .simo-settings-inline-actions{display:flex;gap:8px;flex-wrap:wrap}.simo-settings-inline-actions button,.simo-settings-actions button{border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#eef4ff;border-radius:999px;padding:10px 13px;font-weight:900;cursor:pointer}.simo-settings-inline-actions button:hover,.simo-settings-actions button:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.22)}
-      .simo-settings-status{min-height:18px;font-size:12px;color:#b8c7e6;line-height:1.4}.simo-settings-status.good{color:#87f5bd}.simo-settings-status.warn{color:#ffd76a}.simo-settings-status.bad{color:#ff9bab}
-      .simo-settings-actions{display:flex;justify-content:flex-end;gap:10px;flex-wrap:wrap}.simo-settings-actions .primary{background:rgba(110,168,255,.22);border-color:rgba(110,168,255,.45)}
-      html[data-simo-theme="light"] body{background:#f6f8ff;color:#0d1628} html[data-simo-theme="warm"] body{background:#140f0a} html[data-simo-theme="midnight"] body{background:#030712}
-    `;
-    document.head.appendChild(style);
-  }
-
-  function setStatus(backdrop, message, tone) {
-    const box = backdrop && backdrop.querySelector("#simoVoiceTestStatus");
-    if (!box) return;
-    box.textContent = String(message || "");
-    box.className = "simo-settings-status" + (tone ? " " + tone : "");
-  }
-
-  async function testMicrophone(backdrop) {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      setStatus(backdrop, "Microphone test is not supported in this browser.", "bad");
-      return;
-    }
-    setStatus(backdrop, "Requesting microphone permission…", "warn");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-      try { stream.getTracks().forEach(track => track.stop()); } catch {}
-      setStatus(backdrop, "Microphone permission works. No audio was saved or sent.", "good");
+      throw new Error("Image analysis failed.");
     } catch (err) {
-      setStatus(backdrop, "Microphone permission was blocked or unavailable.", "bad");
-    }
-  }
-
-  function pickSpeechVoice(preference) {
-    if (!window.speechSynthesis || !window.speechSynthesis.getVoices) return null;
-    const voices = window.speechSynthesis.getVoices() || [];
-    if (!voices.length) return null;
-    const pref = String(preference || "").toLowerCase();
-    if (pref.includes("friendly") || pref.includes("calm")) {
-      return voices.find(v => /female|zira|samantha|aria|jenny|natural/i.test(v.name)) || voices[0];
-    }
-    if (pref.includes("clear") || pref.includes("fast")) {
-      return voices.find(v => /david|mark|guy|daniel|natural/i.test(v.name)) || voices[0];
-    }
-    if (pref.includes("best")) return voices.find(v => /natural|premium|enhanced/i.test(v.name)) || voices[0];
-    return voices[0];
-  }
-
-  function playTestVoice(backdrop) {
-    if (!window.speechSynthesis || !window.SpeechSynthesisUtterance) {
-      setStatus(backdrop, "Audio test is not supported in this browser.", "bad");
-      return;
-    }
-    try { window.speechSynthesis.cancel(); } catch {}
-    const audioVoice = (backdrop.querySelector("#simoAudioVoice") || {}).value || "Browser Default";
-    const rate = Number((backdrop.querySelector("#simoAudioRate") || {}).value || 1);
-    const pitch = Number((backdrop.querySelector("#simoAudioPitch") || {}).value || 1);
-    const utterance = new SpeechSynthesisUtterance("Hi Simon. This is the temporary browser voice test. Natural Simo voice will need the later server voice layer, and chat routing stays protected.");
-    utterance.rate = Math.max(.6, Math.min(1.35, rate));
-    utterance.pitch = Math.max(.7, Math.min(1.3, pitch));
-    const voice = pickSpeechVoice(audioVoice);
-    if (voice) utterance.voice = voice;
-    utterance.onend = () => setStatus(backdrop, "Audio test finished.", "good");
-    utterance.onerror = () => setStatus(backdrop, "Audio test could not play in this browser.", "bad");
-    setStatus(backdrop, "Playing temporary browser voice test…", "warn");
-    window.speechSynthesis.speak(utterance);
-  }
-
-  function wireRangeLabel(backdrop, inputId, valueId) {
-    const input = backdrop.querySelector("#" + inputId);
-    const value = backdrop.querySelector("#" + valueId);
-    if (!input || !value) return;
-    const update = () => { value.textContent = Number(input.value || 1).toFixed(1) + "x"; };
-    input.addEventListener("input", update);
-    update();
-  }
-
-  function openSettings(e) {
-    if (e) { e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }
-    ensureStyles();
-    const current = readSettings();
-    const voiceCurrent = readVoiceSettings();
-    const theme = current.theme || "dark";
-    const accent = current.accent || "#6ea8ff";
-    const voice = current.voice || "Best Friend";
-    const micEnabled = !!voiceCurrent.micEnabled;
-    const audioResponsesEnabled = !!voiceCurrent.audioResponsesEnabled;
-    const audioAutoplay = !!voiceCurrent.audioAutoplay;
-    const audioVoice = voiceCurrent.audioVoice || "Browser Default";
-    const audioRate = Number(voiceCurrent.audioRate || 1);
-    const audioPitch = Number(voiceCurrent.audioPitch || 1);
-    const speechLanguage = voiceCurrent.speechLanguage || "en-US";
-    const assistantName = String(voiceCurrent.assistantName || "Simo").trim() || "Simo";
-    const backdrop = document.createElement("div");
-    backdrop.className = "simo-settings-backdrop";
-    backdrop.innerHTML = `
-      <section class="simo-settings-modal" role="dialog" aria-modal="true" aria-label="Simo Settings">
-        <h3>Settings & Voice</h3>
-        <p>These settings are saved in this browser and applied immediately. This R10.60O pass keeps Simo north star safe: mic dictation can correct the Simo brand name, language can be selected for speech recognition, browser voice is temporary, and there is no auto-recording, no Send/Enter routing change, and no Library, Workspace, credit, Stripe, login, Render, or DNS changes.</p>
-
-        <div class="simo-settings-section">
-          <div class="simo-settings-section-title"><span>Look & written tone</span><span>R10.59J preserved</span></div>
-          <div class="simo-settings-grid">
-            <div class="simo-settings-row"><label>Theme</label><select id="simoSettingsTheme">${optionHtml(THEMES, theme)}</select></div>
-            <div class="simo-settings-row"><label>Accent color</label><input id="simoSettingsAccent" type="color" value="${esc(accent)}" /></div>
-            <div class="simo-settings-row"><label>Voice style (text tone)</label><select id="simoSettingsVoice">${optionHtml(VOICES, voice)}</select><small style="color:#93a4c9;font-size:11px;line-height:1.35;">This controls Simo’s written tone setting.</small></div>
-          </div>
-        </div>
-
-        <div class="simo-settings-section">
-          <div class="simo-settings-section-title"><span>Microphone input</span><span>Brand + language aware</span></div>
-          <label class="simo-settings-toggle">
-            <span><strong>Mic input setting</strong><small>Stores your preference. It does not auto-record, and spoken text still waits for you to press Send.</small></span>
-            <input id="simoMicEnabled" type="checkbox"${checked(micEnabled)} />
-          </label>
-          <div class="simo-settings-row"><label>Speech recognition language</label><select id="simoSpeechLanguage">${languageOptionHtml(SPEECH_LANGUAGES, speechLanguage)}</select><small style="color:#93a4c9;font-size:11px;line-height:1.35;">Used by the browser mic listener when available.</small></div>
-          <div class="simo-settings-row"><label>Assistant / brand name</label><input id="simoAssistantName" type="text" value="${esc(assistantName)}" maxlength="32" /><small style="color:#93a4c9;font-size:11px;line-height:1.35;">Default is Simo. Mic dictation corrects common misheard versions like SEMO, CMO, see mo, or s e m o to this name.</small></div>
-          <div class="simo-settings-inline-actions"><button type="button" data-simo-test-mic>Test microphone permission</button></div>
-        </div>
-
-        <div class="simo-settings-section">
-          <div class="simo-settings-section-title"><span>Temporary browser audio</span><span>Natural voice later</span></div>
-          <label class="simo-settings-toggle">
-            <span><strong>Browser audio response setting</strong><small>Stores whether Simo may speak answers later. This browser test can sound robotic; real natural Simo voice will require the later server voice layer.</small></span>
-            <input id="simoAudioResponsesEnabled" type="checkbox"${checked(audioResponsesEnabled)} />
-          </label>
-          <label class="simo-settings-toggle">
-            <span><strong>Read responses aloud with temporary browser voice</strong><small>Saved for a later behavior pass. It stays inactive until response playback is safely wired.</small></span>
-            <input id="simoAudioAutoplay" type="checkbox"${checked(audioAutoplay)} />
-          </label>
-          <div class="simo-settings-row"><label>Temporary browser voice style</label><select id="simoAudioVoice">${optionHtml(AUDIO_VOICES, audioVoice)}</select><small style="color:#93a4c9;font-size:11px;line-height:1.35;">This uses Chrome/Windows voices only. It is not the final natural Simo voice.</small></div>
-          <div class="simo-settings-row"><label>Speaking speed</label><div class="simo-settings-range"><input id="simoAudioRate" type="range" min="0.7" max="1.3" step="0.1" value="${esc(audioRate)}" /><span id="simoAudioRateValue" class="simo-settings-value"></span></div></div>
-          <div class="simo-settings-row"><label>Voice pitch</label><div class="simo-settings-range"><input id="simoAudioPitch" type="range" min="0.8" max="1.2" step="0.1" value="${esc(audioPitch)}" /><span id="simoAudioPitchValue" class="simo-settings-value"></span></div></div>
-          <div class="simo-settings-inline-actions"><button type="button" data-simo-test-audio>Play temporary browser voice test</button><button type="button" data-simo-stop-audio>Stop browser voice</button></div>
-          <div class="simo-settings-safe-note" style="margin-top:10px;border:1px solid rgba(110,168,255,.18);background:rgba(110,168,255,.08);border-radius:14px;padding:10px 11px;color:#dce8ff;font-size:12px;line-height:1.45;">Natural, real Simo voice is intentionally not wired in this UI-only pass. Next voice layer should be server-generated audio, played after the normal text answer, with routing untouched.</div>
-          <div id="simoVoiceTestStatus" class="simo-settings-status">Ready. Temporary test uses browser voice only.</div>
-        </div>
-
-        <div class="simo-settings-actions"><button type="button" data-simo-settings-close>Cancel</button><button type="button" class="primary" data-simo-settings-save>Save settings</button></div>
-      </section>`;
-    document.body.appendChild(backdrop);
-    wireRangeLabel(backdrop, "simoAudioRate", "simoAudioRateValue");
-    wireRangeLabel(backdrop, "simoAudioPitch", "simoAudioPitchValue");
-    backdrop.addEventListener("click", function (ev) { if (ev.target === backdrop) backdrop.remove(); });
-    const close = backdrop.querySelector("[data-simo-settings-close]");
-    const save = backdrop.querySelector("[data-simo-settings-save]");
-    const testMic = backdrop.querySelector("[data-simo-test-mic]");
-    const testAudio = backdrop.querySelector("[data-simo-test-audio]");
-    const stopAudio = backdrop.querySelector("[data-simo-stop-audio]");
-    if (close) close.addEventListener("click", () => { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {} backdrop.remove(); });
-    if (testMic) testMic.addEventListener("click", () => testMicrophone(backdrop));
-    if (testAudio) testAudio.addEventListener("click", () => playTestVoice(backdrop));
-    if (stopAudio) stopAudio.addEventListener("click", () => { try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {} setStatus(backdrop, "Audio stopped.", "warn"); });
-    if (save) save.addEventListener("click", function () {
-      const next = {
-        theme: (backdrop.querySelector("#simoSettingsTheme") || {}).value || "dark",
-        accent: (backdrop.querySelector("#simoSettingsAccent") || {}).value || "#6ea8ff",
-        voice: (backdrop.querySelector("#simoSettingsVoice") || {}).value || "Best Friend",
-        updatedAt: new Date().toISOString()
-      };
-      const nextVoice = {
-        micEnabled: !!((backdrop.querySelector("#simoMicEnabled") || {}).checked),
-        audioResponsesEnabled: !!((backdrop.querySelector("#simoAudioResponsesEnabled") || {}).checked),
-        audioAutoplay: !!((backdrop.querySelector("#simoAudioAutoplay") || {}).checked),
-        audioVoice: (backdrop.querySelector("#simoAudioVoice") || {}).value || "Browser Default",
-        audioRate: Number((backdrop.querySelector("#simoAudioRate") || {}).value || 1),
-        audioPitch: Number((backdrop.querySelector("#simoAudioPitch") || {}).value || 1),
-        speechLanguage: (backdrop.querySelector("#simoSpeechLanguage") || {}).value || "en-US",
-        assistantName: String((backdrop.querySelector("#simoAssistantName") || {}).value || "Simo").trim() || "Simo",
-        updatedAt: new Date().toISOString()
-      };
-      writeSettings(next);
-      writeVoiceSettings(nextVoice);
-      applySettings(next, nextVoice);
-      try { window.speechSynthesis && window.speechSynthesis.cancel(); } catch {}
-      backdrop.remove();
-    });
-    return false;
-  }
-
-  function boot() {
-    applySettings(readSettings(), readVoiceSettings());
-    document.addEventListener("click", function (e) {
-      const hit = e.target && e.target.closest && e.target.closest("#settingsBtn, [data-simo-settings], button, a, [role='button']");
-      if (!hit) return;
-      const txt = String(hit.textContent || hit.value || hit.getAttribute("aria-label") || hit.title || "").toLowerCase().replace(/\s+/g," ").trim();
-      if (hit.id === "settingsBtn" || txt === "settings & voice" || txt.indexOf("settings") >= 0 && txt.indexOf("voice") >= 0) {
-        return openSettings(e);
-      }
-    }, true);
-    window.SimoSettings = { open: openSettings, apply: applySettings, read: readSettings, readVoice: readVoiceSettings, phase: "R10.60C" };
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
-  else boot();
-})();
-
-
-
-// SIMO PHASE 14M-R10.60B SIGNUP RESTORE SAFE ADDON
-// Scope: restore Easy Signup modal only. No Send/Enter routing, Library, Workspace,
-// image analysis, credit, Stripe, login backend, Render, DNS, or simo-ui-recovery.js changes.
-(function () {
-  "use strict";
-  if (typeof window === "undefined" || typeof document === "undefined") return;
-  if (window.__SIMO_R1060B_SIGNUP_RESTORE__) return;
-  window.__SIMO_R1060B_SIGNUP_RESTORE__ = true;
-
-  function esc(value) {
-    return String(value == null ? "" : value).replace(/[&<>"']/g, function (m) {
-      return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#039;"}[m];
-    });
-  }
-
-  function api(path, payload) {
-    return fetch(path, {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload || {})
-    }).then(async function (res) {
-      var ct = res.headers.get("content-type") || "";
-      var data = ct.indexOf("application/json") >= 0 ? await res.json() : await res.text();
-      if (!res.ok) {
-        var msg = data && (data.error || data.message) ? (data.error || data.message) : ("Request failed: " + res.status);
-        throw new Error(msg);
-      }
-      return data;
-    });
-  }
-
-  function toast(message, good) {
-    try {
-      var wrap = document.getElementById("toastWrap");
-      if (!wrap) {
-        wrap = document.createElement("div");
-        wrap.id = "toastWrap";
-        wrap.style.cssText = "position:fixed;right:18px;bottom:18px;z-index:99999;display:grid;gap:8px;max-width:min(420px,calc(100vw - 36px));";
-        document.body.appendChild(wrap);
-      }
-      var box = document.createElement("div");
-      box.className = "simo-toast";
-      box.style.cssText = "border:1px solid " + (good ? "rgba(86,240,169,.28)" : "rgba(255,215,106,.28)") + ";background:rgba(10,16,28,.96);color:#eef4ff;border-radius:16px;padding:12px 14px;box-shadow:0 16px 40px rgba(0,0,0,.35);font-weight:800;font-size:13px;";
-      box.textContent = message;
-      wrap.appendChild(box);
-      setTimeout(function () { try { box.remove(); } catch {} }, 3600);
-    } catch {
-      try { console.log(message); } catch {}
-    }
-  }
-
-  function setStatus(modal, message, kind) {
-    var el = modal && modal.querySelector("[data-simo-signup-status]");
-    if (!el) return;
-    el.textContent = message || "";
-    el.style.color = kind === "good" ? "#8ff6c1" : kind === "bad" ? "#ff9cad" : "#dce8ff";
-  }
-
-  function ensureSignupStyles() {
-    if (document.getElementById("simo-r1060b-signup-style")) return;
-    var style = document.createElement("style");
-    style.id = "simo-r1060b-signup-style";
-    style.textContent = `
-      .simo-signup-backdrop{position:fixed;inset:0;z-index:99980;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(4,8,14,.72);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);}
-      .simo-signup-modal{width:min(560px,100%);max-height:min(90vh,760px);overflow:auto;border-radius:26px;border:1px solid rgba(255,255,255,.13);background:linear-gradient(180deg,rgba(16,24,39,.98),rgba(9,15,27,.96));box-shadow:0 24px 90px rgba(0,0,0,.45);color:#eef4ff;padding:18px;}
-      .simo-signup-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px;}
-      .simo-signup-modal h3{margin:0;font-size:22px;line-height:1.15;}
-      .simo-signup-modal p{margin:7px 0 0;color:#c7d3ea;line-height:1.5;font-size:13px;}
-      .simo-signup-x{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.06);color:#eef4ff;border-radius:12px;width:38px;height:38px;cursor:pointer;font-weight:900;}
-      .simo-signup-grid{display:grid;gap:10px;margin-top:14px;}
-      .simo-signup-field{display:grid;gap:6px;}
-      .simo-signup-field label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#aebbd7;font-weight:900;}
-      .simo-signup-field input{width:100%;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.055);color:#fff;border-radius:14px;padding:12px 13px;outline:none;box-sizing:border-box;}
-      .simo-signup-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;}
-      .simo-signup-primary,.simo-signup-secondary{border:1px solid rgba(255,255,255,.14);border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:900;color:#eef4ff;}
-      .simo-signup-primary{background:linear-gradient(180deg,rgba(105,120,255,.35),rgba(80,88,180,.35));border-color:rgba(140,160,255,.28);}
-      .simo-signup-secondary{background:rgba(255,255,255,.055);}
-      .simo-signup-safe{margin-top:13px;border:1px solid rgba(110,168,255,.18);background:rgba(110,168,255,.08);border-radius:16px;padding:11px 12px;color:#dce8ff;font-size:12px;line-height:1.45;}
-      .simo-signup-status{margin-top:12px;min-height:18px;font-size:12px;font-weight:800;color:#dce8ff;}
-    `;
-    document.head.appendChild(style);
-  }
-
-  async function refreshMe() {
-    try {
-      var res = await fetch("/api/me", { credentials: "same-origin" });
-      if (!res.ok) return null;
-      var data = await res.json();
-      try { window.dispatchEvent(new CustomEvent("simo:account-refresh", { detail: data })); } catch {}
-      return data;
-    } catch {
+      toast(err.message || "Image analysis failed.", "error");
       return null;
     }
   }
 
-  function openSignup(ev) {
-    if (ev) {
-      ev.preventDefault();
-      ev.stopPropagation();
-      if (ev.stopImmediatePropagation) ev.stopImmediatePropagation();
+  // -----------------------------
+  // publish helpers
+  // -----------------------------
+  function getPublishHtml() {
+    return String(state.lastPreviewHtml || state.draftHtml || "").trim();
+  }
+
+  function derivePublishSlug(title, html) {
+    const fromTitle = slugify(title || "");
+    if (fromTitle && fromTitle !== "simo-build") return fromTitle;
+
+    const titleMatch = String(html || "").match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch && titleMatch[1]) {
+      const slug = slugify(titleMatch[1]);
+      if (slug) return slug;
     }
-    ensureSignupStyles();
-    document.querySelectorAll(".simo-signup-backdrop").forEach(function (x) { try { x.remove(); } catch {} });
-    var boot = window.SIMO_BOOT || {};
-    var maybeEmail = boot.email || boot.user_email || "";
-    var backdrop = document.createElement("div");
-    backdrop.className = "simo-signup-backdrop";
-    backdrop.innerHTML = `
-      <section class="simo-signup-modal" role="dialog" aria-modal="true" aria-label="Easy Signup">
-        <div class="simo-signup-head">
-          <div>
-            <h3>Easy Signup</h3>
-            <p>Create or update your local Simo account profile. This safe pass restores the button without changing chat routing, Library, Workspace, credits, Stripe, Render, DNS, or login backend behavior.</p>
-          </div>
-          <button class="simo-signup-x" type="button" data-simo-signup-close aria-label="Close">×</button>
+
+    return `simo-build-${Date.now()}`;
+  }
+
+  function normalizePublishResponse(data, attemptedSlug) {
+    if (!data || typeof data !== "object") return null;
+
+    const url =
+      data.url ||
+      data.published_url ||
+      data.publish_url ||
+      data.share_url ||
+      data.preview_url ||
+      (data.path ? toAbsoluteUrl(data.path) : "") ||
+      (data.slug ? toAbsoluteUrl(`/published/${data.slug}`) : "");
+
+    const slug = String(data.slug || attemptedSlug || "").trim();
+
+    if (!url) return null;
+
+    return {
+      url: toAbsoluteUrl(url),
+      slug,
+      raw: data,
+    };
+  }
+
+  async function tryPublishRequest(endpoint, payload) {
+    const res = await fetch(endpoint, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const ct = res.headers.get("content-type") || "";
+    const data = ct.includes("application/json") ? await res.json() : await res.text();
+
+    if (!res.ok) {
+      const msg =
+        (data && data.error) ||
+        (data && data.message) ||
+        (typeof data === "string" ? data : `Publish failed: ${res.status}`);
+      throw new Error(msg);
+    }
+
+    return data;
+  }
+
+  function ensurePublishModalDom() {
+    if ($("publishResultModal") && $("publishResultUrl")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "publishResultModal";
+    modal.hidden = true;
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.background = "rgba(0,0,0,.72)";
+    modal.style.zIndex = "99986";
+    modal.style.display = "none";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.padding = "20px";
+
+    modal.innerHTML = `
+      <div style="
+        width:min(720px, 96vw);
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+        border-radius:24px;
+        background:linear-gradient(180deg, rgba(10,16,30,.98), rgba(7,12,22,.98));
+        border:1px solid rgba(255,255,255,.10);
+        box-shadow:0 30px 80px rgba(0,0,0,.42);
+        color:#eef4ff;
+      ">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+          padding:14px 16px;
+          border-bottom:1px solid rgba(255,255,255,.08);
+        ">
+          <div style="font-weight:700;">Publish Result</div>
+          <button id="publishResultCloseBtn" type="button">Close</button>
         </div>
 
-        <div class="simo-signup-grid">
-          <div class="simo-signup-field">
-            <label for="simoSignupName">Name</label>
-            <input id="simoSignupName" type="text" autocomplete="name" placeholder="Simon" value="${esc(boot.name || boot.user_name || "")}" />
+        <div style="padding:16px; display:grid; gap:14px;">
+          <div id="publishResultStatus" style="font-size:14px; color:#dfe9ff;">
+            Your build was published.
           </div>
-          <div class="simo-signup-field">
-            <label for="simoSignupEmail">Email</label>
-            <input id="simoSignupEmail" type="email" autocomplete="email" placeholder="you@example.com" value="${esc(maybeEmail)}" />
+
+          <div style="
+            padding:12px;
+            border-radius:14px;
+            border:1px solid rgba(255,255,255,.10);
+            background:rgba(255,255,255,.05);
+            overflow:auto;
+            word-break:break-all;
+            font-size:13px;
+          ">
+            <div id="publishResultUrl"></div>
+          </div>
+
+          <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end;">
+            <button id="copyPublishUrlBtn" type="button">Copy Link</button>
+            <button id="openPublishUrlBtn" type="button">Open Link</button>
           </div>
         </div>
-
-        <div class="simo-signup-safe">
-          This does not force a paid plan and does not touch Stripe. If Google sign-in is configured, use the normal Sign in button for full account login. This modal is a safe local/signup helper.
-        </div>
-
-        <div class="simo-signup-actions">
-          <button class="simo-signup-primary" type="button" data-simo-signup-save>Save signup info</button>
-          <button class="simo-signup-secondary" type="button" data-simo-signup-google>Use normal Sign in</button>
-          <button class="simo-signup-secondary" type="button" data-simo-signup-close>Close</button>
-        </div>
-        <div class="simo-signup-status" data-simo-signup-status>Ready.</div>
-      </section>
+      </div>
     `;
-    document.body.appendChild(backdrop);
 
-    backdrop.addEventListener("click", function (e) {
-      if (e.target === backdrop || e.target.closest("[data-simo-signup-close]")) {
-        backdrop.remove();
-      }
+    document.body.appendChild(modal);
+
+    [
+      "publishResultCloseBtn",
+      "copyPublishUrlBtn",
+      "openPublishUrlBtn",
+    ]
+      .map($)
+      .forEach(styleActionButton);
+  }
+
+  function openPublishResultModal(url, slug = "") {
+    ensurePublishModalDom();
+
+    const modal = $("publishResultModal");
+    const statusEl = $("publishResultStatus");
+    const urlEl = $("publishResultUrl");
+    const safeUrl = toAbsoluteUrl(url);
+
+    state.publish.lastUrl = safeUrl;
+    state.publish.lastSlug = slug || "";
+
+    if (statusEl) {
+      statusEl.textContent = slug
+        ? `Your build was published successfully as "${slug}".`
+        : "Your build was published successfully.";
+    }
+
+    if (urlEl) {
+      urlEl.innerHTML = `
+        <a href="${escapeHtml(safeUrl)}" target="_blank" rel="noopener noreferrer" style="color:#cfe0ff; text-decoration:underline;">
+          ${escapeHtml(safeUrl)}
+        </a>
+      `;
+    }
+
+    modalOpen(modal);
+  }
+
+  function closePublishResultModal() {
+    modalClose($("publishResultModal"));
+  }
+
+  function setPublishBusy(isBusy) {
+    state.publish.busy = isBusy;
+
+    const publishModalBtn = $("publishBuildBtn");
+    const publishTopBtn = publishBtn;
+
+    [publishModalBtn, publishTopBtn].forEach((btn) => {
+      if (!btn) return;
+      btn.disabled = isBusy;
+      btn.textContent = isBusy ? "Publishing..." : "Publish";
     });
+  }
 
-    backdrop.querySelector("[data-simo-signup-google]").addEventListener("click", function () {
-      var login = document.getElementById("loginBtn");
-      backdrop.remove();
-      if (login) login.click();
-      else window.location.href = "/login";
-    });
+  async function publishCurrentBuild() {
+    const html = getPublishHtml();
+    if (!html) {
+      toast("No build is loaded to publish.", "error");
+      return;
+    }
 
-    backdrop.querySelector("[data-simo-signup-save]").addEventListener("click", async function () {
-      var name = (backdrop.querySelector("#simoSignupName") || {}).value || "";
-      var email = (backdrop.querySelector("#simoSignupEmail") || {}).value || "";
-      name = name.trim();
-      email = email.trim();
-      if (!email || email.indexOf("@") < 1) {
-        setStatus(backdrop, "Please enter a valid email.", "bad");
-        return;
-      }
-      var payload = { name: name, email: email, source: "r1060b_easy_signup_restore" };
-      try { localStorage.setItem("simo_easy_signup_v1", JSON.stringify({ name: name, email: email, updatedAt: new Date().toISOString() })); } catch {}
-      setStatus(backdrop, "Saving signup info…", "warn");
+    if (state.publish.busy) return;
 
-      var savedServer = false;
-      try {
-        await api("/api/easy-signup", payload);
-        savedServer = true;
-      } catch (err1) {
+    setPublishBusy(true);
+
+    try {
+      const title = String(state.lastPreviewTitle || inferBuildTitleFromText(html) || "Untitled Build").trim();
+      const slug = derivePublishSlug(title, html);
+
+      const payload = {
+        title,
+        slug,
+        html,
+        sourceText: state.lastAssistantText || "",
+      };
+
+      const endpoints = [
+        "/api/publish",
+        "/api/publish-build",
+        "/api/builder/publish",
+      ];
+
+      let published = null;
+      let lastErr = null;
+
+      for (const endpoint of endpoints) {
         try {
-          await api("/api/signup", payload);
-          savedServer = true;
-        } catch (err2) {
-          savedServer = false;
+          const data = await tryPublishRequest(endpoint, payload);
+          published = normalizePublishResponse(data, slug);
+
+          if (published && published.url) {
+            showPublishSuccess(published.url);
+            break;
+          }
+
+          lastErr = new Error(`Endpoint responded without a publish URL: ${endpoint}`);
+        } catch (err) {
+          lastErr = err;
         }
       }
 
-      await refreshMe();
-      setStatus(backdrop, savedServer ? "Saved. Account status refreshed." : "Saved locally. Server signup endpoint was not available.", savedServer ? "good" : "warn");
-      toast(savedServer ? "Easy Signup saved." : "Easy Signup saved locally.", true);
-    });
-
-    setTimeout(function () {
-      try { (backdrop.querySelector("#simoSignupName") || backdrop.querySelector("#simoSignupEmail")).focus(); } catch {}
-    }, 30);
-    return false;
-  }
-
-  function bootSignupRestore() {
-    document.addEventListener("click", function (e) {
-      var hit = e.target && e.target.closest && e.target.closest("#signupBtn, [data-simo-signup], button, a, [role='button']");
-      if (!hit) return;
-      var txt = String(hit.textContent || hit.value || hit.getAttribute("aria-label") || hit.title || "").toLowerCase().replace(/\s+/g, " ").trim();
-      if (hit.id === "signupBtn" || txt === "easy signup" || txt.indexOf("signup") >= 0 || txt.indexOf("sign up") >= 0) {
-        return openSignup(e);
+      if (!published || !published.url) {
+        throw lastErr || new Error("Publish endpoint is not ready yet.");
       }
-    }, true);
-    window.SimoSignup = { open: openSignup, phase: "R10.60B" };
-  }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", bootSignupRestore, { once: true });
-  } else {
-    bootSignupRestore();
-  }
-})();
-
-
-/* --------------------------------------------------
-   PHASE 14M-R10.60C — 3D UI quarantine / North Star guard
-   Hides only the public 3D/Design Studio entry points that were still visible
-   in the main sidebar/home chips. It does NOT touch saved Library cards,
-   Open Workspace, workspace save-back, image analysis, credits, Stripe,
-   login, Render, DNS, or Send/Enter routing.
--------------------------------------------------- */
-(function simoR1060CQuarantine3DUi() {
-  "use strict";
-  const PHASE = "R10.60C_3D_UI_QUARANTINE";
-  function textOf(el) { return String((el && el.textContent) || "").replace(/\s+/g, " ").trim().toLowerCase(); }
-  function hide(el) {
-    if (!el || el.dataset.simoR1060cHidden === "true") return;
-    el.dataset.simoR1060cHidden = "true";
-    el.dataset.simoHiddenReason = PHASE;
-    el.style.display = "none";
-    el.setAttribute("aria-hidden", "true");
-  }
-  function run() {
-    try {
-      document.querySelectorAll(".side-card").forEach(function (card) {
-        const t = textOf(card);
-        if (t.includes("3d rendering") || t.includes("3d rotate") || t.includes("3d viewer")) hide(card);
-      });
-      document.querySelectorAll(".chip").forEach(function (chip) {
-        const t = textOf(chip);
-        if (t.includes("3d viewer ready") || t.includes("3d viewer")) hide(chip);
-      });
-      const sidebar = document.querySelector(".sidebar");
-      if (sidebar) {
-        sidebar.querySelectorAll("button, a, [role='button']").forEach(function (btn) {
-          const t = textOf(btn);
-          if (t === "design studio" || t === "3d rendering & rotate" || t === "3d viewer") hide(btn);
-        });
-      }
-      window.__SIMO_R1060C_3D_UI_QUARANTINE__ = true;
+      openPublishResultModal(published.url, published.slug || slug);
+      toast("Build published.", "success", 2200);
     } catch (err) {
-      console.warn("Simo R10.60C 3D UI quarantine skipped:", err);
-    }
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run, { once: true });
-  else run();
-  setTimeout(run, 350);
-  setTimeout(run, 1200);
-  setTimeout(run, 2500);
-})();
+      const msg = String(err?.message || "Publish failed.");
 
-
-
-/* SIMO PHASE 14M-R10.60I — Mic placement polish
-   Keeps proven R10.60H mic behavior. Only placement/CSS support changed. */
-(function simoR1060IMicPlacementPolish(){
-  if (window.__SIMO_R1060I_MIC_PLACEMENT_POLISH__) return;
-  window.__SIMO_R1060I_MIC_PLACEMENT_POLISH__ = true;
-
-  var VOICE_SETTINGS_KEY = "simo_voice_settings_v1";
-  var recognition = null;
-  var listening = false;
-  var hadResult = false;
-  var stopTimer = null;
-
-  function byId(id){ return document.getElementById(id); }
-  function settings(){
-    try { return JSON.parse(localStorage.getItem(VOICE_SETTINGS_KEY) || "{}") || {}; }
-    catch(e){ return {}; }
-  }
-  function micEnabled(){ return !!settings().micEnabled; }
-  function input(){ return byId("chatInput") || document.querySelector("textarea, input[type='text']"); }
-  function statusEl(){ return byId("loadingHint") || document.querySelector("[data-simo-status], .status, .loading-hint"); }
-  function setStatus(msg, busy){
-    var el = statusEl();
-    if (!el) return;
-    el.textContent = String(msg || "Ready.");
-    try { el.dataset.simoBusy = busy ? "true" : "false"; } catch(e) {}
-  }
-  function SpeechCtor(){ return window.SpeechRecognition || window.webkitSpeechRecognition || null; }
-  function btn(){ return byId("simoMicBtn"); }
-  function updateBtn(){
-    var b = btn();
-    if (!b) return;
-    var enabled = micEnabled();
-    b.classList.toggle("hidden", !enabled);
-    b.setAttribute("aria-hidden", enabled ? "false" : "true");
-    b.classList.toggle("simo-mic-listening", !!listening);
-    b.textContent = listening ? "■" : "🎙️";
-    b.title = listening ? "Stop listening" : "Use microphone";
-    b.setAttribute("aria-label", listening ? "Stop listening" : "Use microphone");
-  }
-  function assistantBrandName(){
-    var raw = String(settings().assistantName || "Simo").replace(/\s+/g, " ").trim();
-    return raw || "Simo";
-  }
-  function capitalizeFirstWordForDictation(value){
-    var text = String(value || "").replace(/\s+/g, " ").trim();
-    if (!text) return "";
-    return text.replace(/^([\"'“”‘’([{<]*)([a-z])/, function(_, prefix, ch){ return prefix + ch.toUpperCase(); });
-  }
-
-  function normalizeMicTranscript(text){
-    var value = String(text || "").replace(/\s+/g, " ").trim();
-    if (!value) return "";
-    var brand = assistantBrandName();
-
-    // R10.60P: brand-aware speech cleanup. Browsers may hear "Simo" as
-    // SEMO, CMO, Seymour, see mo, or s e m o. Correct only mic transcript
-    // text, not manually typed text, and keep user-custom brand spelling.
-    value = value
-      .replace(/\bs\s*e\s*m\s*o\b/gi, brand)
-      .replace(/\bsemo\b/gi, brand)
-      .replace(/\bseymour\b/gi, brand)
-      .replace(/\bsay\s+more\b/gi, brand)
-      .replace(/\bsee\s+mo\b/gi, brand)
-      .replace(/\bcee\s+mo\b/gi, brand)
-      .replace(/\bsea\s+mo\b/gi, brand)
-      .replace(/\bseamoe\b/gi, brand)
-      .replace(/\bsimmo\b/gi, brand)
-      .replace(/\bsimo\b/gi, brand);
-
-    // Be careful with CMO because it can be a real business role. Only treat
-    // it as the assistant name when it appears like an address/wake word.
-    value = value
-      .replace(/(^|[.!?]\s+)(hi|hey|hello|ok|okay|yo)\s+c\s*m\s*o\b/gi, function(_, p, g){ return p + g + " " + brand; })
-      .replace(/(^|[.!?]\s+)c\s*m\s*o\s+(can|could|please|will|would|show|build|create|make|give|help|tell|type|remember)\b/gi, function(_, p, w){ return p + brand + " " + w; })
-      .replace(/\b(let'?s keep|keep)\s+c\s*m\s*o\s+north star\b/gi, function(_, lead){ return lead + " " + brand + " north star"; });
-
-    value = value
-      .replace(/\s+([,.!?;:])/g, "$1")
-      .replace(/([,.!?;:])([^\s])/g, "$1 $2")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    // Dictation polish only: capitalize the first word of mic-captured text.
-    return capitalizeFirstWordForDictation(value);
-  }
-
-  function writeText(text){
-    var target = input();
-    var spoken = normalizeMicTranscript(text);
-    if (!target || !spoken) return;
-    var current = String(target.value || "").trim();
-    target.value = current ? current + " " + spoken : spoken;
-    try { target.dispatchEvent(new Event("input", { bubbles:true })); } catch(e) {}
-    try { target.dispatchEvent(new Event("change", { bubbles:true })); } catch(e) {}
-    try { target.focus(); } catch(e) {}
-  }
-  function clearTimer(){ if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; } }
-  function stop(silent){
-    clearTimer();
-    if (recognition) { try { recognition.stop(); } catch(e) {} }
-    listening = false;
-    updateBtn();
-    if (!silent) setStatus("Mic stopped. Press Send when ready.", false);
-  }
-  function requestMicPermission(){
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return Promise.resolve();
-    return navigator.mediaDevices.getUserMedia({ audio:true }).then(function(stream){
-      try { stream.getTracks().forEach(function(t){ t.stop(); }); } catch(e) {}
-    });
-  }
-  function beginRecognition(){
-    var Ctor = SpeechCtor();
-    if (!Ctor) {
-      setStatus("Speech input is not supported in this browser. Use Chrome desktop for mic dictation.", false);
-      updateBtn();
-      return;
-    }
-    var target = input();
-    if (!target) { setStatus("Composer is not ready yet.", false); return; }
-    hadResult = false;
-    recognition = new Ctor();
-    recognition.lang = settings().speechLanguage || "en-US";
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-
-    recognition.onstart = function(){
-      listening = true;
-      updateBtn();
-      setStatus("Listening now… speak clearly. Nothing auto-sends.", true);
-      clearTimer();
-      stopTimer = setTimeout(function(){ if (listening && !hadResult) stop(false); }, 9000);
-    };
-    recognition.onresult = function(event){
-      var interim = "";
-      var finalText = "";
-      for (var i = event.resultIndex; i < event.results.length; i += 1) {
-        var t = event.results[i] && event.results[i][0] ? event.results[i][0].transcript : "";
-        if (event.results[i].isFinal) finalText += t;
-        else interim += t;
+      if (/404|not found|endpoint|route/i.test(msg)) {
+        toast("Publish backend is not wired yet. Preview, Save, Download, and Open in New Tab still work.", "error", 4600);
+      } else {
+        toast(msg, "error", 4200);
       }
-      if (finalText) {
-        hadResult = true;
-        writeText(finalText);
-        setStatus("Mic captured text. Press Send when ready.", false);
-      } else if (interim) {
-        setStatus("Listening… " + String(interim).replace(/\s+/g," ").trim(), true);
-      }
-    };
-    recognition.onerror = function(event){
-      clearTimer();
-      listening = false;
-      updateBtn();
-      var err = event && event.error ? String(event.error) : "unknown";
-      if (err === "not-allowed" || err === "service-not-allowed") setStatus("Mic permission is blocked. Click the lock icon in Chrome and allow microphone.", false);
-      else if (err === "no-speech") setStatus("No speech detected. Click the mic again and speak after it says Listening.", false);
-      else if (err === "audio-capture") setStatus("No microphone was found by the browser.", false);
-      else setStatus("Mic input stopped: " + err + ".", false);
-    };
-    recognition.onend = function(){
-      clearTimer();
-      listening = false;
-      updateBtn();
-      if (hadResult) setStatus("Mic captured text. Press Send when ready.", false);
-      else setStatus("Mic ready.", false);
-    };
-    try { recognition.start(); }
-    catch(e){ listening = false; updateBtn(); setStatus("Mic could not start. Try clicking again.", false); }
-  }
-  function start(){
-    if (!micEnabled()) { setStatus("Turn Mic input ON in Settings & Voice first.", false); updateBtn(); return; }
-    if (listening) { stop(false); return; }
-    setStatus("Checking microphone permission…", true);
-    requestMicPermission().then(beginRecognition).catch(function(){
-      listening = false;
-      updateBtn();
-      setStatus("Mic permission was denied. Click the lock icon in Chrome and allow microphone.", false);
-    });
-  }
-  function boot(){
-    updateBtn();
-    document.addEventListener("click", function(e){
-      var b = e.target && e.target.closest ? e.target.closest("#simoMicBtn") : null;
-      if (!b) return;
-      e.preventDefault();
-      e.stopPropagation();
-      if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-      start();
-      return false;
-    }, true);
-    window.addEventListener("simo:voice-settings-updated", function(){
-      if (!micEnabled() && listening) stop(true);
-      updateBtn();
-    });
-    window.SimoMicInput = { phase:"R10.60O", start:start, stop:stop, refresh:updateBtn, supported:function(){ return !!SpeechCtor(); }, normalize:normalizeMicTranscript };
-  }
-  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once:true });
-  else boot();
-})();
-
-
-/* --------------------------------------------------
-   SIMO PHASE 14M-R10.60K — North Star Text Intent Firewall
-   Purpose:
-   - Text/business/advice prompts must behave like ChatGPT/Grok chat, not visual cards.
-   - Design/product prompts still go to the visual design flow.
-   - Also removes remaining public "3D / Rotate Workspace" wording from cards.
-   Safe scope: script-only. No composer, mic, Library, Workspace, Stripe, login,
-   Render, DNS, image-analysis, or simo-ui-recovery changes.
--------------------------------------------------- */
-(function simoR1060KNorthStarTextIntentFirewall(){
-  if (window.__SIMO_R1060K_NORTH_STAR_TEXT_FIREWALL__) return;
-  window.__SIMO_R1060K_NORTH_STAR_TEXT_FIREWALL__ = true;
-
-  var PHASE = "R10.60K_NORTH_STAR_TEXT_INTENT_FIREWALL";
-  var sending = false;
-
-  function clean(v){ return String(v || "").toLowerCase().replace(/[_-]+/g," ").replace(/\s+/g," ").trim(); }
-  function esc(v){ return String(v == null ? "" : v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/\"/g,"&quot;").replace(/'/g,"&#039;"); }
-  function input(){ return document.getElementById("chatInput") || document.querySelector("textarea, input[type='text']"); }
-  function chat(){ return document.getElementById("chatMessages") || document.getElementById("chat") || document.querySelector(".chat-wrap") || document.body; }
-  function statusEl(){ return document.getElementById("loadingHint") || document.querySelector("[data-simo-status], .status, .loading-hint"); }
-  function setStatus(text, busy){
-    var el = statusEl();
-    if (!el) return;
-    el.textContent = String(text || "Ready.");
-    try { el.dataset.simoBusy = busy ? "true" : "false"; } catch(e) {}
-  }
-  function scrollDown(){
-    try {
-      var wrap = document.querySelector(".chat-wrap") || chat();
-      wrap.scrollTop = wrap.scrollHeight;
-    } catch(e) {}
-  }
-  function addRow(role, html){
-    var c = chat();
-    var row = document.createElement("div");
-    row.className = "msg-row msg-" + role + " simo-r1060k-chat-row";
-    row.innerHTML = html;
-    c.appendChild(row);
-    scrollDown();
-    return row;
-  }
-  function addUser(text){ return addRow("user", '<div class="msg-bubble msg-bubble-user">' + esc(text) + '</div>'); }
-  function addAssistant(text){ return addRow("assistant", '<div class="msg-bubble msg-bubble-assistant">' + esc(text) + '</div>'); }
-  function removeRow(row){ try { row && row.remove(); } catch(e) {} }
-
-  function explicitVisualIntent(t){
-    return /\b(i can design|can design|to design|for me to design|editable design|design card|visual card|open workspace|workspace|save to library)\b/.test(t) ||
-      /\b(render|visualize|image|picture|photo|illustration|drawing|mockup|wireframe|prototype|concept art|product concept|design concept|logo|brand identity|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup)\b/.test(t) ||
-      /\b(show me|create|make|design|generate)\s+(a|an|the)?\s*(razor|shaver|spoon|fork|utensil|mug|cup|toaster|grill|flashlight|keyboard|mouse|fire extinguisher|soap dispenser|bottle|rim|wheel|guitar|chair|watch|lamp|product)\b.*\b(design|customize|edit|visual|render|concept)\b/.test(t);
-  }
-
-  function textFirstIntent(raw){
-    var t = clean(raw);
-    if (!t) return false;
-    if (explicitVisualIntent(t)) return false;
-
-    var business = /\b(business plan|business idea|startup idea|start up idea|side hustle|business model|marketing plan|sales plan|revenue plan|profit plan|budget|under\s*\$?\d+|less than\s*\$?\d+|for under\s*\$?\d+|low budget|customer|customers|market|niche|pricing|expenses|costs|steps to start|how to start|can start|i can start|start with under|start for under)\b/.test(t);
-    var advice = /\b(how do i|how can i|what should i|tell me|explain|write|draft|outline|summarize|give me steps|step by step|plan for|strategy|advice|ideas for|help me figure out|what is|why is|can you help|help me)\b/.test(t);
-    var writing = /\b(email|letter|proposal|caption|post|script|bio|resume|cover letter|summary|outline|chapter|story|autobiography|memoir)\b/.test(t);
-
-    // "show me a business plan" means explain/show the plan in chat, not make a product card.
-    if (business || advice || writing) return true;
-    return false;
-  }
-
-  function replyFrom(data){
-    if (data == null) return "I’m here. What would you like to do next?";
-    if (typeof data === "string") return data;
-    return String(data.reply || data.response || data.answer || data.message || data.text || data.content || data.output || "I’m here. What would you like to do next?");
-  }
-
-  async function sendChat(text){
-    if (sending) return;
-    sending = true;
-    var target = input();
-    if (target) {
-      target.value = "";
-      try { target.dispatchEvent(new Event("input", { bubbles:true })); } catch(e) {}
+    } finally {
+      setPublishBusy(false);
     }
-    addUser(text);
-    var working = addRow("assistant", '<div class="msg-bubble msg-bubble-assistant">Thinking…</div>');
-    setStatus("Thinking…", true);
+  }
+
+  // -----------------------------
+  // preview modal
+  // -----------------------------
+  function modalOpen(el) {
+    if (!el) return;
+    el.hidden = false;
+    el.style.display = "flex";
+    el.dataset.modalVisible = "true";
+    document.body.classList.add("modal-open");
+  }
+
+  function modalClose(el) {
+    if (!el) return;
+    el.hidden = true;
+    el.style.display = "none";
+    delete el.dataset.modalVisible;
+
+    if (!document.querySelector('[data-modal-visible="true"]')) {
+      document.body.classList.remove("modal-open");
+    }
+  }
+
+  function ensurePreviewModalDom() {
+    if ($("builderPreviewModal") && $("builderPreviewFrame")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "builderPreviewModal";
+    modal.hidden = true;
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.background = "rgba(0,0,0,.72)";
+    modal.style.zIndex = "99980";
+    modal.style.display = "none";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.padding = "20px";
+
+    modal.innerHTML = `
+    <div style="
+      width:min(1180px, 96vw);
+      height:min(820px, 92vh);
+      display:flex;
+      flex-direction:column;
+      overflow:hidden;
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(10,16,30,.98), rgba(7,12,22,.98));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 30px 80px rgba(0,0,0,.42);
+    ">
+      <div style="
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap:12px;
+        padding:14px 16px;
+        color:#eef4ff;
+        border-bottom:1px solid rgba(255,255,255,.08);
+      ">
+        <div id="builderPreviewTitle" style="
+          font-weight:700;
+          min-width:0;
+          flex:1 1 auto;
+          overflow:hidden;
+          text-overflow:ellipsis;
+          white-space:nowrap;
+        ">Simo Builder Preview</div>
+
+        <div style="
+          display:flex;
+          gap:8px;
+          flex-wrap:nowrap;
+          align-items:center;
+          justify-content:flex-end;
+          flex:0 0 auto;
+        ">
+          <button id="showHtmlBtn" type="button">Show HTML</button>
+          <button id="openPreviewTabBtn" type="button">Open in New Tab</button>
+          <button id="downloadHtmlBtn" type="button">Download HTML</button>
+          <button id="saveBuildBtn" type="button">Save</button>
+          <button id="publishBuildBtn" type="button">Publish</button>
+          <button id="builderPreviewClose" type="button">Close</button>
+        </div>
+      </div>
+
+      <div style="flex:1; display:flex; min-height:0;">
+        <iframe
+          id="builderPreviewFrame"
+          style="
+            flex:1;
+            width:100%;
+            height:100%;
+            border:0;
+            background:#fff;
+            display:block;
+          "
+        ></iframe>
+
+        <pre
+          id="builderPreviewHtml"
+          hidden
+          style="
+            display:none;
+            margin:0;
+            width:100%;
+            height:100%;
+            overflow:auto;
+            padding:18px;
+            box-sizing:border-box;
+            color:#eaf2ff;
+            background:#07111f;
+            white-space:pre-wrap;
+          "
+        ></pre>
+      </div>
+    </div>
+  `;
+
+    document.body.appendChild(modal);
+
+    [
+      "showHtmlBtn",
+      "openPreviewTabBtn",
+      "downloadHtmlBtn",
+      "saveBuildBtn",
+      "publishBuildBtn",
+      "builderPreviewClose",
+    ]
+      .map($)
+      .forEach(styleActionButton);
+  }
+
+  function openPreviewModal(html, title = "Simo Builder Preview") {
+  ensurePreviewModalDom();
+
+  const modal = $("builderPreviewModal");
+  const frame = $("builderPreviewFrame");
+  const htmlEl = $("builderPreviewHtml");
+  const titleEl = $("builderPreviewTitle");
+  const showBtn = $("showHtmlBtn");
+
+  state.lastPreviewHtml = String(html || "");
+  state.lastPreviewTitle = String(title || "Simo Builder Preview");
+  state.currentPreviewMode = "render";
+
+  if (titleEl) titleEl.textContent = state.lastPreviewTitle;
+  if (frame) frame.srcdoc = state.lastPreviewHtml;
+  if (htmlEl) {
+    htmlEl.textContent = state.lastPreviewHtml;
+    hide(htmlEl);
+  }
+  if (frame) show(frame);
+  if (showBtn) showBtn.textContent = "Show HTML";
+
+  saveLastPreview(state.lastPreviewHtml, state.lastPreviewTitle);
+  modalOpen(modal);
+  scrollAfterUiChange();
+}
+
+function closePreviewModal() {
+  modalClose($("builderPreviewModal"));
+  updateReopenLastPreviewVisibility();
+  updateRecentBuildsVisibility();
+}
+
+function togglePreviewHtml() {
+  const frame = $("builderPreviewFrame");
+  const htmlEl = $("builderPreviewHtml");
+  const btn = $("showHtmlBtn");
+
+  if (!frame || !htmlEl || !btn) return;
+
+  if (state.currentPreviewMode === "render") {
+    hide(frame);
+    show(htmlEl);
+    btn.textContent = "Show Preview";
+    state.currentPreviewMode = "html";
+  } else {
+    show(frame);
+    hide(htmlEl);
+    btn.textContent = "Show HTML";
+    state.currentPreviewMode = "render";
+  }
+}
+
+function openPreviewInNewTab() {
+  const html = state.lastPreviewHtml || "";
+  if (!html) {
+    toast("No preview is loaded.", "error");
+    return;
+  }
+
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  window.open(url, "_blank", "noopener,noreferrer");
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+async function downloadPreviewHtml() {
+  const html = state.lastPreviewHtml || "";
+  if (!html) {
+    toast("No HTML available to download.", "error");
+    return;
+  }
+
+  try {
+    const filename = `${slugify(state.lastPreviewTitle || "simo-build")}.html`;
+
     try {
-      var res = await fetch("/api/chat", {
+      const res = await fetch("/api/download-html", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text, prompt: text, text: text, north_star_intent: "text_chat" })
+        body: JSON.stringify({ html, filename }),
       });
-      var ct = res.headers.get("content-type") || "";
-      var data = ct.indexOf("application/json") >= 0 ? await res.json() : await res.text();
-      if (!res.ok) throw new Error((data && (data.error || data.message)) || ("Chat failed: " + res.status));
-      removeRow(working);
-      addAssistant(replyFrom(data));
-      setStatus("Ready.", false);
-    } catch(err) {
-      removeRow(working);
-      addAssistant("I understood this as a chat/business-planning question, not a design request. The chat endpoint did not answer cleanly yet: " + (err && err.message ? err.message : err));
-      setStatus("Ready.", false);
-    } finally {
-      sending = false;
+
+      if (!res.ok) throw new Error("Server download failed.");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast("HTML downloaded.", "success");
+      return;
+    } catch {
+      // local fallback
     }
+
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    toast("HTML downloaded.", "success");
+  } catch (err) {
+    toast(err.message || "Download failed.", "error");
+  }
+}
+
+function saveCurrentBuild() {
+  const html = state.lastPreviewHtml || state.draftHtml || "";
+  if (!html) {
+    toast("No build to save yet.", "error");
+    return;
   }
 
-  function shouldHandleSendFromEvent(e){
-    if (!e || sending) return false;
-    var target = e.target;
-    var targetInput = input();
-    if (e.type === "keydown") {
-      if (!targetInput || target !== targetInput) return false;
-      if (e.key !== "Enter" || e.shiftKey) return false;
-      return textFirstIntent(targetInput.value || "");
-    }
-    var btn = target && target.closest ? target.closest("#sendBtn, .send-btn, [data-role='send'], button[type='submit']") : null;
-    if (!btn || !targetInput) return false;
-    return textFirstIntent(targetInput.value || "");
+  const items = getLibrary();
+  const title = state.lastPreviewTitle || "Untitled Build";
+  const item = generateLibraryItem({
+    title,
+    html,
+    sourceText: state.lastAssistantText || "",
+  });
+
+  items.unshift(item);
+  setLibrary(items);
+  backendSaveLibraryItem(item);
+  toast("Build saved to Builder Library.", "success");
+  renderLibrary();
+}
+
+function updateReopenLastPreviewVisibility() {
+  if (!reopenLastPreviewBtn) return;
+  // Keep this navigation control visible in every account scope. If the current
+  // Pro/Free/guest scope has no build yet, the click handler explains that
+  // instead of making the control disappear (which looked like a regression).
+  reopenLastPreviewBtn.textContent = "Reopen Last Build";
+  revealPill(reopenLastPreviewBtn, "inline-flex");
+  const last = getLastPreview();
+  const hasPreview = !!(last && last.html);
+  reopenLastPreviewBtn.setAttribute("aria-disabled", hasPreview ? "false" : "true");
+  reopenLastPreviewBtn.title = hasPreview
+    ? "Reopen the most recent build in this " + (isAccountOwnedSession() ? "Pro account" : "Guest / Free browser") + " session"
+    : "No previous build is stored in this " + (isAccountOwnedSession() ? "Pro account" : "Guest / Free browser") + " scope yet";
+}
+
+function ensureRecentBuildsTrigger() {
+  let btn = getRecentBuildsBtn();
+  if (btn) {
+    styleSidebarPill(btn);
+    return btn;
   }
 
-  function capture(e){
-    if (!shouldHandleSendFromEvent(e)) return;
-    var targetInput = input();
-    var text = String(targetInput && targetInput.value || "").trim();
-    if (!text) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    sendChat(text);
-    return false;
+  const anchor = reopenLastPreviewBtn || openLibraryBtn;
+  if (!anchor || !anchor.parentNode) return null;
+
+  btn = document.createElement("button");
+  btn.id = "recentBuildsBtn";
+  btn.type = "button";
+  btn.className = "pill hidden";
+  btn.textContent = "Recent Builds";
+  styleSidebarPill(btn);
+
+  anchor.insertAdjacentElement("afterend", btn);
+  syncLibraryTriggerVisuals();
+  return btn;
+}
+
+function updateRecentBuildsVisibility() {
+  const btn = ensureRecentBuildsTrigger();
+  if (!btn) return;
+
+  const history = getPreviewHistory();
+  if (history.length) {
+    revealPill(btn, "inline-flex");
+  } else {
+    concealPill(btn);
+  }
+}
+
+function ensureRecentBuildsModalDom() {
+  if ($("recentBuildsModal") && $("recentBuildsList")) return;
+
+  const modal = document.createElement("div");
+  modal.id = "recentBuildsModal";
+  modal.hidden = true;
+  modal.style.position = "fixed";
+  modal.style.inset = "0";
+  modal.style.background = "rgba(0,0,0,.72)";
+  modal.style.zIndex = "99984";
+  modal.style.display = "none";
+  modal.style.alignItems = "center";
+  modal.style.justifyContent = "center";
+  modal.style.padding = "20px";
+
+  modal.innerHTML = `
+    <div style="
+      width:min(760px, 96vw);
+      max-height:min(88vh, 900px);
+      overflow:hidden;
+      display:flex;
+      flex-direction:column;
+      border-radius:24px;
+      background:linear-gradient(180deg, rgba(10,16,30,.98), rgba(7,12,22,.98));
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow:0 30px 80px rgba(0,0,0,.42);
+      color:#eef4ff;
+    ">
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        align-items:center;
+        gap:12px;
+        padding:14px 16px;
+        border-bottom:1px solid rgba(255,255,255,.08);
+      ">
+        <div>
+          <div style="font-size:17px; font-weight:800;">Recent Builds</div>
+          <div style="font-size:12px; color:rgba(235,242,255,.70); margin-top:4px;">
+            Simo remembers your most recent previews.
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="clearRecentBuildsBtn" type="button">Clear</button>
+          <button id="recentBuildsCloseBtn" type="button">Close</button>
+        </div>
+      </div>
+
+      <div id="recentBuildsList" style="
+        padding:16px;
+        overflow:auto;
+        display:grid;
+        gap:12px;
+      "></div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  ["clearRecentBuildsBtn", "recentBuildsCloseBtn"]
+    .map($)
+    .forEach(styleActionButton);
+}
+
+function renderRecentBuilds() {
+  const list = $("recentBuildsList");
+  if (!list) return;
+
+  const history = getPreviewHistory();
+
+  if (!history.length) {
+    list.innerHTML = `
+      <div style="
+        padding:18px;
+        border-radius:18px;
+        background:rgba(255,255,255,.04);
+        border:1px solid rgba(255,255,255,.08);
+        color:#dbe6ff;
+      ">
+        No recent previews yet.
+      </div>
+    `;
+    return;
   }
 
-  // Register at document + window capture so this fires before later visual-core listeners.
-  document.addEventListener("click", capture, true);
-  window.addEventListener("click", capture, true);
-  document.addEventListener("keydown", capture, true);
-  window.addEventListener("keydown", capture, true);
+  list.innerHTML = history
+    .map(
+      (item) => `
+        <div data-recent-preview-id="${escapeHtml(item.id)}" style="
+          padding:14px;
+          border-radius:18px;
+          background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.035));
+          border:1px solid rgba(255,255,255,.09);
+          color:#eef4ff;
+          display:grid;
+          gap:10px;
+        ">
+          <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+            <div style="min-width:220px; flex:1;">
+              <div style="font-size:15px; font-weight:700;">${escapeHtml(item.title || "Untitled Preview")}</div>
+              <div style="font-size:12px; color:rgba(235,242,255,.72); margin-top:6px;">
+                Saved ${escapeHtml(prettyDate(item.savedAt))}
+              </div>
+            </div>
 
-  function scrub3DWording(){
-    try {
-      document.querySelectorAll("button, a, [role='button']").forEach(function(el){
-        var txt = String(el.textContent || "").replace(/\s+/g," ").trim();
-        if (/^3d\s*\/\s*rotate\s*workspace$/i.test(txt) || /^3d\s*rotate\s*workspace$/i.test(txt)) {
-          el.textContent = "Open Workspace";
-          el.setAttribute("aria-label", "Open Workspace");
-          el.title = "Open Workspace";
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" data-recent-action="open">Open</button>
+              <button type="button" data-recent-action="copy-title">Copy Title</button>
+              <button type="button" data-recent-action="remove">Remove</button>
+            </div>
+          </div>
+        </div>
+      `
+    )
+    .join("");
+
+  $$("[data-recent-preview-id]", list).forEach((card) => {
+    const id = card.getAttribute("data-recent-preview-id") || "";
+    const historyNow = getPreviewHistory();
+    const item = historyNow.find((x) => x.id === id);
+    if (!item) return;
+
+    $$("button[data-recent-action]", card).forEach((btn) => {
+      styleActionButton(btn);
+
+      btn.addEventListener("click", async () => {
+        const action = btn.getAttribute("data-recent-action");
+
+        if (action === "open") {
+          openBuilderPreview(item.html || "", item.title || "Untitled Build");
+          return;
+        }
+
+        if (action === "copy-title") {
+          await copyTextToClipboard(item.title || "Untitled Preview", "Preview title copied.");
+          return;
+        }
+
+        if (action === "remove") {
+          const next = getPreviewHistory().filter((x) => x.id !== id);
+          setPreviewHistory(next);
+          updateRecentBuildsVisibility();
+          if (!next.length) {
+            closeRecentBuilds();
+          }
         }
       });
-      document.querySelectorAll(".msg-bubble, .simo-vc-card, section, article, div").forEach(function(el){
-        if (!el || !el.childNodes || !el.textContent || el.childNodes.length > 25) return;
-        el.childNodes.forEach(function(node){
-          if (node.nodeType === 3 && /3D-aware workspace option/i.test(node.nodeValue || "")) {
-            node.nodeValue = node.nodeValue.replace(/3D-aware workspace option/gi, "editable workspace option");
+    });
+  });
+}
+
+function openRecentBuilds() {
+  ensureRecentBuildsModalDom();
+  renderRecentBuilds();
+  modalOpen($("recentBuildsModal"));
+}
+
+function closeRecentBuilds() {
+  modalClose($("recentBuildsModal"));
+}
+
+  // -----------------------------
+  // library
+  // -----------------------------
+  function computeLibraryStats(items) {
+    return {
+      total: items.length,
+      active: items.filter((x) => !x.archived).length,
+      archived: items.filter((x) => x.archived).length,
+      pinned: items.filter((x) => x.pinned).length,
+      tagged: items.filter((x) => x.tags && x.tags.length > 0).length,
+    };
+  }
+
+  function statChip(label, value) {
+    return `
+      <div style="
+        padding:8px 12px;
+        border-radius:999px;
+        background:rgba(255,255,255,.05);
+        border:1px solid rgba(255,255,255,.08);
+        color:#eef4ff;
+        font-size:13px;
+      ">
+        <strong>${escapeHtml(label)}:</strong> ${value}
+      </div>
+    `;
+  }
+
+  function renderStatsBar(items) {
+    const el = $("builderLibraryStats");
+    if (!el) return;
+
+    const s = computeLibraryStats(items);
+    el.innerHTML = `
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        ${statChip("Total", s.total)}
+        ${statChip("Active", s.active)}
+        ${statChip("Archived", s.archived)}
+        ${statChip("Pinned", s.pinned)}
+        ${statChip("Tagged", s.tagged)}
+      </div>
+    `;
+  }
+
+  function renderFilterChips() {
+    const wrap = $("builderLibraryFilters");
+    if (!wrap) return;
+
+    const chips = [
+      ["all", "All"],
+      ["pinned", "Pinned"],
+      ["tagged", "Tagged"],
+      ["with-notes", "With Notes"],
+      ["archived", "Archived"],
+    ];
+
+    wrap.innerHTML = `
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        ${chips
+          .map(
+            ([key, label]) => `
+          <button
+            type="button"
+            data-filter-chip="${escapeHtml(key)}"
+            style="
+              padding:8px 12px;
+              border-radius:999px;
+              border:1px solid rgba(255,255,255,.10);
+              background:${state.currentFilter === key ? "rgba(97,140,255,.22)" : "rgba(255,255,255,.05)"};
+              color:#eef4ff;
+              cursor:pointer;
+            "
+          >${escapeHtml(label)}</button>
+        `
+          )
+          .join("")}
+      </div>
+    `;
+
+    $$("[data-filter-chip]", wrap).forEach((btn) => {
+      btn.addEventListener("click", () => {
+        state.currentFilter = btn.dataset.filterChip || "all";
+        renderLibrary();
+      });
+    });
+  }
+
+  function sortLibrary(items) {
+    const arr = [...items];
+    const mode = state.currentSort || "newest";
+
+    arr.sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      if (mode === "oldest") return new Date(a.createdAt) - new Date(b.createdAt);
+      if (mode === "title") {
+        return String(a.title || "").localeCompare(String(b.title || ""), undefined, {
+          sensitivity: "base",
+        });
+      }
+      return new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+    });
+
+    return arr;
+  }
+
+  function filterLibrary(items) {
+    let arr = [...items];
+    const q = String(state.currentSearch || "").trim().toLowerCase();
+
+    if (state.currentFilter === "archived") {
+      arr = arr.filter((x) => x.archived);
+    } else {
+      if (!state.showArchived) arr = arr.filter((x) => !x.archived);
+      if (state.currentFilter === "pinned") arr = arr.filter((x) => x.pinned);
+      if (state.currentFilter === "tagged") arr = arr.filter((x) => x.tags && x.tags.length > 0);
+      if (state.currentFilter === "with-notes") arr = arr.filter((x) => (x.notes || "").trim());
+    }
+
+    if (q) {
+      arr = arr.filter((x) => {
+        const hay = [x.title || "", x.notes || "", x.sourceText || "", ...(Array.isArray(x.tags) ? x.tags : [])]
+          .join(" ")
+          .toLowerCase();
+        return hay.includes(q);
+      });
+    }
+
+    return sortLibrary(arr);
+  }
+
+  function updateLibraryItem(id, patch) {
+  const items = getLibrary();
+  const next = items.map((item) => {
+    if (item.id !== id) return item;
+
+    const updated = {
+      ...item,
+      ...patch,
+      updatedAt: nowIso(),
+    };
+
+    // 🔥 backend sync (non-blocking)
+    backendSaveLibraryItem(updated);
+
+    return updated;
+  });
+
+  setLibrary(next);
+  renderLibrary();
+}
+
+  function removeLibraryItem(id) {
+  const items = getLibrary().filter((item) => item.id !== id);
+
+  // 🔥 backend delete
+  backendDeleteLibraryItem(id);
+
+  setLibrary(items);
+  renderLibrary();
+} 
+
+  function duplicateLibraryItem(id) {
+    const items = getLibrary();
+    const found = items.find((x) => x.id === id);
+    if (!found) return;
+
+    const copy = {
+      ...found,
+      id: "build_" + Math.random().toString(36).slice(2, 10),
+      title: `${found.title} (Copy)`,
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+
+    items.unshift(copy);
+    setLibrary(items);
+    renderLibrary();
+    toast("Build duplicated.", "success");
+  }
+
+  function promptTags(currentTags) {
+    const raw = window.prompt("Enter tags separated by commas:", (currentTags || []).join(", "));
+    if (raw == null) return null;
+
+    return raw
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .slice(0, 20);
+  }
+
+  function badgeHtml(text) {
+    return `
+      <span style="
+        padding:4px 8px;
+        border-radius:999px;
+        background:rgba(255,255,255,.07);
+        border:1px solid rgba(255,255,255,.10);
+        font-size:11px;
+      ">${escapeHtml(text)}</span>
+    `;
+  }
+
+  function renderLibrary() {
+    const list = $("builderLibraryList");
+    if (!list) return;
+
+    const all = getLibrary();
+    renderStatsBar(all);
+    renderFilterChips();
+    updateDashboardUi();
+
+    const visible = filterLibrary(all);
+
+    if (!visible.length) {
+      list.innerHTML = `
+        <div style="
+          padding:18px;
+          border-radius:18px;
+          background:rgba(255,255,255,.04);
+          border:1px solid rgba(255,255,255,.08);
+          color:#dbe6ff;
+        ">
+          No builds found.
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = visible
+      .map((item) => {
+        const tagsHtml = (item.tags || [])
+          .map(
+            (tag) => `
+              <span style="
+                padding:5px 9px;
+                border-radius:999px;
+                background:rgba(97,140,255,.16);
+                border:1px solid rgba(97,140,255,.22);
+                color:#e8f0ff;
+                font-size:12px;
+              ">${escapeHtml(tag)}</span>
+            `
+          )
+          .join("");
+
+        return `
+          <div data-build-id="${escapeHtml(item.id)}" style="
+            padding:16px;
+            border-radius:20px;
+            background:linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.035));
+            border:1px solid rgba(255,255,255,.09);
+            color:#eef4ff;
+            box-shadow:0 12px 30px rgba(0,0,0,.18);
+          ">
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start; flex-wrap:wrap;">
+              <div style="min-width:220px; flex:1;">
+                <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                  <div style="font-size:16px; font-weight:700;">${escapeHtml(item.title || "Untitled Build")}</div>
+                  ${item.pinned ? badgeHtml("Pinned") : ""}
+                  ${item.archived ? badgeHtml("Archived") : ""}
+                </div>
+                <div style="font-size:12px; opacity:.8; margin-top:6px;">
+                  Updated ${escapeHtml(prettyDate(item.updatedAt || item.createdAt))}
+                </div>
+                ${
+                  item.notes
+                    ? `<div style="margin-top:10px; font-size:13px; color:#d8e3ff;">${escapeHtml(item.notes)}</div>`
+                    : ""
+                }
+                ${
+                  tagsHtml
+                    ? `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">${tagsHtml}</div>`
+                    : ""
+                }
+              </div>
+
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                ${isVisualLibraryItem(item) ? '<button type="button" data-action="continue">Continue</button>' : ""}
+                <button type="button" data-action="open">${isVisualLibraryItem(item) ? "Preview" : "Open"}</button>
+                <button type="button" data-action="pin">${item.pinned ? "Unpin" : "Pin"}</button>
+                <button type="button" data-action="notes">Notes</button>
+                <button type="button" data-action="tags">Tags</button>
+                <button type="button" data-action="rename">Rename</button>
+                <button type="button" data-action="duplicate">Duplicate</button>
+                <button type="button" data-action="archive">${item.archived ? "Unarchive" : "Archive"}</button>
+                <button type="button" data-action="delete">Delete</button>
+              </div>
+            </div>
+          </div>
+        `;
+      })
+      .join("");
+
+    $$("[data-build-id]", list).forEach((card) => {
+      const id = card.dataset.buildId;
+
+      $$("button[data-action]", card).forEach((btn) => {
+        styleActionButton(btn);
+
+        btn.addEventListener("click", () => {
+          const action = btn.dataset.action;
+          const items = getLibrary();
+          const item = items.find((x) => x.id === id);
+          if (!item) return;
+
+          if (action === "continue") return continueFromVisualLibraryItem(item);
+          if (action === "open") return isVisualLibraryItem(item) ? openPreviewModal(item.html || "", item.title || "Untitled Build") : openPreviewModal(item.html || "", item.title || "Untitled Build");
+          if (action === "pin") return updateLibraryItem(id, { pinned: !item.pinned });
+          if (action === "archive") return updateLibraryItem(id, { archived: !item.archived });
+
+          if (action === "notes") {
+            const notes = window.prompt("Edit notes:", item.notes || "");
+            if (notes == null) return;
+            return updateLibraryItem(id, { notes });
+          }
+
+          if (action === "tags") {
+            const tags = promptTags(item.tags || []);
+            if (tags == null) return;
+            return updateLibraryItem(id, { tags });
+          }
+
+          if (action === "rename") {
+            const title = window.prompt("Rename build:", item.title || "Untitled Build");
+            if (title == null) return;
+            return updateLibraryItem(id, { title: title.trim() || "Untitled Build" });
+          }
+
+          if (action === "duplicate") return duplicateLibraryItem(id);
+
+          if (action === "delete") {
+            if (window.confirm(`Delete "${item.title}"?`)) removeLibraryItem(id);
           }
         });
       });
-    } catch(e) {}
-  }
-  scrub3DWording();
-  setTimeout(scrub3DWording, 250);
-  setTimeout(scrub3DWording, 1000);
-  new MutationObserver(scrub3DWording).observe(document.documentElement || document.body, { childList:true, subtree:true });
-
-  window.SimoNorthStarIntentFirewall = {
-    phase: PHASE,
-    textFirstIntent: textFirstIntent,
-    explicitVisualIntent: explicitVisualIntent,
-    sendChat: sendChat
-  };
-})();
-
-
-/* --------------------------------------------------
-   SIMO PHASE 14M-R10.60M — North Star Lane Brain + Motivator Panel
-   Purpose:
-   - Choose the right lane before older visual handlers can grab the prompt.
-   - Chat/advice/business/stock prompts -> normal /api/chat.
-   - Website/app/dashboard/landing-page build prompts -> Builder lane.
-   - Visual/design/mockup/product prompts -> existing Visual/Workspace lane.
-   - Refresh the left panel wording so users understand what Simo can do.
-   Safe scope: script + sidebar copy only. No simo-ui-recovery, no Library/Workspace
-   bridge changes, no Stripe, credits, Render, DNS, login, or image-analysis changes.
--------------------------------------------------- */
-(function simoR1060MNorthStarLaneBrain(){
-  if (window.__SIMO_R1060M_NORTH_STAR_LANE_BRAIN__) return;
-  window.__SIMO_R1060M_NORTH_STAR_LANE_BRAIN__ = true;
-
-  var PHASE = 'R10.60S_FULL_NORTH_STAR_BUILDER_WORKSPACE';
-  var sending = false;
-  var routeStoreKey = 'simo_north_star_intent_memory_v1';
-
-  function clean(v){ return String(v || '').toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim(); }
-  function esc(v){ return String(v == null ? '' : v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#039;'); }
-  function input(){ return document.getElementById('chatInput') || document.querySelector('textarea, input[type="text"]'); }
-  function chat(){ return document.getElementById('chatMessages') || document.getElementById('chat') || document.querySelector('.chat-wrap') || document.body; }
-  function statusEl(){ return document.getElementById('loadingHint') || document.querySelector('[data-simo-status], .status, .loading-hint'); }
-  function setStatus(text, busy){ var el=statusEl(); if(el){ el.textContent=String(text||'Ready.'); try{el.dataset.simoBusy=busy?'true':'false';}catch(e){} } }
-  function scrollDown(){ try{ var wrap=document.querySelector('.chat-wrap') || chat(); wrap.scrollTop=wrap.scrollHeight; }catch(e){} }
-  function addRow(role, html){ var c=chat(); var row=document.createElement('div'); row.className='msg-row msg-'+role+' simo-r1060m-row'; row.innerHTML=html; c.appendChild(row); scrollDown(); return row; }
-  function addUser(text){ return addRow('user','<div class="msg-bubble msg-bubble-user">'+esc(text)+'</div>'); }
-  function addAssistant(text){ return addRow('assistant','<div class="msg-bubble msg-bubble-assistant">'+esc(text)+'</div>'); }
-  function removeRow(row){ try{ row && row.remove(); }catch(e){} }
-
-  function rememberRoute(prompt, lane){
-    try{
-      var list = JSON.parse(localStorage.getItem(routeStoreKey) || '[]');
-      if (!Array.isArray(list)) list = [];
-      list.unshift({ prompt:String(prompt||'').slice(0,300), lane:lane, at:new Date().toISOString(), phase:PHASE });
-      localStorage.setItem(routeStoreKey, JSON.stringify(list.slice(0,30)));
-    }catch(e){}
+    });
   }
 
-  function explicitVisualIntent(t){
-    return /\b(i can design|can design|to design|for me to design|editable design|design card|visual card|open workspace|workspace|save to library)\b/.test(t) ||
-      /\b(render|visualize|image|picture|photo|illustration|drawing|mockup|wireframe|prototype|concept art|product concept|design concept|logo|brand identity|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup|ui mockup|visual concept)\b/.test(t) ||
-      /\b(show me|create|make|design|generate)\s+(a|an|the)?\s*(razor|shaver|spoon|fork|utensil|mug|cup|toaster|grill|flashlight|keyboard|mouse|fire extinguisher|soap dispenser|bottle|rim|wheel|guitar|chair|watch|lamp|product)\b.*\b(design|customize|edit|visual|render|concept)\b/.test(t);
+  function ensureLibraryDom() {
+    if ($("builderLibraryModal") && $("builderLibraryList")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "builderLibraryModal";
+    modal.hidden = true;
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.background = "rgba(0,0,0,.72)";
+    modal.style.zIndex = "99970";
+    modal.style.display = "none";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.padding = "20px";
+
+    modal.innerHTML = `
+      <div style="
+        width:min(1180px, 96vw);
+        height:min(860px, 93vh);
+        display:flex;
+        flex-direction:column;
+        overflow:hidden;
+        border-radius:24px;
+        background:linear-gradient(180deg, rgba(10,16,30,.98), rgba(7,12,22,.98));
+        border:1px solid rgba(255,255,255,.10);
+        box-shadow:0 30px 80px rgba(0,0,0,.42);
+        color:#eef4ff;
+      ">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+          padding:14px 16px;
+          border-bottom:1px solid rgba(255,255,255,.08);
+        ">
+          <div><div style="font-weight:700;">Builder Library</div><div id="builderLibraryScopeLabel" style="font-size:12px;color:rgba(235,242,255,.68);margin-top:3px"></div></div>
+          <button id="builderLibraryClose" type="button">Close</button>
+        </div>
+
+        <div style="padding:14px 16px; display:grid; gap:12px; border-bottom:1px solid rgba(255,255,255,.06);">
+          <div style="display:flex; gap:10px; flex-wrap:wrap;">
+            <input id="builderLibrarySearch" placeholder="Search title, notes, tags..." style="
+              flex:1; min-width:220px; padding:12px 14px; border-radius:14px;
+              border:1px solid rgba(255,255,255,.10); background:rgba(255,255,255,.05); color:#eef4ff;
+            " />
+            <select id="builderLibrarySort" style="
+              padding:12px 14px; border-radius:14px;
+              border:1px solid rgba(255,255,255,.10); background:rgba(16,24,42,.95); color:#eef4ff;
+            ">
+              <option value="newest">Newest</option>
+              <option value="oldest">Oldest</option>
+              <option value="title">Title</option>
+            </select>
+            <button id="exportLibraryBtn" type="button">Export</button>
+            <button id="importLibraryBtn" type="button">Import</button>
+            <input id="importLibraryInput" type="file" accept=".json,application/json" hidden />
+          </div>
+
+          <div id="builderLibraryStats"></div>
+          <div id="builderLibraryFilters"></div>
+        </div>
+
+        <div id="builderLibraryList" style="
+          flex:1;
+          overflow:auto;
+          padding:16px;
+          display:grid;
+          grid-template-columns:repeat(auto-fill, minmax(300px, 1fr));
+          gap:14px;
+        "></div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    ["builderLibraryClose", "exportLibraryBtn", "importLibraryBtn"]
+      .map($)
+      .forEach(styleActionButton);
   }
 
-  function isTextLane(raw){
-    var t = clean(raw);
-    if (!t) return false;
-    if (explicitVisualIntent(t)) return false;
+  function openLibrary() {
+    ensureLibraryDom();
+    const scopeLabel = $("builderLibraryScopeLabel");
+    if (scopeLabel) scopeLabel.textContent = isAccountOwnedSession() ? "Pro Account Library — cloud-owned by this account" : "Guest / Free Local Library — stored only in this browser";
 
-    var business = /\b(business plan|business idea|startup idea|start up idea|side hustle|business model|marketing plan|sales plan|revenue plan|profit plan|budget|under\s*\$?\d+|less than\s*\$?\d+|for under\s*\$?\d+|low budget|customer|customers|market|niche|pricing|expenses|costs|steps to start|how to start|can start|i can start|start with under|start for under)\b/.test(t);
-    var stocks = /\b(stock market|stocks?|portfolio|portfolios|watchlist|dividend|etf|index fund|retirement|investing|investment|risk tolerance|asset allocation|brokerage|shares?|crypto|cryptocurrency|bitcoin|ethereum|coinbase|binance|wallet|blockchain)\b/.test(t);
-    var advice = /\b(how do i|how can i|what should i|tell me|explain|write|draft|outline|summarize|give me steps|step by step|plan for|strategy|advice|ideas for|help me figure out|what is|why is|can you help|help me)\b/.test(t);
-    var writing = /\b(email|letter|proposal|caption|post|script|bio|resume|cover letter|summary|outline|chapter|story|autobiography|memoir)\b/.test(t);
+    const search = $("builderLibrarySearch");
+    const sort = $("builderLibrarySort");
 
-    return !!(business || stocks || advice || writing);
+    if (search) search.value = state.currentSearch || "";
+    if (sort) sort.value = state.currentSort || "newest";
+
+    renderLibrary();
+    modalOpen($("builderLibraryModal"));
   }
 
-  function isBuilderLane(raw){
-    var t = clean(raw);
-    if (!t) return false;
-
-    // R10.60S: whole-prompt Website/App Builder lane.
-    // Digital creation wins even when the prompt contains business-context words like "home".
-    var digitalAsset = /\b(website|web site|landing page|homepage|home page|webpage|web page|sales page|squeeze page|portfolio site|business site|ecommerce site|e-commerce site|online store|shop page|app|web app|mobile app|dashboard|saas|portal|booking page|checkout page|pricing page|contact page|web tool|software page)\b/.test(t);
-    var buildVerb = /\b(build|create|make|generate|design|show me|can you show me|can you build|can you create|i need|i want|put together|draft|start|make me|build me)\b/.test(t);
-    var builderEdit = /\b(hero|cta|button|buttons|services|products|pricing|contact form|testimonials|gallery|media|photo|picture|image|video|social|social media|instagram|facebook|tiktok|youtube|colors|theme|mobile|seo|domain|publish|go public|download html|copy html|launch)\b/.test(t);
-    try {
-      if (builderEdit && window.__SIMO_R1060L_BUILDER_STORE__ && Object.keys(window.__SIMO_R1060L_BUILDER_STORE__).length) return true;
-    } catch(e) {}
-
-    if (/\b(business plan|startup plan|side hustle plan|marketing plan|sales plan|budget plan)\b/.test(t) && !digitalAsset) return false;
-    return !!(digitalAsset && (buildVerb || builderEdit));
+  function closeLibrary() {
+    modalClose($("builderLibraryModal"));
   }
 
-  function laneFor(raw){
-    if (isBuilderLane(raw)) return 'builder';
-    if (isTextLane(raw)) return 'chat';
-    return 'pass';
-  }
-
-  function replyFrom(data){
-    if (data == null) return 'I’m here. What would you like to do next?';
-    if (typeof data === 'string') return data;
-    return String(data.reply || data.response || data.answer || data.message || data.text || data.content || data.output || 'I’m here. What would you like to do next?');
-  }
-
-  async function sendChat(text){
-    if (sending) return;
-    sending = true;
-    var target = input();
-    if (target) { target.value=''; try{ target.dispatchEvent(new Event('input',{bubbles:true})); }catch(e){} }
-    addUser(text);
-    var working = addRow('assistant','<div class="msg-bubble msg-bubble-assistant">Thinking…</div>');
-    setStatus('Thinking…', true);
-    rememberRoute(text, 'chat');
-    try{
-      var res = await fetch('/api/chat', {
-        method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({ message:text, prompt:text, text:text, north_star_intent:'chat_text_business_stock' })
-      });
-      var ct = res.headers.get('content-type') || '';
-      var data = ct.indexOf('application/json') >= 0 ? await res.json() : await res.text();
-      if (!res.ok) throw new Error((data && (data.error || data.message)) || ('Chat failed: '+res.status));
-      removeRow(working); addAssistant(replyFrom(data)); setStatus('Ready.', false);
-    }catch(err){
-      removeRow(working);
-      addAssistant('I understood this as a chat/business/stock question, not a design request. The chat endpoint did not answer cleanly yet: ' + (err && err.message ? err.message : err));
-      setStatus('Ready.', false);
-    }finally{ sending = false; }
-  }
-
-  function runBuilder(text){
-    if (window.SimoVisualCore && typeof window.SimoVisualCore.runBuilder === 'function') {
-      rememberRoute(text, 'builder');
-      window.SimoVisualCore.runBuilder(text);
-      return true;
+  // Main Simo Library owner. This is intentionally separate from Website Builder Library.
+  window.SimoOpenLibrary = async function () {
+    if (window.SimoDesignWorkspaceLibrary && typeof window.SimoDesignWorkspaceLibrary.open === "function") {
+      return window.SimoDesignWorkspaceLibrary.open();
     }
-    return false;
-  }
+    if (typeof window.SimoOpenDesignLibrary === "function") {
+      return window.SimoOpenDesignLibrary();
+    }
+    console.warn("Simo Design Library owner is not ready yet.");
+  };
 
-  function getSendButtonFromEvent(e){
-    var target = e && e.target;
-    if (!target || !target.closest) return null;
-    return target.closest('#sendBtn, .send-btn, [data-role="send"], button[type="submit"]');
-  }
-
-  function handleRoute(e){
-    if (!e || sending) return;
-    var targetInput = input();
-    var isEnter = e.type === 'keydown' && targetInput && e.target === targetInput && e.key === 'Enter' && !e.shiftKey;
-    var isSend = e.type === 'click' && !!getSendButtonFromEvent(e);
-    if (!isEnter && !isSend) return;
-
-    var text = String(targetInput && targetInput.value || '').trim();
-    if (!text) return;
-    var lane = laneFor(text);
-    if (lane === 'pass') return;
-
-    e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    if (lane === 'builder') { if (targetInput) { targetInput.value=''; try{targetInput.dispatchEvent(new Event('input',{bubbles:true}));}catch(err){} } runBuilder(text); return; }
-    if (lane === 'chat') { sendChat(text); return; }
-  }
-
-  function updateSidePanelCopy(){
-    try{
-      var cards = Array.prototype.slice.call(document.querySelectorAll('.side-card'));
-      function setCard(match, title, body){
-        var card = cards.find(function(c){ return clean(c.textContent).indexOf(clean(match)) >= 0; });
-        if (!card) return;
-        var bold = card.querySelector('div[style*="font-weight"]') || card.querySelector('div');
-        var muted = card.querySelector('.muted');
-        if (bold) bold.textContent = title;
-        if (muted) muted.textContent = body;
-      }
-      setCard('Image Upload', 'Image Upload & Analysis', 'Upload a photo — Simo can describe it, explain it, and help you use it.');
-      setCard('Business Plans', 'Business Plans & Startups', 'Ask for ideas, steps, budgets, pricing, and launch plans.');
-      setCard('Stock Market', 'Money & Markets — Ask Simo', 'Stocks, crypto, portfolios, risks, and market explanations only when the user asks.');
-      setCard('AI Website Builder', 'Website & App Builder', 'Build, edit, save, download, publish, and get domain guidance for sites and apps.');
-      setCard('Builder Library', 'Builder Library', 'Save, reopen, and continue exact designs, pages, and workspace builds.');
-    }catch(e){ console.warn('Simo '+PHASE+' side panel update skipped:', e); }
-  }
-
-  window.addEventListener('click', handleRoute, true);
-  window.addEventListener('keydown', handleRoute, true);
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', updateSidePanelCopy, {once:true});
-  else updateSidePanelCopy();
-
-  window.SimoNorthStarLaneBrain = { phase:PHASE, laneFor:laneFor, isBuilderLane:isBuilderLane, isTextLane:isTextLane, refreshPanel:updateSidePanelCopy };
-  console.log('SIMO '+PHASE+' loaded.');
-})();
-
-/* --------------------------------------------------
-   SIMO PHASE 14M-R10.60Z — NORTH STAR BUILDER CTA SIMPLE PASS
-
-   Goal:
-   - Keep website/app prompts in Website & App Builder.
-   - Hide old public Design Studio/3D entry points.
-   - Keep mic visible.
-   - Make CTA behavior obvious:
-     Request a Quote opens a quote modal/form immediately.
-     See Packages/Services scrolls to the right section.
-   - Keep users out of SIMO dashboard when clicking generated website buttons.
-
-   Scope: static/script.js only.
--------------------------------------------------- */
-(function simoR1060ZNorthStarBuilderCtaSimplePass(){
-  "use strict";
-  if (window.__SIMO_R1060Z_NORTH_STAR_BUILDER_CTA_SIMPLE__) return;
-  window.__SIMO_R1060Z_NORTH_STAR_BUILDER_CTA_SIMPLE__ = true;
-
-  var PHASE = "R10.60Z2_QUOTE_TEST_MODE_MODAL_POLISH";
-
-  function clean(v){ return String(v || "").toLowerCase().replace(/[_-]+/g," ").replace(/\s+/g," ").trim(); }
-  function esc(v){
-    return String(v == null ? "" : v)
-      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
-      .replace(/"/g,"&quot;").replace(/'/g,"&#039;");
-  }
-  function input(){ return document.getElementById("chatInput") || document.querySelector("textarea, input[type='text']"); }
-
-  function isBuilderPrompt(raw){
-    var t = clean(raw);
-    if (!t) return false;
-
-    var digitalAsset =
-      /\b(website|web site|landing page|homepage|home page|webpage|web page|sales page|squeeze page|portfolio site|business site|ecommerce site|e commerce site|online store|shop page|storefront page|web app|mobile app|dashboard|saas|portal|booking page|checkout page|pricing page|contact page|web tool|software page)\b/.test(t);
-
-    var appWord = /\b(app|application)\b/.test(t) && /\b(build|create|make|generate|design|show me|i need|i want|dashboard|screen|web|mobile|software|tool|portal)\b/.test(t);
-    var buildVerb = /\b(build|create|make|generate|design|show me|can you show me|can you build|can you create|i need|i want|put together|draft|start|make me|build me)\b/.test(t);
-    var builderEdit = /\b(hero|cta|button|buttons|quote form|booking form|contact form|services|packages|products|pricing|testimonials|gallery|media|photo|picture|image|video|social|social media|instagram|facebook|tiktok|youtube|colors|theme|mobile|seo|domain|publish|download html|copy html|launch|request a quote|see deals|see packages)\b/.test(t);
-
+  function exportLibraryFile() {
     try {
-      if (builderEdit && window.__SIMO_R1060L_BUILDER_STORE__ && Object.keys(window.__SIMO_R1060L_BUILDER_STORE__).length) return true;
-    } catch(e) {}
-
-    if (/\b(business plan|startup plan|side hustle plan|marketing plan|sales plan|budget plan)\b/.test(t) && !(digitalAsset || appWord)) return false;
-    return !!((digitalAsset || appWord) && (buildVerb || builderEdit));
+      const json = exportLibraryJson();
+      const blob = new Blob([json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `simo-builder-library-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      toast("Library exported.", "success");
+    } catch {
+      toast("Export failed.", "error");
+    }
   }
 
-  function hideOldDesignStudio(){
+  async function importLibraryFile(file) {
     try {
-      document.querySelectorAll("button, a, [role='button'], .side-card, .chip").forEach(function(el){
-        var t = clean(el.textContent || el.value || el.getAttribute("aria-label") || el.title || "");
-        if (
-          t === "design studio" ||
-          t === "3d rendering & rotate" ||
-          t === "3d viewer" ||
-          t.indexOf("3d rendering") >= 0 ||
-          t.indexOf("3d rotate") >= 0 ||
-          t.indexOf("3d viewer") >= 0
-        ) {
-          el.dataset.simoR1060zHidden = "true";
-          el.style.display = "none";
-          el.setAttribute("aria-hidden", "true");
+      const text = await file.text();
+      const payload = JSON.parse(text);
+      mergeImportedLibrary(payload);
+      renderLibrary();
+      toast("Library imported.", "success");
+    } catch (err) {
+      toast(err.message || "Import failed.", "error");
+    }
+  }
+
+  // -----------------------------
+  // settings modal
+  // -----------------------------
+  function ensureSettingsDom() {
+    if ($("settingsModal") && $("settingsThemeDefault")) return;
+
+    const modal = document.createElement("div");
+    modal.id = "settingsModal";
+    modal.hidden = true;
+    modal.style.position = "fixed";
+    modal.style.inset = "0";
+    modal.style.background = "rgba(0,0,0,.72)";
+    modal.style.zIndex = "99985";
+    modal.style.display = "none";
+    modal.style.alignItems = "center";
+    modal.style.justifyContent = "center";
+    modal.style.padding = "20px";
+
+    modal.innerHTML = `
+      <div style="
+        width:min(720px, 96vw);
+        max-height:min(88vh, 900px);
+        overflow:auto;
+        display:flex;
+        flex-direction:column;
+        border-radius:24px;
+        background:linear-gradient(180deg, rgba(10,16,30,.98), rgba(7,12,22,.98));
+        border:1px solid rgba(255,255,255,.10);
+        box-shadow:0 30px 80px rgba(0,0,0,.42);
+        color:#eef4ff;
+      ">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:12px;
+          padding:16px 18px;
+          border-bottom:1px solid rgba(255,255,255,.08);
+        ">
+          <div>
+            <div style="font-size:18px; font-weight:800;">Settings & Voice</div>
+            <div style="font-size:12px; color:rgba(235,242,255,.70); margin-top:4px;">Restore your visual controls without touching the rest of the product.</div>
+          </div>
+          <button id="settingsCloseBtn" type="button">Close</button>
+        </div>
+
+        <div style="padding:18px; display:grid; gap:18px;">
+          <section style="
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:18px;
+            padding:16px;
+            background:rgba(255,255,255,.04);
+            display:grid;
+            gap:12px;
+          ">
+            <div style="font-size:15px; font-weight:700;">Theme</div>
+            <div style="font-size:12px; color:rgba(235,242,255,.72);">Choose the main visual atmosphere for Simo.</div>
+
+            <div style="display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px;">
+              <button id="settingsThemeDefault" data-simo-theme-option="default" type="button" style="
+                padding:14px;
+                border-radius:16px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.04);
+                color:#eef4ff;
+              ">
+                <div style="font-weight:700;">Default</div>
+                <div style="font-size:12px; opacity:.72; margin-top:4px;">Classic Simo</div>
+              </button>
+
+              <button id="settingsThemeMidnight" data-simo-theme-option="midnight" type="button" style="
+                padding:14px;
+                border-radius:16px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.04);
+                color:#eef4ff;
+              ">
+                <div style="font-weight:700;">Midnight</div>
+                <div style="font-size:12px; opacity:.72; margin-top:4px;">Darker and quieter</div>
+              </button>
+
+              <button id="settingsThemeAurora" data-simo-theme-option="aurora" type="button" style="
+                padding:14px;
+                border-radius:16px;
+                border:1px solid rgba(255,255,255,.10);
+                background:rgba(255,255,255,.04);
+                color:#eef4ff;
+              ">
+                <div style="font-weight:700;">Aurora</div>
+                <div style="font-size:12px; opacity:.72; margin-top:4px;">Brighter accent glow</div>
+              </button>
+            </div>
+          </section>
+
+          <section style="
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:18px;
+            padding:16px;
+            background:rgba(255,255,255,.04);
+            display:grid;
+            gap:12px;
+          ">
+            <div style="font-size:15px; font-weight:700;">Accent</div>
+            <div style="font-size:12px; color:rgba(235,242,255,.72);">Pick the accent color for buttons, focus, and glow.</div>
+
+            <div style="display:flex; gap:12px; flex-wrap:wrap;">
+              <button id="settingsAccentBlue" data-simo-accent-preview="blue" type="button" style="width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#6ea8ff;"></button>
+              <button id="settingsAccentPurple" data-simo-accent-preview="purple" type="button" style="width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#b982ff;"></button>
+              <button id="settingsAccentPink" data-simo-accent-preview="pink" type="button" style="width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#ff8fca;"></button>
+              <button id="settingsAccentEmerald" data-simo-accent-preview="emerald" type="button" style="width:48px;height:48px;border-radius:999px;border:1px solid rgba(255,255,255,.12);background:#56f0a9;"></button>
+            </div>
+          </section>
+
+          <section id="simoBillingSection" style="
+            border:1px solid rgba(74,222,128,.18);
+            border-radius:18px;
+            padding:16px;
+            background:linear-gradient(180deg,rgba(16,75,54,.16),rgba(255,255,255,.035));
+            display:grid;
+            gap:12px;
+          ">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-size:15px;font-weight:800;">Billing & Simo Credits</div>
+                <div id="simoBillingPlanLine" style="font-size:12px;color:rgba(235,242,255,.72);margin-top:4px;">Checking your plan…</div>
+              </div>
+              <strong id="simoBillingBalance" style="font-size:18px;color:#8fffc0;">—</strong>
+            </div>
+            <div id="simoBillingFreePlans" style="display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <button type="button" data-simo-subscribe="pro_monthly">Pro $14.99/mo</button>
+              <button type="button" data-simo-subscribe="pro_annual">Pro $149/yr</button>
+              <button type="button" data-simo-subscribe="team_monthly">Team $49.99/mo</button>
+              <button type="button" data-simo-subscribe="team_annual">Team $499/yr</button>
+            </div>
+            <div id="simoCreditPackButtons" style="display:none;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">
+              <button type="button" data-simo-credit-pack="25">+25 · $4.99</button>
+              <button type="button" data-simo-credit-pack="100">+100 · $14.99</button>
+              <button type="button" data-simo-credit-pack="250">+250 · $29.99</button>
+            </div>
+            <div id="simoAutoReloadControls" style="display:none;gap:9px;padding-top:8px;border-top:1px solid rgba(255,255,255,.08);">
+              <label style="display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:13px;font-weight:700;">
+                Auto-Reload credits
+                <input id="simoAutoReloadEnabled" type="checkbox" style="width:18px;height:18px;accent-color:#4ade80;">
+              </label>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;">
+                <label style="font-size:11px;color:rgba(235,242,255,.70);">Pack
+                  <select id="simoAutoReloadPack" style="width:100%;margin-top:5px;padding:9px;border-radius:10px;background:#0b1324;color:#eef4ff;border:1px solid rgba(255,255,255,.12);">
+                    <option value="25">25 / $4.99</option><option value="100">100 / $14.99</option><option value="250">250 / $29.99</option>
+                  </select>
+                </label>
+                <label style="font-size:11px;color:rgba(235,242,255,.70);">Reload below
+                  <input id="simoAutoReloadThreshold" type="number" min="0" max="250" value="20" style="width:100%;box-sizing:border-box;margin-top:5px;padding:9px;border-radius:10px;background:#0b1324;color:#eef4ff;border:1px solid rgba(255,255,255,.12);">
+                </label>
+                <label style="font-size:11px;color:rgba(235,242,255,.70);">Monthly cap $
+                  <input id="simoAutoReloadCap" type="number" min="0" max="1000" step="1" value="50" style="width:100%;box-sizing:border-box;margin-top:5px;padding:9px;border-radius:10px;background:#0b1324;color:#eef4ff;border:1px solid rgba(255,255,255,.12);">
+                </label>
+              </div>
+              <button id="simoSaveAutoReload" type="button">Save Auto-Reload</button>
+              <div style="font-size:11px;color:rgba(235,242,255,.60);">Off by default. Simo never auto-charges unless the account owner enables it here.</div>
+            </div>
+          </section>
+
+          <section style="
+            border:1px solid rgba(255,255,255,.08);
+            border-radius:18px;
+            padding:16px;
+            background:rgba(255,255,255,.04);
+            display:grid;
+            gap:12px;
+          ">
+            <div style="font-size:15px; font-weight:700;">Microphone input</div>
+            <div style="font-size:13px; color:rgba(235,242,255,.78);">Use your microphone to dictate into the Simo composer. Nothing sends automatically.</div>
+            <label style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid rgba(255,255,255,.10);border-radius:14px;background:rgba(255,255,255,.04);">
+              <span style="font-size:13px;font-weight:700;">Mic input</span>
+              <input id="simoMicEnabled" type="checkbox" style="width:18px;height:18px;accent-color:var(--accent,#6ea8ff);">
+            </label>
+          </section>
+
+          <div style="display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap;">
+            <button id="settingsResetBtn" type="button">Reset</button>
+            <button id="settingsSaveBtn" type="button">Save</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    [
+      "settingsCloseBtn",
+      "settingsResetBtn",
+      "settingsSaveBtn",
+      "settingsThemeDefault",
+      "settingsThemeMidnight",
+      "settingsThemeAurora",
+      "settingsAccentBlue",
+      "settingsAccentPurple",
+      "settingsAccentPink",
+      "settingsAccentEmerald",
+    ]
+      .map($)
+      .forEach(styleActionButton);
+  }
+
+  async function loadSimoBillingSettings() {
+    const line = $("simoBillingPlanLine");
+    const balance = $("simoBillingBalance");
+    const freePlans = $("simoBillingFreePlans");
+    const packs = $("simoCreditPackButtons");
+    const autoBox = $("simoAutoReloadControls");
+    try {
+      const data = await api("/api/credits/status");
+      const c = data && data.credits ? data.credits : null;
+      if (!c) throw new Error("Credit status unavailable");
+      state.creditStatus = c;
+      const paid = ["pro","team","admin"].includes(String(c.plan || ""));
+      if (line) line.textContent = c.plan === "team" ? "Team Pro · 600 included credits/month" : c.plan === "pro" ? "Simo Pro · 150 included credits/month" : c.plan === "admin" ? "Owner / Admin testing" : "Free / Guest · live AI requires a paid plan";
+      if (balance) balance.textContent = c.unlimited ? "Unlimited" : `${Number(c.remaining || 0)} credits`;
+      if (freePlans) freePlans.style.display = paid ? "none" : "grid";
+      if (packs) packs.style.display = paid && !c.unlimited ? "grid" : "none";
+      if (autoBox) autoBox.style.display = paid && !c.unlimited ? "grid" : "none";
+      const a = c.auto_reload || {};
+      const enabled = $("simoAutoReloadEnabled"), pack = $("simoAutoReloadPack"), threshold = $("simoAutoReloadThreshold"), cap = $("simoAutoReloadCap");
+      if (enabled) enabled.checked = !!a.enabled;
+      if (pack) pack.value = String(a.pack || "100");
+      if (threshold) threshold.value = String(Number(a.threshold ?? 20));
+      if (cap) cap.value = String((Number(a.monthly_cap_cents || 5000) / 100).toFixed(0));
+      updateCreditUsageCard();
+    } catch (err) {
+      if (line) line.textContent = "Billing status could not be loaded.";
+      if (balance) balance.textContent = "—";
+    }
+  }
+
+  async function startSimoPlanCheckout(key) {
+    const map = {
+      pro_monthly:{plan:"pro",billing:"monthly"}, pro_annual:{plan:"pro",billing:"annual"},
+      team_monthly:{plan:"team",billing:"monthly"}, team_annual:{plan:"team",billing:"annual"}
+    };
+    const pick = map[key];
+    if (!pick) return;
+    try {
+      const data = await api("/api/create-checkout-session", {method:"POST", body:JSON.stringify(pick)});
+      if (data && data.url) { window.location.href = data.url; return; }
+      if (data && data.already_pro) { toast("That paid plan is already active.", "success", 2200); return; }
+      throw new Error((data && data.error) || "Could not start checkout.");
+    } catch (err) { toast(err.message || "Could not start checkout.", "error", 3200); }
+  }
+
+  async function buySimoCreditPack(pack) {
+    try {
+      const data = await api("/api/create-credit-pack-checkout-session", {method:"POST", body:JSON.stringify({pack:String(pack)})});
+      if (data && data.url) { window.location.href = data.url; return; }
+      throw new Error((data && data.error) || "Could not start credit checkout.");
+    } catch (err) { toast(err.message || "Could not start credit checkout.", "error", 3200); }
+  }
+
+  function openSettings() {
+    ensureSettingsDom();
+    applyUiSettings();
+    try {
+      const voiceSettings = JSON.parse(localStorage.getItem("simo_voice_settings_v1") || "{}") || {};
+      const micToggle = $("simoMicEnabled");
+      if (micToggle) micToggle.checked = !!voiceSettings.micEnabled;
+    } catch (_) {}
+    loadSimoBillingSettings();
+    modalOpen($("settingsModal"));
+  }
+
+  // Public bridge for the legacy UI-recovery layer. This keeps one real Settings owner.
+  window.SimoOpenSettings = openSettings;
+  window.SimoRefreshCredits = async () => {
+    const d = await refreshMe();
+    scheduleSimoCreditCardSync(0);
+    return d && (d.credits || d.image_credits);
+  };
+
+  // Refresh the funded balance automatically after successful metered routes.
+  // This watches only Simo API traffic and never makes or repeats a provider call.
+  if (!window.__SIMO_CREDIT_FETCH_MONITOR__ && typeof window.fetch === "function") {
+    const originalFetch = window.fetch.bind(window);
+    const meteredPath = /^\/api\/(?:chat|generate-visual|workspace-image-edit|analyze-image|simo-website-v3\/(?:generate|edit)|website-v2\/(?:generate|edit))(?:\?|$)/i;
+    window.fetch = async function(input, init = {}) {
+      const response = await originalFetch(input, init);
+      try {
+        const rawUrl = typeof input === "string" ? input : (input && input.url) || "";
+        const url = new URL(rawUrl, window.location.origin);
+        const method = String((init && init.method) || (input && input.method) || "GET").toUpperCase();
+        if (response && response.ok && method !== "GET" && url.origin === window.location.origin && meteredPath.test(url.pathname + url.search)) {
+          clearTimeout(window.__SIMO_CREDIT_REFRESH_TIMER__);
+          window.__SIMO_CREDIT_REFRESH_TIMER__ = setTimeout(() => {
+            if (typeof window.SimoRefreshCredits === "function") {
+              Promise.resolve(window.SimoRefreshCredits()).catch(() => {});
+            }
+          }, 120);
         }
+      } catch (_) {}
+      return response;
+    };
+    window.__SIMO_CREDIT_FETCH_MONITOR__ = true;
+  }
+
+  function closeSettings() {
+    modalClose($("settingsModal"));
+  }
+
+  function wireSettings() {
+    ensureSettingsDom();
+
+    const closeBtn = $("settingsCloseBtn");
+    const saveBtn = $("settingsSaveBtn");
+    const resetBtn = $("settingsResetBtn");
+    const modal = $("settingsModal");
+
+    $$('[data-simo-subscribe]').forEach((btn) => {
+      if (btn.dataset.boundBilling === "true") return;
+      btn.dataset.boundBilling = "true";
+      styleActionButton(btn);
+      btn.addEventListener("click", () => startSimoPlanCheckout(btn.getAttribute("data-simo-subscribe")));
+    });
+    $$('[data-simo-credit-pack]').forEach((btn) => {
+      if (btn.dataset.boundBilling === "true") return;
+      btn.dataset.boundBilling = "true";
+      styleActionButton(btn);
+      btn.addEventListener("click", () => buySimoCreditPack(btn.getAttribute("data-simo-credit-pack")));
+    });
+    const saveAutoReload = $("simoSaveAutoReload");
+    if (saveAutoReload && saveAutoReload.dataset.boundBilling !== "true") {
+      saveAutoReload.dataset.boundBilling = "true";
+      styleActionButton(saveAutoReload);
+      saveAutoReload.addEventListener("click", async () => {
+        try {
+          const enabled = !!$("simoAutoReloadEnabled")?.checked;
+          const pack = String($("simoAutoReloadPack")?.value || "100");
+          const threshold = Number($("simoAutoReloadThreshold")?.value || 20);
+          const monthlyCapCents = Math.round(Number($("simoAutoReloadCap")?.value || 50) * 100);
+          const data = await api("/api/credits/auto-reload", {method:"POST", body:JSON.stringify({enabled,pack,threshold,monthly_cap_cents:monthlyCapCents})});
+          if (!data || !data.ok) throw new Error((data && data.error) || "Could not save Auto-Reload.");
+          state.creditStatus = data.credits || state.creditStatus;
+          toast(enabled ? "Auto-Reload enabled." : "Auto-Reload turned off.", "success", 2400);
+          loadSimoBillingSettings();
+        } catch (err) { toast(err.message || "Could not save Auto-Reload.", "error", 3000); }
       });
-    } catch(e) {}
-  }
+    }
 
-  function ensureMicButton(){
-    try {
-      var target = input();
-      if (!target) return;
+    if (closeBtn && closeBtn.dataset.boundClick !== "true") {
+      closeBtn.dataset.boundClick = "true";
+      closeBtn.addEventListener("click", closeSettings);
+    }
 
-      var btn = document.getElementById("simoMicBtn") || document.querySelector("[data-simo-mic-button]");
-      if (!btn) btn = document.createElement("button");
+    if (saveBtn && saveBtn.dataset.boundClick !== "true") {
+      saveBtn.dataset.boundClick = "true";
+      saveBtn.addEventListener("click", () => {
+        saveUiSettings();
+        applyUiSettings();
+        try {
+          const voiceSettings = JSON.parse(localStorage.getItem("simo_voice_settings_v1") || "{}") || {};
+          const micToggle = $("simoMicEnabled");
+          voiceSettings.micEnabled = !!(micToggle && micToggle.checked);
+          localStorage.setItem("simo_voice_settings_v1", JSON.stringify(voiceSettings));
+          window.dispatchEvent(new CustomEvent("simo:voice-settings-updated", { detail: voiceSettings }));
+        } catch (_) {}
+        toast("Settings saved.", "success", 1800);
+        closeSettings();
+      });
+    }
 
-      if (!btn.parentElement) {
-        btn.id = "simoMicBtn";
-        btn.type = "button";
-        btn.textContent = "🎙";
-        btn.title = "Talk to Simo";
-        btn.setAttribute("aria-label", "Talk to Simo");
-        btn.setAttribute("data-simo-mic-button", "true");
-        (target.parentElement || document.body).appendChild(btn);
+    if (resetBtn && resetBtn.dataset.boundClick !== "true") {
+      resetBtn.dataset.boundClick = "true";
+      resetBtn.addEventListener("click", () => {
+        state.ui.theme = "default";
+        state.ui.accent = "blue";
+        saveUiSettings();
+        applyUiSettings();
+        toast("Settings reset.", "success", 1800);
+      });
+    }
+
+    if (modal && modal.dataset.boundOverlay !== "true") {
+      modal.dataset.boundOverlay = "true";
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal) closeSettings();
+      });
+    }
+
+    $$("[data-simo-theme-option]", modal).forEach((btn) => {
+      if (btn.dataset.boundTheme !== "true") {
+        btn.dataset.boundTheme = "true";
+        btn.addEventListener("click", () => {
+          state.ui.theme = btn.getAttribute("data-simo-theme-option") || "default";
+          applyUiSettings();
+        });
       }
-
-      btn.classList.remove("hidden");
-      btn.style.display = "inline-flex";
-      btn.style.alignItems = "center";
-      btn.style.justifyContent = "center";
-      btn.style.width = "34px";
-      btn.style.height = "34px";
-      btn.style.minWidth = "34px";
-      btn.style.borderRadius = "999px";
-      btn.style.border = "1px solid rgba(255,255,255,.18)";
-      btn.style.background = "rgba(255,255,255,.08)";
-      btn.style.color = "#eef4ff";
-      btn.style.cursor = "pointer";
-      btn.style.marginLeft = "8px";
-      btn.removeAttribute("aria-hidden");
-
-      if (btn.dataset.simoR1060zMicBound === "true") return;
-      btn.dataset.simoR1060zMicBound = "true";
-
-      btn.addEventListener("click", function(e){
-        e.preventDefault();
-        e.stopPropagation();
-
-        var SpeechCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechCtor) {
-          alert("Mic dictation is not available in this browser. You can still type to Simo.");
-          return false;
-        }
-
-        var rec = new SpeechCtor();
-        rec.lang = "en-US";
-        rec.interimResults = false;
-        rec.maxAlternatives = 1;
-
-        btn.textContent = "●";
-        btn.style.background = "rgba(86,240,169,.18)";
-
-        rec.onresult = function(ev){
-          var said = ev && ev.results && ev.results[0] && ev.results[0][0] ? ev.results[0][0].transcript : "";
-          var box = input();
-          if (box && said) {
-            box.value = said;
-            try { box.dispatchEvent(new Event("input", { bubbles:true })); } catch(err) {}
-            try { box.focus(); } catch(err2) {}
-          }
-        };
-        rec.onerror = function(){ btn.textContent = "🎙"; btn.style.background = "rgba(255,255,255,.08)"; };
-        rec.onend = function(){ btn.textContent = "🎙"; btn.style.background = "rgba(255,255,255,.08)"; };
-
-        try { rec.start(); } catch(err) {
-          btn.textContent = "🎙";
-          btn.style.background = "rgba(255,255,255,.08)";
-        }
-        return false;
-      }, true);
-    } catch(e) {}
-  }
-
-  function getBuilderStore(){
-    window.__SIMO_R1060L_BUILDER_STORE__ = window.__SIMO_R1060L_BUILDER_STORE__ || {};
-    return window.__SIMO_R1060L_BUILDER_STORE__;
-  }
-
-  function targetFromLabel(label){
-    var t = clean(label);
-    if (/deal|offer|special|discount|promo|package|pricing|price/.test(t)) return "deals";
-    if (/service|learn|more|feature|product/.test(t)) return "features";
-    if (/quote|estimate|book|booking|schedule|get started|contact|call|message|request/.test(t)) return "quote";
-    return "quote";
-  }
-
-  function simoPreviewScript(){
-    return '<script id="simo-builder-cta-script">\
-(function(){\
-  function clean(v){return String(v||"").toLowerCase().replace(/[_-]+/g," ").replace(/\\s+/g," ").trim();}\
-  function byId(id){return document.getElementById(id);}\
-  function targetFromLabel(label){var t=clean(label);if(/deal|offer|special|discount|promo|package|pricing|price/.test(t))return"deals";if(/service|learn|more|feature|product/.test(t))return"features";if(/quote|estimate|book|booking|schedule|get started|contact|call|message|request/.test(t))return"quote";return"quote";}\
-  function openQuote(){var m=byId("simo-quote-modal");if(m){m.style.display="flex";m.setAttribute("aria-hidden","false");var first=m.querySelector("input,textarea,button");try{first&&first.focus();}catch(e){}return;}var q=byId("quote")||byId("contact");if(q){q.scrollIntoView({behavior:"smooth",block:"start"});q.classList.add("simo-target-flash");setTimeout(function(){q.classList.remove("simo-target-flash");},900);}}\
-  function go(target){if(target==="quote"){openQuote();return;}var el=byId(target)||byId("features")||byId("quote");if(el){el.scrollIntoView({behavior:"smooth",block:"start"});el.classList.add("simo-target-flash");setTimeout(function(){el.classList.remove("simo-target-flash");},900);}}\
-  document.addEventListener("keydown",function(e){if(e.key==="Escape"){var m=byId("simo-quote-modal");if(m){m.style.display="none";m.setAttribute("aria-hidden","true");}}},true);document.addEventListener("click",function(e){var modal=byId("simo-quote-modal");if(modal&&e.target===modal){e.preventDefault();modal.style.display="none";modal.setAttribute("aria-hidden","true");return;}var hit=e.target&&e.target.closest?e.target.closest("a,button,[role=button]"):null;if(!hit)return;if(hit.hasAttribute("data-simo-close-quote")){e.preventDefault();var m=byId("simo-quote-modal");if(m){m.style.display="none";m.setAttribute("aria-hidden","true");}return;}var target=hit.getAttribute("data-simo-target")||targetFromLabel(hit.textContent||hit.value||hit.getAttribute("aria-label")||"");if(!target)return;e.preventDefault();e.stopPropagation();go(target);},true);\
-  document.addEventListener("submit",function(e){var form=e.target&&e.target.closest?e.target.closest("[data-simo-preview-form]"):null;if(!form)return;e.preventDefault();var note=byId("simo-form-preview-note");var message="Test received — nothing was actually sent. When published, connect this form to email, CRM, or Simo’s form handler.";if(note){note.textContent=message;note.style.display="block";note.setAttribute("role","status");note.setAttribute("aria-live","polite");}else{alert(message);}},true);\
-})();\
-<\/script>';
-  }
-
-  function quoteModalHtml(){
-    return '<div id="simo-quote-modal" aria-hidden="true" style="display:none;position:fixed;inset:0;z-index:9999;align-items:center;justify-content:center;background:rgba(15,23,42,.58);padding:22px;">\
-  <div style="width:min(560px,96vw);background:#fff;color:#101827;border-radius:26px;padding:24px;box-shadow:0 30px 90px rgba(15,23,42,.32);position:relative;">\
-    <button type="button" data-simo-close-quote style="position:sticky;top:0;float:right;border:0;background:#111827;color:#fff;border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:900;z-index:2;">Close Test ×</button>\
-    <div style="display:inline-flex;border-radius:999px;background:#dbeafe;color:#1d4ed8;padding:8px 11px;font-size:12px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;">Quote Form Test Mode</div>\
-    <h2 style="margin:12px 0 8px;font-size:30px;letter-spacing:-.03em;">This is a preview. Nothing will be sent.</h2>\
-    <p style="margin:0 0 14px;color:#536170;line-height:1.55;">Fill this out to test the button behavior. When published, connect it to email, CRM, or Simo’s form handler.</p>\
-    <form class="quote-form" data-simo-preview-form>\
-      <input name="name" placeholder="Name" />\
-      <input name="phone" placeholder="Phone" />\
-      <input name="email" placeholder="Email" />\
-      <input name="vehicle" placeholder="Vehicle type" />\
-      <textarea name="message" placeholder="What service do you need?"></textarea>\
-      <button class="btn" type="submit">Send Quote Request</button>\
-    </form>\
-    <div id="simo-form-preview-note" role="status" aria-live="polite" style="display:none;margin-top:12px;border-radius:14px;background:#ecfdf5;color:#065f46;padding:12px;font-weight:800;line-height:1.45;"></div>\
-    <button type="button" data-simo-close-quote class="btn secondary" style="margin-top:14px;width:100%;">Back to website preview</button>\
-  </div>\
-</div>';
-  }
-
-  function helperHtml(){
-    return '<section id="simo-button-helper" class="section" style="padding-top:8px;padding-bottom:22px;">\
-  <div class="card" style="border:2px solid #bfdbfe;background:#ffffff;">\
-    <div class="eyebrow">Button setup is already connected</div>\
-    <h2 style="margin:10px 0 8px;font-size:28px;letter-spacing:-.03em;">Open a safe quote form test.</h2>\
-    <p>Click <strong>Open Quote Form Test</strong>. A clear test-mode panel opens, and nothing is actually sent.</p>\
-    <div class="actions" style="margin-top:16px"><a class="btn" href="#quote" data-simo-page-cta data-simo-target="quote">Open Quote Form Test</a><a class="btn secondary" href="#deals" data-simo-page-cta data-simo-target="deals">See Packages</a></div>\
-  </div>\
-</section>';
-  }
-
-  function hardenHtml(html){
-    var out = String(html || "");
-    if (!out) return out;
-
-    out = out
-      .replace(/See Computer Deals/g, "See Packages")
-      .replace(/Computer Deals/g, "Packages")
-      .replace(/>Get Started<\/a>/g, ">Request a Quote</a>")
-      .replace(/>See Services<\/a>/g, ">See Packages</a>")
-      .replace(/href=["']\/["']/gi, 'href="#quote" data-simo-page-cta data-simo-target="quote"')
-      .replace(/href=["']#["']/gi, 'href="#quote" data-simo-page-cta data-simo-target="quote"');
-
-    out = out.replace(/<a\b([^>]*?)href=["'][^"']*["']([^>]*?)>([\s\S]*?)<\/a>/gi, function(full, before, after, label){
-      var plain = clean(String(label).replace(/<[^>]+>/g," "));
-      if (!/(request|quote|estimate|book|booking|schedule|get started|contact|call|message|deal|deals|offer|packages|services|learn more|see services|see packages|pricing|price)/.test(plain)) return full;
-      var target = targetFromLabel(plain);
-      var text = label;
-      if (/computer deal/.test(plain)) text = "See Packages";
-      if (/get started/.test(plain)) text = "Request a Quote";
-      return '<a' + before + 'href="#' + target + '" data-simo-page-cta data-simo-target="' + target + '"' + after + '>' + text + '</a>';
     });
 
-    if (out.indexOf('id="simo-button-helper"') < 0) {
-      out = out.replace(/<\/section>\s*<section id="features"/i, '</section>' + helperHtml() + '<section id="features"');
+    const accentMap = {
+      settingsAccentBlue: "blue",
+      settingsAccentPurple: "purple",
+      settingsAccentPink: "pink",
+      settingsAccentEmerald: "emerald",
+    };
+
+    Object.entries(accentMap).forEach(([id, value]) => {
+      const btn = $(id);
+      if (!btn || btn.dataset.boundAccent === "true") return;
+      btn.dataset.boundAccent = "true";
+      btn.addEventListener("click", () => {
+        state.ui.accent = value;
+        applyUiSettings();
+      });
+    });
+  }
+
+  // -----------------------------
+// send / session
+// -----------------------------
+function applyComposerText(text) {
+  const value = String(text || "");
+  if (!inputEl) return false;
+
+  inputEl.value = value;
+  autoGrow(inputEl);
+
+  inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+  inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+
+  try {
+    inputEl.focus();
+    if (typeof inputEl.setSelectionRange === "function") {
+      inputEl.setSelectionRange(value.length, value.length);
+    }
+  } catch {}
+
+  return true;
+}
+
+async function sendMessage(overrideMessage = "") {
+  if (state.sending) return;
+
+  const text = String(overrideMessage || inputEl?.value || "").trim();
+  if (!text) return;
+  const activeMode = String(window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat";
+  const hasImageReady = !!(state.selectedImageUrl && state.selectedImageFilename);
+  if (activeMode === "analyze" && !hasImageReady) {
+    if (inputEl) {
+      inputEl.value = text;
+      autoGrow(inputEl);
+    }
+    toast("Attach an image first, then send your analysis request.", "info", 2600);
+    return;
+  }
+
+  addMessage("user", text);
+
+  if (inputEl) {
+    inputEl.value = "";
+    autoGrow(inputEl);
+    inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+    inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  setSending(true);
+  scrollAfterUiChange();
+
+  try {
+    const hasImage = !!(state.selectedImageUrl && state.selectedImageFilename);
+
+    const data = await api("/api/chat", {
+      method: "POST",
+      body: JSON.stringify({
+        message: text,
+        image_url: state.selectedImageUrl || "",
+        image_filename: state.selectedImageFilename || "",
+        has_image: hasImage,
+        simo_mode: activeMode,
+        lane: activeMode,
+        active_visual_project: safeJsonParse(localStorage.getItem("simo_active_visual_project_v1"), null),
+      }),
+    });
+
+    const reply = String(data.reply || "").trim();
+
+    const model3d = data && data.model3d ? data.model3d : null;
+    const topLevelOptions =
+      data && Array.isArray(data.model3d_options) ? data.model3d_options : [];
+    const allOptions = normalizeModelOptions(model3d, topLevelOptions);
+
+    const builderResult = reply
+      ? maybeHandleBuilderResponse(reply)
+      : { handled: false, html: "", title: "" };
+
+if (builderResult.handled) {
+  state.lastAssistantText = `Preview opened — ${builderResult.title || "Untitled Build"}`;
+
+  addAssistantMessageWith3D(
+    `Preview opened${builderResult.title ? ` — ${builderResult.title}` : "."}`,
+    model3d,
+    topLevelOptions
+  );
+}
+
+ else {
+      state.lastAssistantText = reply;
+
+      if (
+        model3d &&
+        model3d.route_type === "candidate" &&
+        !allOptions.length &&
+        Array.isArray(model3d.search_candidates)
+      ) {
+        addCandidateMessage(
+          reply || "I found candidate assets to review.",
+          model3d.search_candidates || [],
+          model3d.object_name || ""
+        );
+      } else {
+        addAssistantMessageWith3D(reply || "Done.", model3d, topLevelOptions);
+      }
     }
 
-    if (out.indexOf('id="simo-quote-modal"') < 0) {
-      out = out.replace(/<\/body>/i, quoteModalHtml() + '\n</body>');
+    if (typeof data.pro === "boolean") state.me.pro = !!data.pro;
+    if (typeof data.usage_today === "number") state.usageToday = Number(data.usage_today || 0);
+    if (typeof data.free_daily_limit === "number") {
+      state.freeDailyLimit = Number(data.free_daily_limit || state.freeDailyLimit || 50);
     }
 
-    if (out.indexOf('id="simo-builder-cta-script"') < 0) {
-      out = out.replace(/<\/body>/i, simoPreviewScript() + '\n</body>');
+    updateUserUi();
+    scrollAfterUiChange();
+
+    if (!builderResult.handled) {
+      tryOpenVerified3DFromPayload(data);
     }
 
-    if (out.indexOf('.simo-target-flash') < 0) {
-      out = out.replace(/<\/style>/i, '.simo-target-flash{outline:3px solid rgba(37,99,235,.25);outline-offset:6px;transition:outline .25s ease}\n</style>');
+    maybeToastRouteInfo(data);
+  } catch (err) {
+    const msg = err.message || "Message failed.";
+
+    if (/daily limit/i.test(msg)) {
+      addAssistantMessageWith3D(msg);
+      toast(msg, "error", 4000);
+    } else {
+      addAssistantMessageWith3D(`Something went wrong: ${msg}`);
+      toast(msg, "error");
+    }
+
+    scrollAfterUiChange();
+  } finally {
+    setSending(false);
+    setTimeout(() => scrollChatToBottom(true), 80);
+    setTimeout(() => scrollChatToBottom(true), 220);
+  }
+}
+
+/* === PHASE 4.8B — HELPER TOGGLE (STATE-SAFE, CLEAN OPEN/CLOSE) === */
+
+window.__SIMO_HELPER_OPEN__ = false;
+
+function setHelperState(nextOpen) {
+  const helper = document.getElementById("simoHelperPanel");
+  if (!helper) return false;
+
+  const shouldOpen = !!nextOpen;
+  const isAlreadyOpen = helper.classList.contains("open");
+
+  if (shouldOpen === isAlreadyOpen) {
+    window.__SIMO_HELPER_OPEN__ = shouldOpen;
+    return shouldOpen;
+  }
+
+  if (shouldOpen) {
+    helper.classList.add("open");
+    helper.style.transform = "translateY(0)";
+    helper.style.opacity = "1";
+    helper.style.pointerEvents = "auto";
+  } else {
+    helper.classList.remove("open");
+    helper.style.transform = "translateY(100%)";
+    helper.style.opacity = "0";
+    helper.style.pointerEvents = "none";
+  }
+
+  window.__SIMO_HELPER_OPEN__ = shouldOpen;
+  return shouldOpen;
+}
+
+function openHelper() {
+  return setHelperState(true);
+}
+
+function closeHelper() {
+  return setHelperState(false);
+}
+
+function toggleHelper(forceState = null) {
+  if (forceState === true) return openHelper();
+  if (forceState === false) return closeHelper();
+
+  const helper = document.getElementById("simoHelperPanel");
+  if (!helper) return false;
+
+  const isOpen = helper.classList.contains("open");
+  return setHelperState(!isOpen);
+}
+
+function wireComposerHook() {
+  window.__SIMO_COMPOSER_HOOK__ = {
+    setText(text) {
+      return applyComposerText(text);
+    },
+    sendText(text) {
+      return sendMessage(text);
+    },
+    openHelper() {
+      if (typeof openHelper === "function") {
+        return openHelper();
+      }
+      if (typeof toggleHelper === "function") {
+        return toggleHelper(true);
+      }
+      return false;
+    },
+    closeHelper() {
+      if (typeof closeHelper === "function") {
+        return closeHelper();
+      }
+      if (typeof toggleHelper === "function") {
+        return toggleHelper(false);
+      }
+      return false;
+    },
+    toggleHelper() {
+      if (typeof toggleHelper === "function") {
+        return toggleHelper();
+      }
+      return false;
+    }
+  };
+}
+
+async function clearSessionHistory() {
+  try {
+    await api("/api/session/clear", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+
+    const target = ensureChatShell();
+    target.innerHTML = "";
+
+    state.lastAssistantText = "";
+    state.draftHtml = "";
+    state.selectedImageUrl = "";
+    state.selectedImageFilename = "";
+
+    toast("History cleared.", "success");
+    scrollAfterUiChange();
+  } catch (err) {
+    toast(err.message || "Could not clear history.", "error");
+  }
+}
+
+async function startNewChat() {
+  try {
+    await api("/api/session/clear", {
+      method: "POST",
+      body: JSON.stringify({}),
+    });
+
+    const target = ensureChatShell();
+    target.innerHTML = "";
+
+    state.lastAssistantText = "";
+    state.draftHtml = "";
+    state.selectedImageUrl = "";
+    state.selectedImageFilename = "";
+
+    if (inputEl) {
+      inputEl.value = "";
+      autoGrow(inputEl);
+      inputEl.focus();
+    }
+
+    toast("Started a new chat.", "success");
+    scrollAfterUiChange();
+  } catch (err) {
+    toast(err.message || "Could not start a new chat.", "error");
+  }
+}
+
+// -----------------------------
+// wiring
+// -----------------------------
+function wireChat() {
+  if (inputEl) {
+    autoGrow(inputEl);
+    inputEl.addEventListener("input", () => autoGrow(inputEl));
+    inputEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage(inputEl.value);
+      }
+    });
+  }
+
+  if (sendBtn && sendBtn.dataset.boundClick !== "true") {
+    sendBtn.dataset.boundClick = "true";
+    sendBtn.addEventListener("click", () => sendMessage());
+  }
+
+  if (imageBtn && imageInput && imageBtn.dataset.boundClick !== "true") {
+    imageBtn.dataset.boundClick = "true";
+    imageBtn.addEventListener("click", () => imageInput.click());
+  }
+
+  if (imageInput && imageInput.dataset.boundChange !== "true") {
+    imageInput.dataset.boundChange = "true";
+    imageInput.addEventListener("change", async (e) => {
+      const file = e.target.files && e.target.files[0];
+      if (!file) return;
+
+      try {
+        await uploadSelectedImage(file);
+      } catch (err) {
+        toast(err.message || "Image upload failed.", "error");
+      } finally {
+        imageInput.value = "";
+        setTimeout(() => scrollChatToBottom(true), 100);
+        setTimeout(() => scrollChatToBottom(true), 260);
+      }
+    });
+  }
+
+  if (analyzeImageBtn && analyzeImageBtn.dataset.boundClick !== "true") {
+    analyzeImageBtn.dataset.boundClick = "true";
+    analyzeImageBtn.addEventListener("click", analyzeLastImage);
+  }
+
+  if (upgradeBtn && upgradeBtn.dataset.boundClick !== "true") {
+    upgradeBtn.dataset.boundClick = "true";
+    upgradeBtn.addEventListener("click", startUpgradeFlow);
+  }
+
+  if (clearHistoryBtn && clearHistoryBtn.dataset.boundClick !== "true") {
+    clearHistoryBtn.dataset.boundClick = "true";
+    clearHistoryBtn.addEventListener("click", clearSessionHistory);
+  }
+
+  if (newChatBtn && newChatBtn.dataset.boundClick !== "true") {
+    newChatBtn.dataset.boundClick = "true";
+    newChatBtn.addEventListener("click", startNewChat);
+  }
+}
+
+function wirePreview() {
+  ensurePreviewModalDom();
+  ensurePublishModalDom();
+  ensureRecentBuildsTrigger();
+  ensureRecentBuildsModalDom();
+
+  const closeBtn = $("builderPreviewClose");
+  const showBtn = $("showHtmlBtn");
+  const openBtn = $("openPreviewTabBtn");
+  const downloadBtn = $("downloadHtmlBtn");
+  const saveBtn = $("saveBuildBtn");
+  const publishPreviewBtn = $("publishBuildBtn");
+  const modal = $("builderPreviewModal");
+
+  const publishCloseBtn = $("publishResultCloseBtn");
+  const copyPublishUrlBtn = $("copyPublishUrlBtn");
+  const openPublishUrlBtn = $("openPublishUrlBtn");
+  const publishModal = $("publishResultModal");
+
+  const recentBtn = getRecentBuildsBtn();
+  const recentModal = $("recentBuildsModal");
+  const recentCloseBtn = $("recentBuildsCloseBtn");
+  const clearRecentBtn = $("clearRecentBuildsBtn");
+
+  [closeBtn, showBtn, openBtn, downloadBtn, saveBtn, publishPreviewBtn].forEach(styleActionButton);
+
+  if (closeBtn && closeBtn.dataset.boundClick !== "true") {
+    closeBtn.dataset.boundClick = "true";
+    closeBtn.addEventListener("click", closePreviewModal);
+  }
+  if (showBtn && showBtn.dataset.boundClick !== "true") {
+    showBtn.dataset.boundClick = "true";
+    showBtn.addEventListener("click", togglePreviewHtml);
+  }
+  if (openBtn && openBtn.dataset.boundClick !== "true") {
+    openBtn.dataset.boundClick = "true";
+    openBtn.addEventListener("click", openPreviewInNewTab);
+  }
+  if (downloadBtn && downloadBtn.dataset.boundClick !== "true") {
+    downloadBtn.dataset.boundClick = "true";
+    downloadBtn.addEventListener("click", downloadPreviewHtml);
+  }
+  if (saveBtn && saveBtn.dataset.boundClick !== "true") {
+    saveBtn.dataset.boundClick = "true";
+    saveBtn.addEventListener("click", saveCurrentBuild);
+  }
+  if (publishPreviewBtn && publishPreviewBtn.dataset.boundClick !== "true") {
+    publishPreviewBtn.dataset.boundClick = "true";
+    publishPreviewBtn.addEventListener("click", publishCurrentBuild);
+  }
+
+  if (modal && modal.dataset.boundOverlay !== "true") {
+    modal.dataset.boundOverlay = "true";
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closePreviewModal();
+    });
+  }
+
+  if (reopenLastPreviewBtn && reopenLastPreviewBtn.dataset.boundClick !== "true") {
+    reopenLastPreviewBtn.dataset.boundClick = "true";
+    reopenLastPreviewBtn.addEventListener("click", () => {
+      const last = getLastPreview();
+      if (!last || !last.html) {
+        toast(isAccountOwnedSession() ? "No previous build is saved in this Pro account yet." : "No previous build is saved in this Guest / Free browser yet.", "info");
+        return;
+      }
+      openPreviewModal(last.html, last.title || "Last Preview");
+    });
+  }
+
+  if (recentBtn && recentBtn.dataset.boundClick !== "true") {
+    recentBtn.dataset.boundClick = "true";
+    recentBtn.addEventListener("click", openRecentBuilds);
+  }
+
+  if (recentCloseBtn && recentCloseBtn.dataset.boundClick !== "true") {
+    recentCloseBtn.dataset.boundClick = "true";
+    recentCloseBtn.addEventListener("click", closeRecentBuilds);
+  }
+
+  if (clearRecentBtn && clearRecentBtn.dataset.boundClick !== "true") {
+    clearRecentBtn.dataset.boundClick = "true";
+    clearRecentBtn.addEventListener("click", () => {
+      if (!getPreviewHistory().length) {
+        toast("No recent builds to clear.", "info", 1800);
+        return;
+      }
+      clearPreviewHistory();
+      localStorage.removeItem(scopedKey(LAST_PREVIEW_KEY));
+      state.lastPreviewHtml = "";
+      state.lastPreviewTitle = "";
+      updateReopenLastPreviewVisibility();
+      updateRecentBuildsVisibility();
+      renderRecentBuilds();
+      toast("Recent builds cleared.", "success", 1800);
+    });
+  }
+
+  if (recentModal && recentModal.dataset.boundOverlay !== "true") {
+    recentModal.dataset.boundOverlay = "true";
+    recentModal.addEventListener("click", (e) => {
+      if (e.target === recentModal) closeRecentBuilds();
+    });
+  }
+
+  if (publishCloseBtn && publishCloseBtn.dataset.boundClick !== "true") {
+    publishCloseBtn.dataset.boundClick = "true";
+    publishCloseBtn.addEventListener("click", closePublishResultModal);
+  }
+
+  if (copyPublishUrlBtn && copyPublishUrlBtn.dataset.boundClick !== "true") {
+    copyPublishUrlBtn.dataset.boundClick = "true";
+    copyPublishUrlBtn.addEventListener("click", async () => {
+      await copyTextToClipboard(state.publish.lastUrl || "", "Publish link copied.");
+    });
+  }
+
+  if (openPublishUrlBtn && openPublishUrlBtn.dataset.boundClick !== "true") {
+    openPublishUrlBtn.dataset.boundClick = "true";
+    openPublishUrlBtn.addEventListener("click", () => {
+      const url = state.publish.lastUrl || "";
+      if (!url) {
+        toast("No published link is available yet.", "error");
+        return;
+      }
+      window.open(url, "_blank", "noopener,noreferrer");
+    });
+  }
+
+  if (publishModal && publishModal.dataset.boundOverlay !== "true") {
+    publishModal.dataset.boundOverlay = "true";
+    publishModal.addEventListener("click", (e) => {
+      if (e.target === publishModal) closePublishResultModal();
+    });
+  }
+
+  updateReopenLastPreviewVisibility();
+  updateRecentBuildsVisibility();
+  renderRecentBuilds();
+}
+
+function wireLibrary() {
+  ensureLibraryDom();
+  syncLibraryTriggerVisuals();
+
+  if (builderLibraryCard && builderLibraryCard.dataset.boundClick !== "true") {
+    builderLibraryCard.dataset.boundClick = "true";
+    builderLibraryCard.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      if (typeof window.SimoWeb5OpenLibrary === "function") window.SimoWeb5OpenLibrary();
+      else openLibrary();
+    });
+    builderLibraryCard.setAttribute("tabindex", "0");
+    builderLibraryCard.setAttribute("role", "button");
+    builderLibraryCard.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        if (typeof window.SimoWeb5OpenLibrary === "function") window.SimoWeb5OpenLibrary();
+        else openLibrary();
+      }
+    });
+  }
+
+  if (openLibraryBtn && openLibraryBtn.dataset.boundClick !== "true") {
+    openLibraryBtn.dataset.boundClick = "true";
+    openLibraryBtn.addEventListener("click", (e) => {
+      if (e) e.preventDefault();
+      if (typeof window.SimoOpenLibrary === "function") window.SimoOpenLibrary();
+      else openLibrary();
+    });
+  }
+
+  const closeBtn = $("builderLibraryClose");
+  if (closeBtn && closeBtn.dataset.boundClose !== "true") {
+    closeBtn.dataset.boundClose = "true";
+    closeBtn.addEventListener("click", closeLibrary);
+  }
+
+  const modal = $("builderLibraryModal");
+  if (modal && modal.dataset.boundModal !== "true") {
+    modal.dataset.boundModal = "true";
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeLibrary();
+    });
+  }
+
+  const searchEl = $("builderLibrarySearch");
+  if (searchEl && searchEl.dataset.boundSearch !== "true") {
+    searchEl.dataset.boundSearch = "true";
+    searchEl.addEventListener("input", () => {
+      state.currentSearch = searchEl.value || "";
+      renderLibrary();
+    });
+  }
+
+  const sortEl = $("builderLibrarySort");
+  if (sortEl && sortEl.dataset.boundSort !== "true") {
+    sortEl.dataset.boundSort = "true";
+    sortEl.addEventListener("change", () => {
+      state.currentSort = sortEl.value || "newest";
+      renderLibrary();
+    });
+  }
+
+  const exportBtn = $("exportLibraryBtn");
+  if (exportBtn && exportBtn.dataset.boundExport !== "true") {
+    exportBtn.dataset.boundExport = "true";
+    exportBtn.addEventListener("click", exportLibraryFile);
+  }
+
+  const importBtn = $("importLibraryBtn");
+  const importInputEl = $("importLibraryInput");
+  if (importBtn && importInputEl) {
+    if (importBtn.dataset.boundImportClick !== "true") {
+      importBtn.dataset.boundImportClick = "true";
+      importBtn.addEventListener("click", () => importInputEl.click());
+    }
+
+    if (importInputEl.dataset.boundImportChange !== "true") {
+      importInputEl.dataset.boundImportChange = "true";
+      importInputEl.addEventListener("change", async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
+        await importLibraryFile(file);
+        importInputEl.value = "";
+      });
+    }
+  }
+}
+
+function wireTopbarButtons() {
+  if (profileBtn && profileBtn.dataset.boundClick !== "true") {
+    profileBtn.dataset.boundClick = "true";
+    profileBtn.addEventListener("click", async () => {
+  await refreshMe();
+
+  const label = isAccountOwnedSession()
+    ? `${state.me.email || "Signed in"} • Pro account`
+    : "Guest / Free • local-only Library";
+
+  toast(label, "info", 2600);
+});
+  }
+
+  if (settingsBtn && settingsBtn.dataset.boundClick !== "true") {
+    settingsBtn.dataset.boundClick = "true";
+    settingsBtn.addEventListener("click", openSettings);
+  }
+
+  if (easySignupBtn && easySignupBtn.dataset.boundClick !== "true") {
+  easySignupBtn.dataset.boundClick = "true";
+  easySignupBtn.addEventListener("click", () => {
+    openAuthModal("signup");
+  });
+}
+
+  if (publishBtn && publishBtn.dataset.boundClick !== "true") {
+    publishBtn.dataset.boundClick = "true";
+    publishBtn.addEventListener("click", publishCurrentBuild);
+    styleActionButton(publishBtn);
+  }
+}
+
+function wireGlobal() {
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape") return;
+
+    const preview = $("builderPreviewModal");
+    const lib = $("builderLibraryModal");
+    const settings = $("settingsModal");
+    const publish = $("publishResultModal");
+    const recent = $("recentBuildsModal");
+
+    if (preview && !preview.hidden) closePreviewModal();
+    if (lib && !lib.hidden) closeLibrary();
+    if (settings && !settings.hidden) closeSettings();
+    if (publish && !publish.hidden) closePublishResultModal();
+    if (recent && !recent.hidden) closeRecentBuilds();
+
+    const viewerModal = document.getElementById("viewer3dModal");
+    if (window.Simo3DViewer && viewerModal && !viewerModal.hidden) {
+      window.Simo3DViewer.close();
+    }
+  });
+
+  const params = new URLSearchParams(window.location.search);
+  const checkout = params.get("checkout");
+
+  if (checkout === "success") {
+    toast("Upgrade successful.", "success", 3500);
+    refreshProStatus().then(async () => {
+      await backendLoadLibrary();
+      renderLibrary();
+      updateRecentBuildsVisibility();
+      renderRecentBuilds();
+    });
+    params.delete("checkout");
+    history.replaceState({}, "", `${location.pathname}${params.toString() ? "?" + params.toString() : ""}`);
+  } else if (checkout === "cancel") {
+    toast("Checkout canceled.", "info", 3000);
+    params.delete("checkout");
+    history.replaceState({}, "", `${location.pathname}${params.toString() ? "?" + params.toString() : ""}`);
+  }
+
+  function starterConfigForButton(btn) {
+    if (!btn) return null;
+
+    const key = String(btn.getAttribute("data-simo-starter") || "").trim().toLowerCase();
+    const labelNode = btn.querySelector("strong, b");
+    const label = String((labelNode && labelNode.textContent) || btn.textContent || "").trim();
+    const text = label.toLowerCase();
+
+    if (key === "build" || text === "build a website") {
+      return {
+        mode: "website",
+        label: "Build a Website",
+        prompt: "Build me a premium website for my business, product, service, or idea. I’ll describe what it is and Simo should create the complete site."
+      };
+    }
+
+    if (key === "business" || text === "create a business idea" || text === "business plans & startups") {
+      const isPlanShortcut = text.includes("business plans") || text.includes("startups");
+      return {
+        mode: "business",
+        label: isPlanShortcut ? "Business Plans & Startups" : "Create a Business Idea",
+        prompt: isPlanShortcut
+          ? "Create a practical business plan for my idea. Include the target customer, offer, pricing, startup steps, costs, marketing direction, and first actions."
+          : "Create a strong business idea for me. Include the concept, target customer, problem it solves, revenue model, pricing direction, and simple first steps."
+      };
+    }
+
+    if (key === "design" || text === "design something") {
+      return {
+        mode: "design",
+        label: "Design Something",
+        prompt: "Help me design something. I’ll describe what I want to create, and Simo should turn it into a polished visual direction."
+      };
+    }
+
+    if (key === "image" || text === "analyze an image") {
+      return {
+        mode: "analyze",
+        label: "Analyze an Image",
+        prompt: "Analyze the image I upload. Tell me what stands out, what it communicates, and what could be improved."
+      };
+    }
+
+    if (key === "chat" || text === "just chat") {
+      return {
+        mode: "chat",
+        label: "Just Chat",
+        prompt: "Let’s just chat."
+      };
+    }
+
+    return null;
+  }
+
+  function ensureStarterModeStyles() {
+    if (document.getElementById("simoStarterModeStyles")) return;
+    const style = document.createElement("style");
+    style.id = "simoStarterModeStyles";
+    style.textContent = `
+      button[data-simo-mode-tab="1"]{position:relative;transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease,background .16s ease,color .16s ease}
+      button[data-simo-mode-tab="1"][aria-pressed="true"]{border-color:rgba(125,211,252,.9)!important;background:linear-gradient(135deg,rgba(56,189,248,.28),rgba(139,92,246,.28))!important;color:#fff!important;box-shadow:0 0 0 2px rgba(56,189,248,.18),0 12px 30px rgba(56,189,248,.16)!important;transform:translateY(-1px)}
+      button[data-simo-mode-tab="1"][aria-pressed="true"]::after{content:"Current mode";position:absolute;left:50%;transform:translateX(-50%);bottom:-18px;font-size:10px;font-weight:800;color:#7dd3fc;white-space:nowrap}
+    `;
+    document.head.appendChild(style);
+  }
+
+  function setStarterMode(mode, clickedBtn) {
+    const all = Array.from(document.querySelectorAll('button[data-simo-mode-tab="1"]'));
+    const resolvedBtn = clickedBtn || all.find((btn) => btn.dataset.simoMode === mode) || null;
+    const activeGroup = resolvedBtn ? String(resolvedBtn.dataset.simoModeGroup || "") : "";
+
+    all.forEach((btn) => {
+      // Matching dashboard + sidebar controls represent the same entry point.
+      // Keep those visual states synchronized without lighting unrelated shortcuts
+      // that happen to share the broader mode (for example Business Plans & Startups).
+      const active = activeGroup
+        ? String(btn.dataset.simoModeGroup || "") === activeGroup
+        : btn === resolvedBtn;
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+      btn.dataset.simoModeActive = active ? "true" : "false";
+    });
+    window.__SIMO_ACTIVE_MODE__ = mode || "chat";
+    window.__SIMO_WEBSITE_BUILDER_MODE_ACTIVE__ = mode === "website";
+
+    if (inputEl) {
+      const placeholders = {
+        website: "Website Builder active — describe the website you want",
+        business: "Business Idea active — describe the kind of business you want help creating",
+        design: "Design active — describe what you want Simo to design",
+        analyze: "Image Analysis active — attach an image and tell Simo what you want to understand",
+        chat: "Chat with Simo"
+      };
+      inputEl.placeholder = placeholders[mode] || placeholders.chat;
+    }
+  }
+
+  window.__SIMO_SET_ACTIVE_MODE__ = function(mode, clickedBtn) {
+    setStarterMode(mode || "chat", clickedBtn || null);
+    return window.__SIMO_ACTIVE_MODE__;
+  };
+
+  function bindStarterButtons() {
+    ensureStarterModeStyles();
+    const buttons = Array.from(document.querySelectorAll("button"));
+
+    buttons.forEach((btn) => {
+      const config = starterConfigForButton(btn);
+      if (!config) return;
+
+      const { mode, prompt, label } = config;
+      btn.dataset.simoModeTab = "1";
+      btn.dataset.simoMode = mode;
+      btn.dataset.simoModeGroup = String(label || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      if (!btn.hasAttribute("aria-pressed")) btn.setAttribute("aria-pressed", "false");
+
+      if (mode === "website") btn.setAttribute("data-simo-starter", "build");
+      if (btn.dataset.boundStarterClick === "true") return;
+
+      btn.dataset.boundStarterClick = "true";
+      btn.addEventListener("click", () => {
+        setStarterMode(mode, btn);
+
+        // Website starter clicks are owned by the isolated Website Builder owner,
+        // which loads the matching website prompt before this bubble listener runs.
+        if (mode !== "website") {
+          applyComposerText(prompt);
+        }
+
+        toast(`${label} mode selected`, "success", 1400);
+      });
+    });
+  }
+
+  function bindHomeButton() {
+    const homeBtn = document.querySelector('[data-simo-home="1"]');
+    if (!homeBtn || homeBtn.dataset.boundHomeClick === "true") return;
+
+    homeBtn.dataset.boundHomeClick = "true";
+    homeBtn.addEventListener("click", () => {
+      const modeButtons = Array.from(document.querySelectorAll('button[data-simo-mode-tab="1"]'));
+      modeButtons.forEach((btn) => {
+        btn.setAttribute("aria-pressed", "false");
+        btn.dataset.simoModeActive = "false";
+      });
+
+      window.__SIMO_ACTIVE_MODE__ = "chat";
+      window.__SIMO_WEBSITE_BUILDER_MODE_ACTIVE__ = false;
+
+      if (inputEl) {
+        const starterPrompts = new Set(
+          Array.from(document.querySelectorAll("button"))
+            .map((btn) => starterConfigForButton(btn))
+            .filter(Boolean)
+            .map((config) => String(config.prompt || "").trim())
+            .filter(Boolean)
+        );
+
+        const current = String(inputEl.value || "").trim();
+        if (starterPrompts.has(current)) {
+          inputEl.value = "";
+          autoGrow(inputEl);
+          inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+          inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+        }
+
+        inputEl.placeholder = "What would you like Simo to help you create?";
+        try { inputEl.focus(); } catch {}
+      }
+
+      toast("Home — choose what you want Simo to do.", "success", 1400);
+    });
+  }
+
+  bindStarterButtons();
+  bindHomeButton();
+  if (!window.__SIMO_ACTIVE_MODE__) {
+    window.__SIMO_ACTIVE_MODE__ = "chat";
+    window.__SIMO_WEBSITE_BUILDER_MODE_ACTIVE__ = false;
+  }
+
+  window.addEventListener("simo:website-library-count", (event) => {
+    const detail = (event && event.detail) || {};
+    const website = Number(detail.count);
+    const design = Number(detail.designCount);
+    if (Number.isFinite(website)) {
+      window.__SIMO_ACCOUNT_LIBRARY_COUNTS__ = {
+        website,
+        design: Number.isFinite(design) ? design : Number((window.__SIMO_ACCOUNT_LIBRARY_COUNTS__ || {}).design || 0)
+      };
+      updatePremiumHomeUi();
+      if (libraryCountValueEl) setText(libraryCountValueEl, String(website));
+    }
+  });
+
+  window.addEventListener("simo:website-library-updated", async () => {
+    if (isAccountOwnedSession()) await backendLoadLibrary();
+    else updateDashboardUi();
+    renderLibrary();
+  });
+
+  window.addEventListener("storage", (e) => {
+    if ([scopedKey(LIB_KEY), scopedKey(LAST_PREVIEW_KEY), scopedKey(PREVIEW_HISTORY_KEY)].includes(e.key)) {
+      updateDashboardUi();
+      updateReopenLastPreviewVisibility();
+      updateRecentBuildsVisibility();
+      renderRecentBuilds();
+      if ($("builderLibraryModal") && !$("builderLibraryModal").hidden) {
+        renderLibrary();
+      }
+    }
+    if (e.key === SETTINGS_KEY) {
+      state.ui = { ...state.ui, ...getUiSettings() };
+      applyUiSettings();
+    }
+  });
+
+  window.addEventListener("load", () => {
+    scrollChatToBottom(true);
+    setTimeout(() => scrollChatToBottom(true), 120);
+    setTimeout(() => scrollChatToBottom(true), 300);
+    syncLibraryTriggerVisuals();
+    updateReopenLastPreviewVisibility();
+    updateRecentBuildsVisibility();
+    bindStarterButtons();
+    bindHomeButton();
+  });
+
+  window.addEventListener("resize", () => {
+    scrollChatToBottom(false);
+  });
+}
+
+// -----------------------------
+// boot
+// -----------------------------
+async function boot() {
+  if (state.booted) return;
+  state.booted = true;
+
+  state.ui = { ...state.ui, ...getUiSettings() };
+
+  wireChat();
+  wirePreview();
+  wireLibrary();
+  wireSettings();
+  wireTopbarButtons();
+  wireGlobal();
+  wireComposerHook();
+  updateUserUi();
+  updateReopenLastPreviewVisibility();
+  updateRecentBuildsVisibility();
+  updateDashboardUi();
+  applyUiSettings();
+
+  if (loadingHintEl) loadingHintEl.textContent = "Ready.";
+
+  await refreshMe();
+  await refreshProStatus();
+  await backendLoadLibrary();
+  renderLibrary();
+
+scrollAfterUiChange();
+setTimeout(() => scrollChatToBottom(true), 200);
+
+console.log("Simo script.js Phase 2.6 memory upgrade booted.");
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+
+function showPublishSuccess(url) {
+  if (!url) return;
+
+  const existing = document.getElementById("publishSuccessCard");
+  if (existing) existing.remove();
+
+  const card = document.createElement("div");
+  card.id = "publishSuccessCard";
+
+  card.style.marginTop = "12px";
+  card.style.padding = "12px";
+  card.style.borderRadius = "10px";
+  card.style.background = "rgba(0,255,150,0.08)";
+  card.style.border = "1px solid rgba(0,255,150,0.25)";
+  card.style.color = "#d1ffe8";
+
+  card.innerHTML = `
+    <div style="font-weight:600; margin-bottom:6px;">
+      ✅ Your site is live
+    </div>
+
+    <div style="font-size:12px; opacity:0.8; margin-bottom:8px;">
+      ${url}
+    </div>
+
+    <div style="display:flex; gap:8px;">
+      <button id="copyPublishLinkBtn" style="
+        padding:6px 10px;
+        border-radius:6px;
+        border:none;
+        cursor:pointer;
+        background:#1e90ff;
+        color:white;
+      ">Copy Link</button>
+
+      <button id="openPublishLinkBtn" style="
+        padding:6px 10px;
+        border-radius:6px;
+        border:none;
+        cursor:pointer;
+        background:#22c55e;
+        color:white;
+      ">View Site</button>
+    </div>
+  `;
+
+  const target =
+    document.getElementById("previewWrap") ||
+    document.body;
+
+  target.appendChild(card);
+
+  card.querySelector("#copyPublishLinkBtn").onclick = () => {
+    navigator.clipboard.writeText(url);
+  };
+
+  card.querySelector("#openPublishLinkBtn").onclick = () => {
+    window.open(url, "_blank");
+  };
+}
+})();
+
+// ==============================
+// Simo Phase 2.9C — Builder State Sync (SAFE EXTENSION)
+// ==============================
+
+(async function simoBuilderStateSync() {
+  try {
+    const res = await fetch("/health");
+    if (!res.ok) return;
+
+    const data = await res.json();
+
+    window.__SIMO_BUILDER_STATE__ = {
+      active: data.builder_active || false,
+      revision: data.builder_revision || 0,
+      turnCount: data.builder_turn_count || 0,
+      meta: data.builder_meta || {},
+      lastKind: data.builder_last_request_kind || ""
+    };
+
+    console.log("Simo Builder State Sync:", window.__SIMO_BUILDER_STATE__);
+  } catch (err) {
+    console.warn("Builder state sync skipped:", err);
+  }
+})();
+
+// ==============================
+// Simo Phase 2.9D — Visible Builder Intelligence UI (SAFE)
+// ==============================
+
+(function simoBuilderUIOverlay() {
+  if (window.__SIMO_BUILDER_UI__) return;
+  window.__SIMO_BUILDER_UI__ = true;
+
+  function createUI() {
+    if (document.getElementById("simoBuilderStatus")) return;
+
+    const wrap = document.createElement("div");
+    wrap.id = "simoBuilderStatus";
+
+    wrap.style.position = "fixed";
+    wrap.style.bottom = "20px";
+    wrap.style.right = "20px";
+    wrap.style.zIndex = "9999";
+    wrap.style.padding = "10px 14px";
+    wrap.style.borderRadius = "12px";
+    wrap.style.fontSize = "12px";
+    wrap.style.fontWeight = "500";
+    wrap.style.backdropFilter = "blur(10px)";
+    wrap.style.background = "rgba(20,20,30,0.75)";
+    wrap.style.color = "#fff";
+    wrap.style.boxShadow = "0 0 12px rgba(0,0,0,0.3)";
+    wrap.style.transition = "all 0.25s ease";
+    wrap.style.opacity = "0";
+    wrap.style.pointerEvents = "none";
+
+    wrap.innerHTML = `
+      <div id="simoBuilderDot" style="
+        width:8px;
+        height:8px;
+        border-radius:50%;
+        background:#666;
+        display:inline-block;
+        margin-right:6px;
+        box-shadow:0 0 0 rgba(0,0,0,0);
+      "></div>
+      <span id="simoBuilderText">Builder idle</span>
+    `;
+
+    document.body.appendChild(wrap);
+  }
+
+  function getLabel(lastKind) {
+    const kind = String(lastKind || "").toLowerCase();
+
+    if (kind === "create") return "Generating build...";
+    if (kind === "edit") return "Editing build...";
+    if (kind === "refine") return "Refining build...";
+    if (kind === "enhance") return "Enhancing build...";
+    if (kind === "continue") return "Continuing build...";
+    if (kind === "update") return "Updating build...";
+
+    return "Builder active...";
+  }
+
+  function updateUI() {
+    const state = window.__SIMO_BUILDER_STATE__;
+    if (!state) return;
+
+    const el = document.getElementById("simoBuilderStatus");
+    const dot = document.getElementById("simoBuilderDot");
+    const text = document.getElementById("simoBuilderText");
+
+    if (!el || !dot || !text) return;
+
+    if (state.active) {
+      el.style.opacity = "1";
+      el.style.transform = "translateY(0)";
+      dot.style.background = "#00ffcc";
+      dot.style.boxShadow = "0 0 12px rgba(0,255,204,0.65)";
+      text.textContent = getLabel(state.lastKind);
+    } else {
+      el.style.opacity = "0";
+      el.style.transform = "translateY(8px)";
+      dot.style.background = "#666";
+      dot.style.boxShadow = "0 0 0 rgba(0,0,0,0)";
+      text.textContent = "Builder idle";
+    }
+  }
+
+  function loop() {
+    try {
+      updateUI();
+    } catch (e) {
+      console.warn("Builder UI loop skipped:", e);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  createUI();
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9E — Builder Memory Visualization (SAFE)
+// ==============================
+
+(function simoBuilderMemoryVisualization() {
+  if (window.__SIMO_BUILDER_MEMORY_UI__) return;
+  window.__SIMO_BUILDER_MEMORY_UI__ = true;
+
+  function ensureMemoryUi() {
+    if (document.getElementById("simoBuilderMemoryCard")) return;
+
+    const card = document.createElement("div");
+    card.id = "simoBuilderMemoryCard";
+
+    card.style.position = "fixed";
+    card.style.right = "18px";
+    card.style.bottom = "58px";
+    card.style.zIndex = "9998";
+    card.style.width = "220px";
+    card.style.padding = "12px 14px";
+    card.style.borderRadius = "14px";
+    card.style.background = "rgba(15,15,24,0.82)";
+    card.style.backdropFilter = "blur(10px)";
+    card.style.webkitBackdropFilter = "blur(10px)";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+    card.style.border = "1px solid rgba(255,255,255,0.08)";
+    card.style.color = "#ffffff";
+    card.style.fontSize = "12px";
+    card.style.lineHeight = "1.45";
+    card.style.opacity = "0";
+    card.style.transform = "translateY(8px)";
+    card.style.transition = "opacity 0.22s ease, transform 0.22s ease";
+    card.style.pointerEvents = "none";
+
+    card.innerHTML = `
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;opacity:0.72;margin-bottom:8px;">
+        Builder Memory
+      </div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <span style="opacity:0.72;">Revision</span>
+        <span id="simoBuilderMemoryRevision">0</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <span style="opacity:0.72;">Turns</span>
+        <span id="simoBuilderMemoryTurns">0</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-bottom:6px;">
+        <span style="opacity:0.72;">Last Action</span>
+        <span id="simoBuilderMemoryKind">idle</span>
+      </div>
+
+      <div style="display:flex;justify-content:space-between;gap:10px;">
+        <span style="opacity:0.72;">Status</span>
+        <span id="simoBuilderMemoryStatus">Idle</span>
+      </div>
+    `;
+
+    document.body.appendChild(card);
+  }
+
+  function prettyKind(value) {
+    const kind = String(value || "").trim().toLowerCase();
+    if (!kind) return "idle";
+
+    if (kind === "create") return "Create";
+    if (kind === "edit") return "Edit";
+    if (kind === "refine") return "Refine";
+    if (kind === "enhance") return "Enhance";
+    if (kind === "continue") return "Continue";
+    if (kind === "update") return "Update";
+    if (kind === "build") return "Build";
+
+    return kind.charAt(0).toUpperCase() + kind.slice(1);
+  }
+
+  function renderMemoryUi() {
+    ensureMemoryUi();
+
+    const state = window.__SIMO_BUILDER_STATE__ || null;
+    const card = document.getElementById("simoBuilderMemoryCard");
+    const revisionEl = document.getElementById("simoBuilderMemoryRevision");
+    const turnsEl = document.getElementById("simoBuilderMemoryTurns");
+    const kindEl = document.getElementById("simoBuilderMemoryKind");
+    const statusEl = document.getElementById("simoBuilderMemoryStatus");
+
+    if (!card || !revisionEl || !turnsEl || !kindEl || !statusEl) return;
+    if (!state) return;
+
+    revisionEl.textContent = String(Number(state.revision || 0));
+    turnsEl.textContent = String(Number(state.turnCount || 0));
+    kindEl.textContent = prettyKind(state.lastKind);
+    statusEl.textContent = state.active ? "Active" : "Idle";
+
+    if (state.active || Number(state.revision || 0) > 0 || Number(state.turnCount || 0) > 0) {
+      card.style.opacity = "1";
+      card.style.transform = "translateY(0)";
+    } else {
+      card.style.opacity = "0";
+      card.style.transform = "translateY(8px)";
+    }
+  }
+
+  function loop() {
+    try {
+      renderMemoryUi();
+    } catch (err) {
+      console.warn("Builder memory visualization skipped:", err);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  ensureMemoryUi();
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9F — What Changed Intelligence Layer (SAFE)
+// ==============================
+
+(function simoBuilderWhatChangedUI() {
+  if (window.__SIMO_BUILDER_WHAT_CHANGED_UI__) return;
+  window.__SIMO_BUILDER_WHAT_CHANGED_UI__ = true;
+
+  function ensureWhatChangedUi() {
+    if (document.getElementById("simoBuilderWhatChangedCard")) return;
+
+    const card = document.createElement("div");
+    card.id = "simoBuilderWhatChangedCard";
+
+    card.style.position = "fixed";
+    card.style.right = "18px";
+    card.style.bottom = "240px";
+    card.style.zIndex = "9997";
+    card.style.width = "260px";
+    card.style.padding = "12px 14px";
+    card.style.borderRadius = "14px";
+    card.style.background = "rgba(15,15,24,0.86)";
+    card.style.backdropFilter = "blur(10px)";
+    card.style.webkitBackdropFilter = "blur(10px)";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+    card.style.border = "1px solid rgba(255,255,255,0.08)";
+    card.style.color = "#ffffff";
+    card.style.fontSize = "12px";
+    card.style.lineHeight = "1.45";
+    card.style.opacity = "0";
+    card.style.transform = "translateY(8px)";
+    card.style.transition = "opacity 0.22s ease, transform 0.22s ease";
+    card.style.pointerEvents = "none";
+
+    card.innerHTML = `
+      <div style="font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;opacity:0.72;margin-bottom:8px;">
+        What Changed
+      </div>
+      <div id="simoBuilderWhatChangedText" style="opacity:0.96;">
+        Waiting for builder activity...
+      </div>
+    `;
+
+    document.body.appendChild(card);
+  }
+
+  function inferChangeText(state) {
+    const kind = String(state?.lastKind || "").trim().toLowerCase();
+    const revision = Number(state?.revision || 0);
+    const turns = Number(state?.turnCount || 0);
+    const active = !!state?.active;
+
+    if (kind === "create") {
+      return active
+        ? `Creating a new build now. Revision ${revision} is in progress.`
+        : `Created a new build. Current revision: ${revision}.`;
+    }
+
+    if (kind === "build") {
+      return active
+        ? `Generating the current build. Revision ${revision} is in progress.`
+        : `Generated the current build. Current revision: ${revision}.`;
+    }
+
+    if (kind === "edit") {
+      return active
+        ? `Applying edits to the current build now.`
+        : `Applied edits to the current build.`;
+    }
+
+    if (kind === "refine") {
+      return active
+        ? `Refining the design and improving the current version.`
+        : `Refined the design and improved the current version.`;
+    }
+
+    if (kind === "enhance") {
+      return active
+        ? `Enhancing the current build with a stronger version update.`
+        : `Enhanced the current build with a stronger version update.`;
+    }
+
+    if (kind === "continue") {
+      return active
+        ? `Continuing the previous build instead of starting over.`
+        : `Continued the previous build without resetting progress.`;
+    }
+
+    if (kind === "update") {
+      return active
+        ? `Updating the current build with new changes.`
+        : `Updated the current build with new changes.`;
+    }
+
+    if (revision > 0 || turns > 0) {
+      return active
+        ? `Builder activity detected. Revision ${revision} is currently active.`
+        : `Builder history is available. Current revision: ${revision}.`;
+    }
+
+    return "Waiting for builder activity...";
+  }
+
+  function renderWhatChangedUi() {
+    ensureWhatChangedUi();
+
+    const state = window.__SIMO_BUILDER_STATE__ || null;
+    const card = document.getElementById("simoBuilderWhatChangedCard");
+    const text = document.getElementById("simoBuilderWhatChangedText");
+
+    if (!card || !text) return;
+    if (!state) return;
+
+    const revision = Number(state.revision || 0);
+    const turns = Number(state.turnCount || 0);
+
+    text.textContent = inferChangeText(state);
+
+    if (state.active || revision > 0 || turns > 0) {
+      card.style.opacity = "1";
+      card.style.transform = "translateY(0)";
+    } else {
+      card.style.opacity = "0";
+      card.style.transform = "translateY(8px)";
+    }
+  }
+
+  function loop() {
+    try {
+      renderWhatChangedUi();
+    } catch (err) {
+      console.warn("Builder what-changed UI skipped:", err);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  ensureWhatChangedUi();
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9M — Confidence Highlight (SAFE)
+// ==============================
+
+(function simoBuilderSuggestionsUI() {
+  if (window.__SIMO_BUILDER_SUGGESTIONS_UI__) return;
+  window.__SIMO_BUILDER_SUGGESTIONS_UI__ = true;
+
+  let lastSignature = "";
+  let lastInteraction = Date.now();
+
+  const recentActions = [];
+
+  function remember(action) {
+    recentActions.push(action);
+    if (recentActions.length > 6) {
+      recentActions.shift();
+    }
+  }
+
+  function wasRecentlyUsed(action) {
+    return recentActions.includes(action);
+  }
+
+  document.addEventListener("click", () => {
+    lastInteraction = Date.now();
+  });
+
+  document.addEventListener("keydown", () => {
+    lastInteraction = Date.now();
+  });
+
+  function isIdle() {
+    return Date.now() - lastInteraction > 6000;
+  }
+
+  function ensureSuggestionsUi() {
+  if (document.getElementById("simoBuilderSuggestionsCard")) return;
+
+  const card = document.createElement("div");
+  card.id = "simoBuilderSuggestionsCard";
+
+  card.style.position = "fixed";
+  card.style.right = "18px";
+  card.style.bottom = "320px";
+  card.style.zIndex = "5";
+  card.style.width = "260px";
+  card.style.padding = "12px 14px";
+  card.style.borderRadius = "14px";
+  card.style.background = "rgba(15,15,24,0.92)";
+  card.style.backdropFilter = "blur(12px)";
+  card.style.border = "1px solid rgba(255,255,255,0.08)";
+  card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.35)";
+  card.style.color = "rgba(255,255,255,0.9)";
+  card.style.fontSize = "12px";
+  card.style.transition = "opacity .18s ease, transform .18s ease";
+
+card.innerHTML = `
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+    <div style="display:grid;gap:2px;min-width:0;">
+      <div style="font-size:11px;font-weight:700;opacity:0.95;">
+        Suggestions
+      </div>
+      <div style="font-size:10px;opacity:0.7;">
+        Smart Mode
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;flex:0 0 auto;">
+      <button
+        id="simoSuggestionsStarBtn"
+        type="button"
+        aria-pressed="true"
+        title="Hide Pro helper"
+        aria-label="Hide Pro helper"
+        style="
+          width:28px;
+          height:28px;
+          border-radius:10px;
+          border:1px solid rgba(255,255,255,0.10);
+          background:rgba(255,255,255,0.06);
+          color:rgba(255,255,255,0.92);
+          cursor:pointer;
+          font-size:14px;
+          line-height:1;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          padding:0;
+          flex:0 0 auto;
+        "
+      >✦</button>
+
+      <button
+        id="simoSuggestionsMinBtn"
+        type="button"
+        aria-expanded="true"
+        title="Minimize suggestions"
+        aria-label="Minimize suggestions"
+        style="
+          width:28px;
+          height:28px;
+          border-radius:10px;
+          border:1px solid rgba(255,255,255,0.10);
+          background:rgba(255,255,255,0.06);
+          color:rgba(255,255,255,0.92);
+          cursor:pointer;
+          font-size:14px;
+          line-height:1;
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          padding:0;
+          flex:0 0 auto;
+        "
+      >−</button>
+    </div>
+  </div>
+
+  <div
+    id="simoBuilderSuggestionsBody"
+    style="
+      margin-top:8px;
+      display:block;
+    "
+  >
+    <div
+      id="simoBuilderSuggestionsList"
+      style="display:flex;flex-direction:column;gap:8px;"
+    ></div>
+  </div>
+`;
+  document.body.appendChild(card);
+
+ const minBtn = document.getElementById("simoSuggestionsMinBtn");
+ const starBtn = document.getElementById("simoSuggestionsStarBtn");
+ const body = document.getElementById("simoBuilderSuggestionsBody");
+ 
+  if (minBtn && body) {
+    let collapsed = false;
+
+    minBtn.addEventListener("click", () => {
+      collapsed = !collapsed;
+
+      body.style.display = collapsed ? "none" : "block";
+      minBtn.textContent = collapsed ? "+" : "−";
+      minBtn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+      minBtn.title = collapsed ? "Expand suggestions" : "Minimize suggestions";
+
+      card.style.width = collapsed ? "160px" : "260px";
+      card.style.padding = collapsed ? "10px 12px" : "12px 14px";
+    });
+  }
+}
+
+  function baseSuggestions(state) {
+    const kind = (state?.lastKind || "").toLowerCase();
+    const turns = state?.turnCount || 0;
+
+    let list = [];
+
+    if (isIdle()) {
+      list = ["Enhance visual design", "Improve the hero section"];
+    } else if (turns > 5) {
+      list = ["Prepare for publishing", "Optimize for conversions"];
+    } else if (kind === "build") {
+      list = [
+        "Improve the hero section",
+        "Add a call-to-action section",
+        "Enhance visual design"
+      ];
+    } else if (kind === "enhance") {
+      list = [
+        "Improve section spacing",
+        "Upgrade typography",
+        "Optimize for conversions"
+      ];
+    } else if (kind === "edit") {
+      list = [
+        "Add testimonials",
+        "Add pricing section",
+        "Improve layout flow"
+      ];
+    }
+
+    return list;
+  }
+
+  function scoreSuggestions(list, state) {
+    const kind = (state?.lastKind || "").toLowerCase();
+    const turns = state?.turnCount || 0;
+
+    return list
+      .map(item => {
+        let score = 0;
+
+        if (turns > 5 && item === "Prepare for publishing") score += 5;
+        if (turns > 5 && item === "Optimize for conversions") score += 4;
+
+        if (kind === "build" && item.includes("hero")) score += 4;
+        if (kind === "enhance" && item.includes("visual")) score += 3;
+        if (kind === "edit" && item.includes("layout")) score += 3;
+
+        if (wasRecentlyUsed(item)) score -= 5;
+
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map(x => x.item);
+  }
+
+ function buildPrompt(text, state) {
+    return `[SIMO_BUILDER]
+REQUEST:
+${text}
+
+CONTEXT:
+- This is an existing build (revision ${state?.revision || 0})
+- Maintain visual consistency
+- Improve layout, spacing, and hierarchy if needed
+- Do not break working sections
+
+OUTPUT:
+Return a complete HTML document ready for preview.
+`;
+}
+
+  function createChip(text, state, isTop) {
+    const chip = document.createElement("button");
+    chip.textContent = text;
+
+    chip.style.padding = "8px 10px";
+    chip.style.borderRadius = "10px";
+    chip.style.cursor = "pointer";
+    chip.style.textAlign = "left";
+
+    if (isTop) {
+      chip.style.background = "rgba(0,255,200,0.18)";
+      chip.style.border = "1px solid rgba(0,255,200,0.45)";
+      chip.style.boxShadow = "0 0 10px rgba(0,255,200,0.25)";
+    } else {
+      chip.style.background = "rgba(255,255,255,0.06)";
+      chip.style.border = "1px solid rgba(255,255,255,0.12)";
+    }
+
+    chip.style.color = "rgba(255,255,255,0.9)";
+
+    chip.onmouseenter = () => {
+      chip.style.background = "rgba(0,255,200,0.22)";
+    };
+
+    chip.onmouseleave = () => {
+      chip.style.background = isTop
+        ? "rgba(0,255,200,0.18)"
+        : "rgba(255,255,255,0.06)";
+    };
+
+    chip.onclick = async (e) => {
+      const hook = window.__SIMO_COMPOSER_HOOK__;
+      if (!hook) return;
+
+      const prompt = buildPrompt(text, state);
+
+      remember(text);
+
+      hook.setText(prompt);
+
+      if (e.shiftKey) {
+        await hook.sendText(prompt);
+      }
+    };
+
+    return chip;
+  }
+
+  function render() {
+    const state = window.__SIMO_BUILDER_STATE__;
+    if (!state) return;
+
+    ensureSuggestionsUi();
+
+    const listEl = document.getElementById("simoBuilderSuggestionsList");
+
+    let suggestions = baseSuggestions(state);
+    suggestions = scoreSuggestions(suggestions, state);
+
+    const sig = JSON.stringify(suggestions);
+    if (sig === lastSignature) return;
+    lastSignature = sig;
+
+    listEl.innerHTML = "";
+
+    suggestions.forEach((s, i) => {
+      listEl.appendChild(createChip(s, state, i === 0));
+    });
+  }
+
+  function loop() {
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9N — Suggestion Action Bar (SAFE)
+// paste at very bottom under 2.9M
+// ==============================
+
+(function simoBuilderSuggestionActions() {
+  if (window.__SIMO_BUILDER_SUGGESTION_ACTIONS__) return;
+  window.__SIMO_BUILDER_SUGGESTION_ACTIONS__ = true;
+
+  let forceRefreshTick = 0;
+
+  function ensureActionUi() {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    if (!card) return null;
+
+    let helper = document.getElementById("simoBuilderSuggestionsHelper");
+    let actions = document.getElementById("simoBuilderSuggestionsActions");
+
+    if (!helper) {
+      helper = document.createElement("div");
+      helper.id = "simoBuilderSuggestionsHelper";
+      helper.style.marginTop = "8px";
+      helper.style.fontSize = "10px";
+      helper.style.lineHeight = "1.35";
+      helper.style.opacity = "0.72";
+      helper.textContent = "Click to load into composer • Shift+Click to send instantly";
+      card.appendChild(helper);
+    }
+
+    if (!actions) {
+      actions = document.createElement("div");
+      actions.id = "simoBuilderSuggestionsActions";
+      actions.style.display = "flex";
+      actions.style.gap = "8px";
+      actions.style.marginTop = "10px";
+      actions.style.flexWrap = "wrap";
+
+      const useTopBtn = document.createElement("button");
+      useTopBtn.id = "simoSuggestionUseTopBtn";
+      useTopBtn.type = "button";
+      useTopBtn.textContent = "Use Top Suggestion";
+
+      const refreshBtn = document.createElement("button");
+      refreshBtn.id = "simoSuggestionRefreshBtn";
+      refreshBtn.type = "button";
+      refreshBtn.textContent = "Refresh Ideas";
+
+      [useTopBtn, refreshBtn].forEach((btn) => {
+        btn.style.padding = "7px 10px";
+        btn.style.borderRadius = "10px";
+        btn.style.border = "1px solid rgba(255,255,255,0.12)";
+        btn.style.background = "rgba(255,255,255,0.06)";
+        btn.style.color = "rgba(255,255,255,0.92)";
+        btn.style.cursor = "pointer";
+        btn.style.fontSize = "11px";
+      });
+
+      useTopBtn.addEventListener("mouseenter", () => {
+        useTopBtn.style.background = "rgba(0,255,200,0.18)";
+      });
+      useTopBtn.addEventListener("mouseleave", () => {
+        useTopBtn.style.background = "rgba(255,255,255,0.06)";
+      });
+
+      refreshBtn.addEventListener("mouseenter", () => {
+        refreshBtn.style.background = "rgba(255,255,255,0.12)";
+      });
+      refreshBtn.addEventListener("mouseleave", () => {
+        refreshBtn.style.background = "rgba(255,255,255,0.06)";
+      });
+
+      actions.appendChild(useTopBtn);
+      actions.appendChild(refreshBtn);
+      card.appendChild(actions);
+    }
+
+    return card;
+  }
+
+  function getSuggestionButtons() {
+    return Array.from(
+      document.querySelectorAll("#simoBuilderSuggestionsList button")
+    );
+  }
+
+  function getTopSuggestionText() {
+    const buttons = getSuggestionButtons();
+    if (!buttons.length) return "";
+    return String(buttons[0].textContent || "").trim();
+  }
+
+  function buildPrompt(text, state) {
+    const revision = Number(state?.revision || 0);
+    return `${text} for my current build. Keep the design consistent and improve overall quality. This is revision ${revision}.`;
+  }
+
+  function maybeToast(message, type = "info", ms = 1800) {
+    if (typeof window.toast === "function") {
+      window.toast(message, type, ms);
+      return;
+    }
+
+    if (window.__SIMO_TOAST_FALLBACK__) {
+      clearTimeout(window.__SIMO_TOAST_FALLBACK__);
+    }
+
+    let el = document.getElementById("simoSuggestionMiniToast");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "simoSuggestionMiniToast";
+      el.style.position = "fixed";
+      el.style.left = "50%";
+      el.style.bottom = "20px";
+      el.style.transform = "translateX(-50%)";
+      el.style.padding = "10px 14px";
+      el.style.borderRadius = "12px";
+      el.style.background = "rgba(15,15,24,0.92)";
+      el.style.color = "#fff";
+      el.style.fontSize = "12px";
+      el.style.zIndex = "999999";
+      el.style.border = "1px solid rgba(255,255,255,0.10)";
+      el.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+      document.body.appendChild(el);
+    }
+
+    el.textContent = message;
+    el.style.opacity = "1";
+
+    window.__SIMO_TOAST_FALLBACK__ = setTimeout(() => {
+      el.style.opacity = "0";
+    }, ms);
+  }
+
+  function useTopSuggestion(sendNow = false) {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    const state = window.__SIMO_BUILDER_STATE__ || {};
+    if (!hook) return;
+
+    const topText = getTopSuggestionText();
+    if (!topText) {
+      maybeToast("No suggestion is ready yet.", "info", 1600);
+      return;
+    }
+
+    const prompt = buildPrompt(topText, state);
+    hook.setText(prompt);
+
+    if (sendNow) {
+      hook.sendText(prompt);
+      maybeToast("Top suggestion sent.", "success", 1600);
+    } else {
+      maybeToast("Top suggestion loaded into composer.", "success", 1600);
+    }
+  }
+
+  function wireButtons() {
+    ensureActionUi();
+
+    const useTopBtn = document.getElementById("simoSuggestionUseTopBtn");
+    const refreshBtn = document.getElementById("simoSuggestionRefreshBtn");
+
+    if (useTopBtn && useTopBtn.dataset.boundClick !== "true") {
+      useTopBtn.dataset.boundClick = "true";
+      useTopBtn.addEventListener("click", (e) => {
+        useTopSuggestion(!!e.shiftKey);
+      });
+    }
+
+    if (refreshBtn && refreshBtn.dataset.boundClick !== "true") {
+      refreshBtn.dataset.boundClick = "true";
+      refreshBtn.addEventListener("click", () => {
+        forceRefreshTick = Date.now();
+
+        const list = document.getElementById("simoBuilderSuggestionsList");
+        if (list) {
+          const buttons = getSuggestionButtons();
+          if (buttons.length > 1) {
+            const first = buttons.shift();
+            buttons.push(first);
+            list.innerHTML = "";
+            buttons.forEach((btn) => list.appendChild(btn));
+          }
+        }
+
+        maybeToast("Suggestion order refreshed.", "info", 1500);
+      });
+    }
+  }
+
+  function updateVisibility() {
+    const card = ensureActionUi();
+    if (!card) return;
+
+    const state = window.__SIMO_BUILDER_STATE__ || {};
+    const revision = Number(state.revision || 0);
+    const turns = Number(state.turnCount || 0);
+    const active = !!state.active;
+
+    const hasMeaningfulHistory = active || revision > 0 || turns > 0;
+
+    card.style.display = hasMeaningfulHistory ? "" : "none";
+  }
+
+  function addConfidenceLabels() {
+    const list = document.getElementById("simoBuilderSuggestionsList");
+    if (!list) return;
+
+    const buttons = getSuggestionButtons();
+    if (!buttons.length) return;
+
+    buttons.forEach((btn, index) => {
+      if (btn.dataset.confidenceDecorated === "true") return;
+      btn.dataset.confidenceDecorated = "true";
+
+      const label = document.createElement("div");
+      label.style.fontSize = "10px";
+      label.style.opacity = "0.72";
+      label.style.marginTop = "4px";
+
+      if (index === 0) label.textContent = "Highest confidence";
+      else if (index === 1) label.textContent = "Strong follow-up";
+      else label.textContent = "Alternative path";
+
+      btn.appendChild(label);
+    });
+  }
+
+  function loop() {
+    try {
+      wireButtons();
+      updateVisibility();
+      addConfidenceLabels();
+      window.__SIMO_SUGGESTION_REFRESH_TICK__ = forceRefreshTick;
+    } catch (err) {
+      console.warn("Suggestion action bar skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9O — Builder Goal Awareness (SAFE)
+// paste at very bottom under 2.9N
+// ==============================
+
+(function simoBuilderGoalAwareness() {
+  if (window.__SIMO_BUILDER_GOAL_AWARENESS__) return;
+  window.__SIMO_BUILDER_GOAL_AWARENESS__ = true;
+
+  function ensureGoalCard() {
+    if (document.getElementById("simoBuilderGoalCard")) return;
+
+    const card = document.createElement("div");
+    card.id = "simoBuilderGoalCard";
+
+    card.style.position = "fixed";
+    card.style.right = "18px";
+    card.style.bottom = "280px";
+    card.style.zIndex = "9995";
+    card.style.width = "260px";
+    card.style.padding = "12px 14px";
+    card.style.borderRadius = "14px";
+    card.style.background = "rgba(15,15,24,0.90)";
+    card.style.backdropFilter = "blur(12px)";
+    card.style.border = "1px solid rgba(255,255,255,0.08)";
+    card.style.boxShadow = "0 10px 30px rgba(0,0,0,0.32)";
+    card.style.color = "rgba(255,255,255,0.92)";
+    card.style.fontSize = "12px";
+    card.style.lineHeight = "1.45";
+    card.style.opacity = "0";
+    card.style.transform = "translateY(8px)";
+    card.style.transition = "opacity 0.22s ease, transform 0.22s ease";
+    card.style.pointerEvents = "none";
+
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start;">
+        <div style="font-size:11px;font-weight:700;letter-spacing:0.4px;text-transform:uppercase;opacity:0.72;">
+          Current Goal
+        </div>
+        <div id="simoBuilderGoalBadge" style="
+          padding:3px 8px;
+          border-radius:999px;
+          background:rgba(0,255,200,0.10);
+          border:1px solid rgba(0,255,200,0.18);
+          font-size:10px;
+          opacity:0.9;
+        ">Active</div>
+      </div>
+
+      <div id="simoBuilderGoalTitle" style="
+        margin-top:8px;
+        font-size:13px;
+        font-weight:700;
+        color:#ffffff;
+      ">Waiting for builder activity...</div>
+
+      <div id="simoBuilderGoalText" style="
+        margin-top:6px;
+        color:rgba(255,255,255,0.78);
+      ">
+        Simo will show the current goal here once the builder starts working.
+      </div>
+    `;
+
+    document.body.appendChild(card);
+  }
+
+  function inferGoal(state) {
+    const kind = String(state?.lastKind || "").trim().toLowerCase();
+    const revision = Number(state?.revision || 0);
+    const turns = Number(state?.turnCount || 0);
+    const active = !!state?.active;
+
+    if (kind === "create" || kind === "build") {
+      return {
+        title: active ? "Building the foundation" : "Foundation created",
+        text: active
+          ? "Simo is shaping the main structure, layout, and first version of the page."
+          : "The main structure is in place and ready for the next pass.",
+        badge: active ? "Building" : "Ready"
+      };
+    }
+
+    if (kind === "edit" || kind === "update") {
+      return {
+        title: active ? "Applying focused edits" : "Focused edits applied",
+        text: active
+          ? "Simo is updating the current build without starting over."
+          : "The current version has been updated and is ready for refinement.",
+        badge: active ? "Editing" : "Updated"
+      };
+    }
+
+    if (kind === "refine") {
+      return {
+        title: active ? "Refining polish and flow" : "Refinement pass complete",
+        text: active
+          ? "Simo is improving spacing, hierarchy, clarity, and overall smoothness."
+          : "The build has been refined and is ready for stronger visual upgrades.",
+        badge: active ? "Refining" : "Refined"
+      };
+    }
+
+    if (kind === "enhance") {
+      return {
+        title: active ? "Enhancing overall quality" : "Enhancement complete",
+        text: active
+          ? "Simo is pushing the build toward a more premium, impressive final result."
+          : "The build is stronger now and may be ready for conversion or publishing improvements.",
+        badge: active ? "Enhancing" : "Enhanced"
+      };
+    }
+
+    if (kind === "continue") {
+      return {
+        title: active ? "Continuing previous progress" : "Continuation complete",
+        text: active
+          ? "Simo is carrying the earlier version forward instead of resetting the build."
+          : "The previous build has been continued successfully with progress preserved.",
+        badge: active ? "Continuing" : "Continued"
+      };
+    }
+
+    if (turns >= 6 || revision >= 6) {
+      return {
+        title: "Preparing for final direction",
+        text: "This build has enough history that the next best move is likely optimization, conversion work, or publish prep.",
+        badge: "Advanced"
+      };
+    }
+
+    if (turns > 0 || revision > 0) {
+      return {
+        title: "Growing the current build",
+        text: "Simo has builder context and can keep improving this version step by step.",
+        badge: "Tracked"
+      };
+    }
+
+    return {
+      title: "Waiting for builder activity...",
+      text: "Simo will show the current goal here once the builder starts working.",
+      badge: "Idle"
+    };
+  }
+
+  function applyGoalToSuggestions(goal) {
+    window.__SIMO_BUILDER_GOAL_CONTEXT__ = {
+      title: String(goal?.title || ""),
+      text: String(goal?.text || ""),
+      badge: String(goal?.badge || "")
+    };
+  }
+
+  function renderGoalCard() {
+    ensureGoalCard();
+
+    const state = window.__SIMO_BUILDER_STATE__ || {};
+    const card = document.getElementById("simoBuilderGoalCard");
+    const titleEl = document.getElementById("simoBuilderGoalTitle");
+    const textEl = document.getElementById("simoBuilderGoalText");
+    const badgeEl = document.getElementById("simoBuilderGoalBadge");
+
+    if (!card || !titleEl || !textEl || !badgeEl) return;
+
+    const goal = inferGoal(state);
+    applyGoalToSuggestions(goal);
+
+    titleEl.textContent = goal.title;
+    textEl.textContent = goal.text;
+    badgeEl.textContent = goal.badge;
+
+    const active = !!state.active;
+    const revision = Number(state.revision || 0);
+    const turns = Number(state.turnCount || 0);
+    const showCard = active || revision > 0 || turns > 0;
+
+    if (goal.badge === "Building") {
+      badgeEl.style.background = "rgba(110,168,255,0.12)";
+      badgeEl.style.border = "1px solid rgba(110,168,255,0.22)";
+    } else if (goal.badge === "Editing" || goal.badge === "Updated") {
+      badgeEl.style.background = "rgba(255,205,110,0.10)";
+      badgeEl.style.border = "1px solid rgba(255,205,110,0.18)";
+    } else if (goal.badge === "Refining" || goal.badge === "Refined") {
+      badgeEl.style.background = "rgba(185,130,255,0.12)";
+      badgeEl.style.border = "1px solid rgba(185,130,255,0.20)";
+    } else if (goal.badge === "Enhancing" || goal.badge === "Enhanced") {
+      badgeEl.style.background = "rgba(0,255,200,0.10)";
+      badgeEl.style.border = "1px solid rgba(0,255,200,0.18)";
+    } else if (goal.badge === "Advanced") {
+      badgeEl.style.background = "rgba(255,120,180,0.10)";
+      badgeEl.style.border = "1px solid rgba(255,120,180,0.18)";
+    } else {
+      badgeEl.style.background = "rgba(255,255,255,0.06)";
+      badgeEl.style.border = "1px solid rgba(255,255,255,0.10)";
+    }
+
+    if (showCard) {
+      card.style.opacity = "1";
+      card.style.transform = "translateY(0)";
+    } else {
+      card.style.opacity = "0";
+      card.style.transform = "translateY(8px)";
+    }
+  }
+
+  function upgradeSuggestionHelper() {
+    const helper = document.getElementById("simoBuilderSuggestionsHelper");
+    const goal = window.__SIMO_BUILDER_GOAL_CONTEXT__;
+    if (!helper || !goal || !goal.title) return;
+
+    const goalLine = `Goal: ${goal.title}`;
+    helper.textContent = `${goalLine} • Click to load into composer • Shift+Click to send instantly`;
+  }
+
+  function maybeBoostTopSuggestionLabel() {
+    const goal = window.__SIMO_BUILDER_GOAL_CONTEXT__;
+    const list = document.getElementById("simoBuilderSuggestionsList");
+    if (!goal || !list) return;
+
+    const buttons = Array.from(list.querySelectorAll("button"));
+    if (!buttons.length) return;
+
+    const top = buttons[0];
+    if (!top) return;
+
+    if (!top.dataset.goalDecorated) {
+      top.dataset.goalDecorated = "true";
+    }
+
+    const existing = top.querySelector(".simo-goal-hint");
+    if (existing) existing.remove();
+
+    const hint = document.createElement("div");
+    hint.className = "simo-goal-hint";
+    hint.style.fontSize = "10px";
+    hint.style.opacity = "0.78";
+    hint.style.marginTop = "4px";
+    hint.textContent = `Best fit for current goal`;
+    top.appendChild(hint);
+  }
+
+  function loop() {
+    try {
+      renderGoalCard();
+      upgradeSuggestionHelper();
+      maybeBoostTopSuggestionLabel();
+    } catch (err) {
+      console.warn("Builder goal awareness skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9P — Goal-Aware Suggestion Ranking (SAFE)
+// paste at very bottom under 2.9O
+// ==============================
+
+(function simoGoalAwareSuggestionRanking() {
+  if (window.__SIMO_GOAL_AWARE_SUGGESTIONS__) return;
+  window.__SIMO_GOAL_AWARE_SUGGESTIONS__ = true;
+
+  let lastRenderedSignature = "";
+
+  function getGoalContext() {
+    return window.__SIMO_BUILDER_GOAL_CONTEXT__ || {
+      title: "",
+      text: "",
+      badge: ""
+    };
+  }
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      active: false,
+      revision: 0,
+      turnCount: 0,
+      lastKind: ""
+    };
+  }
+
+  function normalize(text) {
+    return String(text || "").trim().toLowerCase();
+  }
+
+function suggestionPrompt(text, state) {
+    return `[SIMO_BUILDER]
+REQUEST:
+${text}
+
+CONTEXT:
+- This is an existing build (revision ${state?.revision || 0})
+- Maintain visual consistency
+- Improve layout, spacing, and hierarchy if needed
+- Do not break working sections
+
+OUTPUT:
+Return a complete HTML document ready for preview.
+`;
+}
+
+function useSuggestion(text, sendNow = false) {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    const state = getBuilderState();
+    if (!hook || !text) return;
+
+    const prompt = suggestionPrompt(text, state);
+    hook.setText(prompt);
+
+    if (sendNow) {
+      hook.sendText(prompt);
+    }
+}
+    
+  function goalBucket(goal, state) {
+    const title = normalize(goal.title);
+    const badge = normalize(goal.badge);
+    const kind = normalize(state.lastKind);
+    const turns = Number(state.turnCount || 0);
+    const revision = Number(state.revision || 0);
+
+    if (title.includes("foundation") || badge === "building" || kind === "build" || kind === "create") {
+      return "foundation";
+    }
+
+    if (title.includes("focused edits") || badge === "editing" || badge === "updated" || kind === "edit" || kind === "update") {
+      return "editing";
+    }
+
+    if (title.includes("refining") || badge === "refining" || badge === "refined" || kind === "refine") {
+      return "refinement";
+    }
+
+    if (title.includes("enhancing") || badge === "enhancing" || badge === "enhanced" || kind === "enhance") {
+      return "enhancement";
+    }
+
+    if (title.includes("continuing") || badge === "continuing" || badge === "continued" || kind === "continue") {
+      return "continuation";
+    }
+
+    if (title.includes("final direction") || badge === "advanced" || turns >= 6 || revision >= 6) {
+      return "advanced";
+    }
+
+    return "general";
+  }
+
+  function rankedSuggestionsForBucket(bucket) {
+    if (bucket === "foundation") {
+      return [
+        "Improve the hero section",
+        "Add a call-to-action section",
+        "Improve layout flow",
+        "Strengthen headline clarity",
+        "Add testimonials"
+      ];
+    }
+
+    if (bucket === "editing") {
+      return [
+        "Improve layout flow",
+        "Tighten section spacing",
+        "Upgrade typography",
+        "Improve the hero section",
+        "Add testimonials"
+      ];
+    }
+
+    if (bucket === "refinement") {
+      return [
+        "Improve section spacing",
+        "Upgrade typography",
+        "Refine visual hierarchy",
+        "Enhance visual design",
+        "Polish button styling"
+      ];
+    }
+
+    if (bucket === "enhancement") {
+      return [
+        "Enhance visual design",
+        "Upgrade typography",
+        "Add premium polish",
+        "Improve the hero section",
+        "Strengthen call-to-action"
+      ];
+    }
+
+    if (bucket === "continuation") {
+      return [
+        "Continue improving this version",
+        "Preserve the current style while upgrading polish",
+        "Improve layout flow",
+        "Refine visual hierarchy",
+        "Prepare the next revision"
+      ];
+    }
+
+    if (bucket === "advanced") {
+      return [
+        "Prepare for publishing",
+        "Optimize for conversions",
+        "Strengthen call-to-action",
+        "Improve mobile polish",
+        "Do a final premium polish pass"
+      ];
+    }
+
+    return [
+      "Enhance visual design",
+      "Improve the hero section",
+      "Improve layout flow",
+      "Upgrade typography",
+      "Prepare for publishing"
+    ];
+  }
+
+  function dedupeSuggestions(items) {
+    const seen = new Set();
+    const out = [];
+
+    for (const item of items) {
+      const key = normalize(item);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
     }
 
     return out;
   }
 
-  function hardenProject(card){
-    try {
-      if (!card) return;
-      var id = card.getAttribute && card.getAttribute("data-simo-builder-id");
-      var project = id ? getBuilderStore()[id] : null;
-      if (project && project.html) project.html = hardenHtml(project.html);
-      var iframe = card.querySelector && card.querySelector('[data-simo-builder-preview], iframe');
-      if (iframe && iframe.srcdoc) iframe.srcdoc = hardenHtml(iframe.srcdoc);
+  function scoreSuggestions(items, bucket, state) {
+    const turns = Number(state.turnCount || 0);
+    const revision = Number(state.revision || 0);
 
-      var status = card.querySelector && card.querySelector("[data-simo-builder-status]");
-      if (status && !status.dataset.simoR1060zStatus) {
-        status.dataset.simoR1060zStatus = "true";
-        status.textContent = "Button behavior is connected: Request a Quote opens a clear test-mode quote panel. Send Quote Request confirms that nothing was sent.";
-      }
-    } catch(e) {}
-  }
+    return items
+      .map((item) => {
+        const text = normalize(item);
+        let score = 0;
 
-  function hardenAllBuilderCards(){
-    try { document.querySelectorAll(".simo-builder-card, [data-simo-builder-id]").forEach(hardenProject); } catch(e) {}
-  }
-
-  function patchVisualCore(){
-    try {
-      if (!window.SimoVisualCore || window.SimoVisualCore.__R1060Z_BUILDER_PATCHED__) return;
-      var core = window.SimoVisualCore;
-      var originalRun = typeof core.run === "function" ? core.run.bind(core) : null;
-
-      core.run = function(text, action){
-        if (isBuilderPrompt(text) && typeof core.runBuilder === "function") {
-          var result = core.runBuilder(text);
-          setTimeout(hardenAllBuilderCards, 0);
-          setTimeout(hardenAllBuilderCards, 150);
-          setTimeout(hardenAllBuilderCards, 700);
-          return result;
+        if (bucket === "foundation") {
+          if (text.includes("hero")) score += 5;
+          if (text.includes("call-to-action")) score += 4;
+          if (text.includes("headline")) score += 3;
         }
-        return originalRun ? originalRun(text, action) : undefined;
-      };
 
-      core.__R1060Z_BUILDER_PATCHED__ = true;
-    } catch(e) {}
+        if (bucket === "editing") {
+          if (text.includes("layout")) score += 5;
+          if (text.includes("spacing")) score += 4;
+          if (text.includes("typography")) score += 3;
+        }
+
+        if (bucket === "refinement") {
+          if (text.includes("spacing")) score += 5;
+          if (text.includes("hierarchy")) score += 4;
+          if (text.includes("visual")) score += 3;
+          if (text.includes("button")) score += 2;
+        }
+
+        if (bucket === "enhancement") {
+          if (text.includes("visual")) score += 5;
+          if (text.includes("premium")) score += 4;
+          if (text.includes("hero")) score += 3;
+          if (text.includes("call-to-action")) score += 2;
+        }
+
+        if (bucket === "continuation") {
+          if (text.includes("continue")) score += 5;
+          if (text.includes("preserve")) score += 4;
+          if (text.includes("revision")) score += 3;
+        }
+
+        if (bucket === "advanced") {
+          if (text.includes("publishing")) score += 6;
+          if (text.includes("conversions")) score += 5;
+          if (text.includes("final")) score += 4;
+          if (text.includes("mobile")) score += 3;
+        }
+
+        if (turns >= 6 || revision >= 6) {
+          if (text.includes("publishing")) score += 3;
+          if (text.includes("conversions")) score += 2;
+          if (text.includes("final")) score += 2;
+        }
+
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.item);
   }
 
-  document.addEventListener("click", function(e){
-    var hit = e.target && e.target.closest ? e.target.closest("button, a, [role='button']") : null;
-    if (!hit) return;
+  function confidenceLabel(index, bucket) {
+    if (index === 0) {
+      if (bucket === "advanced") return "Highest confidence";
+      if (bucket === "foundation") return "Best next structure move";
+      if (bucket === "editing") return "Best edit follow-up";
+      if (bucket === "refinement") return "Best polish move";
+      if (bucket === "enhancement") return "Best visual upgrade";
+      return "Highest confidence";
+    }
 
-    var card = hit.closest && hit.closest(".simo-builder-card, [data-simo-builder-id]");
+    if (index === 1) return "Strong follow-up";
+    return "Alternative path";
+  }
+
+  function subtitleForBucket(bucket) {
+    if (bucket === "foundation") return "Structure-aware";
+    if (bucket === "editing") return "Edit-aware";
+    if (bucket === "refinement") return "Polish-aware";
+    if (bucket === "enhancement") return "Upgrade-aware";
+    if (bucket === "continuation") return "Continuation-aware";
+    if (bucket === "advanced") return "Launch-aware";
+    return "Smart Mode";
+  }
+
+  function ensureSuggestionsHeaderSubtitle(bucket) {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
     if (!card) return;
 
-    hardenProject(card);
+    const labels = Array.from(card.querySelectorAll("div"));
+    const smartModeEl = labels.find((el) => normalize(el.textContent) === "smart mode");
+    if (!smartModeEl) return;
 
-    if (hit.hasAttribute("data-simo-builder-action") || hit.closest("[data-simo-builder-editor-panel]")) return;
+    smartModeEl.textContent = subtitleForBucket(bucket);
+  }
 
-    var txt = String(hit.textContent || hit.value || hit.getAttribute("aria-label") || hit.title || "");
-    if (!/\b(request|quote|estimate|book|booking|schedule|deal|deals|offer|package|packages|contact|call|pricing|price|learn more|see services|see packages|get started)\b/i.test(txt)) return;
+  function makeSuggestionButton(text, index, bucket) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.goalAwareSuggestion = "true";
+    btn.dataset.suggestionText = text;
 
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    btn.style.padding = "8px 10px";
+    btn.style.borderRadius = "10px";
+    btn.style.cursor = "pointer";
+    btn.style.textAlign = "left";
+    btn.style.color = "rgba(255,255,255,0.92)";
+    btn.style.display = "flex";
+    btn.style.flexDirection = "column";
+    btn.style.gap = "3px";
 
-    var target = targetFromLabel(txt);
+    if (index === 0) {
+      btn.style.background = "rgba(0,255,200,0.18)";
+      btn.style.border = "1px solid rgba(0,255,200,0.45)";
+      btn.style.boxShadow = "0 0 10px rgba(0,255,200,0.25)";
+    } else {
+      btn.style.background = "rgba(255,255,255,0.06)";
+      btn.style.border = "1px solid rgba(255,255,255,0.12)";
+    }
+
+    const title = document.createElement("div");
+    title.textContent = text;
+    title.style.fontSize = "12px";
+    title.style.lineHeight = "1.25";
+
+    const meta = document.createElement("div");
+    meta.textContent = confidenceLabel(index, bucket);
+    meta.style.fontSize = "10px";
+    meta.style.opacity = "0.74";
+
+    btn.appendChild(title);
+    btn.appendChild(meta);
+
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "rgba(0,255,200,0.22)";
+    });
+
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = index === 0
+        ? "rgba(0,255,200,0.18)"
+        : "rgba(255,255,255,0.06)";
+    });
+
+ btn.addEventListener("click", async () => {
+  useSuggestion(text, true);
+});
+
+    return btn;
+  }
+
+  function renderGoalAwareSuggestions() {
+    const listEl = document.getElementById("simoBuilderSuggestionsList");
+    if (!listEl) return;
+
+    const goal = getGoalContext();
+    const state = getBuilderState();
+    const bucket = goalBucket(goal, state);
+
+    const suggestions = scoreSuggestions(
+      dedupeSuggestions(rankedSuggestionsForBucket(bucket)),
+      bucket,
+      state
+    ).slice(0, 5);
+
+    const signature = JSON.stringify({
+      bucket,
+      suggestions,
+      revision: Number(state.revision || 0),
+      turns: Number(state.turnCount || 0),
+      active: !!state.active
+    });
+
+    if (signature === lastRenderedSignature) {
+      ensureSuggestionsHeaderSubtitle(bucket);
+      return;
+    }
+
+    lastRenderedSignature = signature;
+    listEl.innerHTML = "";
+
+    suggestions.forEach((text, index) => {
+      listEl.appendChild(makeSuggestionButton(text, index, bucket));
+    });
+
+    ensureSuggestionsHeaderSubtitle(bucket);
+  }
+
+  function patchTopSuggestionButtonBehavior() {
+    const useTopBtn = document.getElementById("simoSuggestionUseTopBtn");
+    if (!useTopBtn || useTopBtn.dataset.goalAwarePatched === "true") return;
+
+    useTopBtn.dataset.goalAwarePatched = "true";
+
+    useTopBtn.addEventListener("click", (e) => {
+      const first = document.querySelector("#simoBuilderSuggestionsList button[data-goal-aware-suggestion='true']");
+      if (!first) return;
+
+      const text = first.dataset.suggestionText || "";
+      if (!text) return;
+
+      e.stopImmediatePropagation();
+      useSuggestion(text, !!e.shiftKey);
+    }, true);
+  }
+
+  function patchRefreshIdeasBehavior() {
+    const refreshBtn = document.getElementById("simoSuggestionRefreshBtn");
+    if (!refreshBtn || refreshBtn.dataset.goalAwarePatched === "true") return;
+
+    refreshBtn.dataset.goalAwarePatched = "true";
+
+    refreshBtn.addEventListener("click", (e) => {
+      const listEl = document.getElementById("simoBuilderSuggestionsList");
+      if (!listEl) return;
+
+      const buttons = Array.from(
+        listEl.querySelectorAll("button[data-goal-aware-suggestion='true']")
+      );
+
+      if (buttons.length > 1) {
+        const first = buttons.shift();
+        buttons.push(first);
+        listEl.innerHTML = "";
+        buttons.forEach((btn, index) => {
+          const text = btn.dataset.suggestionText || btn.textContent || "";
+          listEl.appendChild(makeSuggestionButton(text, index, "general"));
+        });
+      }
+
+      lastRenderedSignature = "";
+      e.stopImmediatePropagation();
+    }, true);
+  }
+
+  function loop() {
     try {
-      var iframe = card.querySelector('[data-simo-builder-preview], iframe');
-      var doc = iframe && iframe.contentDocument;
-      if (!doc) return false;
+      renderGoalAwareSuggestions();
+      patchTopSuggestionButtonBehavior();
+      patchRefreshIdeasBehavior();
+    } catch (err) {
+      console.warn("Goal-aware suggestion ranking skipped:", err);
+    }
 
-      if (target === "quote") {
-        var modal = doc.getElementById("simo-quote-modal");
-        if (modal) {
-          modal.style.display = "flex";
-          modal.setAttribute("aria-hidden", "false");
-          var first = modal.querySelector("input,textarea,button");
-          try { first && first.focus(); } catch(e1) {}
-          return false;
-        }
-      }
-
-      var el = doc.getElementById(target) || doc.getElementById("quote") || doc.getElementById("contact");
-      if (el) {
-        el.scrollIntoView({ behavior:"smooth", block:"start" });
-        try {
-          el.classList.add("simo-target-flash");
-          setTimeout(function(){ try { el.classList.remove("simo-target-flash"); } catch(e2) {} }, 900);
-        } catch(e3) {}
-      }
-    } catch(err) {}
-    return false;
-  }, true);
-
-  function runAll(){
-    hideOldDesignStudio();
-    ensureMicButton();
-    patchVisualCore();
-    hardenAllBuilderCards();
+    requestAnimationFrame(loop);
   }
 
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", runAll, { once:true });
-  } else {
-    runAll();
-  }
-
-  setTimeout(runAll, 100);
-  setTimeout(runAll, 400);
-  setTimeout(runAll, 1000);
-  setTimeout(runAll, 2500);
-
-  try {
-    new MutationObserver(runAll).observe(document.documentElement || document.body, { childList:true, subtree:true });
-  } catch(e) {}
-
-  window.SimoR1060ZNorthStarBuilderCta = { phase: PHASE, testModeConfirmation: true, isBuilderPrompt:isBuilderPrompt, hardenHtml:hardenHtml, run:runAll };
-  console.log("SIMO " + PHASE + " loaded.");
+  loop();
 })();
 
+// ==============================
+// Simo Phase 2.9Q — Smart Auto-Run Assist Mode (SAFE)
+// paste at very bottom under 2.9P
+// ==============================
+
+(function simoSmartAutoRunAssistMode() {
+  if (window.__SIMO_SMART_AUTORUN_ASSIST__) return;
+  window.__SIMO_SMART_AUTORUN_ASSIST__ = true;
+
+  const AUTO_ASSIST_KEY = "simo_auto_assist_v1";
+
+  let idleSince = Date.now();
+  let lastAutoRunAt = 0;
+  let lastAutoRunSignature = "";
+  let countdownStartAt = 0;
+
+  const ARM_AFTER_MS = 7000;
+  const RUN_AFTER_MS = 12000;
+  const COOLDOWN_MS = 20000;
+
+  function loadEnabled() {
+    try {
+      return localStorage.getItem(AUTO_ASSIST_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  function saveEnabled(value) {
+    try {
+      localStorage.setItem(AUTO_ASSIST_KEY, value ? "true" : "false");
+    } catch {}
+  }
+
+  const autoState = {
+    enabled: loadEnabled(),
+  };
+
+  function markInteraction() {
+    idleSince = Date.now();
+    countdownStartAt = 0;
+  }
+
+  ["click", "keydown", "mousedown", "touchstart", "input"].forEach((evt) => {
+    document.addEventListener(evt, markInteraction, { passive: true });
+  });
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      active: false,
+      revision: 0,
+      turnCount: 0,
+      lastKind: "",
+    };
+  }
+
+  function getTopSuggestionButton() {
+    return document.querySelector(
+      "#simoBuilderSuggestionsList button[data-goal-aware-suggestion='true'], #simoBuilderSuggestionsList button"
+    );
+  }
+
+  function getTopSuggestionText() {
+    const btn = getTopSuggestionButton();
+    if (!btn) return "";
+    return String(btn.dataset.suggestionText || btn.textContent || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function getTopSuggestionSignature() {
+    const state = getBuilderState();
+    return JSON.stringify({
+      suggestion: getTopSuggestionText(),
+      revision: Number(state.revision || 0),
+      turns: Number(state.turnCount || 0),
+      kind: String(state.lastKind || ""),
+    });
+  }
+
+  function ensureAutoAssistUi() {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    if (!card) return;
+
+    let wrap = document.getElementById("simoAutoAssistWrap");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "simoAutoAssistWrap";
+      wrap.style.marginTop = "10px";
+      wrap.style.paddingTop = "10px";
+      wrap.style.borderTop = "1px solid rgba(255,255,255,0.08)";
+      wrap.style.display = "grid";
+      wrap.style.gap = "8px";
+
+      wrap.innerHTML = `
+        <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">
+          <div style="display:grid;gap:2px;">
+            <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.92);">Auto Assist</div>
+            <div style="font-size:10px;opacity:0.72;">Optionally auto-runs the top suggestion after idle.</div>
+          </div>
+
+          <button
+            id="simoAutoAssistToggle"
+            type="button"
+            style="
+              position:relative;
+              width:52px;
+              height:30px;
+              border-radius:999px;
+              border:1px solid rgba(255,255,255,0.14);
+              background:rgba(255,255,255,0.08);
+              cursor:pointer;
+              padding:0;
+            "
+            aria-pressed="false"
+            title="Toggle Auto Assist"
+          >
+            <span
+              id="simoAutoAssistKnob"
+              style="
+                position:absolute;
+                top:3px;
+                left:3px;
+                width:22px;
+                height:22px;
+                border-radius:999px;
+                background:#ffffff;
+                transition:all .2s ease;
+                box-shadow:0 2px 8px rgba(0,0,0,0.22);
+              "
+            ></span>
+          </button>
+        </div>
+
+        <div
+          id="simoAutoAssistStatus"
+          style="
+            font-size:10px;
+            line-height:1.35;
+            color:rgba(255,255,255,0.76);
+            min-height:14px;
+          "
+        >Auto Assist is off.</div>
+      `;
+
+      card.appendChild(wrap);
+    }
+
+    const toggle = document.getElementById("simoAutoAssistToggle");
+    const knob = document.getElementById("simoAutoAssistKnob");
+
+    if (toggle && toggle.dataset.boundClick !== "true") {
+      toggle.dataset.boundClick = "true";
+      toggle.addEventListener("click", () => {
+        autoState.enabled = !autoState.enabled;
+        saveEnabled(autoState.enabled);
+        markInteraction();
+        renderAutoAssistUi();
+      });
+    }
+
+    renderAutoAssistUi();
+  }
+
+  function renderAutoAssistUi() {
+    const toggle = document.getElementById("simoAutoAssistToggle");
+    const knob = document.getElementById("simoAutoAssistKnob");
+    const status = document.getElementById("simoAutoAssistStatus");
+
+    if (!toggle || !knob || !status) return;
+
+    toggle.setAttribute("aria-pressed", autoState.enabled ? "true" : "false");
+
+    if (autoState.enabled) {
+      toggle.style.background = "rgba(0,255,200,0.18)";
+      toggle.style.border = "1px solid rgba(0,255,200,0.34)";
+      knob.style.left = "25px";
+    } else {
+      toggle.style.background = "rgba(255,255,255,0.08)";
+      toggle.style.border = "1px solid rgba(255,255,255,0.14)";
+      knob.style.left = "3px";
+      status.textContent = "Auto Assist is off.";
+      return;
+    }
+
+    const state = getBuilderState();
+    const hasHistory =
+      !!state.active ||
+      Number(state.revision || 0) > 0 ||
+      Number(state.turnCount || 0) > 0;
+
+    if (!hasHistory) {
+      status.textContent = "Waiting for builder activity before auto-run can arm.";
+      return;
+    }
+
+    const top = getTopSuggestionText();
+    if (!top) {
+      status.textContent = "Waiting for a top suggestion.";
+      return;
+    }
+
+    const now = Date.now();
+    const idleMs = now - idleSince;
+    const sinceLastRun = now - lastAutoRunAt;
+
+    if (sinceLastRun < COOLDOWN_MS) {
+      const left = Math.ceil((COOLDOWN_MS - sinceLastRun) / 1000);
+      status.textContent = `Cooling down after last auto-run. Ready in ${left}s.`;
+      return;
+    }
+
+    if (idleMs < ARM_AFTER_MS) {
+      const left = Math.ceil((ARM_AFTER_MS - idleMs) / 1000);
+      status.textContent = `Watching for idle… arming in ${left}s.`;
+      return;
+    }
+
+    if (!countdownStartAt) countdownStartAt = now;
+
+    if (idleMs < RUN_AFTER_MS) {
+      const left = Math.ceil((RUN_AFTER_MS - idleMs) / 1000);
+      status.textContent = `Auto Assist armed. Running top suggestion in ${left}s if you stay idle.`;
+      return;
+    }
+
+    status.textContent = `Ready to auto-run: ${top}`;
+  }
+
+  function maybeToast(message, type = "info", ms = 1800) {
+    if (typeof window.toast === "function") {
+      window.toast(message, type, ms);
+      return;
+    }
+
+    let wrap = document.getElementById("toastWrap");
+    if (!wrap) {
+      wrap = document.createElement("div");
+      wrap.id = "toastWrap";
+      wrap.style.position = "fixed";
+      wrap.style.right = "18px";
+      wrap.style.bottom = "18px";
+      wrap.style.zIndex = "999999";
+      wrap.style.display = "flex";
+      wrap.style.flexDirection = "column";
+      wrap.style.gap = "10px";
+      document.body.appendChild(wrap);
+    }
+
+    const item = document.createElement("div");
+    item.style.maxWidth = "390px";
+    item.style.padding = "12px 14px";
+    item.style.borderRadius = "14px";
+    item.style.backdropFilter = "blur(10px)";
+    item.style.color = "#fff";
+    item.style.border = "1px solid rgba(255,255,255,.12)";
+    item.style.boxShadow = "0 8px 30px rgba(0,0,0,.25)";
+    item.style.fontSize = "14px";
+    item.style.background =
+      type === "error"
+        ? "rgba(180,30,60,.92)"
+        : type === "success"
+        ? "rgba(24,110,72,.92)"
+        : "rgba(16,22,36,.92)";
+    item.textContent = message;
+
+    wrap.appendChild(item);
+
+    setTimeout(() => {
+      item.style.opacity = "0";
+      item.style.transform = "translateY(8px)";
+      item.style.transition = "all .25s ease";
+      setTimeout(() => item.remove(), 250);
+    }, ms);
+  }
+
+  async function runTopSuggestion() {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    const text = getTopSuggestionText();
+    const state = getBuilderState();
+
+    if (!hook || !text) return false;
+
+    const prompt = `${text} for my current build. Keep the design consistent and improve overall quality. This is revision ${state?.revision || 0}.`;
+
+    lastAutoRunAt = Date.now();
+    lastAutoRunSignature = getTopSuggestionSignature();
+    countdownStartAt = 0;
+
+    try {
+      await hook.sendText(prompt);
+      maybeToast("Auto Assist ran the top suggestion.", "success", 1800);
+      return true;
+    } catch (err) {
+      maybeToast("Auto Assist could not run that suggestion.", "error", 2200);
+      return false;
+    }
+  }
+
+  async function maybeAutoRun() {
+    if (!autoState.enabled) return;
+
+    const state = getBuilderState();
+    const hasHistory =
+      !!state.active ||
+      Number(state.revision || 0) > 0 ||
+      Number(state.turnCount || 0) > 0;
+
+    if (!hasHistory) return;
+    if (state.active) return;
+
+    const top = getTopSuggestionText();
+    if (!top) return;
+
+    const now = Date.now();
+    const idleMs = now - idleSince;
+    const sinceLastRun = now - lastAutoRunAt;
+    const signature = getTopSuggestionSignature();
+
+    if (sinceLastRun < COOLDOWN_MS) return;
+    if (idleMs < RUN_AFTER_MS) return;
+    if (signature && signature === lastAutoRunSignature) return;
+
+    await runTopSuggestion();
+    markInteraction();
+  }
+
+  function pulseTopSuggestionWhenArmed() {
+    const btn = getTopSuggestionButton();
+    if (!btn) return;
+
+    const now = Date.now();
+    const idleMs = now - idleSince;
+    const armed = autoState.enabled && idleMs >= ARM_AFTER_MS && idleMs < RUN_AFTER_MS;
+
+    if (armed) {
+      btn.style.boxShadow = "0 0 0 1px rgba(0,255,200,0.35), 0 0 18px rgba(0,255,200,0.14)";
+    } else if (btn === getTopSuggestionButton()) {
+      // let existing styles remain mostly intact
+      if (idleMs < ARM_AFTER_MS || !autoState.enabled) {
+        btn.style.boxShadow = "";
+      }
+    }
+  }
+
+  function loop() {
+    try {
+      ensureAutoAssistUi();
+      renderAutoAssistUi();
+      pulseTopSuggestionWhenArmed();
+      maybeAutoRun();
+    } catch (err) {
+      console.warn("Smart Auto-Run Assist skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9R — Visible Countdown + Cancel Safety (SAFE)
+// full-block replacement
+// ==============================
+
+(function simoAutoAssistCountdownSafety() {
+  if (window.__SIMO_AUTORUN_COUNTDOWN_SAFETY__) return;
+  window.__SIMO_AUTORUN_COUNTDOWN_SAFETY__ = true;
+
+  const CANCEL_KEY = "__SIMO_AUTORUN_CANCEL_UNTIL__";
+  const ARM_AFTER_MS = 7000;
+  const RUN_AFTER_MS = 12000;
+  const CANCEL_GRACE_MS = 12000;
+
+  function now() {
+    return Date.now();
+  }
+
+  function isAutoAssistEnabled() {
+    const toggle = document.getElementById("simoAutoAssistToggle");
+    return !!(toggle && toggle.getAttribute("aria-pressed") === "true");
+  }
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      active: false,
+      revision: 0,
+      turnCount: 0,
+      lastKind: "",
+    };
+  }
+
+  function getTopSuggestionButton() {
+    return document.querySelector(
+      "#simoBuilderSuggestionsList button[data-goal-aware-suggestion='true'], #simoBuilderSuggestionsList button"
+    );
+  }
+
+  function getTopSuggestionText() {
+    const btn = getTopSuggestionButton();
+    if (!btn) return "";
+
+    if (btn.dataset && btn.dataset.suggestionText) {
+      return String(btn.dataset.suggestionText).replace(/\s+/g, " ").trim();
+    }
+
+    const clone = btn.cloneNode(true);
+
+    clone.querySelectorAll("*").forEach((el) => {
+      const txt = String(el.textContent || "").trim().toLowerCase();
+
+      if (
+        txt.includes("confidence") ||
+        txt.includes("best fit") ||
+        txt.includes("follow-up") ||
+        txt.includes("alternative") ||
+        txt.includes("best edit") ||
+        txt.includes("best visual") ||
+        txt.includes("best next")
+      ) {
+        el.remove();
+      }
+    });
+
+    return String(clone.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function isTopSuggestionHighConfidence() {
+    const btn = getTopSuggestionButton();
+    if (!btn) return false;
+
+    const txt = String(btn.textContent || "").toLowerCase();
+    return txt.includes("highest confidence") || txt.includes("best fit");
+  }
+
+  function setCancelUntil(ts) {
+    window[CANCEL_KEY] = Number(ts || 0);
+  }
+
+  function getCancelUntil() {
+    return Number(window[CANCEL_KEY] || 0);
+  }
+
+  function cancelAutoRunWindow() {
+    setCancelUntil(now() + CANCEL_GRACE_MS);
+    renderSafetyUi();
+  }
+
+  function hasBuilderHistory() {
+    const state = getBuilderState();
+    return (
+      !!state.active ||
+      Number(state.revision || 0) > 0 ||
+      Number(state.turnCount || 0) > 0
+    );
+  }
+
+  function getIdleReference() {
+    const autoState = window.__SIMO_SMART_AUTORUN_ASSIST__;
+    if (
+      autoState &&
+      typeof autoState === "object" &&
+      typeof autoState.idleSince === "number"
+    ) {
+      return autoState.idleSince;
+    }
+
+    if (typeof window.__SIMO_IDLE_SINCE__ === "number") {
+      return window.__SIMO_IDLE_SINCE__;
+    }
+
+    return now();
+  }
+
+  function inferIdleMs() {
+    const autoState = window.__SIMO_SMART_AUTORUN_ASSIST__;
+    if (autoState && typeof autoState.getIdleMs === "function") {
+      return Number(autoState.getIdleMs() || 0);
+    }
+
+    const idleSince = getIdleReference();
+    return Math.max(0, now() - idleSince);
+  }
+
+  function ensureSafetyUi() {
+    const wrap =
+      document.getElementById("simoAutoAssistWrap") ||
+      document.querySelector("[data-section='auto-assist']") ||
+      document.querySelector("#simoBuilderSuggestionsList");
+
+    if (!wrap) return;
+
+    wrap.style.overflow = "visible";
+
+    let progressWrap = document.getElementById("simoAutoAssistProgressWrap");
+    if (!progressWrap) {
+      progressWrap = document.createElement("div");
+      progressWrap.id = "simoAutoAssistProgressWrap";
+      progressWrap.style.display = "grid";
+      progressWrap.style.gap = "8px";
+      progressWrap.style.marginTop = "2px";
+
+      progressWrap.innerHTML = `
+        <div
+          id="simoAutoAssistProgressBarShell"
+          style="
+            width:100%;
+            height:8px;
+            border-radius:999px;
+            background:rgba(255,255,255,0.08);
+            border:1px solid rgba(255,255,255,0.08);
+            overflow:hidden;
+            display:none;
+          "
+        >
+          <div
+            id="simoAutoAssistProgressBar"
+            style="
+              width:0%;
+              height:100%;
+              border-radius:999px;
+              background:linear-gradient(90deg, rgba(0,255,200,0.72), rgba(110,168,255,0.82));
+              box-shadow:0 0 14px rgba(0,255,200,0.25);
+              transition:width .16s linear;
+            "
+          ></div>
+        </div>
+
+        <div
+          id="simoAutoAssistControlRow"
+          style="
+            display:none;
+            align-items:center;
+            justify-content:space-between;
+            gap:8px;
+            flex-wrap:wrap;
+          "
+        >
+          <div
+            id="simoAutoAssistCountdownText"
+            style="
+              font-size:10px;
+              line-height:1.35;
+              color:rgba(255,255,255,0.78);
+            "
+          >Auto-run not armed.</div>
+
+          <button
+            id="simoAutoAssistCancelBtn"
+            type="button"
+            style="
+              padding:6px 9px;
+              border-radius:10px;
+              border:1px solid rgba(255,120,140,0.24);
+              background:rgba(255,120,140,0.10);
+              color:#ffffff;
+              cursor:pointer;
+              font-size:10px;
+              line-height:1;
+              white-space:nowrap;
+            "
+          >Cancel Auto-Run</button>
+        </div>
+      `;
+
+      wrap.insertBefore(progressWrap, wrap.firstChild);
+    }
+
+    const cancelBtn = document.getElementById("simoAutoAssistCancelBtn");
+    if (cancelBtn && cancelBtn.dataset.boundClick !== "true") {
+      cancelBtn.dataset.boundClick = "true";
+      cancelBtn.addEventListener("click", () => {
+        cancelAutoRunWindow();
+      });
+    }
+  }
+
+  function renderSafetyUi() {
+    ensureSafetyUi();
+
+    const shell = document.getElementById("simoAutoAssistProgressBarShell");
+    const bar = document.getElementById("simoAutoAssistProgressBar");
+    const row = document.getElementById("simoAutoAssistControlRow");
+    const countdownText = document.getElementById("simoAutoAssistCountdownText");
+    const status = document.getElementById("simoAutoAssistStatus");
+
+    if (!shell || !bar || !row || !countdownText || !status) return;
+
+    if (!isAutoAssistEnabled()) {
+      shell.style.display = "none";
+      row.style.display = "none";
+      return;
+    }
+
+    if (!hasBuilderHistory()) {
+      shell.style.display = "none";
+      row.style.display = "none";
+      return;
+    }
+
+    const state = getBuilderState();
+    if (state.active) {
+      shell.style.display = "none";
+      row.style.display = "none";
+      return;
+    }
+
+    const topBtn = getTopSuggestionButton();
+    const topSuggestion = getTopSuggestionText();
+
+    if (!topSuggestion || !topBtn) {
+      shell.style.display = "none";
+      row.style.display = "none";
+      return;
+    }
+
+    if (!isTopSuggestionHighConfidence()) {
+      shell.style.display = "none";
+      row.style.display = "flex";
+      countdownText.textContent = "Top suggestion not strong enough for auto-run.";
+      status.textContent = "Auto Assist waiting for a stronger suggestion.";
+      return;
+    }
+
+    const cancelledUntil = getCancelUntil();
+    if (cancelledUntil > now()) {
+      const left = Math.ceil((cancelledUntil - now()) / 1000);
+      shell.style.display = "none";
+      row.style.display = "flex";
+      countdownText.textContent = `Auto-run cancelled. Re-arming in ${left}s.`;
+      status.textContent = "Auto Assist paused after cancel.";
+      return;
+    }
+
+    const idleMs = inferIdleMs();
+
+    if (idleMs < ARM_AFTER_MS) {
+      shell.style.display = "none";
+      row.style.display = "none";
+      return;
+    }
+
+    const armedProgress = Math.max(
+      0,
+      Math.min(1, (idleMs - ARM_AFTER_MS) / (RUN_AFTER_MS - ARM_AFTER_MS))
+    );
+
+    shell.style.display = "block";
+    row.style.display = "flex";
+    bar.style.width = `${Math.round(armedProgress * 100)}%`;
+
+    if (idleMs < RUN_AFTER_MS) {
+      const left = Math.ceil((RUN_AFTER_MS - idleMs) / 1000);
+      countdownText.textContent = `Auto-run in ${left}s unless you interact or cancel.`;
+      status.textContent = "Auto Assist armed. Running top suggestion soon if you stay idle.";
+    } else {
+      countdownText.textContent = "Auto-run is ready now.";
+      status.textContent = `Ready to auto-run: ${topSuggestion}`;
+      bar.style.width = "100%";
+    }
+  }
+
+  function softenOnInteraction() {
+    const shell = document.getElementById("simoAutoAssistProgressBarShell");
+    const bar = document.getElementById("simoAutoAssistProgressBar");
+    const row = document.getElementById("simoAutoAssistControlRow");
+    if (!shell || !bar || !row) return;
+
+    shell.style.display = "none";
+    row.style.display = "none";
+    bar.style.width = "0%";
+  }
+
+  ["click", "keydown", "mousedown", "touchstart", "input"].forEach((evt) => {
+    document.addEventListener(
+      evt,
+      () => {
+        softenOnInteraction();
+      },
+      { passive: true }
+    );
+  });
+
+  function exposeSafeHooks() {
+    window.__SIMO_AUTORUN_SAFETY__ = {
+      cancel: cancelAutoRunWindow,
+      getCancelUntil,
+      isCancelled() {
+        return getCancelUntil() > now();
+      },
+    };
+  }
+
+  function loop() {
+    try {
+      renderSafetyUi();
+      exposeSafeHooks();
+    } catch (err) {
+      console.warn("Auto Assist countdown safety skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9T — Multi-Option Smart Auto Assist (SAFE)
+// paste at very bottom under 2.9S
+// ==============================
+
+(function simoMultiOptionSmartAutoAssist() {
+  if (window.__SIMO_MULTI_OPTION_AUTORUN__) return;
+  window.__SIMO_MULTI_OPTION_AUTORUN__ = true;
+
+  const HISTORY_KEY = "__SIMO_AUTORUN_SUGGESTION_HISTORY__";
+  const MAX_HISTORY = 8;
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      active: false,
+      revision: 0,
+      turnCount: 0,
+      lastKind: "",
+    };
+  }
+
+  function normalize(text) {
+    return String(text || "").trim().toLowerCase();
+  }
+
+  function getSuggestionButtons() {
+    return Array.from(
+      document.querySelectorAll("#simoBuilderSuggestionsList button")
+    ).filter(Boolean);
+  }
+
+  function extractSuggestionText(btn) {
+    if (!btn) return "";
+
+    if (btn.dataset && btn.dataset.suggestionText) {
+      return String(btn.dataset.suggestionText).replace(/\s+/g, " ").trim();
+    }
+
+    const clone = btn.cloneNode(true);
+
+    clone.querySelectorAll("*").forEach((el) => {
+      const txt = normalize(el.textContent);
+      if (
+        txt.includes("confidence") ||
+        txt.includes("best fit") ||
+        txt.includes("follow-up") ||
+        txt.includes("alternative") ||
+        txt.includes("best edit") ||
+        txt.includes("best visual") ||
+        txt.includes("best next")
+      ) {
+        el.remove();
+      }
+    });
+
+    return String(clone.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function getSuggestionMeta(btn) {
+    const text = extractSuggestionText(btn);
+    const raw = normalize(btn.textContent);
+
+    return {
+      button: btn,
+      text,
+      raw,
+      isHighConfidence: raw.includes("highest confidence") || raw.includes("best fit"),
+      isFollowUp: raw.includes("strong follow-up"),
+      isAlternative: raw.includes("alternative"),
+    };
+  }
+
+  function getHistory() {
+    const raw = window[HISTORY_KEY];
+    return Array.isArray(raw) ? raw : [];
+  }
+
+  function saveHistory(items) {
+    window[HISTORY_KEY] = Array.isArray(items) ? items.slice(0, MAX_HISTORY) : [];
+  }
+
+  function rememberSuggestion(text) {
+    const clean = String(text || "").trim();
+    if (!clean) return;
+
+    const existing = getHistory().filter((x) => x !== clean);
+    saveHistory([clean, ...existing]);
+  }
+
+  function wasRecentlyUsed(text) {
+    return getHistory().includes(String(text || "").trim());
+  }
+
+  function scoreSuggestion(item, state) {
+    const text = normalize(item.text);
+    const kind = normalize(state.lastKind);
+    const turns = Number(state.turnCount || 0);
+    const revision = Number(state.revision || 0);
+
+    let score = 0;
+
+    if (item.isHighConfidence) score += 12;
+    if (item.isFollowUp) score += 6;
+    if (item.isAlternative) score += 1;
+
+    if (wasRecentlyUsed(item.text)) score -= 10;
+
+    if (kind === "edit" || kind === "update") {
+      if (text.includes("layout")) score += 5;
+      if (text.includes("spacing")) score += 4;
+      if (text.includes("typography")) score += 3;
+      if (text.includes("hero")) score += 2;
+    }
+
+    if (kind === "refine") {
+      if (text.includes("spacing")) score += 5;
+      if (text.includes("hierarchy")) score += 4;
+      if (text.includes("visual")) score += 4;
+      if (text.includes("button")) score += 2;
+    }
+
+    if (kind === "enhance") {
+      if (text.includes("visual")) score += 6;
+      if (text.includes("premium")) score += 5;
+      if (text.includes("hero")) score += 3;
+      if (text.includes("call-to-action")) score += 3;
+    }
+
+    if (kind === "build" || kind === "create") {
+      if (text.includes("hero")) score += 5;
+      if (text.includes("call-to-action")) score += 4;
+      if (text.includes("headline")) score += 3;
+      if (text.includes("layout")) score += 2;
+    }
+
+    if (turns >= 6 || revision >= 6) {
+      if (text.includes("publishing")) score += 4;
+      if (text.includes("conversions")) score += 4;
+      if (text.includes("final")) score += 3;
+      if (text.includes("mobile")) score += 2;
+    }
+
+    return score;
+  }
+
+  function chooseBestSuggestion() {
+    const state = getBuilderState();
+    const items = getSuggestionButtons()
+      .map(getSuggestionMeta)
+      .filter((item) => item.text);
+
+    if (!items.length) return null;
+
+    const ranked = items
+      .map((item) => ({
+        ...item,
+        score: scoreSuggestion(item, state),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    return ranked[0] || null;
+  }
+
+  function decorateWinner() {
+    const all = getSuggestionButtons();
+    all.forEach((btn) => {
+      btn.style.outline = "";
+      btn.style.outlineOffset = "";
+    });
+
+    const winner = chooseBestSuggestion();
+    if (!winner || !winner.button) return;
+
+    winner.button.style.outline = "1px solid rgba(255,255,255,0.10)";
+    winner.button.style.outlineOffset = "0px";
+  }
+
+  function patchTopSuggestionTextSource() {
+    const safety = window.__SIMO_AUTORUN_SAFETY__;
+    if (!safety || safety.__multiOptionPatched) return;
+
+    safety.__multiOptionPatched = true;
+    safety.getBestSuggestion = function () {
+      return chooseBestSuggestion();
+    };
+  }
+
+  function patchAutoAssistStatus() {
+    const status = document.getElementById("simoAutoAssistStatus");
+    if (!status) return;
+
+    const current = String(status.textContent || "");
+    const winner = chooseBestSuggestion();
+    if (!winner || !winner.text) return;
+
+    if (
+      current.includes("Ready to auto-run:") ||
+      current.includes("Running top suggestion soon") ||
+      current.includes("Running top suggestion in")
+    ) {
+      status.textContent = current
+        .replace("top suggestion", "best suggestion")
+        .replace(/Ready to auto-run:.*$/, `Ready to auto-run: ${winner.text}`);
+    }
+  }
+
+  function patchUseTopSuggestionButton() {
+    const btn = document.getElementById("simoSuggestionUseTopBtn");
+    if (!btn || btn.dataset.multiOptionPatched === "true") return;
+
+    btn.dataset.multiOptionPatched = "true";
+
+    btn.addEventListener(
+      "click",
+      (e) => {
+        const hook = window.__SIMO_COMPOSER_HOOK__;
+        const state = getBuilderState();
+        const winner = chooseBestSuggestion();
+
+        if (!hook || !winner || !winner.text) return;
+
+        const prompt = `${winner.text} for my current build. Keep the design consistent and improve overall quality. This is revision ${state?.revision || 0}.`;
+
+        hook.setText(prompt);
+
+        if (e.shiftKey) {
+          hook.sendText(prompt);
+          rememberSuggestion(winner.text);
+        }
+
+        e.stopImmediatePropagation();
+      },
+      true
+    );
+  }
+
+  function patchRefreshBehavior() {
+    const btn = document.getElementById("simoSuggestionRefreshBtn");
+    if (!btn || btn.dataset.multiOptionPatched === "true") return;
+
+    btn.dataset.multiOptionPatched = "true";
+
+    btn.addEventListener(
+      "click",
+      () => {
+        const buttons = getSuggestionButtons();
+        if (buttons.length > 1) {
+          const first = buttons.shift();
+          buttons.push(first);
+
+          const list = document.getElementById("simoBuilderSuggestionsList");
+          if (list) {
+            list.innerHTML = "";
+            buttons.forEach((b) => list.appendChild(b));
+          }
+        }
+      },
+      true
+    );
+  }
+
+  function patchSendHookTracking() {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    if (!hook || hook.__multiOptionPatched) return;
+
+    const originalSendText = hook.sendText;
+    if (typeof originalSendText !== "function") return;
+
+    hook.__multiOptionPatched = true;
+
+    hook.sendText = async function patchedSendText(text) {
+      const clean = String(text || "");
+      const winner = chooseBestSuggestion();
+
+      if (winner && clean.toLowerCase().includes(winner.text.toLowerCase())) {
+        rememberSuggestion(winner.text);
+      }
+
+      return originalSendText.call(this, text);
+    };
+  }
+
+  function exposeSelector() {
+    window.__SIMO_AUTORUN_SELECTOR__ = {
+      chooseBestSuggestion,
+      getHistory,
+      rememberSuggestion,
+    };
+  }
+
+  function loop() {
+    try {
+      decorateWinner();
+      patchTopSuggestionTextSource();
+      patchAutoAssistStatus();
+      patchUseTopSuggestionButton();
+      patchRefreshBehavior();
+      patchSendHookTracking();
+      exposeSelector();
+    } catch (err) {
+      console.warn("Multi-option smart auto assist skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9U — Memory + Fatigue Avoidance (SAFE)
+// paste at very bottom under 2.9T
+// ==============================
+
+(function simoAutoAssistFatigueMemory() {
+  if (window.__SIMO_AUTORUN_FATIGUE__) return;
+  window.__SIMO_AUTORUN_FATIGUE__ = true;
+
+  const TYPE_HISTORY_KEY = "__SIMO_AUTORUN_TYPE_HISTORY__";
+  const MAX_TYPE_HISTORY = 6;
+
+  function normalize(text) {
+    return String(text || "").toLowerCase();
+  }
+
+  function getTypeHistory() {
+    const raw = window[TYPE_HISTORY_KEY];
+    return Array.isArray(raw) ? raw : [];
+  }
+
+  function saveTypeHistory(list) {
+    window[TYPE_HISTORY_KEY] = Array.isArray(list)
+      ? list.slice(0, MAX_TYPE_HISTORY)
+      : [];
+  }
+
+  function rememberType(type) {
+    if (!type) return;
+    const existing = getTypeHistory().filter((t) => t !== type);
+    saveTypeHistory([type, ...existing]);
+  }
+
+  function classifyType(text) {
+    const t = normalize(text);
+
+    if (t.includes("layout") || t.includes("structure")) return "layout";
+    if (t.includes("spacing") || t.includes("padding")) return "spacing";
+    if (t.includes("typography") || t.includes("font")) return "typography";
+    if (t.includes("hero") || t.includes("headline")) return "hero";
+    if (t.includes("visual") || t.includes("design")) return "visual";
+    if (t.includes("conversion") || t.includes("cta")) return "conversion";
+    if (t.includes("testimonial") || t.includes("trust")) return "trust";
+    if (t.includes("publish") || t.includes("final")) return "finalize";
+
+    return "general";
+  }
+
+  function fatiguePenalty(type) {
+    const history = getTypeHistory();
+
+    let penalty = 0;
+
+    history.forEach((t, idx) => {
+      if (t === type) {
+        penalty += 6 - idx; // stronger penalty for recent repeats
+      }
+    });
+
+    return penalty;
+  }
+
+  function boostDiversity(type) {
+    const history = getTypeHistory();
+
+    if (!history.length) return 0;
+
+    // reward types not seen recently
+    if (!history.includes(type)) return 5;
+
+    return 0;
+  }
+
+  function patchScoring() {
+    const selector = window.__SIMO_AUTORUN_SELECTOR__;
+    if (!selector || selector.__fatiguePatched) return;
+
+    selector.__fatiguePatched = true;
+
+    const originalChoose = selector.chooseBestSuggestion;
+
+    selector.chooseBestSuggestion = function () {
+      const winner = originalChoose ? originalChoose() : null;
+
+      if (!winner || !winner.text) return winner;
+
+      const type = classifyType(winner.text);
+      const penalty = fatiguePenalty(type);
+
+      if (penalty < 6) {
+        return winner;
+      }
+
+      // Try to find alternative suggestion
+      const all = document.querySelectorAll("#simoBuilderSuggestionsList button");
+
+      let bestAlt = null;
+      let bestScore = -Infinity;
+
+      all.forEach((btn) => {
+        const text = String(btn.textContent || "");
+        const clean = text.replace(/\s+/g, " ").trim();
+        if (!clean || clean === winner.text) return;
+
+        const t = classifyType(clean);
+        const p = fatiguePenalty(t);
+        const bonus = boostDiversity(t);
+
+        const score = bonus - p;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestAlt = { button: btn, text: clean };
+        }
+      });
+
+      return bestAlt || winner;
+    };
+  }
+
+  function trackExecution() {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    if (!hook || hook.__fatigueTracking) return;
+
+    const originalSend = hook.sendText;
+    if (typeof originalSend !== "function") return;
+
+    hook.__fatigueTracking = true;
+
+    hook.sendText = async function (text) {
+      const clean = String(text || "");
+      const type = classifyType(clean);
+      rememberType(type);
+
+      return originalSend.call(this, text);
+    };
+  }
+
+  function exposeFatigue() {
+    window.__SIMO_AUTORUN_FATIGUE_STATE__ = {
+      getTypeHistory,
+      classifyType,
+    };
+  }
+
+  function loop() {
+    try {
+      patchScoring();
+      trackExecution();
+      exposeFatigue();
+    } catch (err) {
+      console.warn("Auto Assist fatigue memory skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9V — Intent Prediction (SAFE)
+// paste at very bottom under 2.9U
+// ==============================
+
+(function simoAutoAssistIntentPrediction() {
+  if (window.__SIMO_AUTORUN_INTENT__) return;
+  window.__SIMO_AUTORUN_INTENT__ = true;
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      revision: 0,
+      turnCount: 0,
+    };
+  }
+
+  function getStage() {
+    const state = getBuilderState();
+    const rev = Number(state.revision || 0);
+    const turns = Number(state.turnCount || 0);
+
+    const progress = Math.max(rev, turns);
+
+    if (progress <= 3) return "early";
+    if (progress <= 8) return "mid";
+    return "late";
+  }
+
+  function classifyType(text) {
+    const t = String(text || "").toLowerCase();
+
+    if (t.includes("layout") || t.includes("structure")) return "layout";
+    if (t.includes("spacing") || t.includes("padding")) return "spacing";
+    if (t.includes("typography") || t.includes("font")) return "typography";
+    if (t.includes("hero") || t.includes("headline")) return "hero";
+    if (t.includes("visual") || t.includes("design")) return "visual";
+    if (t.includes("conversion") || t.includes("cta")) return "conversion";
+    if (t.includes("testimonial") || t.includes("trust")) return "trust";
+    if (t.includes("publish") || t.includes("final")) return "finalize";
+
+    return "general";
+  }
+
+  function intentBoost(type, stage) {
+    if (stage === "early") {
+      if (type === "layout" || type === "spacing" || type === "hero") return 6;
+      if (type === "visual" || type === "typography") return 2;
+      return 0;
+    }
+
+    if (stage === "mid") {
+      if (type === "visual" || type === "typography") return 6;
+      if (type === "layout" || type === "spacing") return 2;
+      return 1;
+    }
+
+    if (stage === "late") {
+      if (type === "conversion" || type === "trust" || type === "finalize") return 6;
+      if (type === "visual" || type === "typography") return 2;
+      return 0;
+    }
+
+    return 0;
+  }
+
+  function patchSelector() {
+    const selector = window.__SIMO_AUTORUN_SELECTOR__;
+    if (!selector || selector.__intentPatched) return;
+
+    selector.__intentPatched = true;
+
+    const originalChoose = selector.chooseBestSuggestion;
+
+    selector.chooseBestSuggestion = function () {
+      const base = originalChoose ? originalChoose() : null;
+
+      const all = document.querySelectorAll("#simoBuilderSuggestionsList button");
+
+      if (!all || !all.length) return base;
+
+      const stage = getStage();
+
+      let best = null;
+      let bestScore = -Infinity;
+
+      all.forEach((btn) => {
+        const text = String(btn.textContent || "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!text) return;
+
+        const type = classifyType(text);
+        const boost = intentBoost(type, stage);
+
+        const score = boost;
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = { button: btn, text };
+        }
+      });
+
+      // fallback to original if something weird
+      return best || base;
+    };
+  }
+
+  function exposeIntent() {
+    window.__SIMO_AUTORUN_INTENT_STATE__ = {
+      getStage,
+    };
+  }
+
+  function loop() {
+    try {
+      patchSelector();
+      exposeIntent();
+    } catch (err) {
+      console.warn("Auto Assist intent prediction skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9W — Multi-Step Planning (SAFE)
+// paste at very bottom under 2.9V
+// ==============================
+
+(function simoAutoAssistPlanner() {
+  if (window.__SIMO_AUTORUN_PLANNER__) return;
+  window.__SIMO_AUTORUN_PLANNER__ = true;
+
+  const PLAN_KEY = "__SIMO_AUTORUN_PLAN__";
+  const MAX_PLAN = 3;
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      revision: 0,
+      turnCount: 0,
+    };
+  }
+
+  function normalize(text) {
+    return String(text || "").toLowerCase();
+  }
+
+  function classifyType(text) {
+    const t = normalize(text);
+
+    if (t.includes("layout") || t.includes("structure")) return "layout";
+    if (t.includes("spacing") || t.includes("padding")) return "spacing";
+    if (t.includes("typography") || t.includes("font")) return "typography";
+    if (t.includes("hero") || t.includes("headline")) return "hero";
+    if (t.includes("visual") || t.includes("design")) return "visual";
+    if (t.includes("conversion") || t.includes("cta")) return "conversion";
+    if (t.includes("testimonial") || t.includes("trust")) return "trust";
+    if (t.includes("publish") || t.includes("final")) return "finalize";
+
+    return "general";
+  }
+
+  function getStage() {
+    const state = getBuilderState();
+    const progress = Math.max(
+      Number(state.revision || 0),
+      Number(state.turnCount || 0)
+    );
+
+    if (progress <= 3) return "early";
+    if (progress <= 8) return "mid";
+    return "late";
+  }
+
+  function buildPlan(stage) {
+    if (stage === "early") {
+      return ["layout", "spacing", "hero"];
+    }
+    if (stage === "mid") {
+      return ["visual", "typography", "hero"];
+    }
+    if (stage === "late") {
+      return ["conversion", "trust", "finalize"];
+    }
+    return ["general"];
+  }
+
+  function getPlan() {
+    return window[PLAN_KEY] || [];
+  }
+
+  function setPlan(plan) {
+    window[PLAN_KEY] = Array.isArray(plan)
+      ? plan.slice(0, MAX_PLAN)
+      : [];
+  }
+
+  function refreshPlan() {
+    const stage = getStage();
+    const current = getPlan();
+
+    if (!current.length) {
+      setPlan(buildPlan(stage));
+      return;
+    }
+
+    // If stage changes, rebuild
+    const expected = buildPlan(stage);
+    if (current[0] !== expected[0]) {
+      setPlan(expected);
+    }
+  }
+
+  function consumeStep(type) {
+    const plan = getPlan();
+    if (!plan.length) return;
+
+    if (plan[0] === type) {
+      plan.shift();
+      setPlan(plan);
+    }
+  }
+
+  function planBoost(type) {
+    const plan = getPlan();
+    if (!plan.length) return 0;
+
+    if (plan[0] === type) return 8; // immediate next step
+    if (plan[1] === type) return 4;
+    if (plan[2] === type) return 2;
+
+    return 0;
+  }
+
+  function patchSelector() {
+    const selector = window.__SIMO_AUTORUN_SELECTOR__;
+    if (!selector || selector.__plannerPatched) return;
+
+    selector.__plannerPatched = true;
+
+    const originalChoose = selector.chooseBestSuggestion;
+
+    selector.chooseBestSuggestion = function () {
+      refreshPlan();
+
+      const all = document.querySelectorAll("#simoBuilderSuggestionsList button");
+
+      if (!all || !all.length) {
+        return originalChoose ? originalChoose() : null;
+      }
+
+      let best = null;
+      let bestScore = -Infinity;
+
+      all.forEach((btn) => {
+        const text = String(btn.textContent || "")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        if (!text) return;
+
+        const type = classifyType(text);
+        const boost = planBoost(type);
+
+        const score = boost;
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = { button: btn, text };
+        }
+      });
+
+      return best || (originalChoose ? originalChoose() : null);
+    };
+  }
+
+  function trackExecution() {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    if (!hook || hook.__plannerTracking) return;
+
+    const originalSend = hook.sendText;
+    if (typeof originalSend !== "function") return;
+
+    hook.__plannerTracking = true;
+
+    hook.sendText = async function (text) {
+      const type = classifyType(text);
+      consumeStep(type);
+      return originalSend.call(this, text);
+    };
+  }
+
+  function exposePlan() {
+    window.__SIMO_AUTORUN_PLAN_STATE__ = {
+      getPlan,
+    };
+  }
+
+  function loop() {
+    try {
+      patchSelector();
+      trackExecution();
+      exposePlan();
+    } catch (err) {
+      console.warn("Auto Assist planner skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9X — Adaptive Learning (SAFE)
+// paste at very bottom under 2.9W
+// ==============================
+
+(function simoAdaptiveLearning() {
+  if (window.__SIMO_ADAPTIVE_LEARNING__) return;
+  window.__SIMO_ADAPTIVE_LEARNING__ = true;
+
+  const LEARN_KEY = "__SIMO_AUTORUN_LEARNED_WEIGHTS__";
+
+  function normalize(text) {
+    return String(text || "").toLowerCase();
+  }
+
+  function getWeights() {
+    const raw = window[LEARN_KEY];
+    if (!raw || typeof raw !== "object") {
+      return {
+        layout: 0,
+        spacing: 0,
+        typography: 0,
+        hero: 0,
+        visual: 0,
+        conversion: 0,
+        trust: 0,
+        finalize: 0,
+        general: 0,
+      };
+    }
+    return {
+      layout: Number(raw.layout || 0),
+      spacing: Number(raw.spacing || 0),
+      typography: Number(raw.typography || 0),
+      hero: Number(raw.hero || 0),
+      visual: Number(raw.visual || 0),
+      conversion: Number(raw.conversion || 0),
+      trust: Number(raw.trust || 0),
+      finalize: Number(raw.finalize || 0),
+      general: Number(raw.general || 0),
+    };
+  }
+
+  function setWeights(next) {
+    window[LEARN_KEY] = {
+      layout: Number(next.layout || 0),
+      spacing: Number(next.spacing || 0),
+      typography: Number(next.typography || 0),
+      hero: Number(next.hero || 0),
+      visual: Number(next.visual || 0),
+      conversion: Number(next.conversion || 0),
+      trust: Number(next.trust || 0),
+      finalize: Number(next.finalize || 0),
+      general: Number(next.general || 0),
+    };
+  }
+
+  function classifyType(text) {
+    const t = normalize(text);
+
+    if (t.includes("layout") || t.includes("structure")) return "layout";
+    if (t.includes("spacing") || t.includes("padding")) return "spacing";
+    if (t.includes("typography") || t.includes("font")) return "typography";
+    if (t.includes("hero") || t.includes("headline")) return "hero";
+    if (t.includes("visual") || t.includes("design")) return "visual";
+    if (t.includes("conversion") || t.includes("cta")) return "conversion";
+    if (t.includes("testimonial") || t.includes("trust")) return "trust";
+    if (t.includes("publish") || t.includes("final")) return "finalize";
+
+    return "general";
+  }
+
+  function rewardType(type, amount = 1) {
+    const weights = getWeights();
+    if (!(type in weights)) return;
+
+    weights[type] = Math.min(12, Number(weights[type] || 0) + amount);
+    setWeights(weights);
+  }
+
+  function decayWeights() {
+    const weights = getWeights();
+    Object.keys(weights).forEach((key) => {
+      const value = Number(weights[key] || 0);
+      if (value > 0) {
+        weights[key] = Math.max(0, value - 0.05);
+      }
+    });
+    setWeights(weights);
+  }
+
+  function learningBoost(type) {
+    const weights = getWeights();
+    return Number(weights[type] || 0);
+  }
+
+  function cleanSuggestionText(btn) {
+    if (!btn) return "";
+
+    if (btn.dataset && btn.dataset.suggestionText) {
+      return String(btn.dataset.suggestionText).replace(/\s+/g, " ").trim();
+    }
+
+    const clone = btn.cloneNode(true);
+
+    clone.querySelectorAll("*").forEach((el) => {
+      const txt = normalize(el.textContent);
+      if (
+        txt.includes("confidence") ||
+        txt.includes("best fit") ||
+        txt.includes("follow-up") ||
+        txt.includes("alternative") ||
+        txt.includes("best edit") ||
+        txt.includes("best visual") ||
+        txt.includes("best next")
+      ) {
+        el.remove();
+      }
+    });
+
+    return String(clone.textContent || "").replace(/\s+/g, " ").trim();
+  }
+
+  function patchSelector() {
+    const selector = window.__SIMO_AUTORUN_SELECTOR__;
+    if (!selector || selector.__adaptiveLearningPatched) return;
+
+    selector.__adaptiveLearningPatched = true;
+
+    const originalChoose = selector.chooseBestSuggestion;
+
+    selector.chooseBestSuggestion = function () {
+      const base = originalChoose ? originalChoose() : null;
+      const buttons = Array.from(
+        document.querySelectorAll("#simoBuilderSuggestionsList button")
+      );
+
+      if (!buttons.length) return base;
+
+      let best = null;
+      let bestScore = -Infinity;
+
+      buttons.forEach((btn) => {
+        const text = cleanSuggestionText(btn);
+        if (!text) return;
+
+        const type = classifyType(text);
+        const boost = learningBoost(type);
+
+        let score = boost;
+
+        const raw = normalize(btn.textContent || "");
+        if (raw.includes("highest confidence")) score += 6;
+        if (raw.includes("best fit")) score += 5;
+        if (raw.includes("strong follow-up")) score += 2;
+
+        if (score > bestScore) {
+          bestScore = score;
+          best = { button: btn, text, type, adaptiveScore: score };
+        }
+      });
+
+      return best || base;
+    };
+  }
+
+  function patchTracking() {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    if (!hook || hook.__adaptiveLearningTracking) return;
+
+    const originalSend = hook.sendText;
+    if (typeof originalSend !== "function") return;
+
+    hook.__adaptiveLearningTracking = true;
+
+    hook.sendText = async function patchedAdaptiveSend(text) {
+      const clean = String(text || "");
+      const type = classifyType(clean);
+
+      rewardType(type, 1);
+      decayWeights();
+
+      return originalSend.call(this, text);
+    };
+  }
+
+  function exposeLearning() {
+    window.__SIMO_ADAPTIVE_LEARNING_STATE__ = {
+      getWeights,
+      classifyType,
+      rewardType,
+      decayWeights,
+    };
+  }
+
+  function loop() {
+    try {
+      patchSelector();
+      patchTracking();
+      exposeLearning();
+    } catch (err) {
+      console.warn("Adaptive learning skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Polish — Suggestion Reasoning (CLEAN FINAL)
+// ==============================
+
+(function simoSuggestionReasoning() {
+  if (window.__SIMO_REASONING__) return;
+  window.__SIMO_REASONING__ = true;
+
+  function getStage() {
+    const s = window.__SIMO_AUTORUN_INTENT_STATE__;
+    return s && s.getStage ? s.getStage() : "mid";
+  }
+
+  function explain(text) {
+    const t = String(text || "").toLowerCase();
+    const stage = getStage();
+
+    if (t.includes("layout")) return "Improves structure and flow.";
+    if (t.includes("spacing")) return "Creates cleaner visual rhythm.";
+    if (t.includes("typography")) return "Enhances readability and polish.";
+    if (t.includes("hero")) return "Strengthens first impression.";
+    if (t.includes("visual")) return "Boosts overall design quality.";
+    if (t.includes("testimonial")) return "Builds trust before publish.";
+    if (t.includes("conversion")) return "Improves user action and engagement.";
+
+    if (stage === "early") return "Best next step for building structure.";
+    if (stage === "mid") return "Refines and improves visual quality.";
+    if (stage === "late") return "Prepares your build for final polish.";
+
+    return "";
+  }
+
+  function injectReasoning() {
+    const cards = document.querySelectorAll("#simoBuilderSuggestionsList button");
+
+    cards.forEach((btn) => {
+      if (btn.dataset.reasonInjected === "true") return;
+
+      const text = btn.innerText || "";
+      const reason = explain(text);
+
+      if (!reason) return;
+
+      const el = document.createElement("div");
+      el.style.fontSize = "10px";
+      el.style.opacity = "0.7";
+      el.style.marginTop = "4px";
+      el.textContent = "Why: " + reason;
+
+      btn.appendChild(el);
+      btn.dataset.reasonInjected = "true";
+    });
+  }
+
+  function loop() {
+    try {
+      injectReasoning();
+    } catch {}
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Polish — Next Step Preview (SAFE)
+// ==============================
+
+(function simoNextStepPreview() {
+  if (window.__SIMO_NEXT_PREVIEW__) return;
+  window.__SIMO_NEXT_PREVIEW__ = true;
+
+  function inject() {
+    const container = document.getElementById("simoAutoAssistStatus");
+    if (!container) return;
+
+    const planState = window.__SIMO_AUTORUN_PLAN_STATE__;
+    if (!planState || !planState.getPlan) return;
+
+    const plan = planState.getPlan();
+    if (!plan.length) return;
+
+    const existing = document.getElementById("simoNextStepPreview");
+    if (existing) existing.remove();
+
+    const el = document.createElement("div");
+    el.id = "simoNextStepPreview";
+    el.style.marginTop = "6px";
+    el.style.fontSize = "10px";
+    el.style.opacity = "0.72";
+    el.textContent = `Next: ${plan.join(" → ")}`;
+
+    container.appendChild(el);
+  }
+
+  function loop() {
+    try {
+      inject();
+    } catch {}
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Polish — Confidence Glow (SAFE)
+// ==============================
+
+(function simoConfidenceGlow() {
+  if (window.__SIMO_GLOW__) return;
+  window.__SIMO_GLOW__ = true;
+
+  function applyGlow() {
+    const top = document.querySelector("#simoBuilderSuggestionsList button");
+    if (!top) return;
+
+    top.style.boxShadow =
+      "0 0 0 1px rgba(0,255,200,0.4), 0 0 18px rgba(0,255,200,0.25)";
+  }
+
+  function loop() {
+    try {
+      applyGlow();
+    } catch {}
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Polish — Auto Assist Messaging (SAFE)
+// ==============================
+
+(function simoAutoAssistMessaging() {
+  if (window.__SIMO_MSG_PATCH__) return;
+  window.__SIMO_MSG_PATCH__ = true;
+
+  function update() {
+    const el = document.getElementById("simoAutoAssistStatus");
+    if (!el) return;
+
+    const txt = el.textContent || "";
+
+    if (/Watching for idle\.\.\. arming in \d+s\./i.test(txt)) {
+      const num = txt.match(/\d+/)?.[0] || "7";
+      el.textContent = `Simo will improve your build in ${num}s if you stay idle.`;
+      return;
+    }
+
+    if (/Auto Assist armed\. Running best suggestion in \d+s if you stay idle\./i.test(txt)) {
+      const num = txt.match(/\d+/)?.[0] || "3";
+      el.textContent = `Simo will improve your build automatically in ${num}s if you stay idle.`;
+    }
+  }
+
+  function loop() {
+    try {
+      update();
+    } catch {}
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+// ==============================
+// Simo Phase 2.9P — Goal-Aware Suggestion Ranking (SAFE)
+// ==============================
+
+(function simoGoalAwareSuggestionRanking() {
+  if (window.__SIMO_GOAL_AWARE_SUGGESTIONS__) return;
+  window.__SIMO_GOAL_AWARE_SUGGESTIONS__ = true;
+
+  let lastRenderedSignature = "";
+
+  function getGoalContext() {
+    return window.__SIMO_BUILDER_GOAL_CONTEXT__ || {
+      title: "",
+      text: "",
+      badge: ""
+    };
+  }
+
+  function getBuilderState() {
+    return window.__SIMO_BUILDER_STATE__ || {
+      active: false,
+      revision: 0,
+      turnCount: 0,
+      lastKind: ""
+    };
+  }
+
+  function normalize(text) {
+    return String(text || "").trim().toLowerCase();
+  }
+
+  function suggestionPrompt(text, state) {
+    return `[SIMO_BUILDER]
+REQUEST:
+${text}
+
+CONTEXT:
+- This is an existing build (revision ${state?.revision || 0})
+- Maintain visual consistency
+- Improve layout, spacing, and hierarchy if needed
+- Do not break working sections
+
+OUTPUT:
+Return a complete HTML document ready for preview.
+`;
+  }
+
+  function useSuggestion(text, sendNow = false) {
+    const hook = window.__SIMO_COMPOSER_HOOK__;
+    const state = getBuilderState();
+    if (!hook || !text) return;
+
+    const prompt = suggestionPrompt(text, state);
+    hook.setText(prompt);
+
+    if (sendNow) {
+      hook.sendText(prompt);
+    }
+  }
+
+  function goalBucket(goal, state) {
+    const title = normalize(goal.title);
+    const badge = normalize(goal.badge);
+    const kind = normalize(state.lastKind);
+    const turns = Number(state.turnCount || 0);
+    const revision = Number(state.revision || 0);
+
+    if (title.includes("foundation") || badge === "building" || kind === "build" || kind === "create") {
+      return "foundation";
+    }
+
+    if (title.includes("focused edits") || badge === "editing" || badge === "updated" || kind === "edit" || kind === "update") {
+      return "editing";
+    }
+
+    if (title.includes("refining") || badge === "refining" || badge === "refined" || kind === "refine") {
+      return "refinement";
+    }
+
+    if (title.includes("enhancing") || badge === "enhancing" || badge === "enhanced" || kind === "enhance") {
+      return "enhancement";
+    }
+
+    if (title.includes("continuing") || badge === "continuing" || badge === "continued" || kind === "continue") {
+      return "continuation";
+    }
+
+    if (title.includes("final direction") || badge === "advanced" || turns >= 6 || revision >= 6) {
+      return "advanced";
+    }
+
+    return "general";
+  }
+
+  function rankedSuggestionsForBucket(bucket) {
+    if (bucket === "foundation") {
+      return [
+        "Improve the hero section",
+        "Add a call-to-action section",
+        "Improve layout flow",
+        "Strengthen headline clarity",
+        "Add testimonials"
+      ];
+    }
+
+    if (bucket === "editing") {
+      return [
+        "Improve layout flow",
+        "Tighten section spacing",
+        "Upgrade typography",
+        "Improve the hero section",
+        "Add testimonials"
+      ];
+    }
+
+    if (bucket === "refinement") {
+      return [
+        "Improve section spacing",
+        "Upgrade typography",
+        "Refine visual hierarchy",
+        "Enhance visual design",
+        "Polish button styling"
+      ];
+    }
+
+    if (bucket === "enhancement") {
+      return [
+        "Enhance visual design",
+        "Upgrade typography",
+        "Add premium polish",
+        "Improve the hero section",
+        "Strengthen call-to-action"
+      ];
+    }
+
+    if (bucket === "continuation") {
+      return [
+        "Continue improving this version",
+        "Preserve the current style while upgrading polish",
+        "Improve layout flow",
+        "Refine visual hierarchy",
+        "Prepare the next revision"
+      ];
+    }
+
+    if (bucket === "advanced") {
+      return [
+        "Prepare for publishing",
+        "Optimize for conversions",
+        "Strengthen call-to-action",
+        "Improve mobile polish",
+        "Do a final premium polish pass"
+      ];
+    }
+
+    return [
+      "Enhance visual design",
+      "Improve the hero section",
+      "Improve layout flow",
+      "Upgrade typography",
+      "Prepare for publishing"
+    ];
+  }
+
+  function dedupeSuggestions(items) {
+    const seen = new Set();
+    const out = [];
+
+    for (const item of items) {
+      const key = normalize(item);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      out.push(item);
+    }
+
+    return out;
+  }
+
+  function scoreSuggestions(items, bucket, state) {
+    const turns = Number(state.turnCount || 0);
+    const revision = Number(state.revision || 0);
+
+    return items
+      .map((item) => {
+        const text = normalize(item);
+        let score = 0;
+
+        if (bucket === "foundation") {
+          if (text.includes("hero")) score += 5;
+          if (text.includes("call-to-action")) score += 4;
+          if (text.includes("headline")) score += 3;
+        }
+
+        if (bucket === "editing") {
+          if (text.includes("layout")) score += 5;
+          if (text.includes("spacing")) score += 4;
+          if (text.includes("typography")) score += 3;
+        }
+
+        if (bucket === "refinement") {
+          if (text.includes("spacing")) score += 5;
+          if (text.includes("hierarchy")) score += 4;
+          if (text.includes("visual")) score += 3;
+          if (text.includes("button")) score += 2;
+        }
+
+        if (bucket === "enhancement") {
+          if (text.includes("visual")) score += 5;
+          if (text.includes("premium")) score += 4;
+          if (text.includes("hero")) score += 3;
+          if (text.includes("call-to-action")) score += 2;
+        }
+
+        if (bucket === "continuation") {
+          if (text.includes("continue")) score += 5;
+          if (text.includes("preserve")) score += 4;
+          if (text.includes("revision")) score += 3;
+        }
+
+        if (bucket === "advanced") {
+          if (text.includes("publishing")) score += 6;
+          if (text.includes("conversions")) score += 5;
+          if (text.includes("final")) score += 4;
+          if (text.includes("mobile")) score += 3;
+        }
+
+        if (turns >= 6 || revision >= 6) {
+          if (text.includes("publishing")) score += 3;
+          if (text.includes("conversions")) score += 2;
+          if (text.includes("final")) score += 2;
+        }
+
+        return { item, score };
+      })
+      .sort((a, b) => b.score - a.score)
+      .map((x) => x.item);
+  }
+
+  function confidenceLabel(index, bucket) {
+    if (index === 0) {
+      if (bucket === "advanced") return "Highest confidence";
+      if (bucket === "foundation") return "Best next structure move";
+      if (bucket === "editing") return "Best edit follow-up";
+      if (bucket === "refinement") return "Best polish move";
+      if (bucket === "enhancement") return "Best visual upgrade";
+      return "Highest confidence";
+    }
+
+    if (index === 1) return "Strong follow-up";
+    return "Alternative path";
+  }
+
+  function subtitleForBucket(bucket) {
+    if (bucket === "foundation") return "Structure-aware";
+    if (bucket === "editing") return "Edit-aware";
+    if (bucket === "refinement") return "Polish-aware";
+    if (bucket === "enhancement") return "Upgrade-aware";
+    if (bucket === "continuation") return "Continuation-aware";
+    if (bucket === "advanced") return "Launch-aware";
+    return "Smart Mode";
+  }
+
+  function ensureSuggestionsHeaderSubtitle(bucket) {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    if (!card) return;
+
+    const labels = Array.from(card.querySelectorAll("div"));
+    const smartModeEl = labels.find((el) => normalize(el.textContent) === "smart mode");
+    if (!smartModeEl) return;
+
+    smartModeEl.textContent = subtitleForBucket(bucket);
+  }
+
+  function makeSuggestionButton(text, index, bucket) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.dataset.goalAwareSuggestion = "true";
+    btn.dataset.suggestionText = text;
+
+    btn.style.padding = "8px 10px";
+    btn.style.borderRadius = "10px";
+    btn.style.cursor = "pointer";
+    btn.style.textAlign = "left";
+    btn.style.color = "rgba(255,255,255,0.92)";
+    btn.style.display = "flex";
+    btn.style.flexDirection = "column";
+    btn.style.gap = "3px";
+
+    if (index === 0) {
+      btn.style.background = "rgba(0,255,200,0.18)";
+      btn.style.border = "1px solid rgba(0,255,200,0.45)";
+      btn.style.boxShadow = "0 0 10px rgba(0,255,200,0.25)";
+    } else {
+      btn.style.background = "rgba(255,255,255,0.06)";
+      btn.style.border = "1px solid rgba(255,255,255,0.12)";
+    }
+
+    const title = document.createElement("div");
+    title.textContent = text;
+    title.style.fontSize = "12px";
+    title.style.lineHeight = "1.25";
+
+    const meta = document.createElement("div");
+    meta.textContent = confidenceLabel(index, bucket);
+    meta.style.fontSize = "10px";
+    meta.style.opacity = "0.74";
+
+    btn.appendChild(title);
+    btn.appendChild(meta);
+
+    btn.addEventListener("mouseenter", () => {
+      btn.style.background = "rgba(0,255,200,0.22)";
+    });
+
+    btn.addEventListener("mouseleave", () => {
+      btn.style.background = index === 0
+        ? "rgba(0,255,200,0.18)"
+        : "rgba(255,255,255,0.06)";
+    });
+
+    btn.addEventListener("click", async () => {
+      useSuggestion(text, true);
+    });
+
+    return btn;
+  }
+
+  function renderGoalAwareSuggestions() {
+    const listEl = document.getElementById("simoBuilderSuggestionsList");
+    if (!listEl) return;
+
+    const goal = getGoalContext();
+    const state = getBuilderState();
+    const bucket = goalBucket(goal, state);
+
+    const suggestions = scoreSuggestions(
+      dedupeSuggestions(rankedSuggestionsForBucket(bucket)),
+      bucket,
+      state
+    ).slice(0, 5);
+
+    const signature = JSON.stringify({
+      bucket,
+      suggestions,
+      revision: Number(state.revision || 0),
+      turns: Number(state.turnCount || 0),
+      active: !!state.active
+    });
+
+    if (signature === lastRenderedSignature) {
+      ensureSuggestionsHeaderSubtitle(bucket);
+      return;
+    }
+
+    lastRenderedSignature = signature;
+    listEl.innerHTML = "";
+
+    suggestions.forEach((text, index) => {
+      listEl.appendChild(makeSuggestionButton(text, index, bucket));
+    });
+
+    ensureSuggestionsHeaderSubtitle(bucket);
+  }
+
+  function patchTopSuggestionButtonBehavior() {
+    const useTopBtn = document.getElementById("simoSuggestionUseTopBtn");
+    if (!useTopBtn || useTopBtn.dataset.goalAwarePatched === "true") return;
+
+    useTopBtn.dataset.goalAwarePatched = "true";
+
+    useTopBtn.addEventListener("click", (e) => {
+      const first = document.querySelector("#simoBuilderSuggestionsList button[data-goal-aware-suggestion='true']");
+      if (!first) return;
+
+      const text = first.dataset.suggestionText || "";
+      if (!text) return;
+
+      e.stopImmediatePropagation();
+      useSuggestion(text, true);
+    }, true);
+  }
+
+  function patchRefreshIdeasBehavior() {
+    const refreshBtn = document.getElementById("simoSuggestionRefreshBtn");
+    if (!refreshBtn || refreshBtn.dataset.goalAwarePatched === "true") return;
+
+    refreshBtn.dataset.goalAwarePatched = "true";
+
+    refreshBtn.addEventListener("click", (e) => {
+      const listEl = document.getElementById("simoBuilderSuggestionsList");
+      if (!listEl) return;
+
+      const buttons = Array.from(
+        listEl.querySelectorAll("button[data-goal-aware-suggestion='true']")
+      );
+
+      if (buttons.length > 1) {
+        const first = buttons.shift();
+        buttons.push(first);
+        listEl.innerHTML = "";
+        buttons.forEach((btn, index) => {
+          const text = btn.dataset.suggestionText || btn.textContent || "";
+          listEl.appendChild(makeSuggestionButton(text, index, "general"));
+        });
+      }
+
+      lastRenderedSignature = "";
+      e.stopImmediatePropagation();
+    }, true);
+  }
+
+  function loop() {
+    try {
+      renderGoalAwareSuggestions();
+      patchTopSuggestionButtonBehavior();
+      patchRefreshIdeasBehavior();
+    } catch (err) {
+      console.warn("Goal-aware suggestion ranking skipped:", err);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  loop();
+})();
+
+/* === PHASE 4.8A: Pro Helper Icon Toggle for Suggestions Only (APPEND ONLY, SAFE) === */
+(() => {
+  if (window.__SIMO_PRO_HELPER_TOGGLE__) return;
+  window.__SIMO_PRO_HELPER_TOGGLE__ = true;
+
+  const HELPER_BTN_ID = "simoProHelperToggleBtn";
+  const SUGGESTIONS_ID = "simoBuilderSuggestionsCard";
+
+  function getSendButton() {
+    return document.getElementById("sendBtn");
+  }
+
+  function getSuggestionsCard() {
+    return document.getElementById(SUGGESTIONS_ID);
+  }
+
+  function looksProFromUI() {
+    const text = (document.body?.innerText || "").toLowerCase();
+    return text.includes("pro active");
+  }
+
+  async function getProStatus() {
+    try {
+      const res = await fetch("/api/pro-status", {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return looksProFromUI();
+      const data = await res.json();
+      return !!(data && data.pro === true);
+    } catch (err) {
+      return looksProFromUI();
+    }
+  }
+
+function setSuggestionsVisible(visible) {
+  const ids = [
+    "simoBuilderSuggestionsCard",
+    "simoBuilderWhatChangedCard",
+    "simoBuilderMemoryCard",
+    "simoBuilderGoalCard",
+    "simoBuilderStatus"
+  ];
+
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+
+    el.dataset.simoHelperHidden = visible ? "0" : "1";
+    el.style.display = visible ? "" : "none";
+    el.style.opacity = visible ? "1" : "0";
+    el.style.pointerEvents = visible ? "auto" : "none";
+  });
+
+  const btn = document.getElementById(HELPER_BTN_ID);
+  if (btn) {
+    btn.classList.toggle("is-active", visible);
+    btn.setAttribute("aria-pressed", visible ? "true" : "false");
+    btn.setAttribute("title", visible ? "Hide Pro helper" : "Show Pro helper");
+    btn.setAttribute("aria-label", visible ? "Hide Pro helper" : "Show Pro helper");
+  }
+}
+
+setSuggestionsVisible(false);
+  function ensureHelperButton(sendBtn) {
+    let btn = document.getElementById(HELPER_BTN_ID);
+    if (btn) return btn;
+
+    btn = document.createElement("button");
+    btn.id = HELPER_BTN_ID;
+    btn.type = "button";
+    btn.className = "simo-helper-toggle-btn";
+    btn.setAttribute("hidden", "hidden");
+    btn.setAttribute("aria-pressed", "false");
+    btn.setAttribute("title", "Show Pro helper");
+    btn.setAttribute("aria-label", "Show Pro helper");
+    btn.innerHTML = '<span class="simo-helper-toggle-icon" aria-hidden="true">✨</span>';
+
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const card = getSuggestionsCard();
+      if (!card) return;
+      const hidden = card.dataset.simoHelperHidden === "1" || card.style.display === "none";
+      setSuggestionsVisible(hidden);
+    });
+
+    // Keep the microphone immediately before Send.
+    // Pro-helper star belongs just before the microphone, never stacked at the left.
+    const micBtn = document.getElementById("simoMicBtn") || document.getElementById("micBtn");
+    if (micBtn && micBtn.parentNode === sendBtn.parentNode) {
+      micBtn.insertAdjacentElement("beforebegin", btn);
+    } else {
+      sendBtn.insertAdjacentElement("beforebegin", btn);
+    }
+    return btn;
+  }
+
+  async function wireHelperToggle() {
+    const sendBtn = getSendButton();
+    const suggestionsCard = getSuggestionsCard();
+
+    if (!sendBtn || !suggestionsCard) return false;
+
+    const btn = ensureHelperButton(sendBtn);
+    const isPro = await getProStatus();
+
+    if (!isPro) {
+      btn.setAttribute("hidden", "hidden");
+      setSuggestionsVisible(false);
+      return true;
+    }
+
+    btn.removeAttribute("hidden");
+
+    if (!suggestionsCard.dataset.simoHelperInitialized) {
+  suggestionsCard.dataset.simoHelperInitialized = "1";
+
+  // force-hide after everything loads
+  setTimeout(() => {
+    setSuggestionsVisible(false);
+  }, 0);
+}
+
+    return true;
+  }
+
+  let running = false;
+  async function runOnce() {
+    if (running) return;
+    running = true;
+    try {
+      await wireHelperToggle();
+    } finally {
+      running = false;
+    }
+  }
+
+  runOnce();
+
+  let tries = 0;
+  const timer = setInterval(() => {
+    tries += 1;
+    runOnce();
+    if (tries >= 30) clearInterval(timer);
+  }, 500);
+})();
+
+// ==============================
+// PHASE 4.8B — SAFE STAR TOGGLE
+// Append-only block
+// ==============================
+
+(function simoSafeHelperStarToggle() {
+  if (window.__SIMO_SAFE_HELPER_STAR_TOGGLE__) return;
+  window.__SIMO_SAFE_HELPER_STAR_TOGGLE__ = true;
+
+  function wireStarToggle() {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    const starBtn = document.getElementById("simoSuggestionsStarBtn");
+    if (!card || !starBtn) return;
+
+    if (starBtn.dataset.simoStarWired === "1") return;
+    starBtn.dataset.simoStarWired = "1";
+
+    const STORAGE_KEY = "simo_helper_hidden_v1";
+
+    function applyHiddenState(hidden) {
+      if (hidden) {
+        card.setAttribute("data-simo-helper-hidden", "1");
+        card.style.display = "none";
+      } else {
+        card.removeAttribute("data-simo-helper-hidden");
+        card.style.display = "";
+      }
+      starBtn.setAttribute("aria-pressed", hidden ? "false" : "true");
+      starBtn.title = hidden ? "Show Pro helper" : "Hide Pro helper";
+      starBtn.setAttribute("aria-label", hidden ? "Show Pro helper" : "Hide Pro helper");
+    }
+
+    const savedHidden = localStorage.getItem(STORAGE_KEY) === "1";
+    applyHiddenState(savedHidden);
+
+    starBtn.addEventListener("click", function () {
+      const isHidden = card.getAttribute("data-simo-helper-hidden") === "1";
+      const nextHidden = !isHidden;
+      localStorage.setItem(STORAGE_KEY, nextHidden ? "1" : "0");
+      applyHiddenState(nextHidden);
+    });
+  }
+
+  function ensureOpenButton() {
+    if (document.getElementById("simoHelperReopenBtn")) return;
+
+    const btn = document.createElement("button");
+    btn.id = "simoHelperReopenBtn";
+    btn.type = "button";
+    btn.textContent = "✦";
+    btn.title = "Show Pro helper";
+    btn.setAttribute("aria-label", "Show Pro helper");
+
+    btn.style.position = "fixed";
+    btn.style.right = "72px";
+    btn.style.bottom = "18px";
+    btn.style.width = "42px";
+    btn.style.height = "42px";
+    btn.style.borderRadius = "14px";
+    btn.style.border = "1px solid rgba(255,255,255,0.12)";
+    btn.style.background = "rgba(20,24,40,0.92)";
+    btn.style.backdropFilter = "blur(10px)";
+    btn.style.webkitBackdropFilter = "blur(10px)";
+    btn.style.color = "rgba(255,255,255,0.95)";
+    btn.style.cursor = "pointer";
+    btn.style.zIndex = "10020";
+    btn.style.display = "none";
+    btn.style.boxShadow = "0 10px 30px rgba(0,0,0,0.28)";
+    btn.style.fontSize = "16px";
+    btn.style.lineHeight = "1";
+
+    btn.addEventListener("click", function () {
+      const card = document.getElementById("simoBuilderSuggestionsCard");
+      const starBtn = document.getElementById("simoSuggestionsStarBtn");
+      if (!card) return;
+
+      localStorage.setItem("simo_helper_hidden_v1", "0");
+      card.removeAttribute("data-simo-helper-hidden");
+      card.style.display = "";
+
+      if (starBtn) {
+        starBtn.setAttribute("aria-pressed", "true");
+        starBtn.title = "Hide Pro helper";
+        starBtn.setAttribute("aria-label", "Hide Pro helper");
+      }
+
+      btn.style.display = "none";
+    });
+
+    document.body.appendChild(btn);
+  }
+
+  function syncOpenButton() {
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    const reopenBtn = document.getElementById("simoHelperReopenBtn");
+    if (!reopenBtn) return;
+
+    const hidden = !card || card.getAttribute("data-simo-helper-hidden") === "1";
+    reopenBtn.style.display = hidden ? "inline-flex" : "none";
+    reopenBtn.style.alignItems = "center";
+    reopenBtn.style.justifyContent = "center";
+  }
+
+  function boot() {
+    const builderActive = !!window.__SIMO_BUILDER_STATE__;
+    const card = document.getElementById("simoBuilderSuggestionsCard");
+    const reopenBtn = document.getElementById("simoHelperReopenBtn");
+
+    // Builder helper belongs to an active Website Builder session only.
+    // Never inject its white-star reopen control onto the main chat dashboard.
+    if (!builderActive && !card) {
+      if (reopenBtn) reopenBtn.remove();
+      return;
+    }
+
+    ensureOpenButton();
+    wireStarToggle();
+    syncOpenButton();
+  }
+
+  boot();
+  setInterval(boot, 800);
+})();
+
+
+// SIMO CURRENT-COMPOSER MIC BRIDGE — uses existing mic control only; never creates/repositions controls.
+(function () {
+  "use strict";
+  if (window.__SIMO_CURRENT_COMPOSER_MIC_BRIDGE__) return;
+  window.__SIMO_CURRENT_COMPOSER_MIC_BRIDGE__ = true;
+
+  var recognition = null;
+  var listening = false;
+
+  function voiceSettings() {
+    try { return JSON.parse(localStorage.getItem("simo_voice_settings_v1") || "{}") || {}; }
+    catch (_) { return {}; }
+  }
+  function recognitionCtor() {
+    return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+  function composer() {
+    return document.getElementById("chatInput") ||
+      document.querySelector("textarea[placeholder*='Simo'], textarea, input[type='text']");
+  }
+  function existingMic() {
+    return document.getElementById("simoMicBtn") ||
+      document.getElementById("micBtn") ||
+      document.querySelector("[data-simo-mic], [aria-label*='microphone' i], [title*='microphone' i], [aria-label*='mic' i], [title*='mic' i]");
+  }
+  function ensureMic() {
+    var b = existingMic();
+    if (b) return b;
+    var send = document.getElementById("sendBtn");
+    if (!send || !send.parentNode) return null;
+    b = document.createElement("button");
+    b.id = "simoMicBtn";
+    b.type = "button";
+    b.className = "icon-btn simo-mic-btn";
+    b.setAttribute("aria-label", "Use microphone");
+    b.setAttribute("title", "Use microphone");
+    b.setAttribute("data-simo-mic", "1");
+    b.textContent = "🎙️";
+    // Protected composer layout: image -> prompt -> microphone -> Send.
+    send.parentNode.insertBefore(b, send);
+    return b;
+  }
+  function status(msg) {
+    var el = document.getElementById("loadingHint") ||
+      document.querySelector("[data-simo-status], .loading-hint");
+    if (el) el.textContent = msg || "Ready.";
+  }
+  function refresh() {
+    var b = existingMic();
+    if (!b) return;
+    b.classList.remove("hidden");
+    b.style.display = "";
+    var enabled = !!voiceSettings().micEnabled;
+    b.disabled = !enabled;
+    b.setAttribute("aria-pressed", listening ? "true" : "false");
+    b.title = enabled ? (listening ? "Stop microphone" : "Microphone input") : "Enable Mic input in Settings & Voice";
+  }
+  function stop(silent) {
+    if (recognition && listening) { try { recognition.stop(); } catch (_) {} }
+    listening = false;
+    refresh();
+    if (!silent) status("Mic stopped. Press Send when ready.");
+  }
+  function start() {
+    if (!voiceSettings().micEnabled) {
+      status("Turn Mic input on in Settings & Voice first.");
+      refresh();
+      return;
+    }
+    var Ctor = recognitionCtor();
+    if (!Ctor) {
+      status("Microphone speech input is not supported in this browser.");
+      return;
+    }
+    if (listening) { stop(false); return; }
+
+    recognition = new Ctor();
+    recognition.lang = "en-US";
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+
+    var base = "";
+    recognition.onstart = function () {
+      listening = true; refresh(); status("Listening… speak now.");
+      var input = composer(); base = input ? String(input.value || "") : "";
+    };
+    recognition.onresult = function (event) {
+      var finalText = "", interim = "";
+      for (var i = event.resultIndex; i < event.results.length; i++) {
+        var text = event.results[i][0] ? event.results[i][0].transcript : "";
+        if (event.results[i].isFinal) finalText += text; else interim += text;
+      }
+      var input = composer();
+      if (!input) return;
+      var spoken = (finalText || interim).trim();
+      input.value = base + (base && spoken ? " " : "") + spoken;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    recognition.onerror = function () { listening = false; refresh(); status("Microphone stopped."); };
+    recognition.onend = function () { listening = false; refresh(); status("Ready to send."); };
+    try { recognition.start(); } catch (_) { listening = false; refresh(); }
+  }
+  function bind() {
+    var b = existingMic() || ensureMic();
+    if (!b || b.dataset.simoCurrentMicBound === "true") { refresh(); return; }
+    b.dataset.simoCurrentMicBound = "true";
+    b.addEventListener("click", function (e) {
+      e.preventDefault(); e.stopPropagation();
+      start();
+    });
+    refresh();
+  }
+  window.addEventListener("simo:voice-settings-updated", bind);
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once:true });
+  else bind();
+})();
