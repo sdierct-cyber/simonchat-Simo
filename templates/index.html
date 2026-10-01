@@ -1,239 +1,281 @@
 <!DOCTYPE html>
-<!-- SIMO PHASE 14M-R10.59J VERIFIED FINAL LOCAL-LIVE SYNC -->
+<!-- SIMO PHASE 14M-R10.60H INLINE MIC SAFE FIX — PRESERVES R10.60F RECOVERED COMPOSER + NORTH STAR -->
+<!-- SIMO PHASE 14M-R10.59K COMPOSER ALIGNMENT POLISH — PRESERVES R10.59J LIVE CORE PASS -->
 <!-- SIMO PHASE 14M-R10.59 VERIFIED SERVER LIBRARY BRIDGE -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Simo — Your Best Friend</title>
-  <!-- SIMO PHASE 14M-R10.59I VERIFIED LIVE READY -->
-  <link rel="stylesheet" href="/static/styles.css?v=phase105f" />
+  <!-- SIMO PHASE 14M-R10.59K VERIFIED COMPOSER ALIGNMENT READY -->
+  <link rel="stylesheet" href="/static/styles.css?v=simo-logo-exact-rc11" />
   <link rel="stylesheet" href="/static/designstudio.css">
+
+  <style id="simo-r1059k-composer-polish">
+    /* PHASE 14M-R10.59K — Composer Alignment Polish
+       Scope: visual alignment only. Preserves R10.59J Library, Workspace, Settings,
+       image analysis, credits, Stripe, Render, DNS, and backend behavior. */
+    .composer-wrap {
+      display: flex !important;
+      align-items: center !important;
+      gap: 12px !important;
+      min-height: 64px !important;
+      padding: 10px 12px !important;
+      box-sizing: border-box !important;
+      border-radius: 18px !important;
+    }
+
+    .composer-wrap #chatInput {
+      flex: 1 1 auto !important;
+      width: 100% !important;
+      height: 42px !important;
+      min-height: 42px !important;
+      max-height: 130px !important;
+      padding: 10px 8px !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      display: block !important;
+      line-height: 22px !important;
+      resize: none !important;
+      overflow-y: auto !important;
+      border: 0 !important;
+      outline: 0 !important;
+      background: transparent !important;
+      color: #ffffff !important;
+      -webkit-text-fill-color: #ffffff !important;
+      caret-color: #ffffff !important;
+      opacity: 1 !important;
+      text-indent: 0 !important;
+      text-shadow: none !important;
+      font-size: 16px !important;
+    }
+
+    .composer-wrap #chatInput::placeholder {
+      color: rgba(232, 239, 255, .78) !important;
+      -webkit-text-fill-color: rgba(232, 239, 255, .78) !important;
+      opacity: 1 !important;
+    }
+
+    .composer-wrap .icon-btn,
+    .composer-wrap .send-btn,
+    .composer-wrap #imageBtn,
+    .composer-wrap #sendBtn {
+      width: 42px !important;
+      height: 42px !important;
+      min-width: 42px !important;
+      min-height: 42px !important;
+      max-width: 42px !important;
+      max-height: 42px !important;
+      flex: 0 0 42px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      line-height: 1 !important;
+      vertical-align: middle !important;
+    }
+
+    .composer-wrap .send-btn,
+    .composer-wrap #sendBtn {
+      border-radius: 14px !important;
+    }
+
+
+    /* CHECKPOINT: visual-only microphone alignment.
+       Do not change microphone behavior or composer ownership. */
+    .composer-wrap #simoMicBtn,
+    .composer-wrap #micBtn {
+      width: 42px !important;
+      height: 42px !important;
+      min-width: 42px !important;
+      min-height: 42px !important;
+      max-width: 42px !important;
+      max-height: 42px !important;
+      flex: 0 0 42px !important;
+      align-self: center !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      box-sizing: border-box !important;
+      line-height: 1 !important;
+      vertical-align: middle !important;
+      border-radius: 14px !important;
+      transform: none !important;
+      position: static !important;
+    }
+
+    #loadingHint {
+      margin-top: 6px !important;
+      min-height: 18px !important;
+      line-height: 1.4 !important;
+    }
+  </style>
+
+  <style id="simo-composer-single-row-lock">
+    /* Single-row composer contract: image | prompt | helper | mic | Send */
+    .composer-wrap #simoSuggestionsStarBtn {
+      position: static !important;
+      transform: none !important;
+      width: 42px !important;
+      height: 42px !important;
+      min-width: 42px !important;
+      min-height: 42px !important;
+      flex: 0 0 42px !important;
+      align-self: center !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+  </style>
+
+
+  <style id="simo-composer-authoritative-row-v2">
+    .composer-wrap { display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important; align-items:center !important; }
+    .composer-wrap #imageBtn { order:1 !important; position:static !important; transform:none !important; align-self:center !important; }
+    .composer-wrap #chatInput { order:2 !important; flex:1 1 0% !important; width:auto !important; min-width:0 !important; }
+    .composer-wrap #simoSuggestionsStarBtn,
+    .composer-wrap .simo-helper-toggle-btn { order:3 !important; position:static !important; inset:auto !important; transform:none !important; align-self:center !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+    .composer-wrap #simoMicBtn, .composer-wrap #micBtn { order:4 !important; position:static !important; inset:auto !important; transform:none !important; align-self:center !important; flex:0 0 42px !important; margin:0 !important; }
+    .composer-wrap #sendBtn { order:5 !important; position:static !important; inset:auto !important; transform:none !important; align-self:center !important; flex:0 0 42px !important; margin:0 !important; }
+  </style>
+
+
+  <!-- SIMO 10.34 coordinated recovery: retired/conflicting owners are intentionally not loaded.
+       3D viewer, Phase28 prompt mutation, legacy combined Library, and Phase31 legacy workspace
+       remain on disk for rollback only; they do not own runtime behavior in this release. -->
+  <style id="simo-composer-final-contract">
+    body .composer-wrap {
+      display:flex !important; flex-direction:row !important; flex-wrap:nowrap !important;
+      align-items:center !important; gap:10px !important; min-height:64px !important; padding:10px 12px !important;
+    }
+    body .composer-wrap #imageBtn { order:1 !important; position:static !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+    body .composer-wrap #chatInput { order:2 !important; flex:1 1 auto !important; width:auto !important; min-width:0 !important; margin:0 !important; }
+    body .composer-wrap #simoProHelperToggleBtn { order:3 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+    body .composer-wrap #simoMicBtn, body .composer-wrap #micBtn { order:4 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+    body .composer-wrap #sendBtn { order:5 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+  </style>
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar">
-      <div class="brand-card">
-        <div style="font-size:34px; margin-bottom:10px;">🤖</div>
-        <div style="font-size:18px; font-weight:700;">Simo</div>
-        <div class="muted" style="margin-top:6px;">Your Best Friend</div>
-        <div class="muted tiny" style="margin-top:10px;">Warm, smart, and ready</div>
+    <aside class="sidebar simo-premium-sidebar">
+      <div class="simo-premium-brand simo-exact-sidebar-brand" aria-label="Simo — Your Best Friend AI">
+        <img class="simo-exact-sidebar-logo" src="/static/simo-logo-sidebar.png?v=simo-logo-final-symmetry" alt="Simo" />
+        <div class="simo-exact-sidebar-status">
+          <span class="simo-signed-line"><b></b><span id="simoSidebarSignedText">Ready</span></span>
+          <small id="simoSidebarAccountId" class="simo-account-id" hidden></small>
+        </div>
       </div>
 
-      <div class="side-card">
-        <div style="font-weight:700; margin-bottom:8px;">Image Upload & Analysis</div>
-        <div class="muted">Upload any photo — Simo describes & helps</div>
+      <nav class="simo-home-nav" aria-label="Simo modes">
+        <button type="button" class="simo-nav-item is-home" data-simo-home="1"><span>⌂</span><b>Home</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="build"><span>▣</span><b>Build a Website</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="business"><span>✧</span><b>Create a Business Idea</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="design"><span>✎</span><b>Design Something</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="image"><span>▧</span><b>Analyze an Image</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="chat"><span>◉</span><b>Just Chat</b></button>
+      </nav>
+
+      <div class="simo-sidebar-rule"></div>
+
+      <div class="simo-side-tools">
+        <button type="button" class="simo-nav-item" id="analyzeImageBtn"><span>▣</span><b>Image Upload & Analysis</b></button>
+        <button type="button" class="simo-nav-item" data-simo-starter="business"><span>▥</span><b>Business Plans & Startups</b></button>
       </div>
 
-      <div class="side-card">
-        <div style="font-weight:700; margin-bottom:8px;">Business Plans & Startups</div>
-        <div class="muted">Full plans generated instantly</div>
+      <div class="simo-sidebar-rule"></div>
+
+      <div id="builderLibraryCard" class="simo-nav-item simo-library-nav" role="button" tabindex="0">
+        <span>▰</span><b>Website Builder Library</b><em id="builderLibrarySidebarCount">0</em>
       </div>
 
-      <div class="side-card">
-        <div style="font-weight:700; margin-bottom:8px;">Stock Market & Portfolios</div>
-        <div class="muted">General insights + tracking ideas</div>
-      </div>
+      <button id="openLibraryBtn" class="simo-nav-item simo-library-nav" type="button">
+        <span>▧</span><b>Design Library</b><em id="designLibrarySidebarCount">0</em>
+      </button>
 
-      <div class="side-card">
-        <div style="font-weight:700; margin-bottom:8px;">AI Website Builder</div>
-        <div class="muted">Generate premium landing pages instantly</div>
-      </div>
+      <div class="simo-sidebar-rule"></div>
 
-      <div class="side-card">
-        <div style="font-weight:700; margin-bottom:8px;">3D Rendering & Rotate</div>
-        <div class="muted">Viewer stays honest — only verified 3D opens</div>
-      </div>
-
-      <div class="side-card" id="builderLibraryCard">
-        <div style="font-weight:700; margin-bottom:8px;">Builder Library</div>
-        <div class="muted">Open saved websites and reload past builds</div>
-      </div>
-
-      <div style="margin-top:16px; display:grid; gap:12px;">
-        <button id="settingsBtn" class="pill" type="button">Settings & Voice</button>
-        <button id="signupBtn" class="pill" type="button">Easy Signup</button>
-        <button id="openLibraryBtn" class="pill" type="button">Open Library</button>
-        <button id="reopenLastPreviewBtn" class="pill hidden" type="button">Reopen Last Preview</button>
-      </div>
+      <button id="settingsBtn" class="simo-nav-item" type="button"><span>⚙</span><b>Settings & Voice</b></button>
+      <button id="signupBtn" class="simo-nav-item" type="button"><span>♙</span><b>Easy Signup</b></button>
+      <button id="reopenLastPreviewBtn" class="simo-nav-item hidden" type="button"><span>↻</span><b>Reopen Last Build</b></button>
     </aside>
 
-    <main class="main">
-      <section class="hero-card topbar">
-        <div>
-          <div style="font-size:18px; font-weight:700;">What do you want to build today?</div>
-          <div class="muted" style="margin-top:6px;">Talk, design, create, and build — all in one place</div>
+    <main class="main simo-premium-main">
+      <section class="simo-premium-topbar">
+        <div class="simo-topbar-greeting">
+          <strong id="simoGreeting">Good evening!</strong>
+          <span>What would you like to create today?</span>
         </div>
-
         <div class="topbar-actions">
-          <div class="online-pill">
-            <span class="dot"></span>
-            <span>Simo is online</span>
-          </div>
-
+          <div class="online-pill"><span class="dot"></span><span>Simo is online</span></div>
           <button id="upgradeBtn" class="pill" type="button">Upgrade</button>
           <button id="newChatBtn" class="pill" type="button">+ New Chat</button>
           <button id="loginBtn" class="pill" type="button">Sign in</button>
           <button id="logoutBtn" class="pill" type="button">Logout</button>
-          <button id="profileBtn" class="pill" type="button">🙂 You</button>
-          <button id="clearHistoryBtn" class="pill" type="button">🗑 Clear History</button>
+          <button id="profileBtn" class="pill" type="button">◉ You</button>
+          <button id="clearHistoryBtn" class="pill" type="button">↻ Clear History</button>
         </div>
       </section>
 
-      <section class="hero-card">
-        <div class="chip-row">
-          <div class="chip">⚡ Ready for chat</div>
-          <div class="chip">🧠 Builder enabled</div>
-          <div class="chip">🖼️ Image aware</div>
-          <div class="chip">🧊 3D viewer ready</div>
-        </div>
-
-        <div class="stats">
-          <div class="stat-card">
-            <div class="tiny muted">ACCOUNT</div>
-            <div id="accountValue" style="font-size:18px; font-weight:700; margin-top:6px;">Guest</div>
-            <div id="userEmail" class="muted tiny" style="margin-top:6px; font-size:13px; opacity:0.75;"></div>
-            <div class="muted" style="margin-top:6px;">Logged-in workspace status</div>
+      <section class="simo-premium-home">
+        <div class="simo-home-hero">
+          <div class="simo-trust-stack" aria-hidden="true">
+            <span>INTELLIGENT</span><span>CREATIVE</span><span>TRUSTED</span><strong>ALWAYS ON</strong>
           </div>
 
-          <div class="stat-card">
-            <div class="tiny muted">PLAN</div>
-            <div id="planValue" style="font-size:18px; font-weight:700; margin-top:13px;">Free</div>
-            <div id="proBadge" class="muted tiny" data-pro="false" style="margin-top:6px;">Free</div>
-            <div class="muted" style="margin-top:6px;">Free / Pro / Team</div>
+          <div class="simo-hero-brand simo-exact-hero-brand" aria-label="Simo">
+            <img class="simo-exact-hero-logo" src="/static/simo-logo-main.png?v=simo-logo-final-symmetry" alt="Simo" />
           </div>
 
-          <div class="stat-card">
-            <div class="tiny muted">USAGE TODAY</div>
-            <div id="usageTodayValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
-            <div class="muted" style="margin-top:6px;">Daily message usage</div>
-          </div>
-
-          <div class="stat-card">
-            <div class="tiny muted">BUILDER LIBRARY</div>
-            <div id="libraryCountValue" style="font-size:18px; font-weight:700; margin-top:6px;">0</div>
-            <div class="muted" style="margin-top:6px;">Saved local builds</div>
+          <div class="simo-hero-copy">
+            <h1>Hi, I’m Simo.<br><span>Your best friend AI.</span></h1>
+            <h2>Let’s bring your ideas to life.</h2>
+            <p>Build websites, create business ideas, design amazing things, analyze images, or just chat. I’m always here — ready when you are.</p>
+            <button type="button" class="simo-primary-cta" data-simo-starter="chat">Let’s Get Started <span>→</span></button>
+            <div class="simo-hand-note">More than AI.<br><b>A better you.</b></div>
           </div>
         </div>
-      </section>
 
-      <section
-        class="hero-card"
-        style="
-          padding:20px 22px;
-          margin-top:14px;
-          position:relative;
-          overflow:hidden;
-          background:
-            radial-gradient(circle at top right, rgba(110,168,255,.10), transparent 24%),
-            linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.025));
-          border:1px solid rgba(255,255,255,.08);
-          box-shadow:
-            inset 0 1px 0 rgba(255,255,255,.04),
-            0 10px 30px rgba(0,0,0,.12);
-        "
-      >
-        <div
-          style="
-            position:absolute;
-            top:-60px;
-            right:-40px;
-            width:180px;
-            height:180px;
-            border-radius:999px;
-            background:radial-gradient(circle, rgba(110,168,255,.10), transparent 68%);
-            pointer-events:none;
-          "
-        ></div>
+        <div class="simo-capability-grid">
+          <button class="simo-cap-card" type="button" data-simo-starter="build"><span>▣</span><strong>Build a Website</strong><small>Turn any idea into a stunning website</small></button>
+          <button class="simo-cap-card" type="button" data-simo-starter="business"><span>☼</span><strong>Create a Business Idea</strong><small>Get inspiration and a plan</small></button>
+          <button class="simo-cap-card" type="button" data-simo-starter="design"><span>✎</span><strong>Design Something</strong><small>Edit, enhance, or create images</small></button>
+          <button class="simo-cap-card" type="button" data-simo-starter="image"><span>▧</span><strong>Analyze an Image</strong><small>Understand and get insights</small></button>
+          <button class="simo-cap-card" type="button" data-simo-starter="chat"><span>◉</span><strong>Just Chat</strong><small>Talk about anything</small></button>
+        </div>
 
-        <div style="position:relative; z-index:1;">
-         <div style="font-size:15px; font-weight:700; margin-bottom:12px; letter-spacing:.01em;">
-  Start with one of these:
-</div>
+        <div class="simo-status-grid">
+          <div class="simo-status-card"><span class="simo-status-icon">ϟ</span><div><strong>Ready for chat</strong><small>Everything is working properly</small></div></div>
+          <div class="simo-status-card"><span class="simo-status-icon">◈</span><div><strong>Builder enabled</strong><small>Website Builder is active</small></div></div>
+          <div class="simo-status-card"><span class="simo-status-icon">▧</span><div><strong>Image aware</strong><small>Upload, analyze, and create</small></div></div>
+          <div class="simo-status-card simo-usage-card"><div><small>Usage today</small><strong id="usageTodayValue">0 / 25</strong><div class="simo-usage-track"><i id="simoUsageBar"></i></div><small>Daily message usage</small></div></div>
+        </div>
 
-          <div style="display:flex; gap:14px; flex-wrap:wrap;">
-            <button class="chip" type="button" data-simo-starter="build" style="cursor:pointer;">Build a website</button>
-            <button class="chip" type="button" data-simo-starter="business" style="cursor:pointer;">Create a business idea</button>
-            <button class="chip" type="button" data-simo-starter="design" style="cursor:pointer;">Design something</button>
-            <button class="chip" type="button" data-simo-starter="image" style="cursor:pointer;">Analyze an image</button>
-            <button class="chip" type="button" data-simo-starter="chat" style="cursor:pointer;">Just chat</button>
-          </div>
-
-         <div class="muted tiny" style="margin-top:14px; font-size:13px;">
-  Click one to load a starter prompt into the composer. Nothing auto-sends.
-</div>
-
-          <div
-            id="simoHintCard"
-            style="
-              margin-top:14px;
-              padding:14px 16px;
-              border-radius:14px;
-              background:
-                linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
-              border:1px solid rgba(255,255,255,.10);
-              box-shadow:
-                inset 0 1px 0 rgba(255,255,255,.05),
-                0 10px 28px rgba(0,0,0,.10);
-              position:relative;
-              overflow:hidden;
-            "
-          >
-            <div
-              style="
-                position:absolute;
-                inset:0;
-                background:
-                  radial-gradient(circle at top left, rgba(110,168,255,.10), transparent 30%);
-                pointer-events:none;
-              "
-            ></div>
-
-            <div style="position:relative; z-index:1;">
-              <div
-                style="
-                  font-size:13px;
-                  font-weight:700;
-                  margin-bottom:7px;
-                  display:flex;
-                  align-items:center;
-                  gap:8px;
-                "
-              >
-                <span
-                  style="
-                    width:8px;
-                    height:8px;
-                    border-radius:999px;
-                    background:#6ea8ff;
-                    box-shadow:0 0 12px rgba(110,168,255,.6);
-                    display:inline-block;
-                    flex:0 0 auto;
-                  "
-                ></span>
-                <span>Best first move</span>
-              </div>
-
-              <div id="simoHintText" class="muted tiny" style="line-height:1.6; font-size:13px;">
-                New here? Start with <strong>Build a website</strong> or <strong>Create a business idea</strong>.
-                You can send the starter as-is or edit it first before pressing send.
-              </div>
-            </div>
-          </div>
+        <div class="simo-hidden-state" aria-hidden="true">
+          <span id="accountValue">Guest</span>
+          <span id="userEmail"></span>
+          <span id="planValue">Free</span>
+          <span id="proBadge" data-pro="false">Free</span>
+          <span id="libraryCountValue">0</span>
         </div>
       </section>
 
-      <section class="chat-wrap" id="chat">
+      <section class="chat-wrap simo-home-chat" id="chat">
         <div id="chatMessages"></div>
       </section>
 
- <section class="composer-wrap">
-  <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
-  <input id="imageInput" type="file" accept="image/*" hidden />
-  <textarea id="chatInput" placeholder="What do you want to build today?" style="color:#ffffff !important;-webkit-text-fill-color:#ffffff !important;caret-color:#ffffff !important;opacity:1 !important;background:transparent !important;font-size:16px !important;line-height:1.4 !important;text-indent:0 !important;text-shadow:none !important;"></textarea>
-  <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
-</section>
-  
+      <section class="composer-wrap simo-premium-composer">
+        <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
+        <input id="imageInput" type="file" accept="image/*" hidden />
+        <textarea id="chatInput" placeholder="What would you like Simo to help you create?"></textarea>
+        <button id="simoMicBtn" class="icon-btn simo-mic-btn" type="button" aria-label="Use microphone" title="Use microphone">🎙️</button>
+        <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
+      </section>
       <div id="loadingHint">Ready.</div>
     </main>
   </div>
@@ -242,19 +284,30 @@
     window.SIMO_BOOT = {{ simo_boot_json | safe }};
   </script>
 
-  <script src="/static/3dviewer.js?v=phase50"></script>
-    <script src="/static/simo-ui-recovery.js?v=phase14m-r7"></script>
-  <script src="/static/script.js?v=r1059j-final-live-ready"></script>
-  <script src="/static/phase28-safe-addon.js?v=phase28safe1"></script>
+  <!-- SIMO R10.60Z85: Website Builder owner must load BEFORE script.js so old generic builder cannot grab website prompts first. -->
+  
+
+  <script id="simo-web5-preboot">
+    window.__SIMO_DISABLE_LEGACY_WEBSITE_GENERATOR__ = true;
+    window.__SIMO_R1060Z89_WEBSITE_ROUTER_GUARD__ = true;
+    window.__SIMO_WEBSITE_BUILDER_50_PREBOOT__ = true;
+  </script>
+  <!-- SIMO Architecture Baseline: load the Website Builder owner BEFORE legacy script.js,
+       so website prompts are captured before older Design Workspace/dashboard handlers. -->
+  <script src="/static/simo-website-builder-recovery.js?v=simo-10-34-premium-home-count-rc2"></script>
+  <script src="/static/script.js?v=simo-10-34-premium-home-identity-rc3"></script>
+  <script src="/static/simo-ui-recovery.js?v=r1060-three-regression-recovery-1"></script>
   <script src="/static/phase29b-safe-addon.js?v=r1059j-image-analysis-chat"></script>
   <script src="/static/phase30-image-intake-safe.js?v=r1059j-image-analysis-chat"></script>
   <script src="/static/designstudio.js"></script>
-  <script src="/static/simo_visualcore_PHASE_13A.js?v=phase14m-r7"></script>
+  <script src="/static/simo_visualcore_PHASE_13A.js?v=r1060-coordinated-recovery-final"></script>
   <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
-  <script src="/static/simo-feature-buttons.js?v=phase14m-r10-stable"></script>
-  <script src="/static/phase31-design-actions-safe.js?v=phase14m-r103-design-actions"></script>
-  <script src="/static/simo-live-workspace-isolated.js?v=r1059j-final-live-ready"></script>
-  <script src="/static/simo-library-rescue.js?v=r1059j-final-live-ready"></script>
-  <script src="/static/simo-open-workspace-card-bridge.js?v=r1059j-final-live-ready"></script>
+  <script src="/static/simo-live-workspace-isolated.js?v=r1060-coordinated-recovery-final"></script>
+  <!-- Main Design/Workspace Library owner; intentionally separate from Website Builder Library. -->
+  <script src="/static/simo-library-rescue.js?v=r1060-coordinated-recovery-final"></script>
+  
+  
+
+  <!-- Website Builder owner already loaded before script.js. Do not load it again here. -->
 </body>
 </html>
