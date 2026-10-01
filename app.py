@@ -1,3 +1,4 @@
+# SIMO RC11.8.3 — HEADLINE STYLE EDIT VERIFIER FIX
 # SIMO RC11.8.2 — ACTIVE/UPCOMING STALE-YEAR AUTO-REPAIR FOR NORMAL GENERATION
 # SIMO RC11.7 — AUDITED WHOLE-SITE REDESIGN: CONTENT REFERENCE WITHOUT OLD DOM ANCHOR
 # SIMO RC11.6.3 — CALIBRATED WHOLE-SITE REDESIGN SIMILARITY GATE
@@ -16101,7 +16102,10 @@ def _simo_v113_visible_edit_changed(before_html: str, after_html: str, instructi
     if re.search(r"\b(headline|main title|hero title|heading)\b", low):
         before_heads = _simo_v113_tag_texts(before, ("h1",))
         after_heads = _simo_v113_tag_texts(after, ("h1",))
-        if before_heads != after_heads:
+        # RC11.8.3: headline edits may be text edits OR styling edits.
+        # Example: "make the headline gold" should pass when the H1 styling
+        # visibly changes even though the headline words stay identical.
+        if before_heads != after_heads or style_ratio < 0.995:
             return True, {"reason": "headline_change", "text_ratio": text_ratio, "style_ratio": style_ratio, "structural": structural}
         return False, {"reason": "headline_not_visibly_changed", "text_ratio": text_ratio, "style_ratio": style_ratio, "structural": structural}
 
