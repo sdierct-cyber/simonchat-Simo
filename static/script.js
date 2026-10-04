@@ -1,5 +1,6 @@
 // Simo — Phase 2.6 Memory Upgrade
 // PHASE 5.2 FINAL — real visual action buttons
+// SIMO OCT 3 FREE CHAT USAGE CARD RC2 — guest card shows daily Free Chat allowance
 // full-file replacement
 (() => {
   if (window.__SIMO_BOOTED__) return;
@@ -212,13 +213,24 @@
     });
 
     const ct = res.headers.get("content-type") || "";
-    const data = ct.includes("application/json") ? await res.json() : await res.text();
+    const rawText = await res.text();
+    let data = rawText;
+    if (ct.includes("application/json")) {
+      try {
+        data = rawText ? JSON.parse(rawText) : {};
+      } catch {
+        throw new Error("Simo received an invalid server response. Please try again.");
+      }
+    }
 
     if (!res.ok) {
-      const msg =
+      let msg =
         (data && data.error) ||
         (data && data.message) ||
         (typeof data === "string" ? data : `Request failed: ${res.status}`);
+      if (typeof msg === "string" && /^\s*</.test(msg)) {
+        msg = `Simo received an unexpected server response (${res.status}). Please try again.`;
+      }
       throw new Error(msg);
     }
 
@@ -946,10 +958,20 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
       return;
     }
 
-    setTextIfChanged(usageEl, "0 credits");
-    setWidthIfChanged(bar, "0%");
-    setTextIfChanged(smalls[0], "Simo Credits");
-    setTextIfChanged(smalls[1], "Paid credits required before provider use");
+    // Guest/Free users see their daily plain-text chat allowance here.
+    const freeLimit = Math.max(1, Number(state.freeDailyLimit || 25));
+    const freeUsed = Math.max(0, Math.min(freeLimit, Number(state.usageToday || 0)));
+    const freeRemaining = Math.max(0, freeLimit - freeUsed);
+
+    setTextIfChanged(usageEl, `${freeUsed} / ${freeLimit}`);
+    setWidthIfChanged(bar, `${Math.max(0, Math.min(100, (freeUsed / freeLimit) * 100))}%`);
+    setTextIfChanged(smalls[0], "Free Chat");
+    setTextIfChanged(
+      smalls[1],
+      freeRemaining > 0
+        ? `${freeRemaining} free messages remaining today`
+        : "Free Chat limit reached for today"
+    );
   }
 
   // Keep the credit card authoritative even if an older dashboard helper tries
