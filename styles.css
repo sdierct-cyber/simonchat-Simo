@@ -22,14 +22,22 @@
   --radius:22px;
   --radius-sm:16px;
   --radius-xs:12px;
-  --sidebar-w:300px;
+  --sidebar-w:260px;
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
+*{ box-sizing:border-box; }
+
+html, body{
+  min-height:100%;
+  margin:0;
+  padding:0;
+}
+
+html{
+  scroll-behavior:smooth;
+}
 
 body{
-  margin:0;
   color:var(--text);
   font:14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
   background:
@@ -37,7 +45,7 @@ body{
     radial-gradient(circle at top right, rgba(177,110,255,.14) 0%, transparent 26%),
     radial-gradient(circle at bottom center, rgba(40,76,150,.22) 0%, transparent 30%),
     linear-gradient(180deg, #09111d 0%, #08101b 38%, #060d17 100%);
-  overflow:hidden;
+  color:var(--text);
 }
 
 body::before{
@@ -52,208 +60,161 @@ body::before{
     radial-gradient(circle at 60% 70%, rgba(255,255,255,.025) 0 1px, transparent 1px);
   background-size:auto, 180px 180px, 220px 220px, 260px 260px;
   opacity:.75;
+  z-index:0;
 }
 
-.hidden{display:none !important}
+body.modal-open{
+  overflow:hidden;
+}
 
-.app{
+.hidden{
+  display:none !important;
+}
+
+/* -------------------------------------------------- */
+/* App shell */
+/* -------------------------------------------------- */
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.app-shell{
   position:relative;
+  z-index:1;
   display:grid;
-  grid-template-columns:var(--sidebar-w) 1fr;
-  width:100%;
+  grid-template-columns:var(--sidebar-w) minmax(0, 1fr);
   height:100vh;
+  width:100%;
+  overflow:hidden;
 }
 
-.side{
-  position:relative;
-  display:flex;
-  flex-direction:column;
-  gap:18px;
-  min-width:0;
-  padding:18px;
+.sidebar{
+  position:sticky;
+  top:0;
+  z-index:2;
+  height:100vh;
   border-right:1px solid var(--stroke2);
+  padding:16px;
   background:
     linear-gradient(180deg, rgba(15,23,38,.92), rgba(8,14,24,.88));
   backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
   box-shadow:inset -1px 0 0 rgba(255,255,255,.03);
   overflow:auto;
-}
-
-.brand{
-  display:flex;
-  align-items:flex-start;
-  gap:14px;
-  padding:14px;
-  border:1px solid var(--stroke);
-  border-radius:24px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
-  box-shadow:var(--shadow-soft);
-}
-
-.logo{
-  width:52px;
-  height:52px;
-  border-radius:16px;
-  display:grid;
-  place-items:center;
-  font-size:24px;
-  background:
-    radial-gradient(circle at 30% 30%, rgba(255,255,255,.18), rgba(255,255,255,.04) 45%, rgba(255,255,255,.02) 100%),
-    linear-gradient(135deg, rgba(76,128,255,.35), rgba(173,115,255,.28));
-  border:1px solid rgba(255,255,255,.12);
-  box-shadow:
-    0 10px 24px rgba(0,0,0,.24),
-    inset 0 1px 0 rgba(255,255,255,.15);
-}
-
-.name{
-  font-size:20px;
-  font-weight:800;
-  letter-spacing:.2px;
-  color:#f4f7ff;
-}
-
-.tag{
-  margin-top:2px;
-  color:var(--muted);
-  font-size:13px;
-}
-
-.proBtn{
-  position:relative;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-  width:100%;
-  padding:14px 16px;
-  border:1px solid rgba(160,123,255,.28);
-  border-radius:18px;
-  color:white;
-  font-weight:800;
-  letter-spacing:.5px;
-  cursor:pointer;
-  background:
-    linear-gradient(135deg, rgba(68,110,255,.24), rgba(176,111,255,.28));
-  box-shadow:
-    0 14px 34px rgba(50,74,170,.22),
-    inset 0 1px 0 rgba(255,255,255,.12);
-  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease, filter .18s ease;
-}
-
-.proBtn:hover{
-  transform:translateY(-1px);
-  filter:brightness(1.04);
-  border-color:rgba(198,163,255,.42);
-  box-shadow:
-    0 18px 40px rgba(66,82,176,.3),
-    inset 0 1px 0 rgba(255,255,255,.18);
-}
-
-.proBtn .star{font-size:15px}
-.proBtn .label{font-size:14px}
-
-.sideBlock{
-  display:flex;
-  flex-direction:column;
-  gap:12px;
-}
-
-.sideItem{
-  width:100%;
-  text-align:left;
-  border:1px solid var(--stroke2);
-  border-radius:18px;
-  padding:14px 14px;
-  color:var(--text);
-  cursor:pointer;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.02));
-  box-shadow:var(--shadow-soft);
-  transition:transform .16s ease, border-color .16s ease, background .16s ease;
-}
-
-.sideItem:hover{
-  transform:translateY(-1px);
-  border-color:rgba(126,164,255,.22);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.03));
-}
-
-.sideTitle{
-  font-weight:700;
-  font-size:14px;
-  color:#edf4ff;
-}
-
-.sideSub{
-  margin-top:4px;
-  font-size:12.5px;
-  color:var(--muted);
-  line-height:1.45;
-}
-
-.sideFooter{
-  margin-top:auto;
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-}
-
-.ghostBtn{
-  width:100%;
-  padding:12px 14px;
-  border-radius:16px;
-  border:1px solid var(--stroke2);
-  color:var(--text);
-  cursor:pointer;
-  background:rgba(255,255,255,.04);
-  transition:transform .16s ease, border-color .16s ease, background .16s ease;
-}
-
-.ghostBtn:hover{
-  transform:translateY(-1px);
-  border-color:rgba(255,255,255,.13);
-  background:rgba(255,255,255,.06);
 }
 
 .main{
   min-width:0;
   display:flex;
   flex-direction:column;
-  gap:14px;
+  gap:12px;
   height:100vh;
-  padding:18px 18px 16px;
+  min-height:0;
+  padding:14px;
+  overflow:hidden;
 }
 
+.chat-wrap{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  overflow-x:hidden;
+}
+
+.composer-wrap{
+  flex:0 0 auto;
+}
+
+/* -------------------------------------------------- */
+/* Shared glass cards */
+/* -------------------------------------------------- */
+.brand-card,
+.side-card,
+.hero-card,
+.stat-card,
+.chat-wrap,
+.composer-wrap{
+  border:1px solid var(--stroke);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.03));
+  border-radius:24px;
+  box-shadow:var(--shadow-soft);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+
+.brand-card{
+  padding:16px;
+  margin-bottom:12px;
+}
+
+.side-card{
+  padding:14px;
+  margin-bottom:10px;
+}
+
+/* -------------------------------------------------- */
+/* Top hero / topbar */
+/* -------------------------------------------------- */
 .topbar{
   display:flex;
-  align-items:center;
   justify-content:space-between;
-  gap:14px;
-  flex-wrap:wrap;
-  padding:12px 14px;
-  border:1px solid var(--stroke);
-  border-radius:22px;
-  background:
-    linear-gradient(180deg, rgba(16,24,40,.84), rgba(9,15,27,.74));
-  box-shadow:var(--shadow-soft);
-  backdrop-filter:blur(12px);
-}
-
-.title{
-  font-size:20px;
-  font-weight:800;
-  color:#f4f7ff;
-  letter-spacing:.2px;
-}
-
-.actions{
-  display:flex;
   align-items:center;
   gap:10px;
+  padding:15px 16px;
   flex-wrap:wrap;
+}
+
+.topbar-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:flex-end;
+  min-width:0;
+}
+
+.hero-card{
+  padding:15px 16px;
+}
+
+.online-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--stroke);
+  background:rgba(255,255,255,.04);
+  border-radius:999px;
+  padding:8px 13px;
+  white-space:nowrap;
+  color:var(--text);
+}
+
+.dot{
+  width:10px;
+  height:10px;
+  border-radius:50%;
+  background:var(--green);
+  box-shadow:0 0 18px var(--green);
+  flex:0 0 auto;
+}
+
+/* -------------------------------------------------- */
+/* Buttons / pills */
+/* -------------------------------------------------- */
+button{
+  font:inherit;
+}
+
+button,
+input,
+textarea,
+select{
+  font:inherit;
 }
 
 .pill{
@@ -261,130 +222,169 @@ body::before{
   align-items:center;
   justify-content:center;
   gap:8px;
-  min-height:40px;
-  padding:10px 14px;
-  border-radius:999px;
+  min-height:38px;
   border:1px solid var(--stroke);
   background:rgba(255,255,255,.05);
   color:var(--text);
+  border-radius:999px;
+  padding:9px 14px;
   cursor:pointer;
   text-decoration:none;
   font-weight:600;
-  transition:transform .16s ease, border-color .16s ease, background .16s ease;
-}
-
-.plan-pill{
-  font-weight:800;
-  letter-spacing:.2px;
-}
-
-.pro-pill{
-  background:linear-gradient(135deg,#f6d365,#fda085);
-  color:#201300;
-  border:1px solid rgba(255,255,255,.18);
-  box-shadow:0 6px 18px rgba(255,180,60,.35);
-}
-
-.team-pill{
-  background:linear-gradient(135deg,#7c3aed,#2563eb);
-  color:#ffffff;
-  border:1px solid rgba(255,255,255,.18);
-}
-
-.free-pill{
-  background:rgba(255,255,255,.06);
-  color:#d1d5db;
-  border:1px solid rgba(255,255,255,.12);
+  transition:transform .16s ease, border-color .16s ease, background .16s ease, filter .16s ease, box-shadow .16s ease;
 }
 
 .pill:hover{
   transform:translateY(-1px);
+  background:rgba(255,255,255,.08);
   border-color:rgba(255,255,255,.16);
-  background:rgba(255,255,255,.07);
+  box-shadow:0 8px 24px rgba(0,0,0,.16);
 }
 
-.pill.danger{
-  border-color:rgba(255,109,133,.26);
-  color:#ffe4ea;
-  background:rgba(255,109,133,.08);
+.pill:disabled{
+  opacity:.6;
+  cursor:not-allowed;
+  transform:none;
 }
 
-.pill.danger:hover{
-  border-color:rgba(255,109,133,.4);
-  background:rgba(255,109,133,.12);
+.icon-btn,
+.send-btn,
+.roundBtn,
+.buyBtn,
+.ghostBtn,
+.xBtn{
+  transition:transform .16s ease, border-color .16s ease, background .16s ease, filter .16s ease, box-shadow .16s ease;
 }
 
-.planBadge{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  margin-left:8px;
-  padding:5px 9px;
+.icon-btn:hover,
+.send-btn:hover,
+.roundBtn:hover,
+.buyBtn:hover,
+.ghostBtn:hover,
+.xBtn:hover{
+  transform:translateY(-1px);
+}
+
+.ghostBtn{
+  width:100%;
+  padding:11px 13px;
+  border-radius:15px;
+  border:1px solid var(--stroke2);
+  color:var(--text);
+  cursor:pointer;
+  background:rgba(255,255,255,.04);
+}
+
+.ghostBtn:hover{
+  border-color:rgba(255,255,255,.13);
+  background:rgba(255,255,255,.06);
+  box-shadow:0 8px 22px rgba(0,0,0,.14);
+}
+
+/* -------------------------------------------------- */
+/* Chips / stats */
+/* -------------------------------------------------- */
+.chip-row{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+
+.chip{
+  border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.04);
   border-radius:999px;
-  font-size:11px;
-  font-weight:800;
-  letter-spacing:.35px;
+  padding:7px 12px;
+  font-size:13px;
+  color:var(--text);
 }
 
-.planBadge.pro{
-  color:#f5f0ff;
-  border:1px solid rgba(186,132,255,.28);
-  background:rgba(173,117,255,.14);
+.stats{
+  display:grid;
+  grid-template-columns:repeat(4, minmax(0, 1fr));
+  gap:10px;
+  margin-top:12px;
 }
 
-.planBadge.team{
-  color:#ebfff7;
-  border:1px solid rgba(86,240,169,.22);
-  background:rgba(86,240,169,.14);
+.stat-card{
+  padding:15px 16px;
+  min-height:82px;
 }
 
-.chatWrap{
-  min-height:0;
-  flex:1;
-  border:1px solid var(--stroke);
-  border-radius:26px;
-  background:
-    linear-gradient(180deg, rgba(10,17,29,.86), rgba(8,13,22,.76));
-  box-shadow:var(--shadow);
-  overflow:hidden;
-}
+.muted{ color:var(--muted); }
+.tiny{ font-size:12px; line-height:1.45; }
 
-.chatMessages{
-  height:100%;
-  overflow:auto;
-  padding:18px;
+/* -------------------------------------------------- */
+/* Chat area */
+/* -------------------------------------------------- */
+.chat-wrap{
+  flex:1 1 auto;
+  min-height:320px;
+  padding:14px;
   display:flex;
   flex-direction:column;
-  gap:14px;
+  overflow:auto;
   scroll-behavior:smooth;
 }
 
-.chatMessages::-webkit-scrollbar{
+#chatMessages{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  min-height:240px;
+  width:100%;
+}
+
+#chatMessages::-webkit-scrollbar,
+.chat-wrap::-webkit-scrollbar,
+#builderLibraryList::-webkit-scrollbar,
+#builderPreviewHtml::-webkit-scrollbar{
   width:10px;
 }
-.chatMessages::-webkit-scrollbar-thumb{
+
+#chatMessages::-webkit-scrollbar-thumb,
+.chat-wrap::-webkit-scrollbar-thumb,
+#builderLibraryList::-webkit-scrollbar-thumb,
+#builderPreviewHtml::-webkit-scrollbar-thumb{
   background:rgba(255,255,255,.10);
   border-radius:999px;
   border:2px solid transparent;
   background-clip:padding-box;
 }
-.chatMessages::-webkit-scrollbar-track{
+
+#chatMessages::-webkit-scrollbar-track,
+.chat-wrap::-webkit-scrollbar-track,
+#builderLibraryList::-webkit-scrollbar-track,
+#builderPreviewHtml::-webkit-scrollbar-track{
   background:transparent;
 }
 
-.msg{
-  max-width:min(820px, 88%);
-  padding:14px 16px;
-  border-radius:20px;
-  line-height:1.55;
+.msg-row{
+  display:flex;
+  margin:4px 0;
+}
+
+.msg-user{
+  justify-content:flex-end;
+}
+
+.msg-assistant{
+  justify-content:flex-start;
+}
+
+.msg-bubble{
+  max-width:min(820px, 90%);
   white-space:pre-wrap;
   word-wrap:break-word;
+  line-height:1.52;
+  padding:12px 14px;
+  border-radius:18px;
   border:1px solid var(--stroke2);
   box-shadow:var(--shadow-soft);
 }
 
-.msg.user{
-  align-self:flex-end;
+.msg-bubble-user{
   color:#f6f8ff;
   background:
     linear-gradient(135deg, rgba(77,125,255,.24), rgba(168,113,255,.20));
@@ -392,195 +392,354 @@ body::before{
   border-bottom-right-radius:8px;
 }
 
-.msg.assistant{
-  align-self:flex-start;
+.msg-bubble-assistant{
   color:#e8f0ff;
   background:
     linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
   border-bottom-left-radius:8px;
 }
 
-.msg.system{
-  align-self:center;
-  text-align:center;
-  color:var(--muted);
-  background:rgba(255,255,255,.035);
-  max-width:92%;
-}
-
-.msg img{
+.msg-bubble img{
   max-width:100%;
-  border-radius:16px;
+  border-radius:14px;
   display:block;
-  margin-top:10px;
+  margin-top:8px;
   border:1px solid rgba(255,255,255,.10);
 }
 
-.imageStage{
-  border:1px solid rgba(130,173,255,.18);
-  border-radius:20px;
-  background:
-    linear-gradient(180deg, rgba(23,34,58,.62), rgba(11,18,31,.62));
-  box-shadow:var(--shadow-soft);
+/* -------------------------------------------------- */
+/* Assistant rich formatting polish */
+/* -------------------------------------------------- */
+.msg-bubble-assistant > div[style*="display:grid"]{
+  gap:6px !important;
 }
 
-.imageDropZone{
-  padding:14px;
+.msg-bubble-assistant p,
+.msg-bubble-assistant h1,
+.msg-bubble-assistant h2,
+.msg-bubble-assistant h3,
+.msg-bubble-assistant h4{
+  margin-top:0;
+  margin-bottom:.45em;
 }
 
-.imageStageTop{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom:12px;
+.msg-bubble-assistant p:last-child,
+.msg-bubble-assistant h1:last-child,
+.msg-bubble-assistant h2:last-child,
+.msg-bubble-assistant h3:last-child,
+.msg-bubble-assistant h4:last-child{
+  margin-bottom:0;
 }
 
-.imageStageTitle{
+.msg-bubble-assistant p{
+  color:#eaf1ff;
+  line-height:1.62;
+}
+
+.msg-bubble-assistant strong{
+  color:#f6f8ff;
+  font-weight:800;
+}
+
+.msg-bubble-assistant em{
+  color:#dce8ff;
+}
+
+.msg-bubble-assistant h1,
+.msg-bubble-assistant h2,
+.msg-bubble-assistant h3{
+  color:#f7f9ff;
+  line-height:1.3;
+  letter-spacing:-.01em;
+}
+
+.msg-bubble-assistant h1{
+  font-size:19px;
+  font-weight:800;
+}
+
+.msg-bubble-assistant h2{
+  font-size:16px;
+  font-weight:800;
+}
+
+.msg-bubble-assistant h3{
   font-size:14px;
-  font-weight:700;
-  color:#eef4ff;
+  font-weight:800;
 }
 
-.miniDangerBtn{
-  padding:8px 12px;
-  border-radius:12px;
-  border:1px solid rgba(255,109,133,.24);
-  background:rgba(255,109,133,.10);
-  color:#ffe4ea;
-  cursor:pointer;
-  font-weight:600;
+.msg-bubble-assistant ul,
+.msg-bubble-assistant ol{
+  margin:0;
+  padding-left:18px;
 }
 
-.imageStageBody{
-  display:flex;
-  align-items:center;
-  gap:14px;
-  flex-wrap:wrap;
+.msg-bubble-assistant li{
+  margin:0;
+  line-height:1.58;
+  color:#eaf1ff;
 }
 
-.imagePreviewWrap{
-  width:120px;
-  height:120px;
-  border-radius:18px;
-  overflow:hidden;
-  border:1px solid var(--stroke);
-  background:rgba(255,255,255,.04);
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  box-shadow:var(--shadow-soft);
+.msg-bubble-assistant li + li{
+  margin-top:4px;
 }
 
-.imagePreview{
-  width:100%;
-  height:100%;
-  object-fit:cover;
+.msg-bubble-assistant pre{
+  margin:0;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(6,12,22,.92);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.02);
+}
+
+.msg-bubble-assistant code{
+  font-family:Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
+}
+
+.msg-bubble-assistant pre code{
   display:block;
-}
-
-.imageMeta{
-  min-width:220px;
-  flex:1;
-}
-
-.imageName{
-  font-weight:700;
-  color:#eef4ff;
-  margin-bottom:6px;
-}
-
-.imageHint{
-  color:var(--muted);
-  font-size:13px;
+  color:#edf3ff;
   line-height:1.5;
 }
 
-.composer{
-  display:flex;
-  align-items:center;
-  gap:12px;
-  padding:14px;
-  border:1px solid var(--stroke);
-  border-radius:24px;
-  background:
-    linear-gradient(180deg, rgba(15,23,39,.90), rgba(10,16,28,.80));
-  box-shadow:var(--shadow-soft);
-  backdrop-filter:blur(12px);
+.msg-bubble-assistant :not(pre) > code{
+  padding:2px 6px;
+  border-radius:8px;
+  background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.08);
+  color:#f4f7ff;
+  font-size:.95em;
 }
 
-.roundBtn{
-  width:48px;
-  height:48px;
-  border-radius:16px;
+.msg-bubble-assistant [data-copy-assistant]{
+  min-height:34px;
+  border-radius:10px !important;
+  border:1px solid rgba(255,255,255,.10) !important;
+  background:rgba(255,255,255,.05) !important;
+  color:#eef4ff !important;
+  font-size:12px !important;
+  font-weight:700 !important;
+  box-shadow:none;
+}
+
+.msg-bubble-assistant [data-copy-assistant]:hover{
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.16) !important;
+  box-shadow:0 8px 22px rgba(0,0,0,.14);
+}
+
+/* -------------------------------------------------- */
+/* Phase 4.5d dense 3D grouped panel */
+/* -------------------------------------------------- */
+.msg-bubble-assistant [data-model-choice-wrap]{
+  margin-top:6px !important;
+  padding:7px !important;
+  border-radius:14px !important;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.034), rgba(255,255,255,.016)) !important;
+  border:1px solid rgba(255,255,255,.07) !important;
+  box-shadow:
+    0 8px 22px rgba(0,0,0,.16),
+    inset 0 1px 0 rgba(255,255,255,.02);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] > div{
+  gap:6px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="margin-bottom:8px"]{
+  margin-bottom:5px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="display:grid; gap:8px;"]{
+  gap:5px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="display:grid; gap:5px;"]{
+  gap:3px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="display:grid; gap:3px;"]{
+  gap:1px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="display:flex; flex-wrap:wrap; gap:6px;"]{
+  gap:4px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url],
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn{
+  min-width:198px !important;
+  flex:1 1 198px !important;
+  padding:8px !important;
+  border-radius:13px !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.02),
+    0 6px 18px rgba(0,0,0,.12) !important;
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease,
+    background .18s ease,
+    filter .18s ease,
+    opacity .18s ease !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="height:54px;"]{
+  height:48px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="padding:8px;"]{
+  padding:7px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="font-size:.96rem"]{
+  font-size:.91rem !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="font-size:13px; font-weight:700"]{
+  font-size:12px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="font-size:12px; color:rgba(235,242,255,.72)"]{
+  font-size:11px !important;
+  line-height:1.22 !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="font-size:12px; line-height:1.42"]{
+  line-height:1.28 !important;
+  min-height:18px !important;
+  margin-top:-1px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="margin-top:auto"]{
+  margin-top:2px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] span{
+  letter-spacing:.01em;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url],
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn{
+  position:relative;
+  overflow:hidden;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url]::before,
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 40%);
+  opacity:.95;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url]::after,
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn::after{
+  content:"";
+  position:absolute;
+  inset:auto -18% -42% auto;
+  width:110px;
+  height:110px;
+  border-radius:50%;
+  background:radial-gradient(circle, rgba(110,168,255,.14), transparent 68%);
+  pointer-events:none;
+  opacity:.48;
+}
+
+/* -------------------------------------------------- */
+/* Composer */
+/* -------------------------------------------------- */
+.composer-wrap{
+  padding:10px;
+  display:flex;
+  align-items:flex-end;
+  gap:10px;
+  position:sticky;
+  bottom:0;
+  z-index:3;
+}
+
+#chatInput{
+  flex:1;
+  resize:none;
+  border:none;
+  outline:none;
+  background:rgba(255,255,255,.03);
+  color:var(--text);
+  border-radius:20px;
+  padding:13px 16px;
+  min-height:50px;
+  max-height:160px;
+  font:inherit;
+  line-height:1.4;
+}
+
+#chatInput::placeholder{
+  color:#aebbd7;
+}
+
+.icon-btn{
+  width:44px;
+  height:44px;
+  border-radius:15px;
   border:1px solid var(--stroke);
   background:rgba(255,255,255,.05);
   color:var(--text);
   cursor:pointer;
+  flex:0 0 auto;
+}
+
+.icon-btn:hover{
+  background:rgba(255,255,255,.08);
+  border-color:rgba(255,255,255,.16);
+  box-shadow:0 8px 20px rgba(0,0,0,.14);
+}
+
+.send-btn{
+  width:50px;
+  height:44px;
+  border-radius:15px;
+  border:1px solid rgba(140,160,255,.18);
+  background:linear-gradient(180deg, rgba(105,120,255,.35), rgba(80,88,180,.35));
+  color:#fff;
+  cursor:pointer;
   font-size:18px;
   flex:0 0 auto;
-  transition:transform .16s ease, border-color .16s ease, background .16s ease;
+  box-shadow:0 10px 26px rgba(70,88,180,.18);
 }
 
-.roundBtn:hover{
-  transform:translateY(-1px);
-  border-color:rgba(255,255,255,.16);
-  background:rgba(255,255,255,.08);
+.send-btn:hover{
+  filter:brightness(1.08);
+  border-color:rgba(160,180,255,.35);
+  box-shadow:0 12px 28px rgba(70,88,180,.22);
 }
 
-.roundBtn.send{
-  background:
-    linear-gradient(135deg, rgba(78,126,255,.26), rgba(177,111,255,.20));
-  border-color:rgba(138,170,255,.22);
-}
-
-.roundBtn.send:hover{
-  border-color:rgba(171,195,255,.3);
-  background:
-    linear-gradient(135deg, rgba(78,126,255,.34), rgba(177,111,255,.26));
-}
-
-.inputWrap{
-  flex:1;
-  min-width:0;
-}
-
-.chatInput{
-  width:100%;
-  min-width:0;
-  height:50px;
-  border-radius:18px;
-  border:1px solid var(--stroke2);
-  padding:0 16px;
-  outline:none;
-  background:rgba(255,255,255,.04);
-  color:var(--text);
-  font-size:14px;
-  transition:border-color .16s ease, background .16s ease, box-shadow .16s ease;
-}
-
-.chatInput::placeholder{
-  color:#95a5c5;
-}
-
-.chatInput:focus{
-  border-color:rgba(121,166,255,.30);
-  background:rgba(255,255,255,.055);
-  box-shadow:0 0 0 4px rgba(90,133,255,.08);
-}
-
-.footerNote{
-  display:flex;
-  align-items:center;
-  justify-content:center;
+#loadingHint{
+  text-align:center;
+  color:var(--muted);
+  font-size:13px;
+  padding-top:1px;
   min-height:20px;
 }
 
-#statusLine{
-  color:var(--muted);
-  font-size:12.5px;
+/* -------------------------------------------------- */
+/* Toast */
+/* -------------------------------------------------- */
+#toastWrap{
+  pointer-events:none;
 }
 
+.simo-toast{
+  pointer-events:auto;
+}
+
+/* -------------------------------------------------- */
+/* Preview / library / shared modal */
+/* -------------------------------------------------- */
 .modal{
   position:fixed;
   inset:0;
@@ -640,224 +799,112 @@ body::before{
   padding:18px;
 }
 
-.pillRow{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-bottom:14px;
+/* -------------------------------------------------- */
+/* Buttons generated inside JS modals */
+/* -------------------------------------------------- */
+#builderPreviewModal button,
+#builderLibraryModal button,
+#viewer3dModal button,
+#settingsModal button{
+  font:inherit;
 }
 
-.chip{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:8px 12px;
-  border-radius:999px;
-  border:1px solid var(--stroke2);
-  background:rgba(255,255,255,.04);
-  color:var(--text);
-  font-size:12px;
-}
-
-.muted{
-  color:var(--muted);
-}
-
-.tiny{
-  font-size:12px;
-  line-height:1.5;
-}
-
-.tiers{
-  display:grid;
-  gap:14px;
-  margin-top:14px;
-}
-
-.tiers.two{
-  grid-template-columns:repeat(2, minmax(0,1fr));
-}
-
-.tierCard{
-  padding:18px;
-  border-radius:22px;
+#builderPreviewModal button,
+#builderLibraryModal button,
+#settingsModal button{
   border:1px solid var(--stroke);
-  background:
-    linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.025));
-  box-shadow:var(--shadow-soft);
-}
-
-.tierCard.hot{
-  border-color:rgba(167,124,255,.24);
-  background:
-    linear-gradient(180deg, rgba(98,127,255,.14), rgba(181,114,255,.10));
-}
-
-.tierName{
-  font-size:16px;
-  font-weight:800;
-  margin-bottom:8px;
-  color:#f3f7ff;
-}
-
-.tierPrice{
-  font-size:15px;
-  font-weight:700;
-  color:#d7e4ff;
-  margin-bottom:12px;
-}
-
-.tierList{
-  margin:0 0 16px 18px;
-  padding:0;
-  color:var(--muted);
-}
-
-.tierList li{
-  margin:0 0 8px;
-}
-
-.tierBtns{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-.buyBtn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  min-height:42px;
-  padding:10px 14px;
-  border-radius:14px;
-  border:1px solid rgba(123,162,255,.20);
-  background:
-    linear-gradient(135deg, rgba(77,125,255,.24), rgba(170,112,255,.18));
-  color:#f8fbff;
+  background:rgba(255,255,255,.05);
+  color:var(--text);
+  border-radius:12px;
   cursor:pointer;
-  font-weight:700;
-  transition:transform .16s ease, border-color .16s ease, filter .16s ease, background .16s ease;
 }
 
-.buyBtn:hover{
+#builderPreviewModal button:hover,
+#builderLibraryModal button:hover,
+#settingsModal button:hover{
+  background:rgba(255,255,255,.08);
+  border-color:rgba(255,255,255,.16);
+}
+
+#builderLibrarySearch,
+#builderLibrarySort,
+#builderPreviewHtml{
+  font:inherit;
+}
+
+#builderPreviewModal > div,
+#builderLibraryModal > div,
+#viewer3dModal > div,
+#settingsModal > div{
+  box-shadow:
+    0 30px 80px rgba(0,0,0,.42),
+    inset 0 1px 0 rgba(255,255,255,.035) !important;
+}
+
+#builderLibrarySearch{
+  min-height:44px;
+}
+
+#builderLibrarySort{
+  min-height:44px;
+}
+
+#builderLibraryList{
+  gap:12px !important;
+}
+
+#builderLibraryList > [data-build-id]{
+  position:relative;
+  overflow:hidden;
+  border-radius:18px !important;
+}
+
+#builderLibraryList > [data-build-id]::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,0) 42%);
+}
+
+#builderLibraryStats > div,
+#builderLibraryFilters > div{
+  gap:8px !important;
+}
+
+/* -------------------------------------------------- */
+/* Settings modal polish */
+/* -------------------------------------------------- */
+#settingsModal [data-simo-theme-option]{
+  min-height:88px;
+  text-align:left;
+  border-radius:16px !important;
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease, background .16s ease;
+}
+
+#settingsModal [data-simo-theme-option]:hover{
   transform:translateY(-1px);
+  box-shadow:0 12px 28px rgba(0,0,0,.18);
+}
+
+#settingsModal [data-simo-accent-preview]{
+  transition:transform .16s ease, box-shadow .16s ease, outline-color .16s ease, filter .16s ease;
+}
+
+#settingsModal [data-simo-accent-preview]:hover{
+  transform:translateY(-1px) scale(1.04);
   filter:brightness(1.05);
 }
 
-.buyBtn.ghost{
-  border:1px solid var(--stroke);
-  background:rgba(255,255,255,.05);
-  color:var(--text);
+#settingsModal section{
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.025),
+    0 8px 24px rgba(0,0,0,.12);
 }
 
-.setRow{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:16px;
-  padding:14px 0;
-  border-bottom:1px solid var(--stroke2);
-}
-
-.setRow:last-of-type{
-  border-bottom:0;
-}
-
-.setLeft{
-  min-width:0;
-  flex:1;
-}
-
-.setTitle{
-  font-size:14px;
-  font-weight:700;
-  color:#eff5ff;
-}
-
-.setSub{
-  margin-top:4px;
-  color:var(--muted);
-  font-size:12.5px;
-  line-height:1.45;
-}
-
-.select{
-  min-width:190px;
-  height:42px;
-  border-radius:14px;
-  border:1px solid var(--stroke);
-  background:rgba(255,255,255,.05);
-  color:var(--text);
-  padding:0 12px;
-  outline:none;
-}
-
-.setButtons{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-  margin-top:16px;
-}
-
-.switch{
-  position:relative;
-  display:inline-flex;
-  width:54px;
-  height:32px;
-}
-
-.switch input{
-  opacity:0;
-  width:0;
-  height:0;
-}
-
-.slider{
-  position:absolute;
-  inset:0;
-  border-radius:999px;
-  background:rgba(255,255,255,.10);
-  border:1px solid var(--stroke);
-  cursor:pointer;
-  transition:.2s ease;
-}
-
-.slider::before{
-  content:"";
-  position:absolute;
-  width:24px;
-  height:24px;
-  left:3px;
-  top:3px;
-  border-radius:50%;
-  background:#ffffff;
-  box-shadow:0 4px 12px rgba(0,0,0,.25);
-  transition:.2s ease;
-}
-
-.switch input:checked + .slider{
-  background:linear-gradient(135deg, rgba(82,128,255,.48), rgba(171,111,255,.40));
-}
-
-.switch input:checked + .slider::before{
-  transform:translateX(22px);
-}
-
-.accValue{
-  color:#f2f7ff;
-  font-weight:700;
-  font-size:15px;
-}
-
-#builderHtmlView{
-  outline:none;
-}
-
-#libraryList{
-  margin-top:10px;
-}
-
+/* -------------------------------------------------- */
+/* Library cards */
+/* -------------------------------------------------- */
 .libraryCard{
   padding:14px;
   border-radius:18px;
@@ -886,121 +933,3474 @@ body::before{
   margin-top:12px;
 }
 
-code, pre{
-  font-family:Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
-}
-
+/* -------------------------------------------------- */
+/* Utilities */
+/* -------------------------------------------------- */
 a{
   color:#b7d1ff;
 }
 
-button{
-  font:inherit;
+code, pre{
+  font-family:Consolas, "SFMono-Regular", Menlo, Monaco, monospace;
 }
 
-input, textarea, select{
-  font:inherit;
+.main,
+.chat-wrap,
+#chatMessages,
+.topbar,
+.topbar-actions,
+.composer-wrap,
+#chatInput{
+  min-width:0;
 }
 
+/* -------------------------------------------------- */
+/* Responsive */
+/* -------------------------------------------------- */
 @media (max-width: 1180px){
-  :root{ --sidebar-w:280px; }
+  :root{ --sidebar-w:250px; }
+}
+
+@media (max-width: 1100px){
+  .stats{
+    grid-template-columns:repeat(2, minmax(0, 1fr));
+  }
+
+  .topbar-actions{
+    justify-content:flex-end;
+  }
 }
 
 @media (max-width: 980px){
-  .app{
+  .app-shell{
     grid-template-columns:1fr;
   }
 
-  .side{
+  .sidebar{
     display:none;
   }
 
   .main{
-    padding:14px;
+    padding:12px;
+  }
+}
+
+@media (max-width: 820px){
+  .main{
+    width:100%;
+    max-width:100%;
+    min-height:100dvh;
+    gap:10px;
+    padding:10px;
   }
 
-  .tiers.two{
+  .topbar{
+    flex-direction:column;
+    align-items:flex-start;
+    gap:10px;
+  }
+
+  .topbar-actions{
+    width:100%;
+    justify-content:flex-start;
+  }
+
+  .stats{
     grid-template-columns:1fr;
+  }
+
+  .chat-wrap{
+    width:100%;
+    padding:12px;
+  }
+
+  #chatMessages{
+    width:100%;
+    min-height:260px;
+  }
+
+  .composer-wrap{
+    width:100%;
+    gap:8px;
+    padding:10px;
+    flex-wrap:nowrap;
+  }
+
+  #chatInput{
+    width:100%;
+    min-width:0;
+    font-size:16px;
+  }
+
+  .msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url],
+  .msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn{
+    min-width:100% !important;
+    flex:1 1 100% !important;
+  }
+
+  #builderPreviewFrame{
+    height:420px !important;
   }
 }
 
 @media (max-width: 680px){
   .main{
-    gap:12px;
-    padding:12px;
+    gap:8px;
+    padding:9px;
   }
 
   .topbar{
     padding:12px;
   }
 
-  .title{
-    font-size:18px;
-  }
-
-  .actions{
-    width:100%;
-  }
-
-  .actions .pill,
-  .actions a.pill{
-    flex:1 1 auto;
-  }
-
-  .chatMessages{
+  .hero-card{
     padding:14px;
   }
 
-  .msg{
+  .chat-wrap{
+    padding:10px;
+  }
+
+  #chatMessages{
+    padding:0;
+  }
+
+  .msg-bubble{
     max-width:94%;
-    padding:13px 14px;
+    padding:12px 13px;
   }
 
-  .composer{
-    gap:10px;
-    padding:12px;
+  .composer-wrap{
+    gap:8px;
+    padding:9px;
   }
 
-  .roundBtn{
-    width:44px;
-    height:44px;
-    border-radius:14px;
+  .icon-btn{
+    width:42px;
+    height:42px;
   }
 
-  .chatInput{
-    height:46px;
-    border-radius:16px;
+  .send-btn{
+    width:48px;
+    height:42px;
   }
 
-  .modal{
-    padding:12px;
+  #chatInput{
+    min-height:46px;
+    border-radius:18px;
   }
 
-  .modalTop{
-    padding:14px 14px;
-  }
-
-  .modalBody{
-    padding:14px;
-  }
-
-  .select{
-    min-width:150px;
-  }
-
-  .setRow{
-    align-items:flex-start;
-    flex-direction:column;
-  }
-
-  .imageStageBody{
-    align-items:flex-start;
-    flex-direction:column;
-  }
-
-  .imagePreviewWrap{
-    width:100%;
-    max-width:220px;
-    height:160px;
+  #builderPreviewFrame{
+    height:340px !important;
   }
 }
+
+@media (max-width: 560px){
+  body{
+    overflow-x:hidden;
+  }
+
+  .brand-card{
+    padding:12px;
+  }
+
+  .topbar-actions{
+    gap:7px;
+  }
+
+  .pill{
+    padding:9px 11px;
+    font-size:13px;
+  }
+
+  .hero-card{
+    padding:13px;
+  }
+
+  .chat-wrap{
+    min-height:220px;
+  }
+
+  #chatInput{
+    font-size:16px;
+    padding-left:12px;
+    padding-right:12px;
+  }
+}
+
+/* -------------------------------------------------- */
+/* Phase 4.5e — tighten section headers + spacing */
+/* -------------------------------------------------- */
+.msg-bubble-assistant [data-model-choice-wrap] h4,
+.msg-bubble-assistant [data-model-choice-wrap] strong{
+  margin-bottom:2px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] p{
+  margin-top:0 !important;
+  margin-bottom:4px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] > div > div{
+  margin-top:2px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] > div{
+  gap:4px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [style*="display:flex"]{
+  margin-top:2px !important;
+}
+
+/* -------------------------------------------------- */
+/* Phase 4.6b — polish only */
+/* -------------------------------------------------- */
+.msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"]{
+  grid-template-columns:136px minmax(0,1fr) !important;
+  column-gap:10px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:first-child{
+  gap:4px !important;
+  padding-top:4px !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:first-child > div:first-child{
+  font-size:11px !important;
+  font-weight:600 !important;
+  letter-spacing:.03em !important;
+  text-transform:uppercase !important;
+  color:rgba(234,241,255,.74) !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:first-child > div:last-child{
+  font-size:10.5px !important;
+  line-height:1.34 !important;
+  color:rgba(235,242,255,.52) !important;
+  max-width:132px;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:last-child{
+  padding-top:2px !important;
+}
+
+@media (max-width: 820px){
+  .msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"]{
+    grid-template-columns:1fr !important;
+    row-gap:5px !important;
+  }
+
+  .msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:first-child{
+    max-width:none !important;
+    padding-top:0 !important;
+  }
+
+  .msg-bubble-assistant [data-model-choice-wrap] section[style*="grid-template-columns:110px minmax(0,1fr)"] > div:first-child > div:last-child{
+    max-width:none !important;
+  }
+}
+
+/* -------------------------------------------------- */
+/* Phase 4.7a + 4.7b — interaction + header polish */
+/* -------------------------------------------------- */
+.msg-bubble-assistant [data-model-choice-wrap] section{
+  position:relative;
+  align-items:start !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section > div:first-child{
+  opacity:.93;
+  transition:opacity .18s ease, transform .18s ease;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] section::before{
+  content:"";
+  position:absolute;
+  left:136px;
+  top:8px;
+  bottom:8px;
+  width:1px;
+  background:linear-gradient(
+    to bottom,
+    transparent,
+    rgba(255,255,255,.055),
+    transparent
+  );
+  pointer-events:none;
+  opacity:.42;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url],
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn{
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease,
+    background .18s ease,
+    filter .18s ease !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url]:hover,
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn:hover{
+  filter:brightness(1.03);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-selected="true"],
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-selected="true"]{
+  box-shadow:
+    0 12px 30px rgba(78,118,255,.18),
+    inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-opening="true"],
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-opening="true"]{
+  box-shadow:
+    0 16px 38px rgba(80,120,255,.26),
+    inset 0 1px 0 rgba(255,255,255,.04) !important;
+  border-color:rgba(165,205,255,.42) !important;
+  filter:brightness(1.05);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-dimmed="true"],
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-dimmed="true"]{
+  opacity:.58 !important;
+  transform:scale(.985) !important;
+  filter:saturate(.90) brightness(.97) !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-last-opened="true"],
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-last-opened="true"]{
+  box-shadow:
+    0 12px 26px rgba(110,168,255,.14),
+    inset 0 1px 0 rgba(255,255,255,.03) !important;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn > div:first-child{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn span{
+  letter-spacing:.012em;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn [style*="Open model"]{
+  opacity:.96;
+}
+
+/* -------------------------------------------------- */
+/* HEADER POLISH */
+/* -------------------------------------------------- */
+.msg-bubble-assistant [data-model-choice-wrap] > div:first-child{
+  padding-bottom:6px !important;
+  margin-bottom:6px !important;
+  border-bottom:1px solid rgba(255,255,255,.035);
+  box-shadow:0 1px 0 rgba(255,255,255,.015);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [data-role="recommended-header"]{
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease,
+    background .18s ease !important;
+  border-radius:12px;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [data-role="open-recommended"]{
+  position:relative;
+  overflow:hidden;
+  box-shadow:0 8px 22px rgba(80,120,255,.10);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [data-role="open-recommended"]::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,0));
+  opacity:.75;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [data-role="open-recommended"]:hover{
+  filter:brightness(1.04);
+  box-shadow:0 10px 24px rgba(80,120,255,.16);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] [data-role="recommended-pill"]{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:999px;
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-selected="true"]::after,
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-selected="true"]::after{
+  opacity:.64;
+  background:radial-gradient(circle, rgba(110,168,255,.18), transparent 68%);
+}
+
+.msg-bubble-assistant [data-model-choice-wrap] .simo-model-choice-btn[data-selected="false"][data-last-opened="true"]::after,
+.msg-bubble-assistant [data-model-choice-wrap] button[data-model-choice-url][data-selected="false"][data-last-opened="true"]::after{
+  opacity:.36;
+}
+
+/* -------------------------------------------------- */
+/* mobile safety */
+/* -------------------------------------------------- */
+@media (max-width: 820px){
+  .msg-bubble-assistant [data-model-choice-wrap] section::before{
+    display:none;
+  }
+
+  .msg-bubble-assistant [data-model-choice-wrap] section > div:first-child{
+    opacity:1;
+  }
+}
+
+/* PHASE 4.7 RECOVERY — helper must NOT reserve space */
+
+body .composer-wrap {
+  padding-right: 0 !important;
+}
+
+/* keep send button above any UI */
+body #sendBtn {
+  position: relative;
+  z-index: 60;
+}
+
+@media (max-width: 1100px) {
+  body .composer-wrap {
+    padding-right: 0 !important;
+  }
+}
+
+/* === PHASE 4.7 FIX: Composer + Helper Panel Separation (SAFE) === */
+
+/* Ensure chat input area always sits above helper panel */
+.chat-composer,
+#chat-composer,
+.chat-input-area {
+  position: relative;
+  z-index: 50;
+}
+
+/* Push helper panel slightly up so it doesn't cover send button */
+.helper-panel,
+#helper-panel {
+  margin-bottom: 70px; /* adjust spacing safely */
+  z-index: 10;
+}
+
+/* Ensure send button is always visible */
+button[type="submit"],
+.send-button,
+#sendBtn {
+  position: relative;
+  z-index: 60;
+}
+
+/* Prevent overlap behavior */
+.chat-container,
+.chat-body {
+  padding-bottom: 80px;
+}
+
+/* === PHASE 4.8A: Pro Helper Icon Toggle (APPEND ONLY, SAFE) === */
+
+.simo-helper-toggle-btn {
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.92);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  flex: 0 0 auto;
+}
+
+.simo-helper-toggle-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+.simo-helper-toggle-btn:active {
+  transform: translateY(0);
+}
+
+.simo-helper-toggle-btn[hidden] {
+  display: none !important;
+}
+
+.simo-helper-toggle-btn.is-active {
+  background: rgba(86, 240, 169, 0.14);
+  border-color: rgba(86, 240, 169, 0.40);
+  box-shadow: 0 0 0 1px rgba(86, 240, 169, 0.12), 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+
+.simo-helper-toggle-btn .simo-helper-toggle-icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"] {
+  display: none !important;
+}
+
+/* === PHASE 4.8B TEXT VISIBILITY HARD FIX (SAFE) === */
+
+.composer-wrap textarea,
+#chatInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  padding: 16px 18px;
+  background: transparent;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  caret-color: #ffffff !important;
+  opacity: 1 !important;
+  font-size: 16px;
+  line-height: 1.4;
+  text-indent: 0 !important;
+  text-shadow: none !important;
+}
+
+.composer-wrap textarea::placeholder,
+#chatInput::placeholder {
+  color: rgba(255, 255, 255, 0.65) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.65) !important;
+  opacity: 1 !important;
+}
+
+/* === FIX: FORCE USER MESSAGE VISIBILITY === */
+
+.message.user,
+.chat-message.user,
+.msg.user {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  padding: 12px 16px !important;
+  border-radius: 14px !important;
+  margin: 10px 0 !important;
+  display: inline-block !important;
+  max-width: 70% !important;
+  align-self: flex-end !important;
+  white-space: pre-wrap !important;
+}
+
+.message.user * {
+  color: #ffffff !important;
+}
+
+.msg-row.msg-user {
+  display: flex !important;
+  justify-content: flex-end !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.msg-bubble.msg-bubble-user {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+/* === FINAL FIX: helper floats, does NOT affect layout === */
+
+#simoBuilderSuggestionsCard {
+  position: absolute;
+  right: 20px;
+  bottom: 100px;
+  width: 280px;
+  z-index: 10;
+}
+
+/* When hidden, fully remove it */
+#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"] {
+  display: none !important;
+}
+
+/* Chat area always full width */
+.main,
+.chat-wrap {
+  width: 100% !important;
+}
+
+/* === FINAL FIX: composer must sit above helper overlays === */
+
+.composer-wrap {
+  position: relative !important;
+  z-index: 10050 !important;
+}
+
+/* keep buttons clickable */
+#sendBtn,
+.send-btn,
+.icon-btn,
+#chatInput {
+  position: relative !important;
+  z-index: 10060 !important;
+}
+
+/* === CLEAN COMPOSER RECOVERY === */
+
+.composer-wrap {
+  position: relative !important;
+  z-index: 10050 !important;
+  padding-right: 0 !important;
+}
+
+#chatInput,
+#sendBtn,
+.send-btn,
+.icon-btn {
+  position: relative !important;
+  z-index: 10060 !important;
+}
+
+/* small composer polish */
+.composer-wrap {
+  padding-right: 14px !important;
+}
+
+#sendBtn,
+.send-btn {
+  margin-right: 4px !important;
+}
+
+/* === PHASE 4.8B SAFE: hide legacy floating builder overlays only === */
+
+/* Old floating Builder Memory card */
+#simoBuilderMemoryCard,
+body > div:has(#simoBuilderMemoryRevision),
+body > div:has(#simoBuilderMemoryTurns),
+body > div:has(#simoBuilderMemoryKind),
+body > div:has(#simoBuilderMemoryStatus) {
+  display: none !important;
+}
+
+/* Old floating Current Goal card */
+body > div:has(#simoBuilderGoalBadge),
+body > div:has(#simoBuilderGoalTitle),
+body > div:has(#simoBuilderGoalText) {
+  display: none !important;
+}
+
+/* === PHASE 4.8B SAFE: reopen star only when helper is hidden === */
+
+/* When helper is visible, hide the bottom reopen star */
+body:has(#simoBuilderSuggestionsCard:not([data-simo-helper-hidden="1"])) #simoHelperReopenBtn {
+  display: none !important;
+}
+
+/* When helper is hidden, show the bottom reopen star */
+body:has(#simoBuilderSuggestionsCard[data-simo-helper-hidden="1"]) #simoHelperReopenBtn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+/* === PHASE 4.8B SAFE: align reopen star with gold star row === */
+#simoHelperReopenBtn {
+  right: 132px !important;
+  bottom: 57px !important;
+}
+
+
+/* -------------------------------------------------- */
+/* PHASE 6.2 — Visual-first design + procedural 3D house */
+/* -------------------------------------------------- */
+.simo-procedural-house-overlay{
+  position:fixed;
+  inset:0;
+  z-index:2147483000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:22px;
+  background:rgba(3,7,16,.72);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+
+.simo-procedural-house-overlay.open{
+  display:flex;
+}
+
+.simo-procedural-house-shell{
+  width:min(1180px, 96vw);
+  height:min(760px, 92vh);
+  overflow:hidden;
+  border-radius:28px;
+  border:1px solid rgba(255,255,255,.14);
+  background:
+    radial-gradient(circle at 20% 0%, rgba(119,91,255,.20), transparent 30%),
+    radial-gradient(circle at 82% 18%, rgba(0,213,255,.16), transparent 30%),
+    rgba(8,12,28,.96);
+  box-shadow:0 30px 90px rgba(0,0,0,.55);
+  color:#fff;
+  display:grid;
+  grid-template-rows:auto 1fr;
+}
+
+.simo-procedural-house-topbar{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+  padding:18px 20px;
+  border-bottom:1px solid rgba(255,255,255,.10);
+}
+
+.simo-procedural-house-kicker{
+  color:rgba(255,255,255,.58);
+  font-size:12px;
+  font-weight:800;
+  letter-spacing:.13em;
+  text-transform:uppercase;
+  margin-bottom:5px;
+}
+
+.simo-procedural-house-title{
+  font-size:clamp(18px, 2vw, 26px);
+  font-weight:850;
+  letter-spacing:-.035em;
+}
+
+.simo-procedural-house-close{
+  width:42px;
+  height:42px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  cursor:pointer;
+  font-size:22px;
+  line-height:1;
+}
+
+.simo-procedural-house-body{
+  min-height:0;
+  display:grid;
+  grid-template-columns:minmax(0, 1fr) 330px;
+}
+
+.simo-procedural-house-stage{
+  position:relative;
+  min-height:0;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,255,255,.08), transparent 28%),
+    linear-gradient(180deg, rgba(20,30,60,.60), rgba(3,6,16,.92));
+}
+
+.simo-procedural-house-canvas-host{
+  position:absolute;
+  inset:0;
+}
+
+.simo-procedural-house-controls-hint{
+  position:absolute;
+  left:18px;
+  bottom:18px;
+  padding:10px 13px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.13);
+  background:rgba(5,8,20,.70);
+  color:rgba(255,255,255,.82);
+  font-size:13px;
+  box-shadow:0 15px 50px rgba(0,0,0,.25);
+}
+
+.simo-procedural-house-panel{
+  overflow:auto;
+  padding:18px;
+  border-left:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.035);
+}
+
+.simo-procedural-house-panel h3{
+  margin:0 0 8px;
+  font-size:18px;
+}
+
+.simo-procedural-house-panel p{
+  margin:0 0 14px;
+  color:rgba(255,255,255,.72);
+  line-height:1.45;
+  font-size:14px;
+}
+
+.simo-procedural-house-tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin:14px 0;
+}
+
+.simo-procedural-house-tags span{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.07);
+  color:rgba(255,255,255,.88);
+  border-radius:999px;
+  padding:8px 10px;
+  font-size:12px;
+}
+
+.simo-procedural-house-actions{
+  display:grid;
+  gap:10px;
+  margin-top:18px;
+}
+
+.simo-procedural-house-actions button,
+.simo-instant-design-actions button{
+  border:1px solid rgba(255,255,255,.16);
+  background:rgba(255,255,255,.08);
+  color:#fff;
+  border-radius:16px;
+  padding:12px 13px;
+  cursor:pointer;
+  text-align:left;
+  font-weight:800;
+}
+
+.simo-procedural-house-actions button:first-child,
+.simo-instant-design-actions button:first-child{
+  background:linear-gradient(135deg, rgba(110,91,255,.98), rgba(0,205,255,.82));
+  border-color:rgba(255,255,255,.24);
+}
+
+.simo-instant-design-card{
+  width:100%;
+  display:grid;
+  gap:14px;
+  border:1px solid rgba(255,255,255,.11);
+  border-radius:24px;
+  padding:16px;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(110,168,255,.14), transparent 28%),
+    radial-gradient(circle at 86% 18%, rgba(185,130,255,.13), transparent 28%),
+    linear-gradient(180deg, rgba(255,255,255,.065), rgba(255,255,255,.035));
+  box-shadow:0 18px 48px rgba(0,0,0,.22);
+}
+
+.simo-instant-design-hero{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 210px;
+  gap:16px;
+  align-items:stretch;
+}
+
+.simo-instant-design-kicker{
+  color:rgba(235,242,255,.68);
+  font-size:11px;
+  font-weight:900;
+  text-transform:uppercase;
+  letter-spacing:.12em;
+  margin-bottom:6px;
+}
+
+.simo-instant-design-card h2{
+  margin:0 0 8px;
+  font-size:clamp(22px, 3vw, 34px);
+  line-height:1.05;
+  letter-spacing:-.04em;
+}
+
+.simo-instant-design-card p{
+  margin:0;
+  color:rgba(235,242,255,.76);
+  line-height:1.55;
+}
+
+.simo-instant-design-preview{
+  min-height:150px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.10);
+  background:
+    radial-gradient(circle at 50% 28%, rgba(121,224,255,.18), transparent 34%),
+    linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.025));
+  position:relative;
+  overflow:hidden;
+}
+
+.simo-house-mini{
+  position:absolute;
+  left:22px;
+  right:22px;
+  bottom:18px;
+  height:105px;
+  transform:skewY(-4deg);
+}
+
+.simo-house-mini .mass,
+.simo-house-mini .roof,
+.simo-house-mini .glass,
+.simo-house-mini .pool{
+  position:absolute;
+  border:1px solid rgba(255,255,255,.16);
+  box-shadow:0 14px 35px rgba(0,0,0,.24);
+}
+
+.simo-house-mini .mass-one{
+  left:10px;
+  bottom:28px;
+  width:120px;
+  height:58px;
+  background:linear-gradient(135deg, #d8d4cb, #8f7d68);
+}
+
+.simo-house-mini .mass-two{
+  right:12px;
+  bottom:40px;
+  width:106px;
+  height:50px;
+  background:linear-gradient(135deg, #f1eee8, #b7a98c);
+}
+
+.simo-house-mini .roof-one{
+  left:4px;
+  bottom:86px;
+  width:138px;
+  height:11px;
+  background:#181d26;
+}
+
+.simo-house-mini .roof-two{
+  right:4px;
+  bottom:91px;
+  width:120px;
+  height:11px;
+  background:#181d26;
+}
+
+.simo-house-mini .glass-one{
+  left:46px;
+  bottom:38px;
+  width:46px;
+  height:38px;
+  background:linear-gradient(135deg, rgba(143,216,255,.85), rgba(143,216,255,.18));
+}
+
+.simo-house-mini .glass-two{
+  right:42px;
+  bottom:48px;
+  width:42px;
+  height:32px;
+  background:linear-gradient(135deg, rgba(143,216,255,.85), rgba(143,216,255,.18));
+}
+
+.simo-house-mini .pool{
+  left:52px;
+  right:10px;
+  bottom:0;
+  height:18px;
+  border-radius:999px;
+  background:linear-gradient(90deg, rgba(46,181,209,.88), rgba(121,224,255,.36));
+}
+
+.simo-instant-design-grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:10px;
+}
+
+.simo-instant-design-grid div{
+  padding:12px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.09);
+  background:rgba(255,255,255,.045);
+  display:grid;
+  gap:5px;
+}
+
+.simo-instant-design-grid strong{
+  color:#f5f8ff;
+  font-size:13px;
+}
+
+.simo-instant-design-grid span{
+  color:rgba(235,242,255,.72);
+  font-size:12.5px;
+  line-height:1.45;
+}
+
+.simo-instant-design-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.simo-instant-design-actions button{
+  border-radius:999px;
+  padding:9px 11px;
+  font-size:12px;
+  text-align:center;
+}
+
+.simo-instant-design-note{
+  color:rgba(235,242,255,.55);
+  font-size:11.5px;
+  line-height:1.4;
+}
+
+@media (max-width:850px){
+  .simo-procedural-house-body,
+  .simo-instant-design-hero,
+  .simo-instant-design-grid{
+    grid-template-columns:1fr;
+  }
+
+  .simo-procedural-house-panel{
+    border-left:0;
+    border-top:1px solid rgba(255,255,255,.10);
+    max-height:260px;
+  }
+}
+
+
+
+/* -------------------------------------------------- */
+/* PHASE 7 OPTION A — Real result card + real 3D workspace */
+/* -------------------------------------------------- */
+.simo-optiona-card{
+  width:min(980px, 100%);
+  display:grid;
+  gap:14px;
+  border:1px solid rgba(110,168,255,.20);
+  border-radius:24px;
+  padding:14px;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(110,168,255,.16), transparent 34%),
+    radial-gradient(circle at 90% 18%, rgba(185,130,255,.13), transparent 32%),
+    linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.035));
+  box-shadow:0 18px 46px rgba(0,0,0,.28);
+  overflow:hidden;
+}
+
+.simo-optiona-card.simo-optiona-loading{
+  padding:18px;
+}
+
+.simo-optiona-kicker{
+  color:#cfe0ff;
+  font-size:11px;
+  font-weight:950;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+.simo-optiona-card h2{
+  margin:0;
+  font-size:clamp(20px, 2.8vw, 32px);
+  line-height:1.08;
+  letter-spacing:-.04em;
+  color:#f7f9ff;
+}
+
+.simo-optiona-card p{
+  margin:0;
+  color:#c7d3ea;
+  line-height:1.56;
+}
+
+.simo-optiona-layout{
+  display:grid;
+  grid-template-columns:minmax(0, 1.25fr) minmax(280px, .75fr);
+  gap:14px;
+  align-items:stretch;
+}
+
+.simo-optiona-visual{
+  min-height:260px;
+  border-radius:20px;
+  border:1px solid rgba(255,255,255,.10);
+  background:#050b14;
+  overflow:hidden;
+}
+
+.simo-optiona-visual img{
+  width:100%;
+  height:100%;
+  min-height:260px;
+  max-height:560px;
+  object-fit:cover;
+  display:block;
+  margin:0;
+  border:0;
+  border-radius:0;
+}
+
+.simo-optiona-side{
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  min-width:0;
+}
+
+.simo-optiona-chips,
+.simo-optiona-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+
+.simo-optiona-chips span{
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.055);
+  color:#dbe8ff;
+  padding:7px 10px;
+  font-size:12px;
+  font-weight:850;
+}
+
+.simo-optiona-actions button{
+  appearance:none;
+  border:1px solid rgba(255,255,255,.12);
+  border-radius:999px;
+  background:rgba(255,255,255,.065);
+  color:#eef4ff;
+  padding:9px 11px;
+  cursor:pointer;
+  font-size:12px;
+  font-weight:900;
+  white-space:nowrap;
+}
+
+.simo-optiona-actions button.primary{
+  border-color:rgba(110,168,255,.42);
+  background:linear-gradient(135deg, rgba(110,168,255,.24), rgba(16,188,232,.16));
+  box-shadow:0 10px 26px rgba(57,128,255,.16);
+}
+
+.simo-optiona-note{
+  color:rgba(235,242,255,.58);
+  font-size:12px;
+  line-height:1.45;
+}
+
+@media (max-width: 900px){
+  .simo-optiona-layout{
+    grid-template-columns:1fr;
+  }
+  .simo-optiona-visual,
+  .simo-optiona-visual img{
+    min-height:220px;
+  }
+}
+
+
+/* ==================================================
+   PHASE 14M-R10.2 — Composer Proportion + Image Tray
+   Safe visual polish only. Keeps Send/Image buttons aligned.
+   ================================================== */
+.composer-wrap{
+  display:grid !important;
+  grid-template-columns:44px minmax(0, 1fr) 48px !important;
+  align-items:center !important;
+  gap:10px !important;
+  padding:12px 14px !important;
+  min-height:78px !important;
+  position:relative !important;
+  z-index:10050 !important;
+}
+
+#chatInput{
+  min-height:44px !important;
+  height:44px !important;
+  max-height:132px !important;
+  padding:10px 14px !important;
+  line-height:22px !important;
+  border-radius:18px !important;
+  overflow-y:auto !important;
+  align-self:center !important;
+  display:block !important;
+}
+
+#imageBtn,
+.icon-btn{
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  align-self:center !important;
+}
+
+#sendBtn,
+.send-btn{
+  width:48px !important;
+  height:44px !important;
+  min-width:48px !important;
+  min-height:44px !important;
+  margin:0 !important;
+  align-self:center !important;
+}
+
+#simoSelectedImageTray{
+  margin:0 0 10px 0 !important;
+}
+
+@media (max-width:700px){
+  .composer-wrap{
+    grid-template-columns:42px minmax(0,1fr) 46px !important;
+    gap:8px !important;
+    padding:10px !important;
+  }
+  #chatInput{
+    min-height:42px !important;
+    height:42px !important;
+    padding:9px 12px !important;
+  }
+  #imageBtn,.icon-btn{width:42px !important;height:42px !important;min-width:42px !important;}
+  #sendBtn,.send-btn{width:46px !important;height:42px !important;min-width:46px !important;}
+}
+
+/* ==================================================
+   SIMO PHASE 14M-R10.59L — CHAT COMPOSER ALIGNMENT FIX
+   CSS ONLY. PRESERVES R10.59J LIVE CORE PASS.
+   Purpose:
+   - Center the bottom chat bar like the local test.
+   - Keep image button, input, and send button even.
+   - Do not touch Library, Workspace, saved cards, JS, credits, or backend.
+   ================================================== */
+
+body .composer-wrap{
+  display:grid !important;
+  grid-template-columns:44px minmax(0, 1fr) 48px !important;
+  align-items:center !important;
+  justify-content:stretch !important;
+  gap:10px !important;
+
+  width:100% !important;
+  min-width:0 !important;
+  min-height:64px !important;
+
+  padding:10px 14px !important;
+  margin:0 !important;
+
+  position:relative !important;
+  bottom:auto !important;
+  z-index:10050 !important;
+
+  flex:0 0 auto !important;
+}
+
+/* Image upload button — fixed square, vertically centered */
+body .composer-wrap #imageBtn,
+body .composer-wrap .icon-btn{
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  max-width:44px !important;
+  max-height:44px !important;
+
+  padding:0 !important;
+  margin:0 !important;
+
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+
+  align-self:center !important;
+  justify-self:center !important;
+
+  line-height:1 !important;
+  border-radius:14px !important;
+  flex:0 0 44px !important;
+}
+
+/* Main text input — even height, centered text, no oversized padding */
+body .composer-wrap #chatInput,
+body .composer-wrap textarea#chatInput{
+  width:100% !important;
+  min-width:0 !important;
+
+  height:44px !important;
+  min-height:44px !important;
+  max-height:132px !important;
+
+  padding:10px 14px !important;
+  margin:0 !important;
+
+  display:block !important;
+  align-self:center !important;
+  justify-self:stretch !important;
+
+  resize:none !important;
+  overflow-y:auto !important;
+
+  border:none !important;
+  outline:none !important;
+  border-radius:18px !important;
+
+  background:transparent !important;
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+  caret-color:#ffffff !important;
+  opacity:1 !important;
+
+  font-size:16px !important;
+  line-height:22px !important;
+  text-indent:0 !important;
+  text-shadow:none !important;
+
+  box-shadow:none !important;
+}
+
+/* Placeholder stays visible but soft */
+body .composer-wrap #chatInput::placeholder,
+body .composer-wrap textarea#chatInput::placeholder{
+  color:rgba(255,255,255,.68) !important;
+  -webkit-text-fill-color:rgba(255,255,255,.68) !important;
+  opacity:1 !important;
+}
+
+/* Send button — fixed size, no right drift */
+body .composer-wrap #sendBtn,
+body .composer-wrap .send-btn{
+  width:48px !important;
+  height:44px !important;
+  min-width:48px !important;
+  min-height:44px !important;
+  max-width:48px !important;
+  max-height:44px !important;
+
+  padding:0 !important;
+  margin:0 !important;
+
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+
+  align-self:center !important;
+  justify-self:center !important;
+
+  line-height:1 !important;
+  border-radius:14px !important;
+  flex:0 0 48px !important;
+}
+
+/* Keep composer controls above helper overlays without changing layout */
+body .composer-wrap #chatInput,
+body .composer-wrap #imageBtn,
+body .composer-wrap #sendBtn,
+body .composer-wrap .icon-btn,
+body .composer-wrap .send-btn{
+  position:relative !important;
+  z-index:10060 !important;
+}
+
+/* The selected image tray should not push the bar unevenly */
+body #simoSelectedImageTray{
+  margin:0 0 8px 0 !important;
+}
+
+/* Keep status text from creating weird bottom spacing */
+body #loadingHint{
+  min-height:18px !important;
+  padding-top:1px !important;
+  padding-bottom:0 !important;
+  margin:0 !important;
+  text-align:center !important;
+}
+
+/* Mobile safety */
+@media (max-width:700px){
+  body .composer-wrap{
+    grid-template-columns:42px minmax(0, 1fr) 46px !important;
+    gap:8px !important;
+    min-height:62px !important;
+    padding:9px 10px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap .icon-btn{
+    width:42px !important;
+    height:42px !important;
+    min-width:42px !important;
+    min-height:42px !important;
+    max-width:42px !important;
+    max-height:42px !important;
+    flex:0 0 42px !important;
+  }
+
+  body .composer-wrap #chatInput,
+  body .composer-wrap textarea#chatInput{
+    height:42px !important;
+    min-height:42px !important;
+    padding:9px 12px !important;
+    line-height:22px !important;
+    border-radius:17px !important;
+  }
+
+  body .composer-wrap #sendBtn,
+  body .composer-wrap .send-btn{
+    width:46px !important;
+    height:42px !important;
+    min-width:46px !important;
+    min-height:42px !important;
+    max-width:46px !important;
+    max-height:42px !important;
+    flex:0 0 46px !important;
+  }
+}
+
+
+
+
+/* ==================================================
+   SIMO PHASE 14M-R10.60I — MIC PLACEMENT POLISH
+   CSS-only layout support for the already-working R10.60H mic.
+   Final composer order: image | text input | mic | send.
+   No routing, Library, Workspace, image analysis, credits, Stripe,
+   login, Render, DNS, or simo-ui-recovery.js changes.
+   ================================================== */
+body .composer-wrap{
+  display:grid !important;
+  grid-template-columns:44px minmax(0, 1fr) 44px 48px !important;
+  align-items:center !important;
+  justify-content:stretch !important;
+  column-gap:10px !important;
+  row-gap:0 !important;
+  min-height:64px !important;
+  padding:10px 14px !important;
+  overflow:visible !important;
+}
+
+body .composer-wrap #imageBtn{
+  grid-column:1 !important;
+  grid-row:1 !important;
+}
+
+body .composer-wrap #chatInput,
+body .composer-wrap textarea#chatInput{
+  grid-column:2 !important;
+  grid-row:1 !important;
+  min-width:0 !important;
+}
+
+body .composer-wrap #simoMicBtn,
+body .composer-wrap .simo-mic-btn{
+  grid-column:3 !important;
+  grid-row:1 !important;
+  width:44px !important;
+  height:44px !important;
+  min-width:44px !important;
+  min-height:44px !important;
+  max-width:44px !important;
+  max-height:44px !important;
+  padding:0 !important;
+  margin:0 !important;
+  display:inline-flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  justify-self:center !important;
+  align-self:center !important;
+  line-height:1 !important;
+  border-radius:14px !important;
+  font-size:18px !important;
+  flex:0 0 44px !important;
+  position:relative !important;
+  z-index:10065 !important;
+}
+
+body .composer-wrap #simoMicBtn.hidden,
+body .composer-wrap .simo-mic-btn.hidden{
+  display:none !important;
+}
+
+body .composer-wrap #simoMicBtn.simo-mic-listening,
+body .composer-wrap .simo-mic-btn.simo-mic-listening{
+  border-color:rgba(86,240,169,.55) !important;
+  background:rgba(86,240,169,.16) !important;
+  box-shadow:0 0 0 3px rgba(86,240,169,.12), 0 10px 24px rgba(0,0,0,.18) !important;
+}
+
+body .composer-wrap #sendBtn,
+body .composer-wrap .send-btn{
+  grid-column:4 !important;
+  grid-row:1 !important;
+}
+
+@media (max-width:700px){
+  body .composer-wrap{
+    grid-template-columns:42px minmax(0, 1fr) 42px 46px !important;
+    column-gap:8px !important;
+    row-gap:0 !important;
+    min-height:62px !important;
+    padding:9px 10px !important;
+  }
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap .simo-mic-btn{
+    width:42px !important;
+    height:42px !important;
+    min-width:42px !important;
+    min-height:42px !important;
+    max-width:42px !important;
+    max-height:42px !important;
+    flex:0 0 42px !important;
+  }
+}
+
+
+/* SIMO R10.60Z54 — Website/App Creator active mode UI */
+.simo-webapp-mode-tab-active{
+  border-color:rgba(56,189,248,.75)!important;
+  background:linear-gradient(135deg, rgba(56,189,248,.22), rgba(99,102,241,.18))!important;
+  box-shadow:0 0 0 1px rgba(56,189,248,.18), 0 12px 34px rgba(56,189,248,.14)!important;
+}
+body.simo-webapp-mode-active .composer-wrap{
+  box-shadow:0 0 0 1px rgba(56,189,248,.18), 0 14px 38px rgba(56,189,248,.10)!important;
+}
+.simo-webapp-mode-banner,.simo-webapp-error,.simo-webapp-working{
+  border:1px solid rgba(56,189,248,.22);
+  border-radius:18px;
+  padding:14px 16px;
+  background:linear-gradient(180deg, rgba(56,189,248,.10), rgba(255,255,255,.035));
+  color:#eaf6ff;
+}
+.simo-webapp-card{
+  width:min(1120px,100%);
+  border:1px solid rgba(56,189,248,.22);
+  border-radius:24px;
+  overflow:hidden;
+  background:#0d1726;
+  box-shadow:0 20px 58px rgba(0,0,0,.32);
+}
+.simo-webapp-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;
+  padding:16px 18px;background:linear-gradient(135deg,rgba(56,189,248,.12),rgba(99,102,241,.10));
+  border-bottom:1px solid rgba(255,255,255,.08);
+}
+.simo-webapp-kicker{font-size:11px;letter-spacing:.14em;font-weight:950;color:#9ee7ff;text-transform:uppercase;margin-bottom:5px}
+.simo-webapp-head h2{margin:0 0 4px;font-size:22px}.simo-webapp-head p{margin:0;color:#b9c8e4}
+.simo-webapp-primary,.simo-webapp-actions button{
+  border:1px solid rgba(255,255,255,.14);background:#223048;color:#fff;border-radius:999px;padding:10px 14px;font-weight:900;cursor:pointer;white-space:nowrap
+}
+.simo-webapp-primary,.simo-webapp-actions button:first-child{background:#38bdf8;color:#07111f;border-color:rgba(56,189,248,.6)}
+.simo-webapp-preview{width:100%;height:560px;border:0;background:#fff;display:block}
+.simo-webapp-actions{display:flex;gap:10px;flex-wrap:wrap;padding:14px 16px;border-top:1px solid rgba(255,255,255,.08);background:#101a2b}
+@media(max-width:760px){.simo-webapp-head{display:grid}.simo-webapp-preview{height:430px}}
+
+/* SIMO R10.60Z58 — Website/App Creator polish: readable buttons + hide old design suggestions in web mode */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card{
+  display:none !important;
+}
+body.simo-webapp-mode-active button,
+body.simo-webapp-mode-active .pill{
+  color:#f8fbff;
+}
+.simo-webapp-card .simo-webapp-primary,
+.simo-webapp-card .simo-webapp-actions button,
+#builderLibraryModal [data-simo-webapp-edit],
+#builderLibraryModal button[data-simo-webapp-edit],
+.libraryCard [data-simo-webapp-edit],
+.builder-library-card [data-simo-webapp-edit],
+.library-card [data-simo-webapp-edit]{
+  color:#06111f !important;
+  background:#38bdf8 !important;
+  border-color:rgba(56,189,248,.75) !important;
+  font-weight:950 !important;
+  text-shadow:none !important;
+  box-shadow:0 8px 22px rgba(56,189,248,.20) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:not(:first-child){
+  color:#ffffff !important;
+  background:#26344d !important;
+  border-color:rgba(255,255,255,.18) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:nth-child(2){
+  background:#166534 !important;
+  color:#ffffff !important;
+  border-color:rgba(74,222,128,.35) !important;
+}
+.simo-webapp-card .simo-webapp-actions button:nth-child(3){
+  background:#38bdf8 !important;
+  color:#06111f !important;
+}
+body.simo-webapp-mode-active button[style*="Design Suggestions"],
+body.simo-webapp-mode-active .pill[style*="Design Suggestions"]{
+  display:none !important;
+}
+
+
+/* SIMO R10.60Z58 — Website/App Creator nav-guard + suggestions hard-hide polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host],
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card{
+  display:none !important;
+  visibility:hidden !important;
+  height:0 !important;
+  overflow:hidden !important;
+}
+.simo-webapp-card .simo-webapp-actions button,
+.simo-webapp-card .simo-webapp-primary,
+#builderLibraryModal [data-simo-webapp-edit],
+.libraryCard [data-simo-webapp-edit],
+.builder-library-card [data-simo-webapp-edit],
+.library-card [data-simo-webapp-edit]{
+  min-height:38px !important;
+  color:#06111f !important;
+  background:#38bdf8 !important;
+  border:1px solid rgba(56,189,248,.85) !important;
+  opacity:1 !important;
+  font-weight:950 !important;
+  text-shadow:none !important;
+}
+
+
+/* SIMO R10.60Z58 Website/App Creator polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active .simo-builder-suggestions-card,
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host="1"]{display:none!important;}
+body.simo-webapp-mode-active .msg-bubble-assistant:has(.simo-webapp-card) [data-simo-design-suggestions]{display:none!important;}
+body.simo-webapp-mode-active button[data-simo-webapp-edit],
+body.simo-webapp-mode-active button[data-simo-webapp-save],
+body.simo-webapp-mode-active button[data-simo-webapp-publish],
+body.simo-webapp-mode-active button[data-simo-webapp-download],
+body.simo-webapp-mode-active .pill[data-simo-webapp-edit]{
+  color:#ffffff!important;-webkit-text-fill-color:#ffffff!important;background:linear-gradient(135deg,rgba(14,165,233,.95),rgba(37,99,235,.88))!important;border-color:rgba(125,211,252,.85)!important;font-weight:900!important;text-shadow:0 1px 0 rgba(0,0,0,.35)!important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-save]{background:linear-gradient(135deg,#15803d,#166534)!important;}
+body.simo-webapp-mode-active .simo-webapp-card{border-color:rgba(56,189,248,.45)!important;}
+
+
+/* SIMO R10.60Z59 — Website/App Creator mode hard polish */
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active [data-simo-design-suggestions],
+body.simo-webapp-mode-active [data-simo-webapp-hidden="design-suggestions"],
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host="1"]{
+  display:none !important;
+  visibility:hidden !important;
+  pointer-events:none !important;
+}
+body.simo-webapp-mode-active .simo-webapp-mode-tab-active{
+  border-color:#38bdf8 !important;
+  box-shadow:0 0 0 1px rgba(56,189,248,.55),0 0 24px rgba(56,189,248,.22) !important;
+  background:linear-gradient(180deg,rgba(56,189,248,.16),rgba(59,130,246,.09)) !important;
+}
+.simo-webapp-card button,
+.libraryCard button[data-simo-webapp-edit],
+.builder-library-card button[data-simo-webapp-edit],
+.library-card button[data-simo-webapp-edit]{
+  color:#ffffff !important;
+  -webkit-text-fill-color:#ffffff !important;
+  text-shadow:0 1px 1px rgba(0,0,0,.45) !important;
+  font-weight:900 !important;
+}
+.simo-webapp-card button[data-simo-webapp-edit],
+.libraryCard button[data-simo-webapp-edit],
+.builder-library-card button[data-simo-webapp-edit],
+.library-card button[data-simo-webapp-edit]{
+  background:#0ea5e9 !important;
+  border-color:rgba(125,211,252,.75) !important;
+  color:#06111f !important;
+  -webkit-text-fill-color:#06111f !important;
+}
+
+/* SIMO R10.60Z60 — Website/App Creator editor actions + library polish */
+body.simo-webapp-mode-active [data-simo-webapp-suggestions-host],
+body.simo-webapp-mode-active #simoBuilderSuggestionsCard,
+body.simo-webapp-mode-active .simo-builder-suggestions-card,
+body.simo-webapp-mode-active [data-simo-design-suggestions]{
+  display:none !important; visibility:hidden !important; pointer-events:none !important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .libraryCard button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .builder-library-card button[data-simo-webapp-edit],
+body.simo-webapp-mode-active .library-card button[data-simo-webapp-edit]{
+  color:#06111f !important;
+  -webkit-text-fill-color:#06111f !important;
+  background:linear-gradient(135deg,#38bdf8,#0ea5e9) !important;
+  border-color:rgba(125,211,252,.9) !important;
+  text-shadow:none !important;
+  font-weight:950 !important;
+}
+body.simo-webapp-mode-active button[data-simo-webapp-save]{
+  background:linear-gradient(135deg,#16a34a,#166534) !important;
+  color:#fff !important;
+  -webkit-text-fill-color:#fff !important;
+}
+.simo-webapp-card .simo-webapp-actions{align-items:center;}
+.simo-webapp-card iframe.simo-webapp-preview{background:#fff;}
+.msg-user {
+  display: flex !important;
+  justify-content: flex-end !important;
+}
+
+.msg-user .msg-bubble,
+.msg-bubble-user {
+  width: fit-content !important;
+  max-width: 72% !important;
+  min-width: 0 !important;
+  margin-left: auto !important;
+  padding: 12px 16px !important;
+  border-radius: 18px !important;
+}
+/* -------------------------------------------------- */
+/* Simo brand mark — isolated visual branding pass     */
+/* Replaces robot artwork only; no runtime ownership.  */
+/* -------------------------------------------------- */
+.simo-brand-card{
+  padding:16px;
+}
+
+.simo-brand-lockup{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-width:0;
+}
+
+.simo-ai-mark{
+  position:relative;
+  width:48px;
+  height:48px;
+  flex:0 0 48px;
+  display:grid;
+  place-items:center;
+  border:1px solid rgba(142,176,255,.22);
+  border-radius:16px;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(255,255,255,.16), transparent 34%),
+    linear-gradient(145deg, rgba(110,168,255,.20), rgba(185,130,255,.14));
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.10),
+    0 10px 26px rgba(20,52,115,.24);
+  overflow:hidden;
+}
+
+.simo-ai-mark::after{
+  content:"";
+  position:absolute;
+  inset:7px;
+  border-radius:11px;
+  border:1px solid rgba(255,255,255,.07);
+  pointer-events:none;
+}
+
+.simo-ai-mark-a{
+  position:relative;
+  z-index:1;
+  display:block;
+  font-size:34px;
+  line-height:1;
+  font-weight:850;
+  letter-spacing:-.12em;
+  transform:translateX(-1px);
+  color:#f5f8ff;
+  text-shadow:0 0 18px rgba(110,168,255,.34);
+}
+
+/* The lowercase i sits in the A's center/negative-space area,
+   preserving the approved integrated Ai idea without an image asset. */
+.simo-ai-mark-i{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:50%;
+  transform:translate(-45%,-37%);
+  font-size:17px;
+  line-height:1;
+  font-weight:850;
+  color:var(--blue);
+  text-shadow:0 0 12px rgba(110,168,255,.55);
+}
+
+.simo-brand-copy{
+  min-width:0;
+}
+
+.simo-brand-name{
+  font-size:20px;
+  line-height:1.05;
+  font-weight:800;
+  letter-spacing:-.02em;
+  color:var(--text);
+}
+
+.simo-brand-tagline{
+  margin-top:5px;
+  line-height:1.25;
+}
+
+.simo-brand-status{
+  margin-top:11px;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC2 — PREMIUM HOME / DEFAULT EXPERIENCE
+   Presentation layer only. Existing JS control IDs and owners
+   remain intact.
+   ========================================================= */
+
+body[data-simo-theme="default"]{
+  --bg:#020813; --bg2:#04111f; --panel:#061628; --panel2:#04101d;
+  --card:rgba(4,21,38,.84); --card2:rgba(3,16,29,.78);
+  --stroke:rgba(23,155,255,.22); --stroke2:rgba(56,149,231,.12);
+  --text:#f4faff; --muted:#9eb7d1; --soft:#6f8ba7;
+  --blue:#0bc9ff; --blue2:#067cff; --green:#32ef80;
+  background:
+    radial-gradient(circle at 78% 0%,rgba(83,58,171,.18),transparent 24%),
+    radial-gradient(circle at 50% 16%,rgba(0,119,225,.14),transparent 32%),
+    linear-gradient(180deg,#010710 0%,#03101d 54%,#020812 100%) !important;
+}
+body[data-simo-theme="default"]::before{
+  background:
+    radial-gradient(circle at 65% 18%,rgba(10,125,255,.08),transparent 32%),
+    linear-gradient(180deg,rgba(255,255,255,.012),transparent 35%);
+  opacity:1;
+}
+
+.app-shell{grid-template-columns:220px minmax(0,1fr);}
+.simo-premium-sidebar{
+  padding:12px 10px;
+  background:linear-gradient(180deg,rgba(1,13,25,.99),rgba(1,9,18,.99));
+  border-right:1px solid rgba(26,137,222,.17);
+}
+.simo-premium-brand{
+  display:flex;align-items:center;gap:10px;padding:4px 6px 14px;
+}
+.simo-premium-mini-mark{
+  position:relative;width:52px;height:52px;display:grid;place-items:center;flex:0 0 52px;
+  filter:drop-shadow(0 0 15px rgba(0,181,255,.34));
+}
+.simo-premium-mini-mark span{
+  font-size:48px;line-height:1;font-weight:950;font-style:italic;letter-spacing:-8px;
+  background:linear-gradient(150deg,#65eeff 0%,#0aa7ff 42%,#1e50ff 72%,#b4d8ff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+}
+.simo-premium-mini-mark i{
+  position:absolute;font-style:normal;font-size:22px;font-weight:950;color:#f5fcff;left:27px;top:20px;
+  text-shadow:0 0 12px rgba(255,255,255,.5);
+}
+.simo-premium-brand-copy{display:grid;line-height:1.15;min-width:0}
+.simo-premium-brand-copy>strong{font-size:20px;letter-spacing:-.02em}
+.simo-premium-brand-copy small{color:#75a4c8;margin-top:4px;white-space:nowrap}
+.simo-signed-line{display:flex;gap:5px;align-items:center;color:#56ec94;font-size:10px;margin-top:2px}
+.simo-signed-line b{width:7px;height:7px;border-radius:50%;background:#39f184;box-shadow:0 0 10px #39f184}
+
+.simo-home-nav,.simo-side-tools{display:grid;gap:3px}
+.simo-nav-item{
+  width:100%;min-height:38px;border:1px solid transparent;background:transparent;color:#bad0e5;
+  border-radius:11px;padding:8px 10px;display:flex;align-items:center;gap:10px;text-align:left;cursor:pointer;
+  font:inherit;transition:.16s ease;text-decoration:none;
+}
+.simo-nav-item>span{width:20px;color:#23c9ff;font-size:17px;text-align:center;flex:0 0 20px}
+.simo-nav-item>b{font-size:12px;font-weight:650;flex:1}
+.simo-nav-item:hover{
+  color:white;background:linear-gradient(90deg,rgba(0,126,255,.15),rgba(0,126,255,.035));
+  border-color:rgba(12,168,255,.20);transform:translateX(1px);
+}
+.simo-nav-item.is-home{
+  color:#eaf8ff;background:linear-gradient(90deg,rgba(0,112,255,.30),rgba(0,112,255,.08));
+  border-color:rgba(0,177,255,.52);box-shadow:inset 3px 0 0 #0bd5ff,0 0 20px rgba(0,120,255,.12);
+}
+.simo-sidebar-rule{height:1px;background:rgba(77,147,207,.16);margin:10px 6px}
+.simo-library-nav em{
+  min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#0a7cff;color:#fff;
+  display:grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;
+  box-shadow:0 0 14px rgba(0,119,255,.3);
+}
+#builderLibraryCard{
+  background:transparent;
+  border-color:transparent;
+}
+#builderLibraryCard:hover,
+#builderLibraryCard:focus-visible{
+  color:#fff;
+  background:linear-gradient(90deg,rgba(0,126,255,.15),rgba(0,126,255,.035));
+  border-color:rgba(12,168,255,.20);
+}
+
+.simo-premium-main{gap:10px;padding:0 10px 10px;height:100vh;overflow:hidden;}
+.simo-premium-topbar{
+  flex:0 0 auto;min-height:70px;margin:0 -10px;padding:11px 18px;
+  display:flex;align-items:center;justify-content:space-between;gap:16px;
+  background:
+    radial-gradient(circle at 88% 0%,rgba(104,61,183,.17),transparent 25%),
+    linear-gradient(90deg,rgba(2,16,30,.98),rgba(7,24,46,.96));
+  border:1px solid rgba(53,139,225,.14);border-top:0;
+  border-radius:0 0 15px 15px;
+}
+.simo-topbar-greeting{display:grid;gap:2px}
+.simo-topbar-greeting strong{font-size:19px;line-height:1.1}
+.simo-topbar-greeting span{font-size:11px;color:#80a2bf}
+.simo-premium-topbar .pill{min-height:34px;padding:7px 12px;font-size:11px;background:rgba(3,26,48,.74);border-color:rgba(82,156,226,.25)}
+.simo-premium-topbar .online-pill{padding:7px 11px;font-size:11px;background:rgba(1,34,33,.65);border-color:rgba(52,241,138,.25);color:#9dffc5}
+
+.simo-premium-home{
+  flex:0 0 auto;border:1px solid rgba(28,139,224,.17);border-radius:17px;overflow:hidden;
+  background:
+    radial-gradient(circle at 72% 12%,rgba(25,116,212,.16),transparent 34%),
+    linear-gradient(180deg,rgba(2,14,27,.93),rgba(2,12,23,.96));
+  box-shadow:0 24px 80px rgba(0,0,0,.28),inset 0 1px 0 rgba(255,255,255,.02);
+}
+.simo-home-hero{
+  position:relative;min-height:315px;display:grid;grid-template-columns:110px 360px minmax(360px,1fr);
+  align-items:center;gap:20px;padding:22px 36px 16px;overflow:hidden;
+  background:
+    linear-gradient(90deg,rgba(1,14,28,.97) 0%,rgba(2,22,40,.82) 44%,rgba(3,18,34,.58) 100%),
+    radial-gradient(ellipse at 75% 15%,rgba(221,95,113,.16),transparent 28%),
+    radial-gradient(ellipse at 70% 52%,rgba(24,83,153,.36),transparent 46%);
+}
+.simo-home-hero::after{
+  content:"";position:absolute;inset:auto 0 0 0;height:43%;
+  background:
+    linear-gradient(180deg,transparent,rgba(1,9,17,.78)),
+    linear-gradient(135deg,transparent 0 36%,rgba(20,54,82,.25) 36% 42%,transparent 42% 55%,rgba(19,51,77,.18) 55% 62%,transparent 62%);
+  opacity:.9;pointer-events:none;
+}
+.simo-trust-stack{position:relative;z-index:1;display:grid;gap:9px;align-self:start;margin-top:32px}
+.simo-trust-stack span,.simo-trust-stack strong{font-size:9px;letter-spacing:.28em;font-weight:800;color:#8fb5d4}
+.simo-trust-stack strong{color:#35ee7b}
+.simo-hero-brand{position:relative;z-index:2;text-align:center}
+.simo-hero-mark{
+  position:relative;height:155px;display:grid;place-items:center;
+  filter:drop-shadow(0 0 19px rgba(0,178,255,.35));
+}
+.simo-hero-mark>span{
+  font-size:180px;line-height:.8;font-weight:950;font-style:italic;letter-spacing:-28px;
+  background:linear-gradient(145deg,#6cf1ff 0%,#00c7ff 22%,#087cff 57%,#1b4fff 76%,#c1e8ff 100%);
+  -webkit-background-clip:text;background-clip:text;color:transparent;
+  text-shadow:0 0 30px rgba(0,134,255,.08);
+}
+.simo-hero-mark>i{
+  position:absolute;font-style:normal;font-size:64px;font-weight:950;color:#fff;left:56%;top:50px;
+  transform:translateX(-50%);text-shadow:0 0 20px rgba(255,255,255,.55);
+}
+.simo-hero-mark>b{
+  position:absolute;width:28px;height:28px;border-radius:50%;background:#23f06e;right:41px;bottom:21px;
+  box-shadow:0 0 20px #23f06e;
+}
+.simo-hero-word{
+  font-size:69px;line-height:.83;font-weight:950;letter-spacing:-.06em;color:white;
+  text-shadow:0 5px 18px rgba(0,0,0,.5);
+}
+.simo-hero-word span{display:inline-block;width:16px;height:16px;border-radius:50%;background:#2af278;margin-left:8px;box-shadow:0 0 14px #2af278}
+.simo-hero-tag{margin-top:12px;color:#1edcff;font-size:13px;letter-spacing:.34em;font-weight:800}
+.simo-hero-copy{position:relative;z-index:3;max-width:480px;padding-left:8px}
+.simo-hero-copy h1{margin:0;font-size:39px;line-height:1.02;letter-spacing:-.035em}
+.simo-hero-copy h1 span{color:#23c9ff}
+.simo-hero-copy h2{font-size:19px;margin:11px 0 16px;color:#f2f7ff}
+.simo-hero-copy p{max-width:430px;color:#abc0d6;line-height:1.55;margin:0 0 17px}
+.simo-primary-cta{
+  min-width:180px;border-radius:999px;padding:12px 20px;border:1px solid rgba(87,209,255,.55);
+  background:linear-gradient(135deg,#15baff,#075fff);color:white;font-weight:800;cursor:pointer;
+  box-shadow:0 0 26px rgba(0,121,255,.26),inset 0 1px 0 rgba(255,255,255,.2);
+}
+.simo-primary-cta span{margin-left:10px}
+.simo-hand-note{
+  position:absolute;right:-10px;bottom:-3px;color:#25deef;font-size:14px;font-style:italic;
+  transform:rotate(-8deg);line-height:1.2;text-align:center;text-shadow:0 0 12px rgba(0,226,255,.25);
+}
+.simo-capability-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;padding:13px 20px 10px}
+.simo-cap-card{
+  min-height:105px;border-radius:14px;border:1px solid rgba(30,157,244,.27);
+  background:linear-gradient(180deg,rgba(3,25,45,.94),rgba(2,17,32,.94));color:white;
+  display:grid;place-items:center;align-content:center;gap:6px;padding:11px 8px;cursor:pointer;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transition:.17s ease;
+}
+.simo-cap-card:hover{transform:translateY(-2px);border-color:rgba(21,201,255,.62);box-shadow:0 12px 30px rgba(0,117,255,.10)}
+.simo-cap-card>span{font-size:29px;line-height:1;color:#12c7ff;text-shadow:0 0 14px rgba(18,199,255,.25)}
+.simo-cap-card strong{font-size:12px}
+.simo-cap-card small{color:#9bb3c9;font-size:10px;line-height:1.35;max-width:140px}
+.simo-status-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:0 20px 14px}
+.simo-status-card{
+  min-height:64px;border:1px solid rgba(52,144,223,.18);border-radius:13px;
+  background:linear-gradient(180deg,rgba(8,27,46,.82),rgba(4,18,32,.82));
+  display:flex;align-items:center;gap:10px;padding:10px 12px;
+}
+.simo-status-icon{
+  width:38px;height:38px;display:grid;place-items:center;border-radius:10px;color:#67eaff;font-size:21px;
+  background:linear-gradient(145deg,rgba(14,109,204,.48),rgba(73,43,146,.38));box-shadow:0 0 18px rgba(0,123,255,.11)
+}
+.simo-status-card>div{display:grid;gap:2px}
+.simo-status-card strong{font-size:11px}
+.simo-status-card small{font-size:9px;color:#89a6bf}
+.simo-usage-track{height:5px;border-radius:999px;background:#0c2b48;overflow:hidden;width:100%;margin:3px 0}
+.simo-usage-track i{display:block;height:100%;width:0;background:linear-gradient(90deg,#12c7ff,#2175ff);border-radius:inherit}
+.simo-usage-card>div{width:100%}
+.simo-hidden-state{position:fixed!important;left:-99999px!important;top:-99999px!important;width:1px!important;height:1px!important;overflow:hidden!important}
+
+.simo-home-chat{
+  flex:1 1 auto;min-height:72px;border-radius:16px;background:rgba(2,12,23,.82);border-color:rgba(36,131,210,.14);
+}
+.simo-home-chat:empty{display:none}
+.simo-premium-composer{
+  flex:0 0 auto;border-radius:15px;background:linear-gradient(180deg,rgba(5,19,34,.95),rgba(2,13,25,.95));
+  border-color:rgba(54,143,222,.23);box-shadow:0 12px 40px rgba(0,0,0,.28);
+}
+.simo-premium-composer:focus-within{border-color:rgba(20,195,255,.46);box-shadow:0 0 24px rgba(0,130,255,.08),0 12px 40px rgba(0,0,0,.30)}
+.simo-premium-composer #chatInput{color:#f4f9ff!important;-webkit-text-fill-color:#f4f9ff!important}
+.simo-premium-composer #chatInput::placeholder{color:#9bb2c9!important;-webkit-text-fill-color:#9bb2c9!important}
+.simo-premium-composer #sendBtn{background:linear-gradient(145deg,#147bff,#304bc8);border-color:rgba(92,187,255,.45);box-shadow:0 7px 22px rgba(0,99,255,.22)}
+#loadingHint{font-size:10px;color:#68839d;min-height:14px!important;margin:0 3px!important}
+
+@media(max-width:1180px){
+  .app-shell{grid-template-columns:200px minmax(0,1fr)}
+  .simo-home-hero{grid-template-columns:80px 300px minmax(320px,1fr);padding-left:24px;padding-right:24px}
+  .simo-hero-mark>span{font-size:150px}
+  .simo-hero-word{font-size:58px}
+  .simo-hero-copy h1{font-size:34px}
+}
+@media(max-width:900px){
+  .simo-trust-stack{display:none}
+  .simo-home-hero{grid-template-columns:280px 1fr}
+  .simo-capability-grid{grid-template-columns:repeat(3,1fr)}
+  .simo-status-grid{grid-template-columns:repeat(2,1fr)}
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC3 — REFINED AI MARK + SIGNED-IN IDENTITY
+   Visual/account-display refinement only.
+   ========================================================= */
+
+/* Signed-in state is explicit: status + exact account identifier. */
+.simo-premium-brand-copy{
+  max-width:132px;
+}
+.simo-best-friend-label{
+  display:block;
+  margin-top:3px;
+}
+.simo-account-id{
+  display:block;
+  max-width:128px;
+  margin-top:2px;
+  color:#9fc6df !important;
+  font-size:9px;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.simo-account-id[hidden]{display:none !important;}
+
+.simo-signed-line b{
+  background:#557187;
+  box-shadow:0 0 8px rgba(80,120,150,.22);
+  transition:background .18s ease,box-shadow .18s ease;
+}
+.simo-signed-line.is-signed{
+  color:#55f39a;
+}
+.simo-signed-line.is-signed b{
+  background:#32f07d;
+  box-shadow:0 0 7px #32f07d,0 0 16px rgba(50,240,125,.58);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+@keyframes simoActivePulse{
+  0%,100%{transform:scale(.92);opacity:.82}
+  50%{transform:scale(1.12);opacity:1}
+}
+
+/* Refined geometric AI mark: symmetric A, centered i, active green indicator.
+   No font-glyph A is used, so the two legs remain balanced across browsers. */
+.simo-premium-mini-mark,
+.simo-hero-mark{
+  isolation:isolate;
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after,
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  content:"";
+  position:absolute;
+  z-index:1;
+  transform-origin:50% 100%;
+  background:
+    linear-gradient(165deg,#c8fbff 0%,#52e8ff 10%,#0ec3ff 34%,#0878ff 65%,#1748ef 84%,#7dbdff 100%);
+  box-shadow:
+    inset 1px 1px 1px rgba(255,255,255,.48),
+    inset -2px -2px 5px rgba(0,34,132,.30),
+    0 0 18px rgba(0,177,255,.26);
+}
+
+/* large mark */
+.simo-hero-mark{
+  width:230px;
+  height:164px;
+  margin:0 auto;
+  filter:drop-shadow(0 0 21px rgba(0,178,255,.36));
+}
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  width:47px;
+  height:157px;
+  bottom:4px;
+  border-radius:27px 27px 12px 12px;
+}
+.simo-hero-mark::before{
+  left:58px;
+  transform:rotate(28deg);
+}
+.simo-hero-mark::after{
+  right:58px;
+  transform:rotate(-28deg);
+}
+.simo-hero-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:92px;
+  width:104px;
+  height:24px;
+  transform:translateX(-50%);
+  border-radius:12px;
+  background:linear-gradient(90deg,#0a6ff4,#20d8ff 48%,#b8f5ff 72%,#5794ff);
+  box-shadow:
+    inset 0 1px 1px rgba(255,255,255,.52),
+    0 0 14px rgba(0,181,255,.22);
+}
+.simo-hero-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:67px;
+  width:30px;
+  height:61px;
+  transform:translateX(-50%);
+  border-radius:17px 17px 12px 12px;
+  background:linear-gradient(180deg,#fff 0%,#eafaff 48%,#98d8ff 100%);
+  box-shadow:
+    inset 0 0 8px rgba(43,149,218,.26),
+    0 0 12px rgba(255,255,255,.30);
+}
+.simo-hero-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-24px;
+  width:28px;
+  height:28px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:linear-gradient(180deg,#fff,#dff6ff);
+  box-shadow:0 0 13px rgba(255,255,255,.42);
+}
+.simo-hero-mark>b{
+  z-index:5;
+  width:25px;
+  height:25px;
+  right:36px;
+  bottom:8px;
+  background:#30f077;
+  box-shadow:0 0 8px #30f077,0 0 24px rgba(48,240,119,.72);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* compact sidebar mark uses the same geometry */
+.simo-premium-mini-mark{
+  width:52px;
+  height:52px;
+  flex:0 0 52px;
+  filter:drop-shadow(0 0 13px rgba(0,181,255,.34));
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after{
+  width:14px;
+  height:45px;
+  bottom:4px;
+  border-radius:9px 9px 4px 4px;
+}
+.simo-premium-mini-mark::before{
+  left:13px;
+  transform:rotate(28deg);
+}
+.simo-premium-mini-mark::after{
+  right:13px;
+  transform:rotate(-28deg);
+}
+.simo-premium-mini-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:29px;
+  width:31px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:6px;
+  background:linear-gradient(90deg,#0870f6,#22dfff 52%,#91d8ff);
+  box-shadow:0 0 8px rgba(0,181,255,.22);
+}
+.simo-premium-mini-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:22px;
+  width:9px;
+  height:18px;
+  transform:translateX(-50%);
+  border-radius:6px 6px 4px 4px;
+  background:linear-gradient(180deg,#fff,#a8e1ff);
+  box-shadow:0 0 7px rgba(255,255,255,.28);
+}
+.simo-premium-mini-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-8px;
+  width:8px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:#fff;
+  box-shadow:0 0 6px rgba(255,255,255,.45);
+}
+.simo-premium-mini-mark>b{
+  position:absolute;
+  z-index:5;
+  width:8px;
+  height:8px;
+  right:3px;
+  bottom:6px;
+  border-radius:50%;
+  background:#30f077;
+  box-shadow:0 0 6px #30f077,0 0 12px rgba(48,240,119,.64);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* The wordmark dot is also an active-state light. */
+.simo-hero-word span{
+  background:#30f077;
+  box-shadow:0 0 8px #30f077,0 0 18px rgba(48,240,119,.60);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC4 — AI MARK REFINEMENT
+   Bring the A/i mark closer to the approved concept:
+   cleaner apex, more even legs, better interior spacing.
+   ========================================================= */
+
+/* Sidebar / hero A mark refined to a true A silhouette instead of a skewed X */
+.simo-hero-mark,
+.simo-premium-mini-mark{
+  position:relative;
+}
+
+/* Large hero mark */
+.simo-hero-mark{
+  width:250px;
+  height:176px;
+  margin:0 auto 2px;
+  filter:drop-shadow(0 0 22px rgba(0,178,255,.34));
+}
+.simo-hero-mark::before,
+.simo-hero-mark::after{
+  content:"";
+  position:absolute;
+  bottom:5px;
+  width:58px;
+  height:156px;
+  border-radius:26px;
+  z-index:1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.30),
+    0 0 18px rgba(0,176,255,.20);
+}
+.simo-hero-mark::before{
+  left:50px;
+  clip-path:polygon(100% 0, 66% 0, 0 100%, 36% 100%);
+  background:linear-gradient(180deg,#63ecff 0%,#1fc9ff 30%,#097dff 70%,#234dff 100%);
+}
+.simo-hero-mark::after{
+  right:50px;
+  clip-path:polygon(34% 0, 0 0, 64% 100%, 100% 100%);
+  background:linear-gradient(180deg,#77f1ff 0%,#93f8ff 18%,#dffcff 34%,#afdfff 62%,#7eaef7 100%);
+}
+.simo-hero-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:95px;
+  width:86px;
+  height:20px;
+  transform:translateX(-50%);
+  border-radius:12px;
+  background:linear-gradient(90deg,#157cff 0%,#40d7ff 58%,#8fddff 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.40),
+    0 0 14px rgba(0,181,255,.20);
+}
+.simo-hero-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:67px;
+  width:31px;
+  height:58px;
+  transform:translateX(-50%);
+  border-radius:16px 16px 11px 11px;
+  background:linear-gradient(180deg,#ffffff 0%,#eefbff 52%,#b6e3ff 100%);
+  box-shadow:
+    inset 0 -3px 8px rgba(33,121,196,.18),
+    0 0 12px rgba(255,255,255,.20);
+}
+.simo-hero-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-28px;
+  width:28px;
+  height:28px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:linear-gradient(180deg,#ffffff,#e9fbff);
+  box-shadow:0 0 14px rgba(255,255,255,.40);
+}
+.simo-hero-mark>b{
+  position:absolute;
+  z-index:5;
+  right:42px;
+  bottom:17px;
+  width:24px;
+  height:24px;
+  border-radius:50%;
+  background:#34f07a;
+  box-shadow:0 0 8px #34f07a,0 0 24px rgba(52,240,122,.65);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+/* Small sidebar mark */
+.simo-premium-mini-mark{
+  width:52px;
+  height:52px;
+  flex:0 0 52px;
+  filter:drop-shadow(0 0 10px rgba(0,181,255,.32));
+}
+.simo-premium-mini-mark::before,
+.simo-premium-mini-mark::after{
+  content:"";
+  position:absolute;
+  bottom:4px;
+  width:14px;
+  height:42px;
+  border-radius:8px;
+  z-index:1;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.26),
+    0 0 8px rgba(0,176,255,.18);
+}
+.simo-premium-mini-mark::before{
+  left:11px;
+  clip-path:polygon(100% 0, 65% 0, 0 100%, 36% 100%);
+  background:linear-gradient(180deg,#66ecff 0%,#18c9ff 28%,#0b7eff 74%,#2752ff 100%);
+}
+.simo-premium-mini-mark::after{
+  right:11px;
+  clip-path:polygon(35% 0, 0 0, 64% 100%, 100% 100%);
+  background:linear-gradient(180deg,#74f1ff 0%,#bef9ff 28%,#a4dbff 56%,#7faef7 100%);
+}
+.simo-premium-mini-mark>span{
+  position:absolute;
+  z-index:2;
+  left:50%;
+  top:29px;
+  width:22px;
+  height:6px;
+  transform:translateX(-50%);
+  border-radius:6px;
+  background:linear-gradient(90deg,#157bff 0%,#39d7ff 60%,#8adfff 100%);
+  box-shadow:0 0 7px rgba(0,181,255,.18);
+}
+.simo-premium-mini-mark>i{
+  position:absolute;
+  z-index:4;
+  left:50%;
+  top:21px;
+  width:8px;
+  height:17px;
+  transform:translateX(-50%);
+  border-radius:5px 5px 3px 3px;
+  background:linear-gradient(180deg,#ffffff,#bbe6ff);
+  box-shadow:0 0 7px rgba(255,255,255,.22);
+}
+.simo-premium-mini-mark>i::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-8px;
+  width:8px;
+  height:8px;
+  transform:translateX(-50%);
+  border-radius:50%;
+  background:#ffffff;
+  box-shadow:0 0 6px rgba(255,255,255,.35);
+}
+.simo-premium-mini-mark>b{
+  position:absolute;
+  z-index:5;
+  right:3px;
+  bottom:6px;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#34f07a;
+  box-shadow:0 0 6px #34f07a,0 0 12px rgba(52,240,122,.55);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC5 — APPROVED A/i SVG MARK
+   Restores the original A concept using actual vector geometry.
+   This intentionally overrides RC3/RC4 pseudo-element attempts.
+   ========================================================= */
+
+.simo-ai-svg-mark::before,
+.simo-ai-svg-mark::after,
+.simo-ai-svg-mark > span,
+.simo-ai-svg-mark > i,
+.simo-ai-svg-mark > b{
+  content:none !important;
+  display:none !important;
+}
+
+.simo-ai-svg-mark{
+  display:block !important;
+  position:relative;
+  overflow:visible;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+
+.simo-ai-svg-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+.simo-hero-mark.simo-ai-svg-mark{
+  width:258px;
+  height:190px;
+  margin:0 auto -4px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.26));
+}
+
+.simo-premium-mini-mark.simo-ai-svg-mark{
+  width:50px;
+  height:48px;
+  flex:0 0 50px;
+  filter:drop-shadow(0 0 9px rgba(0,171,255,.24));
+}
+
+.simo-ai-svg-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #32ef78) drop-shadow(0 0 10px rgba(50,239,120,.62));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC6 — COSMIC ORBIT A/i
+   Recovered earlier Simo direction: integrated A+i, luminous
+   blue/cyan orbit, polished dark-mode tech feel, green active.
+   ========================================================= */
+
+.simo-cosmic-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-cosmic-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+.simo-hero-mark.simo-cosmic-mark{
+  width:278px;
+  height:206px;
+  margin:0 auto -10px;
+  filter:drop-shadow(0 0 22px rgba(0,164,255,.28));
+}
+.simo-premium-mini-mark.simo-cosmic-mark{
+  width:54px;
+  height:50px;
+  flex:0 0 54px;
+  filter:drop-shadow(0 0 10px rgba(0,164,255,.25));
+}
+
+/* subtle cosmic halo behind the main emblem */
+.simo-hero-brand::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:17%;
+  width:330px;
+  height:210px;
+  transform:translate(-50%,-50%);
+  background:
+    radial-gradient(circle at center,rgba(24,164,255,.14) 0%,rgba(24,164,255,.06) 34%,transparent 70%),
+    radial-gradient(circle at 72% 48%,rgba(91,72,255,.08),transparent 46%);
+  filter:blur(10px);
+  pointer-events:none;
+  z-index:-1;
+}
+
+/* Green light = Simo active / available, not decorative. */
+.simo-cosmic-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #31ef77) drop-shadow(0 0 12px rgba(49,239,119,.68));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC7 — RESTORE ORIGINAL A/i DIRECTION
+   Removes the confusing cosmic/orbit treatment and brings the
+   emblem back toward the approved simple A+i reference.
+   ========================================================= */
+
+.simo-original-ai-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-original-ai-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+}
+
+/* turn off the RC6 cosmic halo */
+.simo-hero-brand::before{
+  content:none !important;
+}
+
+.simo-hero-mark.simo-original-ai-mark{
+  width:246px;
+  height:188px;
+  margin:0 auto -6px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.24));
+}
+.simo-premium-mini-mark.simo-original-ai-mark{
+  width:47px;
+  height:45px;
+  flex:0 0 47px;
+  filter:drop-shadow(0 0 9px rgba(0,171,255,.20));
+}
+
+.simo-original-ai-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #31ef77) drop-shadow(0 0 10px rgba(49,239,119,.60));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC8 — SHARPENED A/i
+   Pushes the emblem closer to the approved sharp reference:
+   crisper triangular A, darker interior, cleaner white i.
+   ========================================================= */
+
+.simo-sharp-ai-mark{
+  overflow:visible !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-sharp-ai-mark svg{
+  display:block;
+  width:100%;
+  height:100%;
+  overflow:visible;
+  shape-rendering:geometricPrecision;
+}
+
+.simo-hero-mark.simo-sharp-ai-mark{
+  width:252px;
+  height:192px;
+  margin:0 auto -7px;
+  filter:drop-shadow(0 0 18px rgba(0,171,255,.22));
+}
+.simo-premium-mini-mark.simo-sharp-ai-mark{
+  width:48px;
+  height:46px;
+  flex:0 0 48px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+
+.simo-sharp-ai-mark .simo-svg-active{
+  transform-box:fill-box;
+  transform-origin:center;
+  filter:drop-shadow(0 0 5px #33ef79) drop-shadow(0 0 11px rgba(51,239,121,.56));
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+}
+
+
+/* =========================================================
+   SIMO 10.34 RC9 — APPROVED STATIC LOGO ASSETS
+   Uses the approved sharp 3D logo artwork instead of code-drawn
+   geometry, so the A/i stays faithful to the intended design.
+   ========================================================= */
+.simo-approved-mark,
+.simo-approved-hero-brand{
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-approved-mark img,
+.simo-approved-hero-logo{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.simo-premium-mini-mark.simo-approved-mark{
+  width:48px;
+  height:46px;
+  flex:0 0 48px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+.simo-approved-hero-brand{
+  position:relative;
+  z-index:2;
+  width:290px;
+  height:252px;
+  align-self:center;
+  justify-self:center;
+}
+.simo-approved-hero-logo{
+  filter:drop-shadow(0 0 14px rgba(0,175,255,.16));
+}
+/* suppress old generated-logo sizing rules if still present */
+.simo-approved-hero-brand::before{content:none !important;}
+
+
+/* =========================================================
+   SIMO 10.34 RC10 — LOGO CLEANUP
+   Fixes the RC9 issues:
+   - use clean compact mark in upper-left
+   - remove cut-off hero crop and green smudge
+   - rebuild hero wordmark separately so the logo stays clean
+   ========================================================= */
+.simo-clean-mini-mark,
+.simo-clean-hero-brand{
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-clean-mini-mark img,
+.simo-clean-hero-mark{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:contain;
+}
+.simo-premium-mini-mark.simo-clean-mini-mark{
+  width:50px;
+  height:48px;
+  flex:0 0 50px;
+  filter:drop-shadow(0 0 8px rgba(0,171,255,.18));
+}
+.simo-clean-hero-brand{
+  position:relative;
+  z-index:2;
+  width:300px;
+  min-height:255px;
+  display:grid;
+  justify-items:center;
+  align-content:start;
+  text-align:center;
+}
+.simo-clean-hero-mark{
+  width:188px;
+  height:184px;
+  margin:2px auto -4px;
+  filter:drop-shadow(0 0 12px rgba(0,175,255,.18));
+}
+.simo-clean-wordmark{
+  margin-top:0;
+  font-size:72px;
+  line-height:.9;
+  font-weight:950;
+  letter-spacing:-.06em;
+  color:#f7fbff;
+  text-shadow:0 3px 12px rgba(0,0,0,.36), 0 0 10px rgba(255,255,255,.08);
+}
+.simo-clean-wordmark span{
+  display:inline-block;
+  width:15px;
+  height:15px;
+  margin-left:8px;
+  border-radius:50%;
+  background:#31ef77;
+  box-shadow:0 0 8px #31ef77,0 0 18px rgba(49,239,119,.62);
+  animation:simoActivePulse 2.2s ease-in-out infinite;
+  vertical-align:middle;
+}
+.simo-clean-tag{
+  margin-top:10px;
+  color:#17ddff;
+  font-size:13px;
+  letter-spacing:.34em;
+  font-weight:800;
+}
+
+
+/* =========================================================
+   SIMO RC11 — EXACT USER-SUPPLIED LOGO
+   The uploaded PNG is used directly. No SVG/CSS redraw.
+   ========================================================= */
+
+.simo-exact-sidebar-brand{
+  display:grid !important;
+  justify-items:center;
+  gap:3px;
+  padding:8px 6px 12px !important;
+  background:none !important;
+  border:0 !important;
+  box-shadow:none !important;
+}
+.simo-exact-sidebar-logo{
+  display:block;
+  width:116px;
+  height:78px;
+  object-fit:contain;
+  object-position:center;
+  filter:drop-shadow(0 0 8px rgba(0,170,255,.18));
+}
+.simo-exact-sidebar-status{
+  display:grid;
+  justify-items:center;
+  gap:1px;
+  max-width:150px;
+}
+.simo-exact-sidebar-status .simo-account-id{
+  max-width:145px;
+  text-align:center;
+}
+
+.simo-exact-hero-brand{
+  position:relative;
+  z-index:2;
+  width:340px;
+  height:270px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  align-self:center;
+  justify-self:center;
+  overflow:visible;
+}
+.simo-exact-hero-logo{
+  display:block;
+  width:340px;
+  height:225px;
+  max-width:100%;
+  object-fit:contain;
+  object-position:center;
+  filter:drop-shadow(0 0 16px rgba(0,171,255,.16));
+}
+.simo-exact-hero-tag{
+  margin-top:-4px;
+  color:#18dcff;
+  font-size:13px;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:.32em;
+  text-align:center;
+  white-space:nowrap;
+}
+
+
+/* SIMO RC11 — tagline alignment only
+   Visual-only adjustment. No other layout or behavior changes. */
+.simo-exact-hero-tag{
+  transform:translateX(7px) !important;
+}
+
+
+/* =========================================================
+   SIMO RC11 — FINAL SYMMETRICAL LOGO INSTALL
+   Logo-only presentation override.
+   ========================================================= */
+
+.simo-exact-sidebar-brand{
+  justify-items:center !important;
+  text-align:center !important;
+}
+
+.simo-exact-sidebar-logo{
+  display:block !important;
+  width:122px !important;
+  height:96px !important;
+  margin:0 auto 2px !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  transform:none !important;
+  filter:drop-shadow(0 0 8px rgba(0,174,255,.18)) !important;
+}
+
+.simo-exact-sidebar-status{
+  width:100% !important;
+  justify-items:center !important;
+  text-align:center !important;
+}
+
+.simo-exact-hero-brand{
+  width:390px !important;
+  height:286px !important;
+  display:flex !important;
+  align-items:center !important;
+  justify-content:center !important;
+  justify-self:center !important;
+  align-self:center !important;
+  overflow:visible !important;
+}
+
+.simo-exact-hero-logo{
+  display:block !important;
+  width:390px !important;
+  height:286px !important;
+  max-width:100% !important;
+  margin:0 auto !important;
+  object-fit:contain !important;
+  object-position:center center !important;
+  transform:none !important;
+  filter:drop-shadow(0 0 15px rgba(0,174,255,.16)) !important;
+}
+
+/* New artwork already contains "YOUR BEST FRIEND AI". */
+.simo-exact-hero-tag,
+.simo-best-friend-label{
+  display:none !important;
+}
+
+@media (max-width: 1100px){
+  .simo-exact-hero-brand{
+    width:340px !important;
+    height:250px !important;
+  }
+  .simo-exact-hero-logo{
+    width:340px !important;
+    height:250px !important;
+  }
+}
+
+/* =========================================================
+   SIMO OCT 3 MOBILE RESPONSIVE RC1
+   Dashboard/home responsive-only pass.
+   Preserves desktop layout, owners, libraries, auth, Stripe,
+   Website Builder, Design Workspace, mic, Send/Enter, and Free Chat.
+   ========================================================= */
+
+@media (max-width: 980px) {
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body .app-shell {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh;
+  }
+
+  body .sidebar,
+  body .simo-premium-sidebar {
+    display: none !important;
+  }
+
+  body .main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 100dvh !important;
+    padding: 10px !important;
+    gap: 10px !important;
+    overflow-x: hidden !important;
+  }
+
+  body .topbar {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  body .topbar-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 7px !important;
+  }
+
+  body .topbar-actions > * {
+    flex: 0 0 auto !important;
+    max-width: 100% !important;
+  }
+
+  body .simo-home-shell,
+  body .simo-premium-home,
+  body .simo-home-surface {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .simo-home-hero {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding: 22px 16px 16px !important;
+    min-height: 0 !important;
+    text-align: center !important;
+    align-items: center !important;
+    justify-items: center !important;
+    overflow: hidden !important;
+  }
+
+  body .simo-trust-stack {
+    display: none !important;
+  }
+
+  body .simo-hero-brand,
+  body .simo-exact-hero-brand {
+    width: min(72vw, 360px) !important;
+    max-width: 360px !important;
+    min-width: 0 !important;
+    justify-self: center !important;
+    margin: 0 auto !important;
+  }
+
+  body .simo-exact-hero-logo,
+  body .simo-hero-brand img {
+    display: block !important;
+    width: 100% !important;
+    max-width: 360px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    margin: 0 auto !important;
+  }
+
+  body .simo-hero-copy {
+    width: 100% !important;
+    max-width: 620px !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: clamp(30px, 8.8vw, 44px) !important;
+    line-height: 1.02 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  body .simo-hero-copy h2 {
+    font-size: clamp(17px, 4.8vw, 21px) !important;
+    margin: 10px 0 12px !important;
+  }
+
+  body .simo-hero-copy p {
+    max-width: 560px !important;
+    margin: 0 auto 16px !important;
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  }
+
+  body .simo-primary-cta {
+    min-width: 0 !important;
+    width: min(100%, 220px) !important;
+  }
+
+  body .simo-hand-note {
+    position: static !important;
+    transform: none !important;
+    margin: 12px auto 0 !important;
+    text-align: center !important;
+  }
+
+  body .simo-capability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    padding: 10px 0 !important;
+  }
+
+  body .simo-cap-card {
+    min-width: 0 !important;
+    min-height: 96px !important;
+    padding: 10px 8px !important;
+  }
+
+  body .simo-cap-card > span {
+    font-size: 24px !important;
+  }
+
+  body .simo-cap-card strong {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  body .simo-cap-card small {
+    font-size: 9px !important;
+    max-width: 100% !important;
+  }
+
+  body .simo-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    padding: 0 0 10px !important;
+  }
+
+  body .simo-status-card {
+    min-width: 0 !important;
+    min-height: 62px !important;
+    padding: 9px 10px !important;
+  }
+
+  body .simo-status-card strong,
+  body .simo-status-card small {
+    overflow-wrap: anywhere !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 260px !important;
+    border-radius: 14px !important;
+    padding: 10px !important;
+  }
+
+  body #chatMessages {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  body .msg-bubble {
+    max-width: 92% !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 90 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 60px !important;
+    padding: 8px !important;
+    gap: 7px !important;
+    background: rgba(3, 15, 28, .98) !important;
+    backdrop-filter: blur(14px) !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoProHelperToggleBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 40px !important;
+    max-height: 120px !important;
+    font-size: 16px !important;
+  }
+
+  body #loadingHint {
+    padding-bottom: max(2px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  body .main {
+    padding: 7px !important;
+    gap: 8px !important;
+  }
+
+  body .topbar {
+    padding: 9px 10px !important;
+  }
+
+  body .topbar > div:first-child,
+  body .topbar .topbar-title,
+  body .topbar .topbar-copy {
+    min-width: 0 !important;
+  }
+
+  body .topbar-actions {
+    gap: 6px !important;
+  }
+
+  body .topbar-actions button,
+  body .topbar-actions .pill {
+    min-height: 34px !important;
+    padding: 7px 9px !important;
+    font-size: 10px !important;
+  }
+
+  body .simo-home-hero {
+    padding: 18px 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  body .simo-hero-brand,
+  body .simo-exact-hero-brand {
+    width: min(82vw, 330px) !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: clamp(28px, 9.2vw, 38px) !important;
+  }
+
+  body .simo-hero-copy p {
+    font-size: 13px !important;
+  }
+
+  body .simo-capability-grid,
+  body .simo-status-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body .simo-cap-card {
+    min-height: 80px !important;
+    grid-template-columns: 34px 1fr !important;
+    grid-template-rows: auto auto !important;
+    justify-items: start !important;
+    text-align: left !important;
+    column-gap: 10px !important;
+    row-gap: 2px !important;
+    padding: 10px 12px !important;
+  }
+
+  body .simo-cap-card > span {
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+  }
+
+  body .simo-cap-card strong,
+  body .simo-cap-card small {
+    text-align: left !important;
+  }
+
+  body .simo-status-card {
+    min-height: 58px !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    min-height: 220px !important;
+    padding: 8px !important;
+  }
+
+  body .msg-bubble {
+    max-width: 96% !important;
+    padding: 10px 11px !important;
+    font-size: 14px !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    gap: 6px !important;
+    padding: 7px !important;
+    border-radius: 13px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoProHelperToggleBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex-basis: 38px !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    font-size: 16px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body .topbar-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+  }
+
+  body .topbar-actions > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: 28px !important;
+  }
+
+  body .composer-wrap #simoProHelperToggleBtn {
+    display: none !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex-basis: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+  }
+}
+
+/* =========================================================
+   SIMO OCT 4 MOBILE SCROLL RC2
+   Phone/tablet viewport scroll correction only.
+   Desktop (>980px) remains unchanged.
+   ========================================================= */
+@media (max-width: 980px) {
+  html {
+    height: auto !important;
+    min-height: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body:not(.modal-open) {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  body .app-shell {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+  }
+
+  body .main {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+  }
+
+  body .simo-home-shell,
+  body .simo-premium-home,
+  body .simo-home-surface {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 260px !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body #chatMessages {
+    height: auto !important;
+    min-height: 220px !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    position: sticky !important;
+    bottom: 0 !important;
+    margin-top: 8px !important;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  body .simo-home-chat,
+  body .chat-wrap {
+    min-height: 200px !important;
+  }
+
+  body #chatMessages {
+    min-height: 170px !important;
+  }
+}
+
+/* =========================================================
+   SIMO OCT 4 MOBILE LOGIC + MIC RC3
+   Mobile-only behavior/placement protection.
+   Desktop remains unchanged above 980px.
+   ========================================================= */
+@media (max-width: 980px) {
+  html, body:not(.modal-open), body .app-shell, body .main {
+    overscroll-behavior-y: auto !important;
+  }
+
+  body .main {
+    padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    isolation: isolate;
+    touch-action: manipulation;
+  }
+
+  body .composer-wrap #chatInput {
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body .composer-wrap #simoMicBtn.is-listening,
+  body .composer-wrap #micBtn.is-listening,
+  body .composer-wrap #simoMicBtn[data-simo-listening="1"],
+  body .composer-wrap #micBtn[data-simo-listening="1"] {
+    border-color: rgba(86,240,169,.86) !important;
+    box-shadow: 0 0 0 2px rgba(86,240,169,.12), 0 0 20px rgba(86,240,169,.28) !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 620px) {
+  /* The Pro Helper star floats centered ABOVE the composer, never over typed text. */
+  body .composer-wrap #simoSuggestionsStarBtn,
+  body .composer-wrap .simo-helper-toggle-btn,
+  body .composer-wrap #simoProHelperToggleBtn {
+    position: absolute !important;
+    left: 50% !important;
+    right: auto !important;
+    top: -44px !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    order: 3 !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    max-width: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    z-index: 4 !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    margin-top: 48px !important;
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 120px !important;
+    padding: 8px 8px !important;
+    font-size: 16px !important;
+  }
+
+  body .simo-home-hero {
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    min-height: 160px !important;
+  }
+
+  body #chatMessages {
+    min-height: 130px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex-basis: 36px !important;
+    width: 36px !important;
+    min-width: 36px !important;
+    height: 36px !important;
+    min-height: 36px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+  }
+}
+
