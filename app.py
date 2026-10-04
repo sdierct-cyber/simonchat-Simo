@@ -16687,6 +16687,11 @@ print(f"[{SIMO_RELEASE_ID}] canonical backend route owners sealed", flush=True)
 # Keep the dashboard/free-demo number aligned everywhere.  This is now a UI/demo
 # counter only; it is NOT permission to make unfunded provider calls.
 FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "25") or "25")
+# Free/Guest plain-text chat is intentionally allowed up to FREE_DAILY_LIMIT per visitor,
+# but a second server-wide cap prevents unlimited unfunded provider spend.
+SIMO_FREE_CHAT_GLOBAL_DAILY_CAP = max(
+    1, int(os.getenv("SIMO_FREE_CHAT_GLOBAL_DAILY_CAP", "100") or "100")
+)
 
 # New generic credit names.  Old image-credit env vars remain accepted so an
 # existing Render deployment does not break during the transition.
@@ -17483,6 +17488,30 @@ _simo_website_edit_unmetered = _simo_canonical_website_edit
 
 def api_chat():
     action, cost = _simo_chat_meter_cost()
+
+    # RC2 FREE CHAT LANE:
+    # Plain text chat is the one provider-backed feature intentionally available
+    # to Guest/Free. Website/design/image/analyze lanes still use Profit Shield.
+    if action == "chat" and not is_pro_user():
+        day_key = get_today_key()
+        global_key = "__simo_global_free_chat__"
+        global_used = get_daily_usage_count(global_key, day_key)
+        if global_used >= SIMO_FREE_CHAT_GLOBAL_DAILY_CAP:
+            return jsonify({
+                "ok": False,
+                "error": "Simo Free Chat has reached today's safety limit. Please sign in with Pro or try again tomorrow.",
+                "code": "simo_free_chat_global_cap",
+                "usage_today": get_daily_usage_count(user_key_for_limits(), day_key),
+                "free_daily_limit": FREE_DAILY_LIMIT,
+            }), 429
+
+        # The original chat owner already enforces/increments the visitor's
+        # FREE_DAILY_LIMIT. We only add the server-wide successful-chat counter.
+        resp = _simo_api_chat_unmetered()
+        if not _simo_response_failed(resp):
+            increment_daily_usage(global_key, day_key)
+        return resp
+
     return _simo_metered_call(action, cost, _simo_api_chat_unmetered)
 
 
