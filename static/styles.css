@@ -3812,3 +3812,391 @@ body[data-simo-theme="default"]::before{
     height:250px !important;
   }
 }
+
+/* =========================================================
+   SIMO OCT 3 MOBILE RESPONSIVE RC1
+   Dashboard/home responsive-only pass.
+   Preserves desktop layout, owners, libraries, auth, Stripe,
+   Website Builder, Design Workspace, mic, Send/Enter, and Free Chat.
+   ========================================================= */
+
+@media (max-width: 980px) {
+  html, body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  body .app-shell {
+    display: block !important;
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh;
+  }
+
+  body .sidebar,
+  body .simo-premium-sidebar {
+    display: none !important;
+  }
+
+  body .main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 100dvh !important;
+    padding: 10px !important;
+    gap: 10px !important;
+    overflow-x: hidden !important;
+  }
+
+  body .topbar {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 10px 12px !important;
+    gap: 8px !important;
+  }
+
+  body .topbar-actions {
+    width: 100% !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-start !important;
+    gap: 7px !important;
+  }
+
+  body .topbar-actions > * {
+    flex: 0 0 auto !important;
+    max-width: 100% !important;
+  }
+
+  body .simo-home-shell,
+  body .simo-premium-home,
+  body .simo-home-surface {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .simo-home-hero {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 16px !important;
+    padding: 22px 16px 16px !important;
+    min-height: 0 !important;
+    text-align: center !important;
+    align-items: center !important;
+    justify-items: center !important;
+    overflow: hidden !important;
+  }
+
+  body .simo-trust-stack {
+    display: none !important;
+  }
+
+  body .simo-hero-brand,
+  body .simo-exact-hero-brand {
+    width: min(72vw, 360px) !important;
+    max-width: 360px !important;
+    min-width: 0 !important;
+    justify-self: center !important;
+    margin: 0 auto !important;
+  }
+
+  body .simo-exact-hero-logo,
+  body .simo-hero-brand img {
+    display: block !important;
+    width: 100% !important;
+    max-width: 360px !important;
+    height: auto !important;
+    object-fit: contain !important;
+    margin: 0 auto !important;
+  }
+
+  body .simo-hero-copy {
+    width: 100% !important;
+    max-width: 620px !important;
+    padding: 0 !important;
+    margin: 0 auto !important;
+    text-align: center !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: clamp(30px, 8.8vw, 44px) !important;
+    line-height: 1.02 !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  body .simo-hero-copy h2 {
+    font-size: clamp(17px, 4.8vw, 21px) !important;
+    margin: 10px 0 12px !important;
+  }
+
+  body .simo-hero-copy p {
+    max-width: 560px !important;
+    margin: 0 auto 16px !important;
+    font-size: 14px !important;
+    line-height: 1.55 !important;
+  }
+
+  body .simo-primary-cta {
+    min-width: 0 !important;
+    width: min(100%, 220px) !important;
+  }
+
+  body .simo-hand-note {
+    position: static !important;
+    transform: none !important;
+    margin: 12px auto 0 !important;
+    text-align: center !important;
+  }
+
+  body .simo-capability-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    padding: 10px 0 !important;
+  }
+
+  body .simo-cap-card {
+    min-width: 0 !important;
+    min-height: 96px !important;
+    padding: 10px 8px !important;
+  }
+
+  body .simo-cap-card > span {
+    font-size: 24px !important;
+  }
+
+  body .simo-cap-card strong {
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+  }
+
+  body .simo-cap-card small {
+    font-size: 9px !important;
+    max-width: 100% !important;
+  }
+
+  body .simo-status-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+    padding: 0 0 10px !important;
+  }
+
+  body .simo-status-card {
+    min-width: 0 !important;
+    min-height: 62px !important;
+    padding: 9px 10px !important;
+  }
+
+  body .simo-status-card strong,
+  body .simo-status-card small {
+    overflow-wrap: anywhere !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 260px !important;
+    border-radius: 14px !important;
+    padding: 10px !important;
+  }
+
+  body #chatMessages {
+    width: 100% !important;
+    min-width: 0 !important;
+    padding: 0 !important;
+  }
+
+  body .msg-bubble {
+    max-width: 92% !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 90 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 60px !important;
+    padding: 8px !important;
+    gap: 7px !important;
+    background: rgba(3, 15, 28, .98) !important;
+    backdrop-filter: blur(14px) !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoProHelperToggleBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    flex: 1 1 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    min-height: 40px !important;
+    max-height: 120px !important;
+    font-size: 16px !important;
+  }
+
+  body #loadingHint {
+    padding-bottom: max(2px, env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media (max-width: 620px) {
+  body .main {
+    padding: 7px !important;
+    gap: 8px !important;
+  }
+
+  body .topbar {
+    padding: 9px 10px !important;
+  }
+
+  body .topbar > div:first-child,
+  body .topbar .topbar-title,
+  body .topbar .topbar-copy {
+    min-width: 0 !important;
+  }
+
+  body .topbar-actions {
+    gap: 6px !important;
+  }
+
+  body .topbar-actions button,
+  body .topbar-actions .pill {
+    min-height: 34px !important;
+    padding: 7px 9px !important;
+    font-size: 10px !important;
+  }
+
+  body .simo-home-hero {
+    padding: 18px 12px 14px !important;
+    gap: 12px !important;
+  }
+
+  body .simo-hero-brand,
+  body .simo-exact-hero-brand {
+    width: min(82vw, 330px) !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: clamp(28px, 9.2vw, 38px) !important;
+  }
+
+  body .simo-hero-copy p {
+    font-size: 13px !important;
+  }
+
+  body .simo-capability-grid,
+  body .simo-status-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body .simo-cap-card {
+    min-height: 80px !important;
+    grid-template-columns: 34px 1fr !important;
+    grid-template-rows: auto auto !important;
+    justify-items: start !important;
+    text-align: left !important;
+    column-gap: 10px !important;
+    row-gap: 2px !important;
+    padding: 10px 12px !important;
+  }
+
+  body .simo-cap-card > span {
+    grid-row: 1 / 3 !important;
+    align-self: center !important;
+  }
+
+  body .simo-cap-card strong,
+  body .simo-cap-card small {
+    text-align: left !important;
+  }
+
+  body .simo-status-card {
+    min-height: 58px !important;
+  }
+
+  body .simo-home-chat,
+  body .chat-wrap {
+    min-height: 220px !important;
+    padding: 8px !important;
+  }
+
+  body .msg-bubble {
+    max-width: 96% !important;
+    padding: 10px 11px !important;
+    font-size: 14px !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    gap: 6px !important;
+    padding: 7px !important;
+    border-radius: 13px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoProHelperToggleBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex-basis: 38px !important;
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    font-size: 16px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+}
+
+@media (max-width: 390px) {
+  body .topbar-actions {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+  }
+
+  body .topbar-actions > * {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: center !important;
+  }
+
+  body .simo-hero-copy h1 {
+    font-size: 28px !important;
+  }
+
+  body .composer-wrap #simoProHelperToggleBtn {
+    display: none !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex-basis: 36px !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+  }
+}
+
