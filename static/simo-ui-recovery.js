@@ -1,3 +1,4 @@
+// SIMO OCT 4 FINAL FOUNDATION RC10 — business text-first guard
 // SIMO UI RECOVERY — live safety bindings
 // Purpose: restore base buttons, login/logout, starter chips, and non-design chat send.
 // This does not replace the design workspace or credit-pack logic.
@@ -22,7 +23,19 @@
   function isDesignLikePrompt(text) {
     var t = clean(text).toLowerCase();
     if (!t) return false;
-    return /\b(show me|design|create|make|generate|render|visualize|mockup|prototype|concept|product|bottle|toaster|grill|rim|wheel|flashlight|extinguisher|dispenser|logo|book cover|website|landing page|app screen|dashboard|house|home|guitar|car)\b/.test(t);
+
+    var activeMode = String(window.__SIMO_ACTIVE_MODE__ || "chat").toLowerCase();
+    if (activeMode === "business") return false;
+
+    var explicitTextAdvice =
+      /\b(business idea|business ideas|business plan|startup idea|startup ideas|side hustle|work from home|work at home|make money|revenue model|pricing strategy|marketing plan|target customer|first steps|advice|recommend|recommendation|explain|tell me|help me understand)\b/.test(t);
+
+    var explicitVisual =
+      /\b(logo|book cover|image|picture|photo|mockup|render|visualize|visualise|illustration|poster|flyer|brochure|product design|3d|3-d|website|web site|landing page|app screen|dashboard)\b/.test(t);
+
+    if (explicitTextAdvice && !explicitVisual) return false;
+
+    return /\b(design|generate|render|visualize|visualise|mockup|prototype|logo|book cover|image|picture|photo|illustration|poster|flyer|brochure|product design|3d|3-d|website|web site|landing page|app screen|dashboard)\b/.test(t);
   }
 
 
@@ -94,7 +107,12 @@
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: text })
+        body: JSON.stringify({
+          message: text,
+          simo_mode: String(window.__SIMO_ACTIVE_MODE__ || "chat").toLowerCase() === "business" ? "chat" : String(window.__SIMO_ACTIVE_MODE__ || "chat"),
+          lane: String(window.__SIMO_ACTIVE_MODE__ || "chat").toLowerCase() === "business" ? "chat" : String(window.__SIMO_ACTIVE_MODE__ || "chat"),
+          intent_hint: String(window.__SIMO_ACTIVE_MODE__ || "chat").toLowerCase() === "business" ? "business_advice" : ""
+        })
       });
 
       var data = await res.json();
