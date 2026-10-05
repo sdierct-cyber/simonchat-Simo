@@ -1,4 +1,5 @@
-# SIMO RC11.8.3 — HEADLINE STYLE EDIT VERIFIER FIX
+# SIMO OCT 4 RC13 — universal backend subject lock + RC12 validator + RC10 mobile/free protections
+# SIMO OCT 4 RC12 — Razor validator false-negative fix; all RC10 mobile/profit logic preserved
 # SIMO RC11.8.2 — ACTIVE/UPCOMING STALE-YEAR AUTO-REPAIR FOR NORMAL GENERATION
 # SIMO RC11.7 — AUDITED WHOLE-SITE REDESIGN: CONTENT REFERENCE WITHOUT OLD DOM ANCHOR
 # SIMO RC11.6.3 — CALIBRATED WHOLE-SITE REDESIGN SIMILARITY GATE
@@ -12412,28 +12413,142 @@ except Exception as _simo_rc3_chat_wrap_err:
 # /api/simo-website-v3/generate and /api/simo-website-v3/edit.
 # =========================================================
 def _simo_rc2_clean_subject(prompt: str) -> str:
-    raw = re.sub(r"\s+", " ", str(prompt or "")).strip()
-    raw = re.sub(r"^(please\s+)?(can you\s+|could you\s+|would you\s+|i want\s+|i need\s+)?(make me|build me|create me|design me|generate me|show me|make|build|create|design|generate|give me)\s+", "", raw, flags=re.I).strip()
-    raw = re.sub(r"\b(a|an|the|for me|please|editable|ready to publish|publish ready|website|web site|webpage|web page|landing page|homepage|page|site)\b", " ", raw, flags=re.I)
-    # Normalize common user compounds/typos without hard-coding a result template.
-    # This keeps intent universal while allowing “brickpaving” and “hair salon”
-    # style variants to be judged as the same requested subject.
+    """Resolve the actual website subject before any design/image work begins.
+
+    This must never return placeholders such as "that business" when the request
+    already contains an explicit or recently-resolved subject.
+    """
+    text = str(prompt or "")
+    normalized = re.sub(r"\r\n?", "\n", text).strip()
+
+    # RC11/RC13 structured requests intentionally put the resolved subject first.
+    # Pull that subject before generic cleanup/truncation can dilute it.
+    patterns = [
+        r"^\s*build\s+(?:a|an)\s+(?:premium,\s*)?(?:publish-ready\s+)?website\s+for\s+(?:a|an)\s+([^\n.]{3,120})",
+        r"^\s*build\s+(?:a|an)\s+website\s+for\s+(?:a|an)\s+([^\n.]{3,120})",
+        r"^\s*(?:create|make|design|build)\s+(?:me\s+)?(?:a|an)\s+(?:premium\s+)?website\s+for\s+(?:a|an)\s+([^\n.]{3,120})",
+        r"^\s*(?:create|make|design|build)\s+(?:me\s+)?(?:a|an)\s+website\s+(?:for\s+)?([^\n.]{3,120})",
+    ]
+    for pat in patterns:
+        m = re.search(pat, normalized, flags=re.I)
+        if m:
+            candidate = re.sub(r"\s+", " ", m.group(1)).strip(" .,-—:")
+            # Stop before common instruction tails accidentally captured on one line.
+            candidate = re.split(
+                r"\b(?:with|including|using|make it|make the|that includes|featuring)\b",
+                candidate,
+                maxsplit=1,
+                flags=re.I,
+            )[0].strip(" .,-—:")
+            if candidate and not re.fullmatch(r"(?:that|this|the)\s+(?:business|idea|company|brand|service|product)", candidate, flags=re.I):
+                return candidate[:120].lower()
+
+    # If a literal follow-up plus conversation context reaches the server, resolve it here too.
+    context_match = re.search(r"\[SIMO RECENT CONVERSATION CONTEXT\]([\s\S]+)", normalized, flags=re.I)
+    if context_match:
+        ctx = context_match.group(1)
+        simo_lines = re.findall(r"(?im)^\s*Simo:\s*(.+)$", ctx)
+        if simo_lines:
+            recent = simo_lines[-1]
+            context_patterns = [
+                r"\b(?:consider\s+)?(?:starting|start|try)\s+(?:an?\s+)?([a-z0-9][a-z0-9&'\/\-\s]{1,80}?\b(?:business|agency|service|store|shop|studio|company|brand|practice|coaching|tutoring))\b",
+                r"\bhow\s+about\s+(?:starting\s+)?(?:an?\s+)?([a-z0-9][a-z0-9&'\/\-\s]{1,80}?\b(?:business|agency|service|store|shop|studio|company|brand|practice|coaching|tutoring))\b",
+            ]
+            for pat in context_patterns:
+                m = re.search(pat, recent, flags=re.I)
+                if m:
+                    candidate = re.sub(r"\s+", " ", m.group(1)).strip(" .,-—:")
+                    if candidate:
+                        return candidate[:120].lower()
+
+    raw = re.sub(r"\s+", " ", normalized).strip()
+    raw = re.sub(
+        r"^(please\s+)?(can you\s+|could you\s+|would you\s+|i want\s+|i need\s+|okay\s+|ok\s+)?"
+        r"(make me|build me|create me|design me|generate me|show me|make|build|create|design|generate|give me)\s+",
+        "",
+        raw,
+        flags=re.I,
+    ).strip()
+
+    # Remove website framing words, but keep meaningful business nouns.
+    raw = re.sub(
+        r"\b(a|an|the|for me|please|editable|ready to publish|publish ready|premium|publish-ready|"
+        r"website|web site|webpage|web page|landing page|homepage|page|site)\b",
+        " ",
+        raw,
+        flags=re.I,
+    )
+
+    # A bare referential phrase is not a valid subject.
+    raw = re.sub(r"^\s*for\s+", "", raw, flags=re.I)
+    raw = re.sub(r"\s+", " ", raw).strip(" .,-—:")
+
     compound_aliases = {
         "brickpaving": "brick paving",
         "brickpaver": "brick paver",
-        "hair salon": "hair salon",
         "hairsalon": "hair salon",
         "waters bottle": "water bottle",
         "waterbottle": "water bottle",
         "realestate": "real estate",
         "webapp": "web app",
+        "print on demand": "print-on-demand",
     }
     lowered = raw.lower()
     for joined, spaced in compound_aliases.items():
         lowered = re.sub(r"\b" + re.escape(joined) + r"\b", spaced, lowered)
-    raw = lowered
-    raw = re.sub(r"\s+", " ", raw).strip(" .,-—:")
-    return raw[:100] or "business"
+
+    lowered = re.sub(r"\s+", " ", lowered).strip(" .,-—:")
+    if re.fullmatch(r"(?:that|this|the)\s+(?:business|idea|company|brand|service|product)", lowered, flags=re.I):
+        return "business"
+    return lowered[:120] or "business"
+
+
+def _simo_subject_lock_contract(prompt: str) -> str:
+    """Universal semantic lock used by creative brief, HTML generation, and imagery."""
+    subject = _simo_rc2_clean_subject(prompt) or "business"
+    s = subject.lower()
+
+    if re.search(r"\b(tutor|tutoring|coach|coaching|lesson|teacher|education)\b", s):
+        return (
+            f"EXACT SUBJECT LOCK: {subject}. "
+            "This is an education/tutoring/coaching website. "
+            "Use tutoring-specific content and visuals: teacher or coach helping a learner, "
+            "video lesson on a laptop, study workspace, notebooks, learning materials, scheduling, "
+            "progress, subject expertise, lesson packages, and student outcomes. "
+            "FORBIDDEN DRIFT: kitchens, sinks, faucets, plumbing, home repair, generic contractors, "
+            "restaurant scenes, unrelated retail products, or generic 'bespoke services' imagery."
+        )
+    if re.search(r"\b(print[\s-]*on[\s-]*demand|merchandise|custom merch|t-?shirt|hoodie|mug|phone case)\b", s):
+        return (
+            f"EXACT SUBJECT LOCK: {subject}. "
+            "This is a print-on-demand/custom merchandise business. "
+            "Use custom shirts, hoodies, mugs, phone cases, product mockups, heat press/printing, "
+            "packaging, ecommerce product displays, and branded merchandise. "
+            "FORBIDDEN DRIFT: kitchens, sinks, faucets, plumbing, home repair, unrelated consulting, "
+            "or generic contractor/service imagery."
+        )
+    if re.search(r"\b(virtual assistant|administrative assistant|remote assistant)\b", s):
+        return (
+            f"EXACT SUBJECT LOCK: {subject}. "
+            "Use remote-work and virtual-assistant content and visuals: laptop workspace, calendar, "
+            "email/inbox management, client calls, task organization, scheduling, and digital workflows. "
+            "FORBIDDEN DRIFT: kitchens, plumbing, construction, unrelated products, or generic trades."
+        )
+    if re.search(r"\b(dropship|e-?commerce|online store)\b", s):
+        return (
+            f"EXACT SUBJECT LOCK: {subject}. "
+            "Use ecommerce/dropshipping content and visuals: curated products, storefront, packages, "
+            "shipping/fulfillment, product listings, orders, and customer delivery. "
+            "FORBIDDEN DRIFT: kitchens, plumbing, construction, or unrelated service-business scenes."
+        )
+
+    return (
+        f"EXACT SUBJECT LOCK: {subject}. "
+        "Every headline, offer, section, CTA, testimonial, FAQ, and image must unmistakably belong to "
+        "this exact subject. Never substitute a generic consulting/service business. "
+        "Never use kitchen, faucet, plumbing, contractor, restaurant, or unrelated stock imagery unless "
+        "that is actually the requested subject."
+    )
 
 
 def _simo_rc2_title(prompt: str) -> str:
@@ -12451,6 +12566,9 @@ def _simo_rc2_kind(prompt: str) -> str:
         ("camera", r"camera|lens|photography gear|mirrorless|dslr"),
         ("church", r"bible|church|ministry|study|prayer|worship"),
         ("restaurant", r"restaurant|cafe|bakery|food|menu|bistro|coffee"),
+        ("education", r"tutor|tutoring|coach|coaching|lesson|teacher|education|learning|course"),
+        ("service", r"virtual assistant|administrative assistant|remote assistant|consulting|consultant"),
+        ("store", r"print[\s-]*on[\s-]*demand|merchandise|custom merch|t-?shirt|hoodie|mug|phone case|dropship|ecommerce|e-commerce|online store"),
         ("store", r"(?:cell\s*phone|mobile|iphone|android|smartphone|phone)\s+(?:case|cases|cover|covers|accessor(?:y|ies))"),
         ("trade", r"plumb|electric|hvac|floor|paint|roof|repair|contractor|tire|auto"),
         ("store", r"store|shop|marketplace|ecommerce|retail|boutique|watch|furniture|computer|monitor"),
@@ -12473,8 +12591,10 @@ def _simo_rc2_query(prompt: str) -> str:
         "camera": "used camera store lenses photography gear",
         "church": "bible study community church warm fellowship",
         "restaurant": subject + " food interior",
+        "education": subject + " online lesson teacher student laptop study workspace",
+        "service": subject + " professional remote workspace client workflow",
         "trade": subject + " professional service work",
-        "store": subject + " product store display",
+        "store": subject + " product merchandise ecommerce display packaging",
         "app": subject + " dashboard interface"
     }.get(kind, subject + " professional premium")
     return re.sub(r"[^a-z0-9 ,]+", " ", q).strip()
@@ -13165,6 +13285,7 @@ def _simo_v93_creative_brief(client, model: str, user_prompt: str, variant: int 
     """
     family = _simo_v86_site_family(user_prompt)
     subject = _simo_rc2_clean_subject(user_prompt) or "the requested subject"
+    subject_lock = _simo_subject_lock_contract(user_prompt)
     dna = _simo_v92_visual_dna(user_prompt, variant)
     blueprint = _simo_v86_blueprint(user_prompt, variant)
     brief_prompt = f"""You are SIMO's senior creative director. Create a concise, authoritative creative brief for ONE nearly publish-ready website.
@@ -13172,6 +13293,7 @@ def _simo_v93_creative_brief(client, model: str, user_prompt: str, variant: int 
 USER REQUEST: {user_prompt!r}
 CURRENT SERVER YEAR: {dt.datetime.utcnow().year}
 SUBJECT: {subject}
+SUBJECT LOCK: {subject_lock}
 DESIGN FAMILY: {family}
 PREMIUM VERSION: {variant}
 {dna}
@@ -13259,6 +13381,7 @@ def _simo_v93_image_art_direction(prompt: str) -> str:
 
 def _simo_v71_design_prompt(user_prompt: str, repair_notes: str = "", variant: int = 0, previous_html: str = "", creative_brief: str = "") -> str:
     subject = _simo_rc2_clean_subject(user_prompt)
+    subject_lock = _simo_subject_lock_contract(user_prompt)
     kind = _simo_rc2_kind(user_prompt)
     family = _simo_v86_site_family(user_prompt)
     image_target = _simo_v86_image_target(user_prompt)
@@ -13280,6 +13403,8 @@ PREVIOUS HTML REFERENCE (use only to avoid repetition):
 
 USER REQUEST: {user_prompt!r}
 SUBJECT: {subject!r}
+SUBJECT LOCK — NON-NEGOTIABLE:
+{subject_lock}
 REQUEST TYPE: {kind!r}
 DESIGN FAMILY: {family}
 DIVERSITY SEED: {seed}
@@ -14546,6 +14671,7 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
         return raw, {"ok": False, "target": target, "authored": 0, "remaining_remote": 0, "failed": ["image client unavailable"]}
 
     subject = _simo_rc2_clean_subject(prompt) or "the requested subject"
+    subject_lock = _simo_subject_lock_contract(prompt)
     tags = list(re.finditer(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', raw, flags=re.I))
     if not tags:
         return raw, {"ok": False, "target": target, "authored": 0, "remaining_remote": 0, "failed": ["no image slots in composed page"]}
@@ -14607,6 +14733,7 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
         )
         image_prompt=(
             f'Exact website subject: {subject}. Image role: {role}. {composition}. '
+            f'{subject_lock} '
             f'{human_guard}'
             'Razor-benchmark commercial art direction: premium, highly detailed, realistic, refined lighting, strong depth, tactile materials, expensive editorial photography, attention-grabbing but believable. '
             'No text, no logos, no watermark, no UI, no collage, no illustration, no placeholder geometry.'
@@ -15133,10 +15260,15 @@ def _simo_v99_razor_review(html: str, prompt: str):
             has_visual = bool(re.search(r'<(?:img|picture|figure|video)\b|background(?:-image)?\s*:', blob, flags=re.I))
             has_heading = bool(re.search(r'<h1\b', blob, flags=re.I))
             has_cta = bool(re.search(r'<(?:a|button)\b', blob, flags=re.I))
-            # Fail only when the actual hero region is genuinely under-composed.
-            # A strong image-led hero can use fewer wrappers, so visual + h1 + CTA
-            # is accepted even when its DOM is intentionally lean.
-            if structural_nodes < 2 and not (has_visual and has_heading and has_cta):
+            # RC12: avoid falsely rejecting strong, intentionally lean hero compositions.
+            # The old rule required visual + H1 + CTA whenever the wrapper count was < 2.
+            # That could reject an otherwise premium hero after the bounded repair pass
+            # simply because the model used one composition wrapper or omitted a CTA.
+            #
+            # Reject only when the hero is genuinely sparse: no meaningful structure
+            # AND fewer than two of the three flagship signals (visual, H1, CTA).
+            flagship_signals = int(has_visual) + int(has_heading) + int(has_cta)
+            if structural_nodes < 1 and flagship_signals < 2:
                 reasons.append("hero composition is too structurally thin for a flagship first viewport")
 
         capability = _simo_v109_capability_contract(prompt)
@@ -15432,6 +15564,20 @@ def _simo_canonical_website_generate():
         preserve_identity = bool(data.get("preserve_identity", True)) if editor_redesign else False
         if not prompt:
             return _simo_contract_json_error("Website prompt is required.", 400, "missing_prompt")
+
+        # RC13 backend-owned semantic resolution. The downstream design, image,
+        # review, and repair stages all receive one explicit subject request.
+        resolved_subject = _simo_rc2_clean_subject(prompt)
+        if resolved_subject and resolved_subject != "business":
+            original_prompt = prompt
+            prompt = (
+                f"Build a premium, publish-ready website for {resolved_subject}. "
+                f"{_simo_subject_lock_contract(original_prompt)} "
+                "Use subject-specific headline, offers, services/products, proof, FAQ, CTA, footer, and imagery. "
+                "Do not use placeholder phrases such as 'that business', 'for that business', "
+                "'tailored excellence', or generic bespoke-services copy unless the user actually requested those words."
+            )
+
         client = get_client()
         if not client:
             return _simo_contract_json_error(
@@ -16102,10 +16248,7 @@ def _simo_v113_visible_edit_changed(before_html: str, after_html: str, instructi
     if re.search(r"\b(headline|main title|hero title|heading)\b", low):
         before_heads = _simo_v113_tag_texts(before, ("h1",))
         after_heads = _simo_v113_tag_texts(after, ("h1",))
-        # RC11.8.3: headline edits may be text edits OR styling edits.
-        # Example: "make the headline gold" should pass when the H1 styling
-        # visibly changes even though the headline words stay identical.
-        if before_heads != after_heads or style_ratio < 0.995:
+        if before_heads != after_heads:
             return True, {"reason": "headline_change", "text_ratio": text_ratio, "style_ratio": style_ratio, "structural": structural}
         return False, {"reason": "headline_not_visibly_changed", "text_ratio": text_ratio, "style_ratio": style_ratio, "structural": structural}
 
@@ -16687,11 +16830,6 @@ print(f"[{SIMO_RELEASE_ID}] canonical backend route owners sealed", flush=True)
 # Keep the dashboard/free-demo number aligned everywhere.  This is now a UI/demo
 # counter only; it is NOT permission to make unfunded provider calls.
 FREE_DAILY_LIMIT = int(os.getenv("FREE_DAILY_LIMIT", "25") or "25")
-# Free/Guest plain-text chat is intentionally allowed up to FREE_DAILY_LIMIT per visitor,
-# but a second server-wide cap prevents unlimited unfunded provider spend.
-SIMO_FREE_CHAT_GLOBAL_DAILY_CAP = max(
-    1, int(os.getenv("SIMO_FREE_CHAT_GLOBAL_DAILY_CAP", "100") or "100")
-)
 
 # New generic credit names.  Old image-credit env vars remain accepted so an
 # existing Render deployment does not break during the transition.
@@ -17486,31 +17624,100 @@ _simo_website_generate_unmetered = _simo_canonical_website_generate
 _simo_website_edit_unmetered = _simo_canonical_website_edit
 
 
+# Free/Guest plain text chat remains available under the established daily
+# allowance. Costly creation lanes still go through Profit Shield.
+SIMO_FREE_CHAT_GLOBAL_DAILY_CAP = max(1, int(os.getenv("SIMO_FREE_CHAT_GLOBAL_DAILY_CAP", "100") or "100"))
+
+
+def _simo_free_chat_global_count(day_key: str) -> int:
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS simo_free_chat_global_usage (
+                day_key TEXT PRIMARY KEY,
+                count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        row = conn.execute(
+            "SELECT count FROM simo_free_chat_global_usage WHERE day_key = ?",
+            (day_key,),
+        ).fetchone()
+        conn.commit()
+        return int(row["count"] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def _simo_increment_free_chat_global(day_key: str):
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS simo_free_chat_global_usage (
+                day_key TEXT PRIMARY KEY,
+                count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO simo_free_chat_global_usage (day_key, count, updated_at)
+            VALUES (?, 1, ?)
+            ON CONFLICT(day_key)
+            DO UPDATE SET count = count + 1, updated_at = excluded.updated_at
+            """,
+            (day_key, utcnow().isoformat()),
+        )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
 def api_chat():
     action, cost = _simo_chat_meter_cost()
+    plan = _simo_account_plan(str(current_user_email() or "").strip().lower())
 
-    # RC2 FREE CHAT LANE:
-    # Plain text chat is the one provider-backed feature intentionally available
-    # to Guest/Free. Website/design/image/analyze lanes still use Profit Shield.
-    if action == "chat" and not is_pro_user():
+    # Plain text chat is the Free/Guest lane. The original chat owner still
+    # enforces the per-user/session FREE_DAILY_LIMIT, while this extra global
+    # cap prevents unlimited anonymous-session resets from creating open spend.
+    if action == "chat" and plan in {"anon", "free"}:
         day_key = get_today_key()
-        global_key = "__simo_global_free_chat__"
-        global_used = get_daily_usage_count(global_key, day_key)
-        if global_used >= SIMO_FREE_CHAT_GLOBAL_DAILY_CAP:
+        if _simo_free_chat_global_count(day_key) >= SIMO_FREE_CHAT_GLOBAL_DAILY_CAP:
             return jsonify({
                 "ok": False,
-                "error": "Simo Free Chat has reached today's safety limit. Please sign in with Pro or try again tomorrow.",
+                "error": "Simo's Free Chat capacity is full for today. Please try again tomorrow or upgrade to Pro.",
                 "code": "simo_free_chat_global_cap",
-                "usage_today": get_daily_usage_count(user_key_for_limits(), day_key),
-                "free_daily_limit": FREE_DAILY_LIMIT,
             }), 429
 
-        # The original chat owner already enforces/increments the visitor's
-        # FREE_DAILY_LIMIT. We only add the server-wide successful-chat counter.
-        resp = _simo_api_chat_unmetered()
-        if not _simo_response_failed(resp):
-            increment_daily_usage(global_key, day_key)
-        return resp
+        response = _simo_api_chat_unmetered()
+
+        # Count only successful responses.
+        status_code = 200
+        try:
+            if isinstance(response, tuple) and len(response) >= 2:
+                status_code = int(response[1])
+            elif hasattr(response, "status_code"):
+                status_code = int(response.status_code)
+        except Exception:
+            status_code = 200
+
+        if 200 <= status_code < 300:
+            try:
+                _simo_increment_free_chat_global(day_key)
+            except Exception as exc:
+                print("[SIMO FREE CHAT] global counter update failed:", str(exc)[:180], flush=True)
+        return response
 
     return _simo_metered_call(action, cost, _simo_api_chat_unmetered)
 
@@ -17686,6 +17893,175 @@ def api_pro_status_profit_shield():
 
 _simo_seal_endpoint("api_me", api_me_profit_shield)
 _simo_seal_endpoint("api_pro_status", api_pro_status_profit_shield)
+
+
+# =========================================================
+# SIMO OCT 4 RC10 — MOBILE MICROPHONE TRANSCRIPTION FALLBACK
+# =========================================================
+SIMO_TRANSCRIBE_MODEL = (os.getenv("SIMO_TRANSCRIBE_MODEL") or "gpt-4o-mini-transcribe").strip()
+SIMO_MIC_MAX_BYTES = max(64_000, int(os.getenv("SIMO_MIC_MAX_BYTES", "2500000") or "2500000"))
+SIMO_MIC_FREE_DAILY_LIMIT = max(0, int(os.getenv("SIMO_MIC_FREE_DAILY_LIMIT", "10") or "10"))
+SIMO_MIC_PRO_DAILY_LIMIT = max(1, int(os.getenv("SIMO_MIC_PRO_DAILY_LIMIT", "60") or "60"))
+SIMO_MIC_GLOBAL_DAILY_CAP = max(1, int(os.getenv("SIMO_MIC_GLOBAL_DAILY_CAP", "250") or "250"))
+
+
+def _simo_mic_usage_key():
+    email = str(current_user_email() or "").strip().lower()
+    if email:
+        return "email:" + email
+    anon = str(session.get("simo_mic_anon_id") or "").strip()
+    if not anon:
+        anon = secrets.token_hex(12)
+        session["simo_mic_anon_id"] = anon
+    return "anon:" + anon
+
+
+def _simo_mic_usage_count(user_key: str, day_key: str) -> int:
+    conn = get_db()
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS simo_mic_transcription_usage (
+                user_key TEXT NOT NULL,
+                day_key TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_key, day_key)
+            )
+            """
+        )
+        row = conn.execute(
+            "SELECT count FROM simo_mic_transcription_usage WHERE user_key = ? AND day_key = ?",
+            (user_key, day_key),
+        ).fetchone()
+        conn.commit()
+        return int(row["count"] or 0) if row else 0
+    finally:
+        conn.close()
+
+
+def _simo_mic_increment_usage(user_key: str, day_key: str):
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS simo_mic_transcription_usage (
+                user_key TEXT NOT NULL,
+                day_key TEXT NOT NULL,
+                count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY (user_key, day_key)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO simo_mic_transcription_usage (user_key, day_key, count, updated_at)
+            VALUES (?, ?, 1, ?)
+            ON CONFLICT(user_key, day_key)
+            DO UPDATE SET count = count + 1, updated_at = excluded.updated_at
+            """,
+            (user_key, day_key, utcnow().isoformat()),
+        )
+        conn.commit()
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        raise
+    finally:
+        conn.close()
+
+
+@app.post("/api/transcribe-mic")
+def api_transcribe_mic():
+    if not OPENAI_API_KEY:
+        return jsonify({"ok": False, "error": "Microphone transcription is temporarily unavailable."}), 503
+
+    upload = request.files.get("audio")
+    if not upload:
+        return jsonify({"ok": False, "error": "No microphone audio was received."}), 400
+
+    raw = upload.read(SIMO_MIC_MAX_BYTES + 1)
+    if not raw:
+        return jsonify({"ok": False, "error": "No microphone audio was received."}), 400
+    if len(raw) > SIMO_MIC_MAX_BYTES:
+        return jsonify({"ok": False, "error": "That recording was too large. Keep microphone messages short and try again."}), 413
+
+    day_key = get_today_key()
+    user_key = _simo_mic_usage_key()
+    global_key = "__global__"
+    plan = _simo_account_plan(str(current_user_email() or "").strip().lower())
+    per_user_limit = SIMO_MIC_PRO_DAILY_LIMIT if plan in {"pro", "team", "admin"} else SIMO_MIC_FREE_DAILY_LIMIT
+
+    if per_user_limit <= 0:
+        return jsonify({"ok": False, "error": "Mobile microphone transcription is not included on this plan."}), 402
+
+    used = _simo_mic_usage_count(user_key, day_key)
+    global_used = _simo_mic_usage_count(global_key, day_key)
+    if used >= per_user_limit:
+        return jsonify({
+            "ok": False,
+            "error": "Daily mobile microphone transcription limit reached. You can still type your message.",
+            "code": "simo_mic_daily_limit",
+        }), 429
+    if global_used >= SIMO_MIC_GLOBAL_DAILY_CAP:
+        return jsonify({
+            "ok": False,
+            "error": "Simo's mobile microphone transcription capacity is full for today. You can still type your message.",
+            "code": "simo_mic_global_cap",
+        }), 429
+
+    original_name = secure_filename(upload.filename or "simo-mic.webm") or "simo-mic.webm"
+    suffix = os.path.splitext(original_name)[1].lower() or ".webm"
+    if suffix not in {".webm", ".m4a", ".mp4", ".wav", ".ogg", ".mpeg", ".mp3"}:
+        suffix = ".webm"
+
+    import tempfile
+    temp_path = ""
+    try:
+        with tempfile.NamedTemporaryFile(prefix="simo-mic-", suffix=suffix, delete=False) as tmp:
+            tmp.write(raw)
+            temp_path = tmp.name
+
+        client = get_client()
+        if not client:
+            return jsonify({"ok": False, "error": "Microphone transcription is temporarily unavailable."}), 503
+
+        with open(temp_path, "rb") as audio_file:
+            result = client.audio.transcriptions.create(
+                model=SIMO_TRANSCRIBE_MODEL,
+                file=audio_file,
+            )
+
+        text_value = str(getattr(result, "text", "") or "").strip()
+        if not text_value and isinstance(result, dict):
+            text_value = str(result.get("text") or "").strip()
+        if not text_value:
+            return jsonify({"ok": False, "error": "I couldn't hear clear speech. Tap the mic and try again."}), 422
+
+        _simo_mic_increment_usage(user_key, day_key)
+        _simo_mic_increment_usage(global_key, day_key)
+
+        return jsonify({
+            "ok": True,
+            "text": text_value,
+            "remaining": max(0, per_user_limit - used - 1),
+            "limit": per_user_limit,
+            "mode": "simo_mobile_mic_fallback",
+        })
+    except Exception as exc:
+        print("[SIMO MIC] transcription failed:", str(exc)[:240], flush=True)
+        return jsonify({"ok": False, "error": "Simo could not transcribe that recording. Please try again or type your message."}), 502
+    finally:
+        if temp_path:
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+
 
 print("[SIMO RC11 PROFIT SHIELD] prepaid AI gate active: Free=0 live AI, Pro=150/mo, Team=600/mo", flush=True)
 
