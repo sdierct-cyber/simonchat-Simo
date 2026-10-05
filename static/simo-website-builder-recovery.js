@@ -1,3 +1,5 @@
+// SIMO OCT 4 RC11 — standalone context resolution + subject-locked imagery
+// SIMO OCT 4 FINAL FOUNDATION RC10 — website ownership/context/free UX
 /* SIMO WEBSITE BUILDER 6.7 — RELEASE-CANDIDATE BACKEND-AI PROJECT PIPELINE
    One frontend owner for prompt routing, editor, save, library, preview, download, and publish.
    Normal generation and natural-language editing are backend-owned. Legacy local rendering
@@ -119,7 +121,114 @@
   }
   function fixTypos(s){ return clean(s).replace(/\blandscapind\b/ig,'landscaping').replace(/\blanscaping\b/ig,'landscaping').replace(/\bbrik\b/ig,'brick').replace(/\bpavng\b/ig,'paving').replace(/\bresturant\b/ig,'restaurant').replace(/\bplumming\b/ig,'plumbing').replace(/\bphyscial\b/ig,'physical'); }
   function subjectFromPrompt(prompt){ var s=fixTypos(stripPromptWords(prompt)); return s ? s.slice(0,90) : 'local business'; }
-  function isWebsiteIntent(text){ var t=low(text); if(!t)return false; var mode=low(window.__SIMO_ACTIVE_MODE__||''); if(mode && mode!=='website') return false; var asset=/\b(website|web\s*site|webpage|web\s*page|landing\s*page|homepage|home\s*page|business\s*site|storefront|online\s*store|ecommerce|e-commerce|web\s*app|app\s*screen|portal|marketplace|booking\s*site|dashboard|tool)\b/.test(t); var action=/\b(make|build|create|design|generate|show|give|need|want|draft|put together)\b/.test(t); var edit=/\b(change|edit|update|replace|try another|another version|different version|make it|more premium|more luxury|colors|theme|image|headline|section|pricing|faq|reviews|contact|publish|preview|save|download)\b/.test(t); return (asset&&(action||edit)) || (!!window.__SIMO_WEBSITE_BUILDER_MODE_ACTIVE__ && !!t); }
+  function isWebsiteIntent(text){
+    var t=low(text); if(!t)return false;
+    var asset=/\b(website|web\s*site|webpage|web\s*page|landing\s*page|homepage|home\s*page|business\s*site|storefront|online\s*store|ecommerce|e-commerce|web\s*app|app\s*screen|portal|marketplace|booking\s*site|dashboard|tool)\b/.test(t);
+    var action=/\b(make|build|create|design|generate|show|give|need|want|draft|put together)\b/.test(t);
+    var edit=/\b(change|edit|update|replace|try another|another version|different version|make it|more premium|more luxury|colors|theme|image|headline|section|pricing|faq|reviews|contact|publish|preview|save|download)\b/.test(t);
+    if(asset&&(action||edit)) return true;
+    return !!window.__SIMO_WEBSITE_BUILDER_MODE_ACTIVE__ && !!t;
+  }
+
+  function websitePromptNeedsContext(prompt){
+    var t=low(prompt);
+    return /\b(that|this|the)\s+(business|idea|company|brand|service|product)\b/.test(t) ||
+      /\b(for it|for that|for this|based on that|based on this)\b/.test(t);
+  }
+
+  function recentConversationContext(){
+    try{
+      var root=$('chatMessages') || $('chat');
+      if(!root) return '';
+      var rows=Array.prototype.slice.call(root.querySelectorAll('.msg-row'));
+      var parts=[];
+      for(var i=Math.max(0,rows.length-8);i<rows.length;i++){
+        var row=rows[i];
+        if(!row) continue;
+        if(row.querySelector && row.querySelector('.web5-card,.simo-builder-card,.simo-vc-card')) continue;
+        var txt=clean(row.textContent||'');
+        if(!txt || txt.length<2) continue;
+        if(/Simo Website Builder|Website generation stopped safely|SIMO REAL IMAGE REQUIRED/i.test(txt)) continue;
+        if(txt.length>900) txt=txt.slice(0,900);
+        var role=row.classList && row.classList.contains('msg-user') ? 'User' : 'Simo';
+        parts.push(role+': '+txt);
+      }
+      return parts.slice(-6).join('\n');
+    }catch(_){ return ''; }
+  }
+
+  function lastSimoContextLine(ctx){
+    var lines=String(ctx||'').split(/\n+/).filter(function(line){return /^Simo:\s*/i.test(line);});
+    return clean(lines.length ? lines[lines.length-1].replace(/^Simo:\s*/i,'') : '');
+  }
+
+  function inferBusinessSubjectFromContext(ctx){
+    var text=lastSimoContextLine(ctx);
+    if(!text) return '';
+
+    var patterns=[
+      /\b(?:consider\s+)?(?:starting|start|try)\s+(?:an?\s+)?([a-z0-9][a-z0-9&'\/\-\s]{1,70}?\b(?:business|agency|service|store|shop|studio|company|brand))\b/i,
+      /\bhow\s+about\s+(?:starting\s+)?(?:an?\s+)?([a-z0-9][a-z0-9&'\/\-\s]{1,70}?\b(?:business|agency|service|store|shop|studio|company|brand))\b/i,
+      /\b(?:an?\s+)([a-z0-9][a-z0-9&'\/\-\s]{1,60}?\b(?:business|agency|service|store|shop|studio|company|brand))\b/i
+    ];
+
+    for(var i=0;i<patterns.length;i++){
+      var m=text.match(patterns[i]);
+      if(m && clean(m[1])){
+        return clean(m[1]).replace(/^(a|an)\s+/i,'').replace(/\s+/g,' ').slice(0,90);
+      }
+    }
+    return '';
+  }
+
+  function subjectImageDirection(subject,ctx){
+    var s=low(subject+' '+ctx);
+    if(/print[\s-]*on[\s-]*demand|custom\s+merch|merchandise/.test(s)){
+      return 'Use only print-on-demand merchandise imagery: custom t-shirts, hoodies, mugs, phone cases, product mockups, printing/heat-press production, packaging, and branded ecommerce products. Do not use kitchens, plumbing, faucets, home-repair, or unrelated service imagery.';
+    }
+    if(/dropship|ecommerce|e-commerce|online store/.test(s)){
+      return 'Use ecommerce and dropshipping imagery: curated products, branded packages, fulfillment/shipping, online storefront product displays, and customer orders. Avoid unrelated home-service imagery.';
+    }
+    if(/virtual assistant|remote assistant|administrative assistant/.test(s)){
+      return 'Use virtual-assistant imagery: professional remote workspace, laptop, scheduling/calendar, inbox management, client calls, and organized digital workflows. Avoid unrelated trades or home-service imagery.';
+    }
+    return 'Every hero, card, gallery, and background image must visibly match the exact business subject. Do not use a generic service, kitchen, plumbing, construction, or unrelated stock image unless that is actually the subject.';
+  }
+
+  function resolveWebsitePrompt(prompt){
+    prompt=clean(prompt);
+    if(!websitePromptNeedsContext(prompt)) return prompt;
+
+    var ctx=recentConversationContext();
+    if(!ctx) return prompt;
+
+    var subject=inferBusinessSubjectFromContext(ctx);
+    var simoContext=lastSimoContextLine(ctx);
+
+    if(subject){
+      return 'Build a premium, publish-ready website for a '+subject+'.\n'+
+        'This is the resolved subject from the immediately preceding Simo conversation. Do not title the site "For That Business", "That Business", or any other placeholder reference.\n'+
+        'Business context: '+simoContext+'\n'+
+        subjectImageDirection(subject,simoContext)+'\n'+
+        'Keep the entire page—headline, offers, pricing/services, testimonials, FAQ, CTA, and imagery—specific to '+subject+'.';
+    }
+
+    return 'Build a premium, publish-ready website for the exact business described in the recent conversation below.\n'+
+      'Do not treat the words "that business" or "this idea" as the subject. Resolve them from the conversation first.\n'+
+      '[SIMO RECENT CONVERSATION CONTEXT]\n'+ctx+'\n'+
+      subjectImageDirection('',ctx);
+  }
+
+  function freeWebsiteGateCard(){
+    var c=accountContext();
+    var action=c.loggedIn ? 'Upgrade to Pro' : 'Sign in or upgrade';
+    return '<div class="web5-card"><style>'+appCss()+'</style>'+
+      '<div style="padding:18px;border:1px solid rgba(56,189,248,.38);border-radius:16px;background:rgba(8,47,73,.22)">'+
+      '<b>I understand the website you want.</b>'+
+      '<p style="line-height:1.55">Full Website Builder generation is a Pro creation feature, so Simo did not make a paid provider call on this Free/Guest request. '+esc(action)+' when you want me to generate the complete site.</p>'+
+      '<p style="line-height:1.55">You can still plan it with me in Free Chat now — Home, About, Services, Pricing, Testimonials, FAQ, Contact, and the copy/offer for the business we were discussing.</p>'+
+      '</div></div>';
+  }
 
   // Local template generation was removed from the release candidate.
   // Legacy projects can still be reopened because their exact saved HTML is preserved.
@@ -158,10 +267,11 @@
   function projectFromAI(prompt,data,existing){
     if(!data || !isFullHtml(data.html)) throw new Error('Simo did not return a complete website document.');
     var now=new Date().toISOString();
+    var aiSubject=clean(data.subject)||clean(data.title)||subjectFromPrompt(prompt);
     var project=normalizeExactProject({
       id:(existing&&existing.id)||uid('simo_web6'),kind:'website',type:'website',owner:'simo_webbuilder_6_exact',
       schemaVersion:SCHEMA_VERSION,origin:'ai_html',generationSource:clean(data.source||data.phase||'simo-premium-website'),
-      title:clean(data.title)||titleCase(subjectFromPrompt(prompt)),subject:subjectFromPrompt(prompt),prompt:prompt,
+      title:clean(data.title)||titleCase(aiSubject),subject:aiSubject,prompt:prompt,
       html:String(data.html),imageUrls:data.image_urls||data.imageUrls||[],variant:(existing&&existing.variant)||0,
       createdAt:(existing&&existing.createdAt)||now,updatedAt:now,saved:false
     });
@@ -539,6 +649,7 @@
 
   function build(prompt, opts){
     prompt=clean(prompt); if(!prompt) return Promise.resolve(null);
+    var requestPrompt=resolveWebsitePrompt(prompt);
     clearSubmittedPrompt(prompt);
     var composerLock=window.setInterval(function(){
       var field=input();
@@ -551,16 +662,26 @@
       clearSubmittedPrompt(prompt);
     }
     if(!opts || !opts.noUser) addUser(prompt);
+
+    if(!accountContext().accountOwned){
+      releaseComposerLock();
+      addAssistant(freeWebsiteGateCard());
+      status('Website Builder is a Pro creation feature. Free planning is still available in chat.');
+      return Promise.resolve(null);
+    }
+
     status('Simo is designing a premium subject-specific website…');
     var stopProgress=progressSequence([[12000,'Simo is shaping the subject-specific layout and art direction…'],[32000,'Simo is authoring subject-matched imagery and page details…'],[58000,'Simo is running the Razor-benchmark quality checks…'],[90000,'Simo is finishing the full-page preview and image readiness…']]);
     var loading=addAssistant(loadingCard('Understanding your request and planning the website.'));
     var stopGenerationUI=startGenerationProgress(loading);
-    return postJSON('/api/simo-website-v3/generate',{prompt:prompt}).then(function(data){
+    return postJSON('/api/simo-website-v3/generate',{prompt:requestPrompt}).then(function(data){
       stopProgress();
       stopGenerationUI();
       releaseComposerLock();
       try{loading.remove();}catch(e){}
-      var p=projectFromAI(prompt,data,opts&&opts.existing);
+      var p=projectFromAI(requestPrompt,data,opts&&opts.existing);
+      p.userPrompt=prompt;
+      p.contextResolved=(requestPrompt!==prompt);
       p.variant=(opts&&opts.variant)||((opts&&opts.existing&&opts.existing.variant)||0);
       persistDraft(p);
       var row=addAssistant(renderCard(p)); hydrateProjectFrame(row,p); purgeBuilderDesignSuggestions(row);
