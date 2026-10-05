@@ -4280,3 +4280,79 @@ body[data-simo-theme="default"]::before{
   }
 }
 
+/* =========================================================
+   SIMO OCT 4 FINAL FOUNDATION RC10
+   Mobile-only composer/mic protection.
+   ========================================================= */
+@media (max-width: 980px) {
+  body .composer-wrap,
+  body .simo-premium-composer {
+    isolation: isolate;
+    touch-action: manipulation;
+  }
+
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body .composer-wrap #simoMicBtn.is-listening,
+  body .composer-wrap #micBtn.is-listening,
+  body .composer-wrap #simoMicBtn[data-simo-listening="1"],
+  body .composer-wrap #micBtn[data-simo-listening="1"] {
+    border-color: rgba(86,240,169,.86) !important;
+    box-shadow: 0 0 0 2px rgba(86,240,169,.12), 0 0 20px rgba(86,240,169,.28) !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 620px) {
+  body .composer-wrap #simoSuggestionsStarBtn,
+  body .composer-wrap .simo-helper-toggle-btn,
+  body .composer-wrap #simoProHelperToggleBtn {
+    position: absolute !important;
+    left: 50% !important;
+    right: auto !important;
+    top: -44px !important;
+    bottom: auto !important;
+    transform: translateX(-50%) !important;
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    min-height: 36px !important;
+    max-width: 36px !important;
+    max-height: 36px !important;
+    margin: 0 !important;
+    z-index: 4 !important;
+  }
+
+  body .composer-wrap,
+  body .simo-premium-composer {
+    margin-top: 48px !important;
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+  }
+
+  body .composer-wrap #imageBtn,
+  body .composer-wrap #simoMicBtn,
+  body .composer-wrap #micBtn,
+  body .composer-wrap #sendBtn {
+    flex: 0 0 38px !important;
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    min-height: 38px !important;
+  }
+
+  body .composer-wrap #chatInput {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    max-height: 120px !important;
+    padding: 8px !important;
+    font-size: 16px !important;
+  }
+}
+
