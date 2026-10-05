@@ -1,6 +1,6 @@
+// SIMO OCT 4 FINAL FOUNDATION RC10 — Free Chat + mobile logic + mic
 // Simo — Phase 2.6 Memory Upgrade
 // PHASE 5.2 FINAL — real visual action buttons
-// SIMO OCT 3 FREE CHAT USAGE CARD RC2 — guest card shows daily Free Chat allowance
 // full-file replacement
 (() => {
   if (window.__SIMO_BOOTED__) return;
@@ -380,6 +380,27 @@ function scrollChatToBottom(forceWindow = false) {
   setTimeout(run, 80);
   setTimeout(run, 160);
   setTimeout(run, 280);
+}
+
+function isSimoCompactViewport() {
+  try {
+    return !!(window.matchMedia && window.matchMedia("(max-width: 980px)").matches);
+  } catch (_) {
+    return window.innerWidth <= 980;
+  }
+}
+
+function resetMobilePageToTop() {
+  if (!isSimoCompactViewport()) return;
+  try {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  } catch (_) {
+    window.scrollTo(0, 0);
+  }
+  const main = document.querySelector(".main");
+  if (main) { try { main.scrollTop = 0; } catch (_) {} }
+  const chat = document.getElementById("chat");
+  if (chat) { try { chat.scrollTop = 0; } catch (_) {} }
 }
 
 function scrollAfterUiChange() {
@@ -958,7 +979,6 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
       return;
     }
 
-    // Guest/Free users see their daily plain-text chat allowance here.
     const freeLimit = Math.max(1, Number(state.freeDailyLimit || 25));
     const freeUsed = Math.max(0, Math.min(freeLimit, Number(state.usageToday || 0)));
     const freeRemaining = Math.max(0, freeLimit - freeUsed);
@@ -5538,9 +5558,13 @@ function wireGlobal() {
   });
 
   window.addEventListener("load", () => {
-    scrollChatToBottom(true);
-    setTimeout(() => scrollChatToBottom(true), 120);
-    setTimeout(() => scrollChatToBottom(true), 300);
+    if (isSimoCompactViewport()) {
+      resetMobilePageToTop();
+      setTimeout(resetMobilePageToTop, 80);
+      setTimeout(resetMobilePageToTop, 220);
+    } else {
+      scrollChatToBottom(false);
+    }
     syncLibraryTriggerVisuals();
     updateReopenLastPreviewVisibility();
     updateRecentBuildsVisibility();
@@ -5549,7 +5573,7 @@ function wireGlobal() {
   });
 
   window.addEventListener("resize", () => {
-    scrollChatToBottom(false);
+    if (!isSimoCompactViewport()) scrollChatToBottom(false);
   });
 }
 
@@ -5582,8 +5606,12 @@ async function boot() {
   await backendLoadLibrary();
   renderLibrary();
 
-scrollAfterUiChange();
-setTimeout(() => scrollChatToBottom(true), 200);
+if (isSimoCompactViewport()) {
+  resetMobilePageToTop();
+  setTimeout(resetMobilePageToTop, 120);
+} else {
+  scrollChatToBottom(false);
+}
 
 console.log("Simo script.js Phase 2.6 memory upgrade booted.");
 }
@@ -9855,6 +9883,164 @@ setSuggestionsVisible(false);
   function recognitionCtor() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
   }
+
+  var fallbackRecorder = null;
+  var fallbackStream = null;
+  var fallbackChunks = [];
+  var fallbackTimer = null;
+  var fallbackRecording = false;
+  var fallbackBusy = false;
+
+  function isIOSLike() {
+    var ua = String(navigator.userAgent || "");
+    return /iPad|iPhone|iPod/i.test(ua) ||
+      (navigator.platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
+  }
+
+  function canRecordFallback() {
+    return !!(
+      navigator.mediaDevices &&
+      typeof navigator.mediaDevices.getUserMedia === "function" &&
+      window.MediaRecorder
+    );
+  }
+
+  function setFallbackState(recording) {
+    fallbackRecording = !!recording;
+    var b = existingMic();
+    if (b) {
+      b.classList.toggle("is-listening", fallbackRecording);
+      b.setAttribute("data-simo-listening", fallbackRecording ? "1" : "0");
+      b.setAttribute("aria-pressed", fallbackRecording ? "true" : "false");
+      b.title = fallbackRecording ? "Stop microphone" : "Microphone input";
+    }
+  }
+
+  function stopFallbackTracks() {
+    if (fallbackTimer) {
+      clearTimeout(fallbackTimer);
+      fallbackTimer = null;
+    }
+    if (fallbackStream) {
+      try {
+        fallbackStream.getTracks().forEach(function(track) { try { track.stop(); } catch (_) {} });
+      } catch (_) {}
+    }
+    fallbackStream = null;
+  }
+
+  async function transcribeRecordedBlob(blob) {
+    if (!blob || !blob.size) {
+      status("I didn't capture any audio. Tap the mic and try again.");
+      return;
+    }
+    fallbackBusy = true;
+    status("Simo is transcribing your speech…");
+    try {
+      var ext = "webm";
+      var type = String(blob.type || "");
+      if (/mp4|m4a/i.test(type)) ext = "m4a";
+      else if (/ogg/i.test(type)) ext = "ogg";
+      else if (/wav/i.test(type)) ext = "wav";
+
+      var form = new FormData();
+      form.append("audio", blob, "simo-mic." + ext);
+
+      var res = await fetch("/api/transcribe-mic", {
+        method: "POST",
+        credentials: "same-origin",
+        body: form
+      });
+
+      var data = {};
+      try { data = await res.json(); } catch (_) {}
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "Microphone transcription failed.");
+      }
+
+      var input = composer();
+      var spoken = String(data.text || "").trim();
+      if (!input || !spoken) {
+        status("I couldn't hear clear speech. Tap the mic and try again.");
+        return;
+      }
+      var base = String(input.value || "").trim();
+      input.value = base + (base ? " " : "") + spoken;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+      try { input.focus(); } catch (_) {}
+      status("Speech added. Press Send when ready.");
+    } catch (err) {
+      status(String((err && err.message) || "Microphone transcription failed."));
+    } finally {
+      fallbackBusy = false;
+      refresh();
+    }
+  }
+
+  async function startRecorderFallback() {
+    if (fallbackBusy) return;
+    if (fallbackRecording) {
+      try { if (fallbackRecorder && fallbackRecorder.state !== "inactive") fallbackRecorder.stop(); } catch (_) {}
+      return;
+    }
+    if (!canRecordFallback()) {
+      status("Microphone speech input is not supported in this browser.");
+      return;
+    }
+
+    try {
+      fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      fallbackChunks = [];
+
+      var options = {};
+      var preferred = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
+      for (var i = 0; i < preferred.length; i++) {
+        try {
+          if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported(preferred[i])) {
+            options.mimeType = preferred[i];
+            break;
+          }
+        } catch (_) {}
+      }
+
+      fallbackRecorder = new MediaRecorder(fallbackStream, options);
+      fallbackRecorder.ondataavailable = function(e) {
+        if (e && e.data && e.data.size) fallbackChunks.push(e.data);
+      };
+      fallbackRecorder.onerror = function() {
+        setFallbackState(false);
+        stopFallbackTracks();
+        status("Microphone recording stopped. Tap the mic to try again.");
+      };
+      fallbackRecorder.onstop = function() {
+        var type = (fallbackRecorder && fallbackRecorder.mimeType) || "audio/webm";
+        var blob = new Blob(fallbackChunks, { type: type });
+        fallbackChunks = [];
+        setFallbackState(false);
+        stopFallbackTracks();
+        transcribeRecordedBlob(blob);
+      };
+
+      fallbackRecorder.start();
+      setFallbackState(true);
+      status("Listening… tap the mic again when you're done.");
+      fallbackTimer = setTimeout(function() {
+        try {
+          if (fallbackRecorder && fallbackRecorder.state !== "inactive") fallbackRecorder.stop();
+        } catch (_) {}
+      }, 20000);
+    } catch (err) {
+      setFallbackState(false);
+      stopFallbackTracks();
+      var name = String((err && err.name) || "");
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        status("Microphone permission is blocked. Allow microphone access for Simo, then tap the mic again.");
+      } else {
+        status("Microphone could not start on this device. Check browser microphone permission and try again.");
+      }
+    }
+  }
   function composer() {
     return document.getElementById("chatInput") ||
       document.querySelector("textarea[placeholder*='Simo'], textarea, input[type='text']");
@@ -9892,9 +10078,13 @@ setSuggestionsVisible(false);
     b.classList.remove("hidden");
     b.style.display = "";
     var enabled = !!voiceSettings().micEnabled;
-    b.disabled = !enabled;
+    b.disabled = false;
     b.setAttribute("aria-pressed", listening ? "true" : "false");
-    b.title = enabled ? (listening ? "Stop microphone" : "Microphone input") : "Enable Mic input in Settings & Voice";
+    b.setAttribute("data-simo-listening", listening ? "1" : "0");
+    b.classList.toggle("is-listening", !!listening);
+    b.title = listening
+      ? "Stop microphone"
+      : (enabled ? "Microphone input" : "Tap to enable microphone input");
   }
   function stop(silent) {
     if (recognition && listening) { try { recognition.stop(); } catch (_) {} }
@@ -9904,13 +10094,25 @@ setSuggestionsVisible(false);
   }
   function start() {
     if (!voiceSettings().micEnabled) {
-      status("Turn Mic input on in Settings & Voice first.");
-      refresh();
+      try {
+        var nextVoice = voiceSettings();
+        nextVoice.micEnabled = true;
+        localStorage.setItem("simo_voice_settings_v1", JSON.stringify(nextVoice));
+        window.dispatchEvent(new CustomEvent("simo:voice-settings-updated", { detail: nextVoice }));
+      } catch (_) {}
+    }
+
+    // iPhone/iPad Safari gets Simo's recorder/transcription fallback instead
+    // of depending on partial Web Speech support.
+    if (isIOSLike() && canRecordFallback()) {
+      startRecorderFallback();
       return;
     }
+
     var Ctor = recognitionCtor();
     if (!Ctor) {
-      status("Microphone speech input is not supported in this browser.");
+      if (canRecordFallback()) startRecorderFallback();
+      else status("Microphone speech input is not supported in this browser.");
       return;
     }
     if (listening) { stop(false); return; }
@@ -9938,9 +10140,37 @@ setSuggestionsVisible(false);
       input.value = base + (base && spoken ? " " : "") + spoken;
       input.dispatchEvent(new Event("input", { bubbles: true }));
     };
-    recognition.onerror = function () { listening = false; refresh(); status("Microphone stopped."); };
-    recognition.onend = function () { listening = false; refresh(); status("Ready to send."); };
-    try { recognition.start(); } catch (_) { listening = false; refresh(); }
+    recognition.onerror = function (event) {
+      listening = false;
+      refresh();
+      var code = event && event.error ? String(event.error) : "";
+      if (code === "service-not-allowed" && canRecordFallback()) {
+        status("Switching to Simo mobile microphone…");
+        setTimeout(function() { startRecorderFallback(); }, 60);
+      } else if (code === "not-allowed") {
+        status("Microphone permission is blocked. Allow microphone access for Simo, then tap the mic again.");
+      } else if (code === "no-speech") {
+        status("I didn't hear speech. Tap the mic and try again.");
+      } else if (code === "audio-capture") {
+        status("No microphone was available to the browser.");
+      } else {
+        status("Microphone stopped. Tap the mic to try again.");
+      }
+    };
+    recognition.onend = function () {
+      listening = false;
+      refresh();
+      var input = composer();
+      status(input && String(input.value || "").trim() ? "Speech added. Press Send when ready." : "Ready.");
+    };
+    try {
+      recognition.start();
+    } catch (_) {
+      listening = false;
+      refresh();
+      if (canRecordFallback()) startRecorderFallback();
+      else status("Microphone could not start. Tap the mic again.");
+    }
   }
   function bind() {
     var b = existingMic() || ensureMic();
