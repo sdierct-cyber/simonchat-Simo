@@ -1,3 +1,4 @@
+// SIMO OCT 4 FINAL FOUNDATION RC10 — text/business/website ownership guard
 // PHASE 10.7B — Exact Object + Persistent Workspace
 // Runs after the legacy script and stays isolated from its internals.
 (function () {
@@ -6,7 +7,7 @@
   const PHASE = "PHASE 14M-R3 - TitleCase + Send Recovery";
   const ACTIVE_KEY = "simo_phase105d_active_visual_project_v1";
   const LEGACY_ACTIVE_KEY = "simo_active_visual_project_v1";
-  const LIB_KEY = "simo_visual_concepts_library_v1";
+  const LIB_KEY = "simo_builder_library_v5_1_builder_first";
   const LAST_PREVIEW_KEY = "simo_last_preview_v2";
   const PREVIEW_HISTORY_KEY = "simo_preview_history_v1";
   const VISUAL_CONCEPTS_KEY = "simo_visual_concepts_v1";
@@ -664,10 +665,6 @@ function displayTitle(project) {
     const item = {
       id: `visual_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       title,
-      type: "design",
-      kind: "visual",
-      owner: "simo_design_studio",
-      design_library: true,
       html: visualProjectHtml(project),
       sourceText: projectSourceText(project),
       notes: "Saved from Simo real image-first visual card. Continue this concept from the same visual prompt and controls.",
@@ -694,8 +691,8 @@ function displayTitle(project) {
 
     showSaveNotice(
       cloudSynced
-        ? `${title} was saved and synced to the Design Library.`
-        : `${title} was saved to this browser's Design Library. Sign in to sync it to your account.`,
+        ? `${title} was saved and synced to the Builder Library.`
+        : `${title} was saved to this browser's Builder Library. Sign in to sync it to your account.`,
       cloudSynced
     );
     return true;
@@ -796,14 +793,51 @@ const SCHEMAS = {
   }
 
 
+function isWebsiteBuilderIntentForVisualCore(prompt) {
+  const t = clean(prompt);
+  if (!t) return false;
+  const digitalAsset =
+    /\b(website|web site|landing page|homepage|home page|webpage|web page|sales page|squeeze page|portfolio site|business site|ecommerce site|e-commerce site|online store|shop page|storefront page|web app|mobile app|saas|portal|booking page|checkout page|pricing page|contact page|signup page|sign up page|web tool)\b/.test(t);
+  const buildVerb =
+    /\b(build|builder|create|make|generate|design|show me|can you build|can you create|i need|i want|put together|draft|start|make me|build me)\b/.test(t);
+  const editVerb =
+    /\b(edit|change|update|refine|add|remove|improve|publish|download|copy html|launch|make live)\b/.test(t);
+  return !!(digitalAsset && (buildVerb || editVerb));
+}
+
+function isTextFirstIntent(prompt) {
+  const t = clean(prompt);
+  if (!t) return false;
+
+  const explicitVisual =
+    /\b(render|visualize|visualise|image|picture|photo|illustration|drawing|mockup|wireframe|prototype|concept art|product concept|design concept|logo|brand identity|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup)\b/.test(t);
+
+  const businessText =
+    /\b(business plan|business idea|business ideas|startup idea|startup ideas|start up idea|side hustle|business model|marketing plan|sales plan|revenue model|revenue plan|profit plan|budget|work from home|work at home|home business|customer|customers|market|niche|pricing|expenses|costs|steps to start|how to start|can start|i can start)\b/.test(t);
+
+  const adviceText =
+    /\b(how do i|how can i|what should i|tell me|explain|write|draft|outline|summarize|give me steps|step by step|plan for|strategy|advice|ideas for|help me figure out|help me with)\b/.test(t);
+
+  const activeMode = String(window.__SIMO_ACTIVE_MODE__ || "chat").toLowerCase();
+  if (activeMode === "business" && !explicitVisual) return true;
+  if ((businessText || adviceText) && !explicitVisual) return true;
+  return false;
+}
+
 function isDesignPrompt(prompt) {
   const t = clean(prompt);
   if (!t || /^\[simo_/i.test(t)) return false;
   if (isPureWritingPrompt(prompt)) return false;
+  if (isTextFirstIntent(prompt)) return false;
+  if (isWebsiteBuilderIntentForVisualCore(prompt)) return false;
+
   const create = /\b(show me|show|make|create|build|design|generate|give me|i want|render|visualize|view|draw|draft|concept|mockup|prototype)\b/.test(t);
-  const objecty = /\b(car|vehicle|guitar|instrument|home|house|logo|brand|app|screen|dashboard|website|web app|dog leash|leash|light fixture|watch|sneaker|shoe|chair|desk|product|accessory|toy|tool|device|furniture|parking lot|fixture|kitchen|bedroom|interior|yacht|boat|helmet|bag|bottle|package|packaging|lamp|rim|rims|wheel|wheels|tire rim|alloy wheel|book cover|book jacket|poster|flyer|brochure|menu)\b/.test(t);
+  const objecty = /\b(car|vehicle|guitar|instrument|house|logo|brand|app|screen|dashboard|dog leash|leash|light fixture|watch|sneaker|shoe|chair|desk|product|accessory|toy|tool|device|furniture|parking lot|fixture|kitchen|bedroom|interior|yacht|boat|helmet|bag|bottle|package|packaging|lamp|rim|rims|wheel|wheels|tire rim|alloy wheel|book cover|book jacket|poster|flyer|brochure|menu)\b/.test(t);
+  const explicitDesignAsk =
+    /\b(design this|design a|design an|design me|product concept|design concept|render|visualize|visualise|mockup|prototype|logo|book cover|poster|flyer|brochure|menu design|app screen|dashboard mockup|website mockup|landing page mockup)\b/.test(t);
   const edity = /\b(add|change|make it|refine|remove|adjust|update|variation|variations|modern|luxury|futuristic|matte|gloss|carbon|gold|black|white|premium|sleek|minimal)\b/.test(t);
-  return create || objecty || (edity && !!getActive());
+
+  return explicitDesignAsk || objecty || (create && objecty) || (edity && !!getActive());
 }
 
 function isVagueEdit(prompt) {
@@ -1204,12 +1238,12 @@ function seededRealImageUrl(project) {
       actionButton("Generate Realistic Render", "rerender", "blue"),
       actionButton("Generate Variations", "variation", "normal"),
       actionButton("Continue Editing", "continue", "green"),
-      actionButton("Open Design Workspace", "open-design-workspace", "blue"),
+      actionButton("3D / Rotate Workspace", "open-3d", "blue"),
       actionButton("Save to Library", "save-library", "gold"),
       `<a href="${esc(img)}" target="_blank" rel="noopener" style="border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#eef4ff;border-radius:999px;padding:10px 13px;font-size:12px;font-weight:950;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;">Open Image</a>`
     ];
 
-    const lead = note || "Here is the closest real visual starting point. Simo is staying with the user’s exact request, showing the result first, then giving relevant controls and a focused Design Workspace option to keep designing from here.";
+    const lead = note || "Here is the closest real visual starting point. Simo is staying with the user’s exact request, showing the result first, then giving relevant controls and a 3D-aware workspace option to keep designing from here.";
     const chips = [
       `<span style="display:inline-flex;border:1px solid rgba(86,240,169,.25);background:rgba(86,240,169,.10);color:#dfffee;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:950;">Real image-first</span>`,
       `<span style="display:inline-flex;border:1px solid rgba(110,168,255,.22);background:rgba(110,168,255,.10);color:#dce8ff;border-radius:999px;padding:7px 10px;font-size:12px;font-weight:900;">${safeCat}</span>`,
@@ -1617,7 +1651,7 @@ function seededRealImageUrl(project) {
       setSimoStatus("Ready.", false);
       removeRow(working);
       addAssistant(renderProject(project, actionIsMeaningful(action)
-        ? `Updated this same ${project.category || "design"} concept with a visible ${actionLabel} pass. Use Open Design Workspace to keep refining from this exact design.`
+        ? `Updated this same ${project.category || "design"} concept with a visible ${actionLabel} pass. Use 3D / Rotate Workspace to keep refining from this exact design.`
         : undefined));
       return true;
     } catch (err) {
@@ -1649,10 +1683,10 @@ function seededRealImageUrl(project) {
     const target = e && e.target;
     if (!target || !target.closest) return false;
 
-    const special = target.closest("[data-simo-vc-special='open-design-workspace'], [data-simo-vc-special=\"open-design-workspace\"]");
+    const special = target.closest("[data-simo-vc-special='open-3d'], [data-simo-vc-special=\"open-3d\"]");
     const btn = target.closest("button, a, [role='button']");
     const label = clean((btn && (btn.textContent || btn.getAttribute("aria-label") || btn.getAttribute("title"))) || "");
-    const looksLikeWorkspace = !!special || label.includes("open design workspace");
+    const looksLikeWorkspace = !!special || (label.includes("3d") && label.includes("rotate") && label.includes("workspace"));
 
     if (!looksLikeWorkspace) return false;
 
@@ -1670,29 +1704,15 @@ function seededRealImageUrl(project) {
       if (img && img.src) active.imageUrl = img.src;
     } catch {}
 
-    active.wants3D = false;
+    active.wants3D = true;
     setActive(active);
 
     try {
-      var workspaceData = {
-        title: displayTitle(active),
-        projectTitle: displayTitle(active),
-        workspaceSubject: active.lockedSubject || active.item || displayTitle(active),
-        image: active.imageUrl || "",
-        currentImage: active.imageUrl || "",
-        displayImageUrl: active.imageUrl || "",
-        sourceImage: active.imageUrl || "",
-        originalImage: active.imageUrl || "",
-        originalPrompt: active.prompt || active.latestPrompt || active.item || "",
-        currentPrompt: active.latestPrompt || active.prompt || active.item || ""
-      };
-      if (window.SimoLiveWorkspaceIsolated && typeof window.SimoLiveWorkspaceIsolated.openTab === "function") {
-        window.SimoLiveWorkspaceIsolated.openTab(workspaceData);
-      } else if (window.SimoWorkspaceBridge && typeof window.SimoWorkspaceBridge.openTab === "function") {
-        window.SimoWorkspaceBridge.openTab(workspaceData);
-      } else {
-        throw new Error("Design Workspace owner is not loaded.");
-      }
+      openConnectedWorkspace(
+        active,
+        active.latestPrompt || active.prompt || active.item || "this exact visual concept",
+        "Opened directly from the 3D / Rotate Workspace button. This keeps the current visual concept as the source of truth and does not use an unrelated fallback model."
+      );
       return true;
     } catch (err) {
       console.error("Simo hard workspace open failed:", err);
@@ -1721,8 +1741,8 @@ function seededRealImageUrl(project) {
           saveVisualProject(active);
           return;
         }
-        if (mode === "open-design-workspace") {
-          hardOpenWorkspaceFromClick(e);
+        if (mode === "open-3d") {
+          open3D(active, active.latestPrompt || active.prompt || active.item);
           return;
         }
         if (mode === "continue") {
