@@ -4456,3 +4456,212 @@ body[data-simo-theme="default"]::before{
     justify-self: start !important;
   }
 }
+
+
+/* =========================================================
+   SIMO OCT 9 — MAIN DASHBOARD VIDEO FLAGSHIP
+   Dashboard presentation only.
+   ========================================================= */
+.simo-video-nav-link{
+  position:relative;
+  border-color:rgba(105,167,255,.28) !important;
+  background:linear-gradient(135deg,rgba(15,72,150,.22),rgba(79,49,151,.18)) !important;
+}
+.simo-video-nav-link:hover{
+  border-color:rgba(92,211,255,.52) !important;
+  background:linear-gradient(135deg,rgba(18,91,185,.30),rgba(99,58,181,.24)) !important;
+}
+.simo-video-nav-badge{
+  margin-left:auto;
+  padding:3px 7px;
+  border-radius:999px;
+  font-size:9px;
+  font-style:normal;
+  font-weight:900;
+  letter-spacing:.06em;
+  color:#eaf8ff;
+  border:1px solid rgba(93,220,255,.35);
+  background:linear-gradient(135deg,rgba(15,185,255,.24),rgba(112,77,255,.25));
+  box-shadow:0 0 16px rgba(23,178,255,.10);
+}
+.simo-video-flagship{
+  position:relative;
+  isolation:isolate;
+  display:grid;
+  grid-template-columns:76px minmax(0,1fr) auto;
+  align-items:center;
+  gap:18px;
+  margin:13px 20px 2px;
+  padding:18px 20px;
+  min-height:142px;
+  overflow:hidden;
+  border-radius:20px;
+  border:1px solid rgba(83,190,255,.30);
+  background:
+    radial-gradient(circle at 78% 18%,rgba(112,83,255,.20),transparent 30%),
+    radial-gradient(circle at 12% 70%,rgba(12,194,255,.16),transparent 30%),
+    linear-gradient(125deg,rgba(5,29,52,.97),rgba(8,20,42,.98) 52%,rgba(20,15,49,.97));
+  box-shadow:0 18px 46px rgba(0,0,0,.26), inset 0 1px 0 rgba(255,255,255,.05);
+}
+.simo-video-flagship::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  pointer-events:none;
+  background:
+    linear-gradient(115deg,transparent 0 48%,rgba(255,255,255,.035) 49%,transparent 50% 100%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.018) 0 1px,transparent 1px 44px);
+  opacity:.55;
+}
+.simo-video-flagship-glow{
+  position:absolute;
+  width:260px;
+  height:260px;
+  right:-90px;
+  top:-130px;
+  z-index:-1;
+  border-radius:50%;
+  background:radial-gradient(circle,rgba(100,76,255,.26),transparent 68%);
+  filter:blur(4px);
+  pointer-events:none;
+}
+.simo-video-flagship-icon{
+  width:68px;
+  height:68px;
+  display:grid;
+  place-items:center;
+  border-radius:20px;
+  color:#fff;
+  font-size:27px;
+  border:1px solid rgba(96,218,255,.34);
+  background:
+    radial-gradient(circle at 32% 24%,rgba(255,255,255,.18),transparent 28%),
+    linear-gradient(145deg,#0ab9f1,#235ce7 55%,#734ee6);
+  box-shadow:0 0 34px rgba(28,164,255,.25), inset 0 1px 0 rgba(255,255,255,.24);
+}
+.simo-video-flagship-icon span{transform:translateX(2px)}
+.simo-video-flagship-copy{min-width:0}
+.simo-video-kicker{
+  margin-bottom:5px;
+  color:#5de5ff;
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:.22em;
+}
+.simo-video-flagship h3{
+  margin:0 0 7px;
+  font-size:20px;
+  line-height:1.15;
+  letter-spacing:-.02em;
+  color:#f6fbff;
+}
+.simo-video-flagship h3 span{
+  margin-left:5px;
+  color:#9bc8ff;
+  font-size:13px;
+  font-weight:700;
+  letter-spacing:0;
+}
+.simo-video-flagship p{
+  margin:0;
+  max-width:760px;
+  color:#adc4da;
+  font-size:11px;
+  line-height:1.5;
+}
+.simo-video-feature-badges{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:10px;
+}
+.simo-video-feature-badges span{
+  display:inline-flex;
+  align-items:center;
+  min-height:23px;
+  padding:3px 8px;
+  border-radius:999px;
+  color:#cfe5f7;
+  font-size:9px;
+  font-weight:800;
+  border:1px solid rgba(104,181,239,.18);
+  background:rgba(255,255,255,.035);
+}
+.simo-video-feature-badges span.is-premium{
+  color:#fff0b8;
+  border-color:rgba(255,209,89,.26);
+  background:linear-gradient(135deg,rgba(225,155,31,.14),rgba(119,77,255,.12));
+}
+.simo-video-flagship-actions{
+  min-width:164px;
+  display:grid;
+  gap:7px;
+}
+.simo-video-flagship-actions a{
+  text-decoration:none;
+  text-align:center;
+  font-size:11px;
+  font-weight:900;
+}
+.simo-video-primary,
+.simo-video-secondary{
+  min-height:37px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border-radius:12px;
+  padding:8px 13px;
+}
+.simo-video-primary{
+  color:#fff;
+  border:1px solid rgba(92,207,255,.45);
+  background:linear-gradient(135deg,#0aaeea,#175fe9 58%,#624ce0);
+  box-shadow:0 9px 26px rgba(13,108,236,.24), inset 0 1px 0 rgba(255,255,255,.15);
+}
+.simo-video-primary:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.simo-video-secondary{
+  color:#dceaff;
+  border:1px solid rgba(119,156,218,.22);
+  background:rgba(255,255,255,.045);
+}
+.simo-video-secondary:hover{
+  border-color:rgba(101,195,255,.34);
+  background:rgba(255,255,255,.07);
+}
+.simo-video-flagship-actions small{
+  text-align:center;
+  color:#7392ad;
+  font-size:8px;
+  line-height:1.25;
+}
+@media(max-width:900px){
+  .simo-video-flagship{
+    grid-template-columns:58px minmax(0,1fr);
+    gap:13px;
+    margin-left:14px;
+    margin-right:14px;
+    padding:15px;
+  }
+  .simo-video-flagship-icon{width:54px;height:54px;border-radius:16px;font-size:22px}
+  .simo-video-flagship-actions{
+    grid-column:1 / -1;
+    width:100%;
+    min-width:0;
+    grid-template-columns:1fr 1fr;
+  }
+  .simo-video-flagship-actions small{grid-column:1 / -1}
+  .simo-video-flagship h3 span{display:block;margin:3px 0 0}
+}
+@media(max-width:620px){
+  .simo-video-flagship{
+    grid-template-columns:1fr;
+    margin:10px 8px 2px;
+    border-radius:17px;
+  }
+  .simo-video-flagship-icon{width:48px;height:48px}
+  .simo-video-flagship-actions{grid-template-columns:1fr}
+  .simo-video-feature-badges{gap:5px}
+  .simo-video-feature-badges span{font-size:8px}
+}
