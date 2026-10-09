@@ -1,0 +1,14 @@
+
+:root{color-scheme:dark;font-family:Inter,system-ui,sans-serif}.slv-page{margin:0;background:#07111e;color:#edf4ff}.slv-shell{max-width:1100px;margin:auto;padding:28px}.eyebrow{font-size:12px;letter-spacing:.16em;color:#8eb7ff;margin-top:20px}h1{font-size:42px;margin:8px 0 12px}p{color:#aac0dd;line-height:1.6}.panel{background:#0c1727;border:1px solid #1f3552;border-radius:20px;padding:22px;margin:22px 0}textarea,input,select{width:100%;box-sizing:border-box;background:#07111e;color:#edf4ff;border:1px solid #27415f;border-radius:12px;padding:12px}textarea{min-height:150px}.row{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:14px 0}.opts{display:flex;gap:18px;flex-wrap:wrap;margin:14px 0}.opts label{display:flex;gap:8px;align-items:center}.opts input{width:auto}.primary,#lvPlan,#lvRefresh{border:0;border-radius:12px;padding:12px 16px;font-weight:800;cursor:pointer}.primary{background:#3676ff;color:white;width:100%;margin-top:14px}.primary:disabled{opacity:.45}.summary{margin:16px 0;padding:14px;border-radius:14px;background:#102038}.scenes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.scene{padding:12px;border:1px solid #263c58;border-radius:12px;background:#091524}.scene small{color:#91a8c6}.section-title{display:flex;justify-content:space-between;align-items:center}.project{padding:14px;border-bottom:1px solid #1b3048}.progress{height:8px;background:#14243a;border-radius:99px;overflow:hidden;margin-top:8px}.progress>div{height:100%;background:#5b8dff}.error{color:#ff9a9a}@media(max-width:650px){.slv-shell{padding:14px}.row{grid-template-columns:1fr}h1{font-size:31px}}
+
+.muted{font-size:.82em;color:#91a8c6;font-weight:500}
+.production-progress{margin-top:16px;padding:16px;border:1px solid #27415f;border-radius:14px;background:#091524}
+.progress-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:10px}
+.progress-head span,.progress-detail{color:#aac0dd;font-size:.92rem}
+.production-progress .progress{height:10px;margin:8px 0 12px}
+.production-progress .progress>div{transition:width .45s ease}
+.scene-progress-list{display:grid;gap:6px;margin-top:10px}
+.scene-progress-row{display:flex;justify-content:space-between;gap:12px;padding:8px 10px;border:1px solid #1f3552;border-radius:9px;color:#dbe8fa;font-size:.9rem}
+.error{color:#ff9d9d;margin-top:10px}
+#lvMessage{margin-top:10px;color:#cfe0f5}
+@media(max-width:650px){.progress-head,.scene-progress-row{align-items:flex-start;flex-direction:column;gap:4px}}
