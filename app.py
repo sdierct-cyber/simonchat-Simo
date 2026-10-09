@@ -18065,6 +18065,36 @@ def api_transcribe_mic():
 
 print("[SIMO RC11 PROFIT SHIELD] prepaid AI gate active: Free=0 live AI, Pro=150/mo, Team=600/mo", flush=True)
 
+
+
+# =========================================================
+# SIMO VIDEO RC2 — ISOLATED ZERO-SPEND FOUNDATION
+# Separate /video workspace + /api/video/* routes only.
+# Does not replace Website Builder, Design, Chat, Library,
+# Stripe, microphone, auth, or existing route owners.
+# Live provider stays OFF by default; mock mode is zero-spend.
+# =========================================================
+try:
+    from simo_video import register_simo_video
+
+    _simo_video_service = register_simo_video(
+        app,
+        owner_fn=user_key_for_limits,
+        reserve_fn=_simo_reserve_credits,
+        release_fn=_simo_release_reservation,
+        credit_status_fn=_simo_credit_status,
+    )
+    print(
+        "[SIMO VIDEO RC2] isolated video routes registered; "
+        f"mock_mode={_simo_video_service.config.mock_mode}; "
+        f"provider_live_enabled={bool(_simo_video_service.config.provider_enabled and not _simo_video_service.config.provider_kill_switch)}",
+        flush=True,
+    )
+except Exception as _simo_video_boot_exc:
+    # Fail closed for Video without preventing the proven Simo foundation from starting.
+    print("[SIMO VIDEO RC2] Video registration failed closed:", str(_simo_video_boot_exc)[:300], flush=True)
+
+
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
     port = int(os.getenv("PORT", "5000"))
