@@ -1,495 +1,305 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>Simo — Your Best Friend AI That Helps You Build Anything</title>
-<meta name="description" content="Simo is your best-friend AI that helps you talk, design, create, and build anything in one place.">
-
+<title>Simo - Your Best Friend AI for Chat, Websites, Design and Video</title>
+<meta name="description" content="Meet Simo, your best-friend AI for chat, website building, design, image analysis, and cinematic AI video creation in one place.">
+<meta name="robots" content="index,follow">
 <style>
-
+:root{
+  --bg:#070b14;
+  --panel:#101725;
+  --panel2:#141d2d;
+  --text:#f7f9ff;
+  --muted:#aeb8cc;
+  --line:rgba(255,255,255,.10);
+  --blue:#76a7ff;
+  --blue2:#5f7cff;
+  --green:#52e28f;
+  --shadow:0 24px 70px rgba(0,0,0,.36);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
 body{
-margin:0;
-font-family:Arial,Helvetica,sans-serif;
-background:#0b0f1a;
-color:white;
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:
+    radial-gradient(circle at 18% 0%, rgba(54,107,255,.18), transparent 28%),
+    radial-gradient(circle at 84% 6%, rgba(123,84,255,.13), transparent 24%),
+    var(--bg);
+  color:var(--text);
 }
-
+a{color:inherit;text-decoration:none}
+.wrap{width:min(1180px,calc(100% - 32px));margin:auto}
 header{
-display:flex;
-justify-content:space-between;
-align-items:center;
-padding:20px 40px;
+  position:sticky;top:0;z-index:20;
+  background:rgba(7,11,20,.76);
+  backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--line);
 }
-
-.logo{
-font-size:22px;
-font-weight:bold;
+.nav{
+  min-height:76px;
+  display:flex;align-items:center;justify-content:space-between;gap:18px;
 }
-
-.hero{
-text-align:center;
-padding:120px 20px;
-max-width:900px;
-margin:auto;
-}
-
-.hero h1{
-font-size:56px;
-margin-bottom:20px;
-}
-
-.hero p{
-font-size:20px;
-opacity:.8;
-margin-bottom:40px;
-}
-
-.buttons{
-display:flex;
-justify-content:center;
-gap:20px;
-flex-wrap:wrap;
-}
-
+.brand{display:flex;align-items:center;gap:12px;font-weight:800;font-size:20px}
+.brand img{width:48px;height:48px;object-fit:contain}
+.navlinks{display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.navlinks a{color:#dfe6f6;font-size:14px}
 .btn{
-padding:14px 28px;
-border-radius:10px;
-font-size:16px;
-cursor:pointer;
-text-decoration:none;
-display:inline-block;
+  display:inline-flex;align-items:center;justify-content:center;
+  min-height:48px;padding:0 20px;border-radius:14px;
+  border:1px solid var(--line);font-weight:800;
+  background:rgba(255,255,255,.05);
 }
-
 .btn-primary{
-background:#5b8cff;
-color:white;
+  border:none;
+  background:linear-gradient(135deg,var(--blue),var(--blue2));
+  box-shadow:0 14px 34px rgba(91,126,255,.26);
 }
-
-.btn-secondary{
-background:#1f2937;
-color:white;
+.hero{padding:100px 0 70px}
+.hero-grid{display:grid;grid-template-columns:1.08fr .92fr;gap:42px;align-items:center}
+.badge{
+  display:inline-flex;align-items:center;gap:9px;
+  padding:10px 14px;border-radius:999px;
+  background:rgba(82,226,143,.08);
+  border:1px solid rgba(82,226,143,.24);
+  color:#c8ffdc;font-weight:800;font-size:14px;margin-bottom:18px;
 }
-
-.launch-badge{
-display:inline-block;
-margin-bottom:24px;
-padding:10px 16px;
-border-radius:999px;
-background:#121826;
-border:1px solid rgba(255,255,255,.08);
-font-size:14px;
-opacity:.9;
+.dot{width:9px;height:9px;border-radius:50%;background:var(--green);box-shadow:0 0 15px var(--green)}
+h1{font-size:clamp(42px,7vw,72px);line-height:1.02;letter-spacing:-2.2px;margin:0 0 22px}
+.lead{font-size:20px;line-height:1.7;color:var(--muted);max-width:760px}
+.ctas{display:flex;gap:14px;flex-wrap:wrap;margin-top:30px}
+.trust{margin-top:18px;color:#8793aa;font-size:14px}
+.showcase{
+  background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.035));
+  border:1px solid var(--line);border-radius:28px;padding:22px;box-shadow:var(--shadow)
 }
-
-.trust{
-margin-top:20px;
-opacity:.7;
-font-size:15px;
+.showcase-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
+.status{display:flex;align-items:center;gap:8px;color:#c8ffdc;font-size:13px;font-weight:700}
+.prompt,.result{
+  border:1px solid var(--line);border-radius:18px;padding:18px;
+  background:rgba(0,0,0,.16);margin-top:12px
 }
-
-.social-proof{
-text-align:center;
-padding:30px 20px 10px;
-max-width:900px;
-margin:auto;
-}
-
-.social-proof h2{
-font-size:34px;
-margin-bottom:15px;
-}
-
-.social-proof p{
-opacity:.75;
-font-size:18px;
-}
-
-.features{
-display:grid;
-grid-template-columns:repeat(auto-fit,minmax(250px,1fr));
-gap:30px;
-padding:80px 40px;
-max-width:1100px;
-margin:auto;
-}
-
-.feature{
-background:#121826;
-padding:30px;
-border-radius:12px;
-}
-
-.feature h3{
-margin-top:0;
-}
-
-.pricing{
-text-align:center;
-padding:100px 20px;
-}
-
-.pricing h2{
-font-size:40px;
-margin-bottom:50px;
-}
-
-.cards{
-display:flex;
-justify-content:center;
-gap:30px;
-flex-wrap:wrap;
-}
-
+.prompt small,.result small{display:block;color:#7f8ca3;text-transform:uppercase;letter-spacing:.9px;margin-bottom:8px}
+.prompt p,.result p{margin:0;line-height:1.6;color:#e8eefb}
+.section{padding:76px 0}
+.section-head{text-align:center;max-width:820px;margin:0 auto 34px}
+.section-head h2{font-size:clamp(32px,5vw,48px);margin:0 0 12px}
+.section-head p{color:var(--muted);font-size:18px;line-height:1.7;margin:0}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
 .card{
-background:#121826;
-padding:40px;
-border-radius:14px;
-width:280px;
+  background:var(--panel);border:1px solid var(--line);border-radius:22px;
+  padding:24px;box-shadow:0 16px 44px rgba(0,0,0,.2)
 }
-
-.price{
-font-size:32px;
-margin:20px 0;
+.card h3{margin:0 0 10px;font-size:21px}
+.card p{margin:0;color:var(--muted);line-height:1.7}
+.card .tag{display:inline-block;margin-bottom:14px;color:#a9c4ff;font-size:12px;font-weight:800;letter-spacing:.7px}
+.video-band{
+  background:linear-gradient(135deg,rgba(57,100,255,.16),rgba(123,84,255,.11));
+  border:1px solid var(--line);border-radius:30px;padding:34px;
+  display:grid;grid-template-columns:1fr auto;gap:26px;align-items:center
 }
-
-.seo-links{
-padding:40px 20px 10px;
-max-width:1000px;
-margin:auto;
-text-align:center;
+.video-band h2{font-size:38px;margin:0 0 12px}
+.video-band p{color:var(--muted);font-size:18px;line-height:1.65;margin:0;max-width:780px}
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.price-card{position:relative}
+.price-card.featured{outline:1px solid rgba(118,167,255,.45);background:linear-gradient(180deg,#14203a,#101725)}
+.price{font-size:38px;font-weight:900;margin:16px 0 4px}
+.term{color:#8d99ae;font-size:14px}
+.price-card ul{padding-left:20px;color:var(--muted);line-height:1.9}
+.note{font-size:13px;color:#8793aa;margin-top:18px;line-height:1.6}
+.links{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+.links a{padding:12px 16px;border-radius:12px;background:var(--panel);border:1px solid var(--line);color:#bdd1ff}
+footer{padding:34px 0 46px;border-top:1px solid var(--line);color:#8d99ae}
+.footer-row{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+@media(max-width:900px){
+  .hero-grid,.grid,.price-grid,.video-band{grid-template-columns:1fr}
+  .navlinks a:not(.btn){display:none}
+  .hero{padding-top:62px}
 }
-
-.seo-links h2{
-font-size:34px;
-margin-bottom:16px;
-}
-
-.seo-links p{
-opacity:.75;
-margin-bottom:24px;
-font-size:18px;
-}
-
-.seo-link-grid{
-display:flex;
-justify-content:center;
-gap:16px;
-flex-wrap:wrap;
-}
-
-.seo-link-grid a{
-background:#121826;
-color:#8fb3ff;
-text-decoration:none;
-padding:14px 18px;
-border-radius:10px;
-display:inline-block;
-}
-
-.more-coming{
-padding:80px 20px;
-text-align:center;
-max-width:900px;
-margin:auto;
-}
-
-.more-coming h2{
-font-size:36px;
-margin-bottom:20px;
-}
-
-.more-coming p{
-opacity:.75;
-font-size:18px;
-margin-bottom:40px;
-}
-
-.more-grid{
-display:flex;
-justify-content:center;
-gap:40px;
-flex-wrap:wrap;
-}
-
-.more-card{
-background:#121826;
-padding:30px;
-border-radius:12px;
-width:240px;
-}
-
-.more-card p{
-opacity:.7;
-}
-
-footer{
-text-align:center;
-padding:40px;
-opacity:.7;
-}
-
-.footer-links{
-margin-top:14px;
-}
-
-.footer-links a{
-color:#8fb3ff;
-text-decoration:none;
-margin:0 10px;
-font-size:15px;
-}
-
-.footer-links a:hover{
-text-decoration:underline;
-}
-
 </style>
 </head>
-
-
 <body>
-
-
 <header>
-
-<div class="logo">Simo</div>
-
-<a href="/app" class="btn btn-primary">Open Simo</a>
-
+  <div class="wrap nav">
+    <a class="brand" href="/">
+      <img src="/static/simo-logo-sidebar.png" alt="Simo logo">
+      <span>Simo</span>
+    </a>
+    <nav class="navlinks" aria-label="Main navigation">
+      <a href="#features">Features</a>
+      <a href="#pricing">Pricing</a>
+      <a href="/video">Video</a>
+      <a class="btn btn-primary" href="/">Open Simo</a>
+    </nav>
+  </div>
 </header>
 
-
-
-<section class="hero">
-
-<div class="launch-badge">🚀 Early Launch — Looking for our first 100 testers</div>
-
-<h1>Simo — Your Best Friend AI That Helps You Build Anything</h1>
-
-<p>
-Talk, design, create, and launch in one place. From ideas to real output, Simo helps you actually build.
-</p>
-
-<div class="buttons">
-
-<a href="/app" class="btn btn-primary">Start Building</a>
-
-<a href="/app" class="btn btn-secondary">See What Simo Can Do</a>
-
-</div>
-
-<p class="trust">
-No setup. No complexity. Just start typing.
-</p>
-
-</section>
-
-
-
-<section class="social-proof">
-
-<h2>Built for Builders, Creators, and Early Testers</h2>
-
-<p>
-Simo is designed for people exploring ideas, building websites, creating projects, analyzing images, and using AI as a real creative workspace.
-</p>
-
-</section>
-
-
-
-<section class="features">
-
-<div class="feature">
-
-<h3>Build Websites</h3>
-
-<p>
-Generate, edit, preview, and publish websites inside your Simo workspace without needing a complicated setup.
-</p>
-
-</div>
-
-
-
-<div class="feature">
-
-<h3>Create Ideas</h3>
-
-<p>
-Brainstorm business ideas, projects, concepts, and plans with an AI that helps you think and move forward.
-</p>
-
-</div>
-
-
-
-<div class="feature">
-
-<h3>Design Anything</h3>
-
-<p>
-From layouts to creative concepts, Simo helps you shape ideas into something clearer, stronger, and more real.
-</p>
-
-</div>
-
-
-
-<div class="feature">
-
-<h3>Analyze Images</h3>
-
-<p>
-Upload photos and images and let Simo help you understand what you're looking at, explore possibilities, and build from it.
-</p>
-
-</div>
-
-
-
-<div class="feature">
-
-<h3>Save and Continue</h3>
-
-<p>
-Keep your work organized, come back anytime, and continue building instead of starting over from scratch.
-</p>
-
-</div>
-
-
-
-<div class="feature">
-
-<h3>Talk Naturally</h3>
-
-<p>
-Chat with Simo like a best-friend AI that helps you think, create, and actually get things done.
-</p>
-
-</div>
-
-</section>
-
-
-
-<section class="pricing">
-
-<h2>Simple Pricing</h2>
-
-<div class="cards">
-
-
-<div class="card">
-
-<h3>Free</h3>
-
-<div class="price">$0</div>
-
-<p>50 messages per day</p>
-
-<p>Chat with Simo</p>
-
-<p>Build and preview</p>
-
-<p>Analyze images</p>
-
-<a href="/app" class="btn btn-secondary">Start Free</a>
-
-</div>
-
-
-
-<div class="card">
-
-<h3>Pro</h3>
-
-<div class="price">$9.99/mo</div>
-
-<p>Unlimited messages</p>
-
-<p>Download your builds</p>
-
-<p>Save and manage projects</p>
-
-<p>Publish your websites</p>
-
-<a href="/app" class="btn btn-primary">Upgrade in App</a>
-
-</div>
-
-
-</div>
-
-</section>
-
-
-
-<section class="seo-links">
-
-<h2>Explore What Simo Can Do</h2>
-
-<p>
-Learn more about Simo's AI tools, website building, and creative workspace features.
-</p>
-
-<div class="seo-link-grid">
-<a href="/ai-tools">AI Tools</a>
-<a href="/chatgpt-alternative">ChatGPT Alternative</a>
-<a href="/ai-website-builder">AI Website Builder</a>
-</div>
-
-</section>
-
-
-
-<section class="more-coming">
-
-<h2>Built for What Comes Next</h2>
-
-<p>
-Simo is evolving beyond chat into a creative engine for ideas, design, visual workflows, and the future of building with AI.
-</p>
-
-<div class="more-grid">
-
-<div class="more-card">
-<h3>Voice Interaction</h3>
-<p>Talk with Simo naturally using voice and microphone support.</p>
-</div>
-
-<div class="more-card">
-<h3>Creative Workspace</h3>
-<p>Move from ideas to websites, visuals, concepts, and guided creation in one place.</p>
-</div>
-
-<div class="more-card">
-<h3>Future 3D Creation</h3>
-<p>Long term, Simo is being shaped to help users explore homes, products, environments, and richer visual concepts.</p>
-</div>
-
-</div>
-
-</section>
-
-
+<main>
+  <section class="hero">
+    <div class="wrap hero-grid">
+      <div>
+        <div class="badge"><span class="dot"></span> Simo is live</div>
+        <h1>Your best friend AI for building what is next.</h1>
+        <p class="lead">
+          Chat naturally, build websites, create designs, analyze images, and produce cinematic AI video from one Simo workspace.
+        </p>
+        <div class="ctas">
+          <a class="btn btn-primary" href="/">Start with Simo</a>
+          <a class="btn" href="/video">Create a Video</a>
+        </div>
+        <div class="trust">Start free. Upgrade when you need more creation power.</div>
+      </div>
+
+      <div class="showcase">
+        <div class="showcase-top">
+          <strong>Simo Creative Workspace</strong>
+          <div class="status"><span class="dot"></span> Online</div>
+        </div>
+        <div class="prompt">
+          <small>You ask</small>
+          <p>Create a premium website for my business, then make a cinematic launch video with natural sound and music.</p>
+        </div>
+        <div class="result">
+          <small>Simo helps you build</small>
+          <p>Website creation, design, image analysis, chat, short video, long-form video, saved projects, and publishing workflows in one place.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="features">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>One AI. More ways to create.</h2>
+        <p>Simo is built to move from conversation to finished output without making you jump between separate tools.</p>
+      </div>
+
+      <div class="grid">
+        <article class="card">
+          <span class="tag">WEBSITE BUILDER</span>
+          <h3>Build and edit websites</h3>
+          <p>Describe the site you want, refine it with natural-language edits, preview it, save it, and publish when you are ready.</p>
+        </article>
+
+        <article class="card">
+          <span class="tag">SIMO VIDEO</span>
+          <h3>Create cinematic AI video</h3>
+          <p>Create short or long-form video with 1080p default output, premium 4K options, natural sound, music, voiceover, motion, and camera direction.</p>
+        </article>
+
+        <article class="card">
+          <span class="tag">DESIGN</span>
+          <h3>Create and refine visuals</h3>
+          <p>Turn ideas into visual concepts and creative assets while keeping your work inside the Simo experience.</p>
+        </article>
+
+        <article class="card">
+          <span class="tag">IMAGE ANALYSIS</span>
+          <h3>Understand what you see</h3>
+          <p>Upload an image and ask Simo to explain, evaluate, identify details, or help you build from what is in front of you.</p>
+        </article>
+
+        <article class="card">
+          <span class="tag">CHAT + VOICE</span>
+          <h3>Talk naturally</h3>
+          <p>Use Simo as a conversational AI assistant for ideas, writing, planning, questions, and creative direction, including microphone input where available.</p>
+        </article>
+
+        <article class="card">
+          <span class="tag">LIBRARIES</span>
+          <h3>Save and continue</h3>
+          <p>Keep supported websites, designs, and video projects organized so you can return to your work instead of starting from scratch.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="video-band">
+        <div>
+          <h2>Simo Video is ready.</h2>
+          <p>Describe the finished video in normal words. Simo can plan the production, check protected pricing before generation, and create with the quality, length, audio, music, voiceover, motion, and framing you request.</p>
+        </div>
+        <a class="btn btn-primary" href="/video">Open Simo Video</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="section" id="pricing">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Simple plans with protected usage.</h2>
+        <p>Free chat gets you started. Pro plans add more creation power, and additional Simo Credits can be purchased when needed.</p>
+      </div>
+
+      <div class="price-grid">
+        <article class="card price-card">
+          <h3>Free</h3>
+          <div class="price">$0</div>
+          <div class="term">Get started</div>
+          <ul>
+            <li>25 successful chat messages per day</li>
+            <li>Explore Simo before upgrading</li>
+            <li>Paid creation features use protected credits</li>
+          </ul>
+          <a class="btn" href="/">Start Free</a>
+        </article>
+
+        <article class="card price-card featured">
+          <h3>Pro</h3>
+          <div class="price">$14.99</div>
+          <div class="term">per month or $149/year</div>
+          <ul>
+            <li>Premium access to Simo</li>
+            <li>Included Pro usage</li>
+            <li>Website, design, image and video tools</li>
+            <li>Additional Simo Credits available when needed</li>
+          </ul>
+          <a class="btn btn-primary" href="/">Choose Pro</a>
+        </article>
+
+        <article class="card price-card">
+          <h3>Team Pro</h3>
+          <div class="price">$49.99</div>
+          <div class="term">per month or $499/year</div>
+          <ul>
+            <li>Built for higher team usage</li>
+            <li>Included Team Pro usage</li>
+            <li>Access to premium Simo creation tools</li>
+            <li>Additional Simo Credits available when needed</li>
+          </ul>
+          <a class="btn" href="/">Choose Team Pro</a>
+        </article>
+      </div>
+
+      <p class="note">Generation-heavy features are protected by Simo Credit pricing and may require additional credits depending on the request, quality, length, or production settings.</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="wrap">
+      <div class="section-head">
+        <h2>Explore Simo</h2>
+        <p>Learn more about the tools inside Simo and start with the workflow that fits what you want to create.</p>
+      </div>
+      <div class="links">
+        <a href="/ai-tools">AI Tools</a>
+        <a href="/ai-website-builder">AI Website Builder</a>
+        <a href="/chatgpt-alternative">ChatGPT Alternative</a>
+        <a href="/video">AI Video Creation</a>
+      </div>
+    </div>
+  </section>
+</main>
 
 <footer>
-
-<div>© 2026 Simo AI — Your best-friend AI for building, creating, and moving ideas forward.</div>
-
-<div class="footer-links">
-<a href="/ai-tools">AI Tools</a>
-<a href="/chatgpt-alternative">ChatGPT Alternative</a>
-<a href="/ai-website-builder">AI Website Builder</a>
-</div>
-
+  <div class="wrap footer-row">
+    <div>&copy; 2026 Simo. Built by Simo.</div>
+    <div>Simo - your best friend AI for chat, websites, design and video.</div>
+  </div>
 </footer>
-
-
 </body>
 </html>
