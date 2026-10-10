@@ -6711,6 +6711,126 @@ def home():
     )
 
 
+# =========================================================
+# SIMO LAUNCH / MARKETING PAGES — ISOLATED PUBLIC ROUTES
+# These routes only render marketing templates.
+# They do not alter Chat, Website Builder, Design, Video,
+# Stripe, credits, authentication, libraries, or API logic.
+# =========================================================
+@app.route("/landing")
+def simo_launch_landing():
+    return render_template("landing.html")
+
+
+@app.route("/ai-tools")
+def simo_ai_tools_landing():
+    return render_template("ai-tools.html")
+
+
+@app.route("/ai-website-builder")
+def simo_ai_website_builder_landing():
+    return render_template("ai-website-builder.html")
+
+
+@app.route("/chatgpt-alternative")
+def simo_chatgpt_alternative_landing():
+    canonical_url = f"{BASE_URL.rstrip('/')}/chatgpt-alternative"
+    schema_json = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Simo",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "url": canonical_url,
+        "description": (
+            "Simo is a best-friend AI for chat, website building, design, "
+            "image analysis, and cinematic AI video creation."
+        ),
+    })
+    return render_template(
+        "seo_landing.html",
+        meta_title="Simo - AI Assistant for Chat, Websites, Design and Video",
+        meta_description=(
+            "Explore Simo, an AI assistant for chat, website building, design, "
+            "image analysis, short video, and long-form AI video creation."
+        ),
+        canonical_url=canonical_url,
+        schema_json=schema_json,
+        eyebrow="Simo - Your Best Friend AI",
+        hero_title="An AI assistant that helps you chat, build, design, and create video.",
+        hero_description=(
+            "Simo brings conversational AI, website creation, design, image analysis, "
+            "and cinematic video tools into one workspace."
+        ),
+        example_prompt=(
+            "Build a premium website for my business, then help me create a cinematic "
+            "launch video with music and natural sound."
+        ),
+        example_output=(
+            "Simo can help turn that request into a website workflow, visual creation, "
+            "and protected AI video production from the same product."
+        ),
+        pills=[
+            "AI chat",
+            "Website Builder",
+            "Design",
+            "Image analysis",
+            "Simo Video",
+            "Long-form video",
+        ],
+        benefits_title="More than a chat window",
+        benefits_lead=(
+            "Simo is designed to help users move from an idea to useful creative output "
+            "without constantly switching between separate tools."
+        ),
+        features=[
+            {
+                "title": "Chat naturally",
+                "text": "Ask questions, brainstorm, write, plan, and work through ideas with Simo."
+            },
+            {
+                "title": "Build websites",
+                "text": "Generate, edit, preview, save, and publish websites from natural-language requests."
+            },
+            {
+                "title": "Create video",
+                "text": "Produce short or long-form AI video with protected pricing, audio options, and premium output choices."
+            },
+        ],
+        how_it_works_lead=(
+            "Describe what you want in normal language, review the plan or result, "
+            "and continue refining it inside Simo."
+        ),
+        steps=[
+            {"title": "Describe it", "text": "Tell Simo what you want to create or accomplish."},
+            {"title": "Review it", "text": "See the generated result, plan, or protected price before continuing."},
+            {"title": "Refine it", "text": "Keep editing or creating until the result matches your goal."},
+        ],
+        faqs=[
+            {
+                "q": "What can Simo do?",
+                "a": "Simo supports AI chat, website building, design, image analysis, and AI video creation."
+            },
+            {
+                "q": "Can Simo create websites?",
+                "a": "Yes. Simo can generate websites and support natural-language editing, previewing, saving, and publishing workflows."
+            },
+            {
+                "q": "Can Simo create AI video?",
+                "a": "Yes. Simo Video supports short and long-form production workflows, including 1080p by default and premium 4K options."
+            },
+            {
+                "q": "Is there a free option?",
+                "a": "Yes. Simo offers a free chat allowance, while generation-heavy features use protected Simo Credit pricing."
+            },
+        ],
+        cta_title="Ready to try Simo?",
+        cta_text="Start with Simo and choose the creative workflow that fits what you want to do.",
+        cta_button="Open Simo",
+        footer_text="Your best friend AI for chat, websites, design, and video.",
+    )
+
+
 @app.route("/health")
 def health():
     builder_state = get_builder_session_state()
