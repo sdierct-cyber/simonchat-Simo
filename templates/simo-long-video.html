@@ -4,37 +4,37 @@
 <title>Simo Long Video</title>
 <link rel="stylesheet" href="/static/simo-long-video.css?v=rc31">
 </head><body class="slv-page"><main class="slv-shell">
-<header><a href="/video">â† Short Video</a><div class="eyebrow">SIMO LONG VIDEO Â· SEPARATE FEATURE</div>
+<header><a href="/video">← Short Video</a><div class="eyebrow">SIMO LONG VIDEO · SEPARATE FEATURE</div>
 <h1>Describe the whole production. Simo builds it scene by scene.</h1>
-<p>Choose the length you want â€” seconds, minutes, or hours. Simo plans the scenes, protects the total price, and assembles one finished video. Simo plans the scenes, protects the total price, creates each segment, and assembles one finished video.</p></header>
+<p>Choose the length you want — seconds, minutes, or hours. Simo plans the scenes, protects the total price, and assembles one finished video. Simo plans the scenes, protects the total price, creates each segment, and assembles one finished video.</p></header>
 <section class="panel">
 <label>What should Simo create?</label>
 <textarea id="lvPrompt" placeholder='Example: Create a 2-minute documentary about restoring a classic car with narration, cinematic music, workshop sounds, close-ups, and a polished final reveal.'></textarea>
 <div class="row"><div><label>Total length</label><div class="length-combo"><input id="lvLengthValue" type="number" min="10" step="1" value="20"><select id="lvLengthUnit"><option value="seconds">seconds</option><option value="minutes">minutes</option><option value="hours">hours</option></select></div></div><div><label>Frame</label><select id="lvAspect"><option>16:9</option><option>9:16</option><option>1:1</option><option>4:5</option></select></div></div>
 <div class="row">
-  <div><label for="lvOutputResolution">Output quality</label><select id="lvOutputResolution"><option value="1080p" selected>1080p â€” Default</option><option value="4k">4K â€” Premium</option></select></div>
+  <div><label for="lvOutputResolution">Output quality</label><select id="lvOutputResolution"><option value="1080p" selected>1080p — Default</option><option value="4k">4K — Premium</option></select></div>
   <div><label>Protected pricing</label><div class="summary">Simo automatically segments the requested length and prices the complete protected production before any paid generation.</div></div>
 </div>
 <div class="opts"><label><input id="lvAudio" type="checkbox" checked> Natural sound</label><label><input id="lvMusic" type="checkbox"> Music</label><label><input id="lvVoice" type="checkbox"> Voiceover</label></div>
 <div class="row">
-  <div><label for="lvMusicStyle">Music style <span class="muted">(optional)</span></label><input id="lvMusicStyle" placeholder="cinematic orchestral, ambient piano, upbeat electronicâ€¦"></div>
+  <div><label for="lvMusicStyle">Music style <span class="muted">(optional)</span></label><input id="lvMusicStyle" placeholder="cinematic orchestral, ambient piano, upbeat electronic…"></div>
   <div><label for="lvVoiceText">Voiceover text <span class="muted">(optional)</span></label><input id="lvVoiceText" placeholder="What should the narrator say?"></div>
 </div>
-<label for="lvAvoid">Avoid <span class="muted">(optional â€” Simo also applies subject-aware safeguards automatically)</span></label>
-<input id="lvAvoid" placeholder="Example: no text artifacts, no duplicate subjects, no sudden identity changesâ€¦">
-<button id="lvPlan">Plan + Quote â€” No Charge</button>
+<label for="lvAvoid">Avoid <span class="muted">(optional — Simo also applies subject-aware safeguards automatically)</span></label>
+<input id="lvAvoid" placeholder="Example: no text artifacts, no duplicate subjects, no sudden identity changes…">
+<button id="lvPlan">Plan + Quote — No Charge</button>
 <div id="lvSummary" class="summary">Simo will show the scene count and protected total before anything is generated.</div>
 <div id="lvScenes" class="scenes"></div>
 <button id="lvCreate" class="primary" disabled>Create Long Video with Simo</button>
 <div id="lvProgressPanel" class="production-progress" hidden>
-  <div class="progress-head"><strong id="lvProgressTitle">Simo is producing your videoâ€¦</strong><span id="lvElapsed">0:00 elapsed</span></div>
+  <div class="progress-head"><strong id="lvProgressTitle">Simo is producing your video…</strong><span id="lvElapsed">0:00 elapsed</span></div>
   <div class="progress"><div id="lvProgressBar"></div></div>
-  <div id="lvProgressDetail" class="progress-detail" aria-live="polite">Preparing productionâ€¦</div>
+  <div id="lvProgressDetail" class="progress-detail" aria-live="polite">Preparing production…</div>
   <div id="lvSceneProgress" class="scene-progress-list"></div>
 </div>
 <div id="lvMessage" aria-live="polite"></div>
 </section>
 <section class="panel"><div class="section-title"><h2>Simo Long Video Library</h2><button id="lvRefresh">Refresh</button></div><div id="lvLibrary"></div></section>
 <footer>Created with Simo</footer>
-</main><script src="/static/simo-long-video.js?v=rc31"></script><script src="/static/simo-video-mic.js"></script>
+</main><script src="/static/simo-long-video.js?v=rc31"></script>  <script src="/static/simo-video-mic.js"></script>
 </body></html>
