@@ -17503,7 +17503,20 @@ def _simo_reserve_credits(action_type: str, cost: int):
     plan = _simo_account_plan(email)
     user_key = simo_design_credit_user_key(email)
     if plan == "admin":
-        return True, {"action": action_type, "cost": 0, "plan": plan, "unlimited": True}, None
+        from simo_video import profit_reserve
+        risk = None
+        if profit_reserve.is_video_action(action_type):
+            conn = get_db()
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                risk = profit_reserve.reserve(conn, "operator_"+secrets.token_hex(12), cost, unlimited=True, action=action_type)
+                conn.commit()
+            except Exception as exc:
+                conn.rollback()
+                return False, None, (jsonify({"ok":False,"error":str(exc),"code":"simo_video_reserve_blocked"}),503)
+            finally:
+                conn.close()
+        return True, {"action": action_type, "cost": 0, "plan": plan, "unlimited": True, "video_risk":risk}, None
     if plan in {"anon", "free"}:
         code = "login_required" if plan == "anon" else "upgrade_required"
         message = (
@@ -17516,6 +17529,11 @@ def _simo_reserve_credits(action_type: str, cost: int):
             "needs_login": plan == "anon", "needs_upgrade": True,
             "credits": _simo_credit_status(email),
         }), 402 if plan == "free" else 401)
+
+    # An unfunded video reserve blocks before even considering Auto-Reload.
+    from simo_video import profit_reserve
+    if profit_reserve.is_video_action(action_type) and not _simo_video_reserve_ready():
+        return False, None, (jsonify({"ok":False,"error":"Video creation is temporarily unavailable while its protected operating reserve is being funded. No generation started and no credits were taken.","code":"simo_video_reserve_blocked"}),503)
 
     # Auto-reload when the user's chosen threshold is reached, not only at zero.
     status = _simo_credit_status(email)
@@ -17563,6 +17581,8 @@ def _simo_reserve_credits(action_type: str, cost: int):
                 "credits": status,
             }), 402)
 
+        from simo_video import profit_reserve
+        video_risk = profit_reserve.reserve(conn, reference_id, cost, action=action_type) if profit_reserve.is_video_action(action_type) else None
         included_take = min(cost, included_remaining)
         if included_take:
             new_used = included_used + included_take
@@ -17595,20 +17615,79 @@ def _simo_reserve_credits(action_type: str, cost: int):
         return True, {
             "action": action_type, "cost": cost, "plan": plan, "email": email,
             "user_key": user_key, "period_key": period_key, "included": included_take,
-            "purchased": allocations, "reference_id": reference_id,
+            "purchased": allocations, "reference_id": reference_id, "video_risk":video_risk,
         }, None
     except Exception as exc:
         try: conn.rollback(); conn.close()
         except Exception: pass
+        if exc.__class__.__name__ == "ReserveUnavailable":
+            return False, None, (jsonify({"ok":False,"error":str(exc),"code":"simo_video_reserve_blocked"}),503)
         return False, None, (jsonify({"ok": False, "error": "Simo could not verify prepaid usage, so the AI request was blocked before generation.", "code": "simo_credit_guard_error", "detail": str(exc)[:240]}), 503)
 
 
+def _simo_video_risk_transaction(reservation, operation):
+    receipt=(reservation or {}).get("video_risk")
+    if not receipt:return
+    from simo_video import profit_reserve
+    conn=get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if operation == "start":profit_reserve.start(conn,receipt)
+        else:profit_reserve.settle(conn,receipt,delivered=operation == "consume")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def _simo_video_reserve_ready():
+    conn=get_db()
+    try:
+        row=conn.execute("SELECT cents FROM simo_video_reserve_wallet WHERE id=1").fetchone()
+        held=conn.execute("SELECT COALESCE(SUM(budget),0) FROM simo_video_reserve_holds WHERE state='held'").fetchone()[0]
+        return bool(row and int(row[0])>int(held))
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
+def _simo_video_mark_started(reservation):
+    _simo_video_risk_transaction(reservation,"start")
+
+
+def _simo_video_consume(reservation):
+    _simo_video_risk_transaction(reservation,"consume")
+
+
 def _simo_release_reservation(reservation, reason="request_failed"):
-    if not reservation or reservation.get("unlimited") or int(reservation.get("cost") or 0) <= 0:
+    if not reservation:return
+    if reservation.get("unlimited") or int(reservation.get("cost") or 0) <= 0:
+        _simo_video_risk_transaction(reservation,"refund")
         return
     conn = get_db()
     try:
         conn.execute("BEGIN IMMEDIATE")
+        reference = str(reservation.get("reference_id") or "").strip()
+        if not reference:
+            raise RuntimeError("Credit refund has no reservation reference; reconciliation required.")
+        # Serialize the check and refund in one transaction across all workers.
+        refunded = conn.execute(
+            "SELECT 1 FROM simo_credit_events WHERE reference_id = ? AND event_type = 'release' LIMIT 1",
+            (reference,),
+        ).fetchone()
+        if refunded:
+            conn.rollback(); conn.close()
+            return
+        original = conn.execute(
+            "SELECT credits, user_key FROM simo_credit_events WHERE reference_id = ? AND event_type = 'reserve' LIMIT 1",
+            (reference,),
+        ).fetchone()
+        if (not original or str(original["user_key"]) != str(reservation.get("user_key"))
+                or int(original["credits"]) != -int(reservation.get("cost") or 0)):
+            raise RuntimeError("Credit refund does not match its original reservation.")
         included = int(reservation.get("included") or 0)
         if included:
             row = conn.execute(
@@ -17630,10 +17709,13 @@ def _simo_release_reservation(reservation, reason="request_failed"):
             reservation.get("action"), int(reservation.get("cost") or 0), reason,
             reservation.get("reference_id"), {}, conn=conn,
         )
+        from simo_video import profit_reserve
+        profit_reserve.settle(conn,reservation.get("video_risk"),delivered=False)
         conn.commit(); conn.close()
     except Exception:
         try: conn.rollback(); conn.close()
         except Exception: pass
+        raise
 
 
 def _simo_response_failed(resp) -> bool:
@@ -18204,6 +18286,44 @@ try:
         release_fn=_simo_release_reservation,
         credit_status_fn=_simo_credit_status,
     )
+    _simo_video_service.credits.risk_ready_fn = _simo_video_reserve_ready
+    _simo_video_service.credits.start_fn = _simo_video_mark_started
+    _simo_video_service.credits.consume_fn = _simo_video_consume
+    def _simo_video_narration_writer(prompt, total_seconds, minimum_words, maximum_words, scene_count):
+        # Called only after the Long Video service reserves the complete quote.
+        # One bounded text call; no paid retry/fallback loop.
+        client=get_client()
+        if client is None:
+            raise RuntimeError("Simo's AI script writer is not configured.")
+        if not 10 <= int(total_seconds) <= 600:
+            raise RuntimeError("Automatic narration currently supports up to ten minutes; supply a script for longer films.")
+        response=client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {"role":"system","content":
+                    "Return JSON with narration (string) and scene_prompts (array of strings). "
+                    "Create exactly %s distinct sequential scene prompts, each at most 360 characters. "
+                    "Each prompt must contain the same concrete subject identity, wardrobe, setting and "
+                    "visual style plus that shot's action; advance the same story without restarting. "
+                    "Later shots begin from the previous shot's ending frame. Do not introduce unrelated people. "
+                    "Use recognizable capability demonstrations instead of vague generic holograms. "
+                    "Do not generate logos or exact text: these are composited during finishing. "
+                    "Narration contains ONLY spoken words, no headings, timestamps or stage directions. "
+                    "Preserve the user's subject, facts, storyline, tone and ending. "
+                    "Do not invent product capabilities, prices or claims. "
+                    "Use natural connected sentences. Finish the closing sentence completely. "
+                    "The last three seconds are a silent visual closing hold. "
+                    "Narration must have between %s and %s words." % (scene_count,minimum_words,maximum_words)},
+                {"role":"user","content":str(prompt)[:6000]}],
+            response_format={"type":"json_object"},
+            max_tokens=min(10000,max(800,int(maximum_words)*2+int(scene_count)*180)),
+        )
+        return json.loads(str(response.choices[0].message.content or "").strip())
+
+    _simo_long_service=app.extensions.get("simo_long_video_service")
+    if _simo_long_service is not None and OPENAI_API_KEY:
+        _simo_long_service.script_writer=_simo_video_narration_writer
+
     print(
         "[SIMO VIDEO RC2] isolated video routes registered; "
         f"mock_mode={_simo_video_service.config.mock_mode}; "
@@ -18213,6 +18333,13 @@ try:
 except Exception as _simo_video_boot_exc:
     # Fail closed for Video without preventing the proven Simo foundation from starting.
     print("[SIMO VIDEO RC2] Video registration failed closed:", str(_simo_video_boot_exc)[:300], flush=True)
+
+
+@app.get("/api/simo/demo-status")
+def simo_demo_status():
+    response = jsonify({"loggedIn": is_logged_in()})
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 if __name__ == "__main__":
