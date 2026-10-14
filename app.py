@@ -17494,6 +17494,21 @@ def _simo_try_auto_reload(email: str, needed_credits: int = 1) -> dict:
         return {"ok": False, "reason": "payment_failed", "detail": str(exc)[:240]}
 
 
+def _simo_is_video_credit_action(action_type):
+    # Video's optional reserve module must never be a dependency of text chat.
+    return "video" in str(action_type or "").strip().lower()
+
+
+def _simo_video_profit_module(action_type):
+    if not _simo_is_video_credit_action(action_type):
+        return None
+    try:
+        from simo_video import profit_reserve
+        return profit_reserve
+    except ImportError:
+        return None
+
+
 def _simo_reserve_credits(action_type: str, cost: int):
     storage_ok, storage_denied = _simo_media_preflight(action_type)
     if not storage_ok:
@@ -17502,10 +17517,12 @@ def _simo_reserve_credits(action_type: str, cost: int):
     email = str(current_user_email() or "").strip().lower()
     plan = _simo_account_plan(email)
     user_key = simo_design_credit_user_key(email)
+    profit_reserve = _simo_video_profit_module(action_type)
+    if _simo_is_video_credit_action(action_type) and profit_reserve is None:
+        return False, None, (jsonify({"ok": False, "error": "Video creation is temporarily unavailable because its spending protection module is missing. No generation started and no credits were taken.", "code": "simo_video_reserve_blocked"}), 503)
     if plan == "admin":
-        from simo_video import profit_reserve
         risk = None
-        if profit_reserve.is_video_action(action_type):
+        if profit_reserve is not None and profit_reserve.is_video_action(action_type):
             conn = get_db()
             try:
                 conn.execute("BEGIN IMMEDIATE")
@@ -17531,8 +17548,7 @@ def _simo_reserve_credits(action_type: str, cost: int):
         }), 402 if plan == "free" else 401)
 
     # An unfunded video reserve blocks before even considering Auto-Reload.
-    from simo_video import profit_reserve
-    if profit_reserve.is_video_action(action_type) and not _simo_video_reserve_ready():
+    if profit_reserve is not None and profit_reserve.is_video_action(action_type) and not _simo_video_reserve_ready():
         return False, None, (jsonify({"ok":False,"error":"Video creation is temporarily unavailable while its protected operating reserve is being funded. No generation started and no credits were taken.","code":"simo_video_reserve_blocked"}),503)
 
     # Auto-reload when the user's chosen threshold is reached, not only at zero.
@@ -17581,8 +17597,7 @@ def _simo_reserve_credits(action_type: str, cost: int):
                 "credits": status,
             }), 402)
 
-        from simo_video import profit_reserve
-        video_risk = profit_reserve.reserve(conn, reference_id, cost, action=action_type) if profit_reserve.is_video_action(action_type) else None
+        video_risk = profit_reserve.reserve(conn, reference_id, cost, action=action_type) if profit_reserve is not None and profit_reserve.is_video_action(action_type) else None
         included_take = min(cost, included_remaining)
         if included_take:
             new_used = included_used + included_take
@@ -17709,8 +17724,9 @@ def _simo_release_reservation(reservation, reason="request_failed"):
             reservation.get("action"), int(reservation.get("cost") or 0), reason,
             reservation.get("reference_id"), {}, conn=conn,
         )
-        from simo_video import profit_reserve
-        profit_reserve.settle(conn,reservation.get("video_risk"),delivered=False)
+        if reservation.get("video_risk"):
+            from simo_video import profit_reserve
+            profit_reserve.settle(conn,reservation["video_risk"],delivered=False)
         conn.commit(); conn.close()
     except Exception:
         try: conn.rollback(); conn.close()
