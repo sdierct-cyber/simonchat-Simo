@@ -160,11 +160,17 @@ class RunwayRouterClient:
             "aspectRatio": str(spec.get("aspect_ratio") or "16:9"),
             "duration": int(spec.get("duration_seconds") or 5),
         }
+        references=spec.get("reference_images")
+        if references and spec.get("_simo_reference_inherit_aspect"):
+            input_payload.pop("aspectRatio",None)
+        if references:
+            input_payload["referenceImages"]=[dict(item) for item in references]
         # Audio-capable WAN 3.0 defaults can resolve to 1080p, which can exceed
         # the 150-credit ceiling for a 10-second job. Simo explicitly asks for
         # 720p on protected audio jobs so the router can keep an eligible model.
         if spec.get("resolution"):
             input_payload["resolution"] = str(spec["resolution"])
+        input_payload["audio"] = bool(spec.get("audio") or spec.get("music") or spec.get("voiceover"))
         payload = {"configId": self.config_id, "input": input_payload}
         if dry_run:
             payload["dryRun"] = True
