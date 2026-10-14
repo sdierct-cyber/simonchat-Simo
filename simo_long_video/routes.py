@@ -8,6 +8,21 @@ def create_blueprint(service):
     @bp.get("/video/long")
     def workspace(): return render_template("simo-long-video.html")
 
+    @bp.get("/api/long-video/health")
+    def health():
+        import shutil,os
+        from pathlib import Path
+        checks={
+            "automatic_story":callable(getattr(service,"script_writer",None)),
+            "ffmpeg":bool(shutil.which(os.getenv("SIMO_FFMPEG_BIN","ffmpeg"))),
+            "ffprobe":bool(shutil.which(os.getenv("SIMO_FFPROBE_BIN","ffprobe"))),
+            "authentic_logo":(Path(__file__).parent/"assets"/"simo-logo.png").is_file(),
+            "credit_bridge":bool(getattr(service.credits,"connected",False)),
+            "operating_reserve_funded":bool(getattr(service.credits,"risk_ready_fn",lambda:False)()),
+        }
+        return jsonify({"ok":all(checks.values()),"version":"long-story-coordinated-rc6-funded-profit-reserve",
+                        "checks":checks,"paid_generation_started":False})
+
     @bp.post("/api/long-video/plan")
     def plan():
         try:return jsonify({"ok":True,"plan":service.plan(request.get_json(silent=True) or {})})
@@ -27,7 +42,7 @@ def create_blueprint(service):
 
     @bp.get("/api/long-video/library")
     def library():
-        return jsonify({"ok":True,"projects":service.store.list_projects(service.owner()),"library":"Simo Long Video Library"})
+        return jsonify({"ok":True,"projects":service.library(),"library":"Simo Long Video Library"})
 
     @bp.get("/api/long-video/media/<pid>")
     def media(pid):

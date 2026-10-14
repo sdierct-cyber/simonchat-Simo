@@ -1,5 +1,5 @@
 
-import json, os, sqlite3, datetime as dt, secrets
+import json, os, sqlite3, datetime as dt, secrets, time
 
 class LongVideoStore:
     def __init__(self,path):
@@ -17,6 +17,8 @@ class LongVideoStore:
             total_seconds INTEGER NOT NULL, scene_seconds INTEGER NOT NULL, scene_count INTEGER NOT NULL,
             status TEXT NOT NULL, required_credits INTEGER NOT NULL DEFAULT 0,
             output_url TEXT, local_media_path TEXT, error TEXT,
+            orchestration_reservation_json TEXT,
+            orchestration_reservation_state TEXT NOT NULL DEFAULT 'none',
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         )""")
         c.execute("""CREATE TABLE IF NOT EXISTS simo_long_video_scenes(
@@ -27,17 +29,51 @@ class LongVideoStore:
             reservation_state TEXT NOT NULL DEFAULT 'none', error TEXT,
             created_at TEXT NOT NULL, updated_at TEXT NOT NULL
         )""")
+        # Backward-compatible schema migration for existing Long Video databases.
+        cols={r["name"] for r in c.execute("PRAGMA table_info(simo_long_video_projects)").fetchall()}
+        if "orchestration_reservation_json" not in cols:
+            c.execute("ALTER TABLE simo_long_video_projects ADD COLUMN orchestration_reservation_json TEXT")
+        if "orchestration_reservation_state" not in cols:
+            c.execute("ALTER TABLE simo_long_video_projects ADD COLUMN orchestration_reservation_state TEXT NOT NULL DEFAULT 'none'")
         c.execute("CREATE INDEX IF NOT EXISTS idx_simo_long_owner ON simo_long_video_projects(owner_key,updated_at DESC)")
         c.execute("CREATE INDEX IF NOT EXISTS idx_simo_long_scene_project ON simo_long_video_scenes(project_id,scene_index)")
+        c.execute("CREATE TABLE IF NOT EXISTS simo_long_video_leases (project_id TEXT PRIMARY KEY, token TEXT NOT NULL, expires REAL NOT NULL)")
         c.commit(); c.close()
 
-    def create_project(self,owner,title,prompt,total_seconds,scene_seconds,scene_count,required_credits):
+    def acquire_lease(self,pid,token,ttl=120):
+        c=self._conn()
+        try:
+            c.execute("BEGIN IMMEDIATE")
+            row=c.execute("SELECT token,expires FROM simo_long_video_leases WHERE project_id=?",(pid,)).fetchone()
+            if row and row["expires"]>time.time() and row["token"]!=token:
+                c.rollback();return False
+            c.execute("INSERT OR REPLACE INTO simo_long_video_leases VALUES (?,?,?)",(pid,token,time.time()+ttl))
+            c.commit();return True
+        finally:c.close()
+
+    def renew_lease(self,pid,token,ttl=120):
+        c=self._conn()
+        try:
+            c.execute("UPDATE simo_long_video_leases SET expires=? WHERE project_id=? AND token=?",(time.time()+ttl,pid,token));c.commit()
+        finally:c.close()
+
+    def release_lease(self,pid,token):
+        c=self._conn()
+        try:
+            c.execute("DELETE FROM simo_long_video_leases WHERE project_id=? AND token=?",(pid,token));c.commit()
+        finally:c.close()
+
+    def create_project(self,owner,title,prompt,total_seconds,scene_seconds,scene_count,required_credits,orchestration_reservation=None):
         now=dt.datetime.now(dt.timezone.utc).isoformat().replace("+00:00","Z")
         pid="slv_"+secrets.token_hex(12); c=self._conn()
+        reservation=orchestration_reservation or {}
+        reservation_state="reserved" if reservation and not reservation.get("mock") else "none"
         c.execute("""INSERT INTO simo_long_video_projects
-          (id,owner_key,title,prompt,total_seconds,scene_seconds,scene_count,status,required_credits,created_at,updated_at)
-          VALUES (?,?,?,?,?,?,?,'planned',?,?,?)""",
-          (pid,owner,title,prompt,int(total_seconds),int(scene_seconds),int(scene_count),int(required_credits),now,now))
+          (id,owner_key,title,prompt,total_seconds,scene_seconds,scene_count,status,required_credits,
+           orchestration_reservation_json,orchestration_reservation_state,created_at,updated_at)
+          VALUES (?,?,?,?,?,?,?,'planned',?,?,?,?,?)""",
+          (pid,owner,title,prompt,int(total_seconds),int(scene_seconds),int(scene_count),int(required_credits),
+           json.dumps(reservation,ensure_ascii=False),reservation_state,now,now))
         c.commit(); c.close(); return pid
 
     def add_scene(self,project_id,owner,index,prompt,spec,credits,reservation=None):
@@ -52,11 +88,11 @@ class LongVideoStore:
         c.commit(); c.close(); return sid
 
     def update_project(self,pid,owner,**changes):
-        allowed={"title","status","output_url","local_media_path","error"}
+        allowed={"title","status","output_url","local_media_path","error","orchestration_reservation_json","orchestration_reservation_state"}
         self._update("simo_long_video_projects","id",pid,owner,allowed,changes)
 
     def update_scene(self,sid,owner,**changes):
-        allowed={"status","provider_job_id","local_media_path","reservation_json","reservation_state","error"}
+        allowed={"status","provider_job_id","local_media_path","reservation_json","reservation_state","error","prompt","spec_json"}
         self._update("simo_long_video_scenes","id",sid,owner,allowed,changes)
 
     def _update(self,table,key,value,owner,allowed,changes):
@@ -70,7 +106,11 @@ class LongVideoStore:
 
     def project_private(self,pid,owner):
         c=self._conn(); row=c.execute("SELECT * FROM simo_long_video_projects WHERE id=? AND owner_key=?",(pid,owner)).fetchone(); c.close()
-        return dict(row) if row else None
+        if not row:return None
+        d=dict(row)
+        try:d["orchestration_reservation"]=json.loads(d.get("orchestration_reservation_json") or "{}")
+        except:d["orchestration_reservation"]={}
+        return d
 
     def scene_private(self,sid,owner):
         c=self._conn(); row=c.execute("SELECT * FROM simo_long_video_scenes WHERE id=? AND owner_key=?",(sid,owner)).fetchone(); c.close()
