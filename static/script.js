@@ -9910,6 +9910,7 @@ setSuggestionsVisible(false);
     var b = existingMic();
     if (b) {
       b.classList.toggle("is-listening", fallbackRecording);
+      b.classList.toggle("simo-mic-listening", fallbackRecording);
       b.setAttribute("data-simo-listening", fallbackRecording ? "1" : "0");
       b.setAttribute("aria-pressed", fallbackRecording ? "true" : "false");
       b.title = fallbackRecording ? "Stop microphone" : "Microphone input";
@@ -10079,10 +10080,13 @@ setSuggestionsVisible(false);
     b.style.display = "";
     var enabled = !!voiceSettings().micEnabled;
     b.disabled = false;
-    b.setAttribute("aria-pressed", listening ? "true" : "false");
-    b.setAttribute("data-simo-listening", listening ? "1" : "0");
-    b.classList.toggle("is-listening", !!listening);
-    b.title = listening
+    // Keep recording fallback and browser speech recognition visually in sync.
+    var active = !!(listening || fallbackRecording);
+    b.setAttribute("aria-pressed", active ? "true" : "false");
+    b.setAttribute("data-simo-listening", active ? "1" : "0");
+    b.classList.toggle("is-listening", active);
+    b.classList.toggle("simo-mic-listening", active);
+    b.title = active
       ? "Stop microphone"
       : (enabled ? "Microphone input" : "Tap to enable microphone input");
   }
