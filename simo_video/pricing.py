@@ -64,7 +64,7 @@ class VideoPricingEngine:
         if provider_cost > self.config.max_provider_cost_usd:
             raise PricingError("This request exceeds Simo's configured provider-cost safety ceiling.")
 
-        total_cost = provider_cost + self.config.infra_reserve_usd
+        total_cost = (provider_cost + self.config.infra_reserve_usd) * 1.25
         if self.config.minimum_margin_ratio >= 1.0:
             raise PricingError("Invalid margin configuration.")
         required_revenue = total_cost / max(0.001, 1.0 - self.config.minimum_margin_ratio)

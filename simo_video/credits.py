@@ -29,6 +29,15 @@ class CreditHooks:
         return self.status_fn() if callable(self.status_fn) else None
 
 
+    def mark_started(self, reservation):
+        fn=getattr(self,"start_fn",None)
+        if callable(fn):fn(reservation)
+
+    def consume(self, reservation):
+        fn=getattr(self,"consume_fn",None)
+        if callable(fn):fn(reservation)
+
+
 class CreditDenied(Exception):
     def __init__(self, response):
         super().__init__("Simo Credits are not available for this video request.")

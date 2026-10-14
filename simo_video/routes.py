@@ -14,7 +14,11 @@ def create_blueprint(service):
         c=service.config
         return jsonify({"ok":True,"feature":"Simo Video","enabled":c.enabled,"mock_mode":c.mock_mode,
                         "provider_live_enabled": bool(c.provider_enabled and not c.provider_kill_switch),
-                        "attribution":"Created with Simo"})
+                        "attribution":"Created with Simo",
+                        "credit_bridge":bool(service.credits.connected),
+                        "reserve_module_present":True,
+                        "operating_reserve_funded":bool(getattr(service.credits,"risk_ready_fn",lambda:False)()),
+                        "paid_generation_started":False})
 
     @bp.post("/api/video/quote")
     def quote():

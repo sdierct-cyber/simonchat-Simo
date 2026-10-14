@@ -179,7 +179,7 @@ class VideoService:
             margin = self.config.minimum_margin_ratio
         if provider_cost_usd > max_provider_cost_usd:
             raise RuntimeError("This video request exceeds Simo's configured provider-cost safety ceiling.")
-        total_cost = provider_cost_usd + self.config.infra_reserve_usd
+        total_cost = (provider_cost_usd + self.config.infra_reserve_usd) * 1.25
         if margin >= 1.0:
             raise RuntimeError("Invalid Simo Video margin configuration.")
         required_revenue = total_cost / max(0.001, 1.0 - margin)
@@ -407,7 +407,7 @@ class VideoService:
         job_id = None
         try:
             # Reserve user credits BEFORE the paid provider request.
-            reservation = self.credits.reserve(required_simo_credits)
+            reservation = self.credits.reserve(required_simo_credits,action="video_generate_4k" if str(spec.get("output_resolution") or "").lower()=="4k" else "video_generate")
             title=(spec["prompt"][:72] + ("…" if len(spec["prompt"])>72 else ""))
             job_id=self.store.create_job(
                 owner,title,spec["prompt"],spec,required_simo_credits,reservation
@@ -416,6 +416,7 @@ class VideoService:
 
             # Paid call happens only after the provider quote, app ceiling, Profit Shield,
             # storage gate, kill switch, and user-credit reservation have passed.
+            self.credits.mark_started(reservation)
             result=self.provider.create(spec)
             if result.status not in {"queued","creating","processing","succeeded"}:
                 raise ProviderError(result.error or "Simo video generation did not start successfully.")
@@ -495,6 +496,7 @@ class VideoService:
                     )
                     return self.store.get(private_job["id"], owner)
 
+                self.credits.consume(private_job.get("reservation") or {})
                 internal_url = "/api/video/media/" + private_job["id"]
                 self.store.update(
                     private_job["id"],owner,
