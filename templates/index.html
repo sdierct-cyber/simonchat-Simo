@@ -160,6 +160,30 @@
     body .composer-wrap #simoMicBtn, body .composer-wrap #micBtn { order:4 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
     body .composer-wrap #sendBtn { order:5 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
   </style>
+<style id="simo-home-showcase-styles">
+  .simo-home-showcase {position:relative; margin:22px 0; padding:clamp(16px,2.4vw,25px); border:1px solid rgba(125,174,244,.28); border-radius:19px; background:linear-gradient(150deg,rgba(15,31,57,.95),rgba(5,15,28,.98)); box-shadow:0 14px 42px rgba(0,0,0,.22); color:#ecf5ff;}
+  .simo-home-showcase-head h3 {font-size:clamp(1.25rem,2.1vw,1.85rem);line-height:1.2;margin:7px 0;letter-spacing:-.025em;color:#fff;}
+  .simo-home-showcase-head p {color:#b7cce7;line-height:1.5;margin:0 0 17px;font-size:.95rem;}
+  .simo-home-showcase-player {display:block;width:100%;max-width:820px;height:auto;aspect-ratio:16/9;object-fit:contain;margin:0 auto;border-radius:12px;border:1px solid rgba(160,197,245,.17);background:#000;}
+  .simo-home-showcase-footer {display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding-top:14px;font-size:.82rem;color:#a8bfdc;}
+  .simo-home-showcase-footer a {color:#d9eaff;font-weight:650;text-decoration:none;border:1px solid rgba(164,205,255,.3);border-radius:100px;padding:9px 14px;background:rgba(65,118,190,.16);}
+  .simo-home-showcase-footer a:hover,.simo-home-showcase-footer a:focus-visible {background:rgba(65,118,190,.3);text-decoration:underline;}
+</style>
+
+<style id="simo-guest-demo-styles">
+#simo-guest-demo {margin:20px 0;border:1px solid rgba(123,175,235,.25);border-radius:16px;background:rgba(15,26,43,.7);color:#edf5ff;}
+#simo-guest-demo[hidden] {display:none !important;}
+#simo-guest-demo details:not([open]) .simo-demo-content {display:none !important;}
+#simo-guest-demo summary {display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px 22px;cursor:pointer;list-style:none;}
+#simo-guest-demo summary::-webkit-details-marker {display:none;}
+#simo-guest-demo summary:focus-visible {outline:2px solid #8ccaff;outline-offset:3px;border-radius:14px;}
+#simo-guest-demo strong {display:block;font-size:17px;line-height:1.4;}
+#simo-guest-demo small {display:block;margin-top:4px;color:#b9cbe0;font-size:13px;line-height:1.5;}
+#simo-guest-demo .simo-demo-watch {flex-shrink:0;border:1px solid rgba(140,202,255,.4);border-radius:999px;padding:9px 14px;font-size:13px;color:#d9edff;}
+#simo-guest-demo .simo-demo-content {padding:0 22px 18px;max-width:760px;margin:auto;}
+#simo-guest-demo video {display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:12px;background:#081322;}
+@media(max-width:560px){ #simo-guest-demo summary {align-items:flex-start;flex-direction:column;gap:12px;padding:16px;}#simo-guest-demo .simo-demo-content {padding:0 16px 16px;}}
+</style>
 </head>
 <body>
   <div class="app-shell">
@@ -263,7 +287,22 @@
           </div>
         </section>
 
-<div class="simo-capability-grid">
+{% if simo_boot is defined and not simo_boot.loggedIn %}
+        <section id="simo-guest-demo" aria-label="See what Simo can create">
+          <details id="simo-guest-demo-details">
+            <summary><span><strong>See what Simo can create</strong><small>One idea. Websites, designs, stories and video.</small></span><span class="simo-demo-watch">▶ Watch demo · 1 min</span></summary>
+            <div class="simo-demo-content">
+              <video id="simo-guest-demo-player" controls playsinline preload="none" poster="/static/simo-demo-poster-rc6.jpg" aria-label="Simo one-minute capability showcase">
+                <source src="/static/simo-demo-rc6.mp4" type="video/mp4">
+                Your browser does not support this video. <a href="/static/simo-demo-rc6.mp4">Watch the Simo demo</a>.
+              </video>
+              <small>Created with Simo · Illustrative feature showcase</small>
+            </div>
+          </details>
+        </section>
+        {% endif %}
+
+        <div class="simo-capability-grid">
           <button class="simo-cap-card" type="button" data-simo-starter="build"><span>▣</span><strong>Build a Website</strong><small>Turn any idea into a stunning website</small></button>
           <button class="simo-cap-card" type="button" data-simo-starter="business"><span>☼</span><strong>Create a Business Idea</strong><small>Get inspiration and a plan</small></button>
           <button class="simo-cap-card" type="button" data-simo-starter="design"><span>✎</span><strong>Design Something</strong><small>Edit, enhance, or create images</small></button>
@@ -317,7 +356,7 @@
   <!-- SIMO Architecture Baseline: load the Website Builder owner BEFORE legacy script.js,
        so website prompts are captured before older Design Workspace/dashboard handlers. -->
   <script src="/static/simo-website-builder-recovery.js?v=simo-oct4-context-imagery-rc11"></script>
-  <script src="/static/script.js?v=simo-oct4-final-foundation-rc10"></script>
+  <script src="/static/script.js?v=simo-oct10-mic-state-rc1"></script>
   <script src="/static/simo-ui-recovery.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/phase29b-safe-addon.js?v=r1059j-image-analysis-chat"></script>
   <script src="/static/phase30-image-intake-safe.js?v=r1059j-image-analysis-chat"></script>
@@ -331,5 +370,29 @@
   
 
   <!-- Website Builder owner already loaded before script.js. Do not load it again here. -->
+
+<script id="simo-guest-demo-control">
+(() => {
+  const section=document.getElementById('simo-guest-demo');
+  if(!section)return;
+  const details=document.getElementById('simo-guest-demo-details');
+  const player=document.getElementById('simo-guest-demo-player');
+  details.addEventListener('toggle',()=>{if(!details.open)player.pause();});
+  window.addEventListener('simo:account-context',event=>{
+    if(event.detail && event.detail.loggedIn===true){
+      player.pause();details.open=false;section.hidden=true;
+    }
+  });
+  // Also cover browser back navigation after a completed sign-in.
+  window.addEventListener('pageshow',()=>{
+    fetch('/api/simo/demo-status',{credentials:'same-origin',cache:'no-store'})
+      .then(r=>r.ok?r.json():null).then(status=>{
+        if(status && (status.loggedIn===true || status.logged_in===true)){
+          player.pause();section.remove();
+        }
+      }).catch(()=>{});
+  });
+})();
+</script>
 </body>
 </html>
