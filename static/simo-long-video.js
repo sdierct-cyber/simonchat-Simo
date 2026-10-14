@@ -7,6 +7,25 @@ planBtn=$("lvPlan"),createBtn=$("lvCreate"),summary=$("lvSummary"),scenes=$("lvS
 progressPanel=$("lvProgressPanel"),progressBar=$("lvProgressBar"),progressTitle=$("lvProgressTitle"),progressDetail=$("lvProgressDetail"),
 sceneProgress=$("lvSceneProgress"),elapsed=$("lvElapsed");
 
+// One-time same-tab transfer from Short Video; never triggers paid production.
+try {
+  const key="simo_long_video_handoff_v1";
+  const raw=sessionStorage.getItem(key);
+  if(raw){
+    const draft=JSON.parse(raw);
+    if(draft && draft.version===1 && Date.now()-Number(draft.created||0)<3600000){
+      if(draft.prompt) p.value=String(draft.prompt);
+      if(Number(draft.total_seconds)>=10){lengthValue.value=String(draft.total_seconds);lengthUnit.value="seconds";}
+      if(draft.output_resolution) outputResolution.value=draft.output_resolution;
+      if(draft.aspect_ratio) aspect.value=draft.aspect_ratio;
+      if(draft.music_style) musicStyle.value=String(draft.music_style);
+      if(draft.voiceover_text) voiceText.value=String(draft.voiceover_text);
+      if(draft.negative_prompt) avoid.value=String(draft.negative_prompt);
+      audio.checked=!!draft.audio;music.checked=!!draft.music;voice.checked=!!draft.voiceover;
+    }
+    sessionStorage.removeItem(key);
+  }
+} catch(e) { /* No payment or production is triggered by draft recovery. */ }
 let currentPlan=null;
 let timerHandle=null;
 let startedAt=0;
@@ -15,16 +34,16 @@ const touched={audio:false,music:false,voice:false,musicStyle:false,voiceText:fa
 audio.addEventListener("change",()=>{touched.audio=true});
 music.addEventListener("change",()=>{touched.music=true});
 voice.addEventListener("change",()=>{touched.voice=true});
-musicStyle.addEventListener("input",()=>{touched.musicStyle=true});
-voiceText.addEventListener("input",()=>{touched.voiceText=true});
+musicStyle.addEventListener("input",()=>{touched.musicStyle=true; if(musicStyle.value.trim() && !touched.music) music.checked=true; invalidatePlan();});
+voiceText.addEventListener("input",()=>{touched.voiceText=true; if(voiceText.value.trim() && !touched.voice) voice.checked=true; invalidatePlan();});
 
 function inferFromPromptLive(){
   const text=String(p.value||"");
   const lower=text.toLowerCase();
 
   const wantsAudio=/\b(sound|audio|ambience|ambient sound|road ambience|ocean ambience|sound effects|sfx)\b/i.test(text);
-  const wantsMusic=/\b(music|score|soundtrack|orchestral|piano|ambient music|electronic|acoustic)\b/i.test(text);
-  const wantsVoice=/\b(voiceover|voice over|narrat(?:e|ion|or))\b/i.test(text);
+  const wantsMusic=Boolean(musicStyle.value.trim()) || /\b(music|score|soundtrack|orchestral|piano|ambient music|electronic|acoustic)\b/i.test(text);
+  const wantsVoice=Boolean(voiceText.value.trim()) || /\b(voiceover|voice over|narrat(?:e|ion|or))\b/i.test(text);
 
   if(!touched.audio) audio.checked=wantsAudio || audio.checked;
   if(!touched.music) music.checked=wantsMusic;
@@ -47,7 +66,16 @@ function inferFromPromptLive(){
     }
   }
 }
-p.addEventListener("input",inferFromPromptLive);
+function invalidatePlan(){
+  currentPlan=null;
+  createBtn.disabled=true;
+  summary.textContent="Production settings changed — click Plan + Quote — No Charge for an updated protected price.";
+  scenes.replaceChildren();
+}
+p.addEventListener("input",()=>{inferFromPromptLive();invalidatePlan();});
+[lengthValue,lengthUnit,outputResolution,aspect,audio,music,voice,avoid].forEach(el=>{
+  el.addEventListener(el.tagName==="INPUT" && el.type!=="checkbox" ? "input" : (el.tagName==="TEXTAREA" ? "input" : "change"),invalidatePlan);
+});
 
 function requestedSeconds(){
   const raw=Math.max(0,Number(lengthValue.value||0));
@@ -62,7 +90,9 @@ const body=()=>({
   aspect_ratio:aspect.value,
   audio:audio.checked,
   music:music.checked,
+  music_user_override:touched.music,
   voiceover:voice.checked,
+  voiceover_user_override:touched.voice,
   music_style:musicStyle.value.trim(),
   voiceover_text:voiceText.value.trim(),
   negative_prompt:avoid.value.trim(),
