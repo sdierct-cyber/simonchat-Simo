@@ -558,7 +558,8 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
     return serverItems || [];
   }
 
-  async function backendLoadLibrary() {
+  let __simoBackendLibraryLoadInFlight = null;
+  async function backendLoadLibraryImpl() {
     // The server is authoritative for account ownership.  Do not let a stale
     // client-side Pro flag make a signed-in Pro account look like Guest/Free.
     if (!state.me.loggedIn) {
@@ -603,6 +604,14 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
       updateDashboardUi();
       return getLibrary();
     }
+  }
+
+  function backendLoadLibrary() {
+    if (__simoBackendLibraryLoadInFlight) return __simoBackendLibraryLoadInFlight;
+    const task = backendLoadLibraryImpl();
+    __simoBackendLibraryLoadInFlight = task;
+    task.finally(() => { if (__simoBackendLibraryLoadInFlight === task) __simoBackendLibraryLoadInFlight = null; });
+    return task;
   }
 
   async function backendSaveLibraryItem(item) {
@@ -9615,18 +9624,13 @@ Return a complete HTML document ready for preview.
   }
 
   async function getProStatus() {
-    try {
-      const res = await fetch("/api/pro-status", {
-        method: "GET",
-        credentials: "same-origin",
-        headers: { "Accept": "application/json" }
-      });
-      if (!res.ok) return looksProFromUI();
-      const data = await res.json();
-      return !!(data && data.pro === true);
-    } catch (err) {
-      return looksProFromUI();
-    }
+    // Reuse authoritative account context already populated by /api/me and
+    // /api/pro-status during startup. Do not poll Pro status for helper layout.
+    const account = window.__SIMO_ACCOUNT_CONTEXT__;
+    if (account && typeof account.pro === "boolean") return account.pro;
+    const initial = window.SIMO_BOOT;
+    if (initial && typeof initial.pro === "boolean") return initial.pro;
+    return looksProFromUI();
   }
 
 function setSuggestionsVisible(visible) {
@@ -9734,12 +9738,15 @@ setSuggestionsVisible(false);
 
   runOnce();
 
+  // Only retry initial DOM wiring briefly; status is taken from shared
+  // account context instead of hitting the backend every 500ms.
   let tries = 0;
   const timer = setInterval(() => {
     tries += 1;
     runOnce();
-    if (tries >= 30) clearInterval(timer);
+    if (tries >= 4) clearInterval(timer);
   }, 500);
+  window.addEventListener("simo:account-context", runOnce);
 })();
 
 // ==============================

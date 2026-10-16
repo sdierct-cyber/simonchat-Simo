@@ -48,7 +48,7 @@
   }
   function postJSON(url,payload,timeoutMs){
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    timeoutMs=Math.max(30000,Number(timeoutMs||180000));
+    timeoutMs=Math.min(480000,Math.max(30000,Number(timeoutMs||420000)));
     var timer = window.setTimeout(function(){ try{ if(controller) controller.abort(); }catch(_){} }, timeoutMs);
     return fetch(url,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload||{}),signal:controller?controller.signal:undefined})
       .then(function(r){
@@ -58,7 +58,7 @@
         });
       })
       .catch(function(err){
-        if(err && err.name==='AbortError') throw new Error('Simo is taking longer than the allowed processing window. The current website was kept unchanged; please retry once.');
+        if(err && err.name==='AbortError') throw new Error('Website generation exceeded the processing window. The current website was kept unchanged. Do not resubmit until the server result and credits are checked.');
         throw err;
       })
       .finally(function(){ window.clearTimeout(timer); });
@@ -388,17 +388,19 @@
       var all=Array.isArray(data&&data.items)?data.items:[];
       var remote=serverWebsiteProjects(all);
       var designCount=all.filter(function(item){return isDesignWorkspaceItem(item);}).length;
-      var saved=saveList(remote)||remote;
+      var saved=saveList(remote, true)||remote;
       publishLibraryCounts(saved.length,designCount);
       return saved;
     });
   }
-  function saveList(list){
+  function saveList(list, silentSync){
     var exact = (Array.isArray(list) ? list : []).map(normalizeExactProject).filter(Boolean);
     if (!setJSON(libKey(), exact)) return null;
     var verified = getJSON(libKey(), []);
     if (!Array.isArray(verified) || verified.length !== exact.length) return null;
-    try { window.dispatchEvent(new CustomEvent('simo:website-library-updated',{detail:{reason:'web63-canonical-save'}})); } catch(e) {}
+    if (!silentSync) {
+      try { window.dispatchEvent(new CustomEvent('simo:website-library-updated',{detail:{reason:'web63-canonical-save'}})); } catch(e) {}
+    }
     updateCount();
     return exact;
   }
@@ -1147,10 +1149,15 @@
     if(accountContext().accountOwned){
       syncServerLibrary().catch(function(err){console.warn('Website Library sync failed:',err);updateCount();});
     }
+    var lastAccountContextKey = accountContext().scope + '|' + accountContext().accountOwned;
     window.addEventListener('simo:account-context',function(){
       try{
+        var c = accountContext();
+        var nextKey = c.scope + '|' + c.accountOwned;
+        if (nextKey === lastAccountContextKey) return;
+        lastAccountContextKey = nextKey;
         window.__SIMO_WEB5_PROJECTS__={};
-        if(accountContext().accountOwned) syncServerLibrary().catch(function(){updateCount();});
+        if(c.accountOwned) syncServerLibrary().catch(function(){updateCount();});
         else updateCount();
       }catch(_){}
     });
