@@ -9624,13 +9624,18 @@ Return a complete HTML document ready for preview.
   }
 
   async function getProStatus() {
-    // Reuse authoritative account context already populated by /api/me and
-    // /api/pro-status during startup. Do not poll Pro status for helper layout.
-    const account = window.__SIMO_ACCOUNT_CONTEXT__;
-    if (account && typeof account.pro === "boolean") return account.pro;
-    const initial = window.SIMO_BOOT;
-    if (initial && typeof initial.pro === "boolean") return initial.pro;
-    return looksProFromUI();
+    try {
+      const res = await fetch("/api/pro-status", {
+        method: "GET",
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" }
+      });
+      if (!res.ok) return looksProFromUI();
+      const data = await res.json();
+      return !!(data && data.pro === true);
+    } catch (err) {
+      return looksProFromUI();
+    }
   }
 
 function setSuggestionsVisible(visible) {
@@ -9725,28 +9730,23 @@ setSuggestionsVisible(false);
     return true;
   }
 
-  let running = false;
-  async function runOnce() {
-    if (running) return;
-    running = true;
-    try {
-      await wireHelperToggle();
-    } finally {
-      running = false;
-    }
-  }
-
-  runOnce();
-
-  // Only retry initial DOM wiring briefly; status is taken from shared
-  // account context instead of hitting the backend every 500ms.
-  let tries = 0;
+  // RC2: initialize the helper once when its required elements exist.
+  // Previously a 500ms timer ran 30 Pro API calls even after success.
+  let helperWired = false;
+  let attempts = 0;
+  const initializeHelper = async () => {
+    if (helperWired) return;
+    if (!getSendButton() || !getSuggestionsCard()) return;
+    helperWired = true;
+    try { await wireHelperToggle(); }
+    catch (err) { helperWired = false; console.warn("Simo helper initialization failed", err); }
+  };
+  initializeHelper();
   const timer = setInterval(() => {
-    tries += 1;
-    runOnce();
-    if (tries >= 4) clearInterval(timer);
+    attempts += 1;
+    if (helperWired || attempts >= 30) { clearInterval(timer); return; }
+    initializeHelper();
   }, 500);
-  window.addEventListener("simo:account-context", runOnce);
 })();
 
 // ==============================

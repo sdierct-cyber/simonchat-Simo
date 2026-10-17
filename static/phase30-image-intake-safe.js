@@ -218,6 +218,7 @@
       source: source || "selected",
       uploadedAt: Date.now()
     };
+    const uploadImage = staged;
     try { window.__SIMO_STAGED_IMAGE__ = staged; } catch {}
     updateTray("Uploading image safely…");
     setStatus("Uploading image…", true);
@@ -235,19 +236,20 @@
         signal: controller.signal
       });
       const data = await res.json().catch(function () { return {}; });
+      if (staged !== uploadImage) return;
       if (!res.ok || !data.ok) throw new Error(data.error || `Upload failed: ${res.status}`);
 
-      staged = {
-        ...staged,
+      Object.assign(staged, {
         filename: data.filename || staged.filename,
         url: data.url || "",
         status: "Image uploaded and staged. You can analyze it or send a prompt with it."
-      };
+      });
       try { window.__SIMO_STAGED_IMAGE__ = staged; } catch {}
       updateTray(staged.status);
       setStatus("Image uploaded. Ready for analysis or your next prompt.", false);
       await analyzeStagedImage(false);
     } catch (err) {
+      if (staged !== uploadImage) return;
       const message = err && err.name === "AbortError" ? "Image upload timed out before Simo could finish." : (err && err.message ? err.message : "Image upload failed.");
       if (staged) staged.status = message;
       updateTray(message);
@@ -255,6 +257,7 @@
       addAssistant(message, "Image Upload");
     } finally {
       clearTimeout(timer);
+      if (staged !== uploadImage) return;
       busy = false;
       updateTray(staged ? staged.status : "Ready.");
     }
@@ -262,6 +265,7 @@
 
   async function analyzeStagedImage(manual) {
     if (!staged || !staged.url || analysisInFlight) return;
+    const analysisImage = staged;
     analysisInFlight = true;
     updateTray("Analyzing image…");
     setStatus("Analyzing uploaded image…", true);
@@ -278,6 +282,7 @@
         })
       });
       const data = await res.json().catch(function () { return {}; });
+      if (staged !== analysisImage) return;
       if (!res.ok || !data.ok) throw new Error(data.error || `Analysis failed: ${res.status}`);
 
       const reply = data.reply || "Image uploaded. I can use it as context for your next prompt.";
@@ -291,12 +296,14 @@
         addImageAnalysis(reply, staged.previewUrl || staged.url);
       }
     } catch (err) {
+      if (staged !== analysisImage) return;
       const message = err && err.message ? err.message : "Image analysis failed.";
       staged.status = "Image uploaded. Analysis did not finish, but the image can still be attached to your next prompt.";
       updateTray(staged.status);
       setStatus(staged.status, false);
       if (manual) addImageAnalysis(message, staged.previewUrl || staged.url);
     } finally {
+      if (staged !== analysisImage) return;
       analysisInFlight = false;
       updateTray(staged ? staged.status : "Ready.");
     }
@@ -374,6 +381,7 @@
         })
       });
       const data = await res.json().catch(function () { return {}; });
+      if (staged !== imagePayload) { try { working.remove(); } catch {} return true; }
       if (!res.ok || !data.ok) throw new Error(data.error || `Chat failed: ${res.status}`);
 
       try { working.remove(); } catch {}
@@ -385,13 +393,16 @@
       }
     } catch (err) {
       try { working.remove(); } catch {}
+      if (staged !== imagePayload) return true;
       const message = err && err.message ? err.message : "Image prompt failed.";
       addAssistant(message, "Image Prompt");
       setStatus(message, false);
       updateTray("Image is still staged. You can retry your prompt.");
     } finally {
-      busy = false;
-      updateTray(staged ? staged.status : "Ready.");
+      if (staged === imagePayload) {
+        busy = false;
+        updateTray(staged.status);
+      }
     }
     return true;
   }
