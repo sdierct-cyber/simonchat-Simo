@@ -4726,10 +4726,19 @@ def generate_visual_image(user_text: str, client, explicit_domain: str = "", pre
 
     prompt = normalize_whitespace(user_text) if prebuilt_prompt else make_visual_image_prompt(user_text, explicit_domain)
     last_error = ""
+    # Image requests need their own timeout; do not inherit the chat timeout.
+    try:
+        image_timeout = float(os.getenv("OPENAI_IMAGE_TIMEOUT_SECONDS", "150") or "150")
+        if not (60 <= image_timeout <= 180):
+            image_timeout = 150.0
+    except (TypeError, ValueError):
+        image_timeout = 150.0
+    attempts_made = 0
 
-    print(f"[SIMO IMAGE] start model={OPENAI_IMAGE_MODEL} size={OPENAI_IMAGE_SIZE} timeout={OPENAI_TIMEOUT_SECONDS}s domain={explicit_domain}", flush=True)
+    print(f"[SIMO IMAGE] start model={OPENAI_IMAGE_MODEL} size={OPENAI_IMAGE_SIZE} timeout={image_timeout}s domain={explicit_domain}", flush=True)
 
     for attempt in range(1, 3):
+        attempts_made = attempt
         try:
             print(f"[SIMO IMAGE] attempt {attempt}/2 calling OpenAI images.generate", flush=True)
             image_kwargs = {
@@ -4737,6 +4746,7 @@ def generate_visual_image(user_text: str, client, explicit_domain: str = "", pre
                 "prompt": prompt,
                 "size": OPENAI_IMAGE_SIZE,
                 "n": 1,
+                "timeout": image_timeout,
             }
 
             # GPT image models return base64 image data and support output_format.
@@ -4800,13 +4810,17 @@ def generate_visual_image(user_text: str, client, explicit_domain: str = "", pre
         except Exception as e:
             last_error = f"{type(e).__name__}: {str(e)}"
             print(f"[SIMO IMAGE] attempt {attempt}/2 failed: {last_error}", flush=True)
+            # A timeout/connection loss does not prove the provider stopped work.
+            # Avoid an immediate duplicate paid request for the same image.
+            if type(e).__name__ in {"APITimeoutError", "APIConnectionError", "TimeoutError", "ConnectTimeout", "ReadTimeout"}:
+                break
 
     return {
         "ok": False,
         "url": "",
         "error": last_error or "Image generation did not complete.",
         "prompt": prompt,
-        "attempts": 2,
+        "attempts": attempts_made,
     }
 
 
