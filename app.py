@@ -1,3 +1,4 @@
+import time
 # SIMO OCT 4 RC13 — universal backend subject lock + RC12 validator + RC10 mobile/free protections
 # SIMO OCT 4 RC12 — Razor validator false-negative fix; all RC10 mobile/profit logic preserved
 # SIMO RC11.8.2 — ACTIVE/UPCOMING STALE-YEAR AUTO-REPAIR FOR NORMAL GENERATION
@@ -426,7 +427,7 @@ def build_fallback_html(user_text: str) -> str:
     # R10.60Z62: subject-driven premium fallback. This prevents razor/camera/computer/etc.
     # prompts from collapsing into the old generic/SaaS template when OpenAI does not return HTML.
     try:
-        return build_subject_premium_html(user_text)
+        return build_universal_premium_html(user_text)
     except Exception as e:
         print(f"[SIMO R10.60Z62] subject premium fallback failed, using legacy fallback: {e}", flush=True)
 
@@ -7068,7 +7069,7 @@ def api_claim_credit_pack():
     except Exception as e:
         return jsonify({"ok": False, "error": f"Could not verify credit purchase: {str(e)}"}), 400
 
-    metadata = getattr(checkout, "metadata", None) or checkout.get("metadata", {}) if isinstance(checkout, dict) else {}
+    metadata = (checkout.get("metadata") if isinstance(checkout, dict) else getattr(checkout, "metadata", None)) or {}
     payment_status = str(getattr(checkout, "payment_status", "") or (checkout.get("payment_status", "") if isinstance(checkout, dict) else "")).lower()
     paid = payment_status == "paid"
     if not paid:
@@ -13647,7 +13648,32 @@ Before returning, mentally open the page at 1440px wide. Rebuild it if the hero 
 - Use the current server year for copyright text; never invent a stale year.
 {repair}"""
 
-def _simo_v71_html_review(html: str, prompt: str, defer_image_quota: bool = False):
+def _simo_website_markup_inventory(html: str):
+    """Count real element attributes, never selector text inside CSS or scripts."""
+    from html.parser import HTMLParser
+
+    class Inventory(HTMLParser):
+        def __init__(self):
+            super().__init__(convert_charrefs=True)
+            self.sections = 0
+            self.editables = 0
+
+        def handle_starttag(self, tag, attrs):
+            attributes = dict(attrs)
+            if attributes.get("data-simo-section"):
+                self.sections += 1
+            if attributes.get("data-simo-editable"):
+                self.editables += 1
+
+        def handle_startendtag(self, tag, attrs):
+            self.handle_starttag(tag, attrs)
+
+    inventory = Inventory()
+    inventory.feed(str(html or ""))
+    return {"sections": inventory.sections, "editables": inventory.editables}
+
+
+def _simo_v71_html_review(html: str, prompt: str, defer_image_quota: bool = False, accept_local_authored: bool = False):
     raw = str(html or "").strip()
     low = raw.lower()
     reasons = []
@@ -13660,9 +13686,10 @@ def _simo_v71_html_review(html: str, prompt: str, defer_image_quota: bool = Fals
     for token, label in (("<!doctype html", "doctype"), ("<html", "html element"), ("<style", "embedded CSS"), ("</html>", "closing html")):
         if token not in low:
             reasons.append("missing " + label)
-    if len(re.findall(r"data-simo-section\s*=", low)) < min_sections:
+    markup_inventory = _simo_website_markup_inventory(raw)
+    if markup_inventory["sections"] < min_sections:
         reasons.append(f"fewer than {min_sections} meaningful sections")
-    if len(re.findall(r"data-simo-editable\s*=", low)) < min_editables:
+    if markup_inventory["editables"] < min_editables:
         reasons.append("insufficient editable elements")
     actual_imgs = len(re.findall(r"<img\b", low))
     image_treatments = actual_imgs + len(re.findall(r"background(?:-image)?\s*:[^;}]*url\(", low))
@@ -13680,10 +13707,22 @@ def _simo_v71_html_review(html: str, prompt: str, defer_image_quota: bool = Fals
         # this prevents strong product/editorial pages from being discarded solely because
         # the authored composition reuses a hero/detail/lifestyle campaign intelligently.
         release_floor = min(image_target, 3)
-        if len(exact_subject_urls) < release_floor:
-            reasons.append(f"only {len(exact_subject_urls)} exact-subject image URLs; fewer than {release_floor} strong subject scenes")
-        if len(unique_subject_urls) < release_floor:
-            reasons.append(f"only {len(unique_subject_urls)} distinct subject image scenes; fewer than {release_floor} strong subject scenes")
+        # RC2: The final delivery contract requires local, generated image files.
+        # The early authoring review can inspect remote scene prompts, but the
+        # *final* review must assess distinct local assets instead. Otherwise
+        # successful image localization removes the very URLs this test requires.
+        # This exception is opt-in solely for the final Razor review; it does
+        # not bypass authoring, uniqueness, readiness, or subject-image checks.
+        local_authored_sources = re.findall(
+            r'<img\b[^>]*\bsrc=["\']((?:/generated-images/|/static/simo_web_images/)[^"\']+)["\']',
+            raw, flags=re.I,
+        )
+        has_remote_image_tags = bool(re.search(r'<img\b[^>]*\bsrc=["\']https?://', raw, flags=re.I))
+        local_scene_count = len(set(local_authored_sources)) if accept_local_authored and not has_remote_image_tags else 0
+        if len(exact_subject_urls) < release_floor and local_scene_count < release_floor:
+            reasons.append(f"only {len(exact_subject_urls)} exact-subject image URLs and {local_scene_count} distinct local authored images; fewer than {release_floor} strong subject scenes")
+        if len(unique_subject_urls) < release_floor and local_scene_count < release_floor:
+            reasons.append(f"only {len(unique_subject_urls)} distinct subject image scenes and {local_scene_count} distinct local authored images; fewer than {release_floor} strong subject scenes")
     blocked = ["source.unsplash.com", "via.placeholder", "placeholder.com", "lorem ipsum", "main offer", "signature offer", "proof & details", "built around what visitors care about", "generated by simo", "generated by ai", "premium fallback", "simo studio"]
     for phrase in blocked:
         if phrase in low:
@@ -14194,7 +14233,7 @@ def _simo_v84_rendered_layout_guard(html: str, prompt: str) -> str:
   function scaleOf(el){try{var t=getComputedStyle(el).transform;if(!t||t==='none')return 1;var m=t.match(/^matrix\(([^)]+)\)$/);if(m){var a=m[1].split(',').map(Number);return Math.sqrt((a[0]||1)*(a[0]||1)+(a[1]||0)*(a[1]||0))}var m3=t.match(/^matrix3d\(([^)]+)\)$/);if(m3){var b=m3[1].split(',').map(Number);return Math.sqrt((b[0]||1)*(b[0]||1)+(b[1]||0)*(b[1]||0))}}catch(e){}return 1}
   function hero(){var h=document.querySelector('[data-simo-section="hero"],header.hero,.hero');if(h)return h;var h1=document.querySelector('h1');if(!h1)return null;h=h1.closest('section,header,main>div');if(h)try{h.setAttribute('data-simo-section','hero')}catch(e){}return h}
   function normalizeContainer(el,sw){if(!el||el===document.body||el===document.documentElement)return;var r=el.getBoundingClientRect(),sc=scaleOf(el),meaningful=!!el.querySelector('h1,h2,h3,article,figure,form,img,button'),many=el.querySelectorAll('article,figure,img,.card').length>=2;if(meaningful&&(sc<.88||(sw>980&&r.width>0&&r.width<sw*.58&&(many||el.querySelector('h1,h2'))))){imp(el,'transform','none');imp(el,'zoom','1');if(r.width<sw*.58){imp(el,'width','min(1280px, calc(100% - 48px))');imp(el,'max-width','1280px');imp(el,'margin-left','auto');imp(el,'margin-right','auto')}}}
-  function normalize(){imp(document.documentElement,'zoom','1');imp(document.body,'zoom','1');imp(document.body,'transform','none');imp(document.body,'min-width','0');var h=hero();if(h){imp(h,'width','100%');imp(h,'max-width','none');imp(h,'transform','none');imp(h,'zoom','1');imp(h,'min-height','clamp(620px,76vh,900px)');imp(h,'overflow','hidden');var h1=h.querySelector('h1');if(h1){imp(h1,'font-size','clamp(48px,6.3vw,102px)');imp(h1,'line-height','.96');imp(h1,'max-width','13ch');imp(h1,'height','auto');imp(h1,'max-height','none');imp(h1,'overflow','visible');imp(h1,'transform','none')}var hi=h.querySelector('img');if(hi){imp(hi,'width','100%');imp(hi,'height','100%');imp(hi,'min-height','620px');imp(hi,'object-fit','cover')}}document.querySelectorAll('[data-simo-section],section,header').forEach(function(sec){if(sec===h)return;imp(sec,'width','100%');imp(sec,'max-width','none');imp(sec,'transform','none');imp(sec,'zoom','1');var sw=sec.getBoundingClientRect().width||window.innerWidth;Array.from(sec.children).forEach(function(c){normalizeContainer(c,sw)});sec.querySelectorAll('h2').forEach(function(x){if(px(x,'fontSize')<30)imp(x,'font-size','clamp(34px,4.2vw,64px)')});sec.querySelectorAll('h3').forEach(function(x){if(px(x,'fontSize')<18)imp(x,'font-size','clamp(20px,1.8vw,28px)')});sec.querySelectorAll('p').forEach(function(x){if(px(x,'fontSize')<14)imp(x,'font-size','16px')});var groups=[];sec.querySelectorAll('article,figure').forEach(function(x){if(x.parentElement&&groups.indexOf(x.parentElement)<0)groups.push(x.parentElement)});groups.forEach(function(g){if(g.querySelectorAll(':scope > article,:scope > figure').length>=2){imp(g,'display','grid');imp(g,'grid-template-columns','repeat(auto-fit,minmax(min(100%,280px),1fr))');imp(g,'gap','clamp(20px,2.2vw,34px)');imp(g,'width','100%');imp(g,'max-width','1280px');imp(g,'margin-left','auto');imp(g,'margin-right','auto');imp(g,'transform','none')}});sec.querySelectorAll('img').forEach(function(img){var rr=img.getBoundingClientRect();if(rr.width<140&&sw>900){imp(img,'width','100%');imp(img,'max-width','100%')}if(rr.height<150){imp(img,'min-height','260px');imp(img,'object-fit','cover')}});var form=sec.querySelector('form');if(form&&form.getBoundingClientRect().width<520&&sw>900){imp(form,'width','min(860px,100%)');imp(form,'max-width','860px');imp(form,'margin-left','auto');imp(form,'margin-right','auto')}})}
+  function normalize(){imp(document.documentElement,'zoom','1');imp(document.body,'zoom','1');imp(document.body,'transform','none');imp(document.body,'min-width','0');var h=hero();if(h){imp(h,'width','100%');imp(h,'max-width','none');imp(h,'transform','none');imp(h,'zoom','1');/* RC9: preserve authored hero proportions; don't force giant blank hero */;imp(h,'overflow','hidden');var h1=h.querySelector('h1');if(h1){imp(h1,'font-size','clamp(48px,6.3vw,102px)');imp(h1,'line-height','.96');imp(h1,'max-width','13ch');imp(h1,'height','auto');imp(h1,'max-height','none');imp(h1,'overflow','visible');imp(h1,'transform','none')}var hi=h.querySelector('img');if(hi){imp(hi,'width','100%');imp(hi,'height','100%');/* RC9: no forced image height */imp(hi,'object-fit','cover')}}document.querySelectorAll('[data-simo-section],section,header').forEach(function(sec){if(sec===h)return;imp(sec,'width','100%');imp(sec,'max-width','none');imp(sec,'transform','none');imp(sec,'zoom','1');var sw=sec.getBoundingClientRect().width||window.innerWidth;Array.from(sec.children).forEach(function(c){normalizeContainer(c,sw)});sec.querySelectorAll('h2').forEach(function(x){if(px(x,'fontSize')<30)imp(x,'font-size','clamp(34px,4.2vw,64px)')});sec.querySelectorAll('h3').forEach(function(x){if(px(x,'fontSize')<18)imp(x,'font-size','clamp(20px,1.8vw,28px)')});sec.querySelectorAll('p').forEach(function(x){if(px(x,'fontSize')<14)imp(x,'font-size','16px')});var groups=[];sec.querySelectorAll('article,figure').forEach(function(x){if(x.parentElement&&groups.indexOf(x.parentElement)<0)groups.push(x.parentElement)});groups.forEach(function(g){if(g.querySelectorAll(':scope > article,:scope > figure').length>=2){imp(g,'display','grid');imp(g,'grid-template-columns','repeat(auto-fit,minmax(min(100%,280px),1fr))');imp(g,'gap','clamp(20px,2.2vw,34px)');imp(g,'width','100%');imp(g,'max-width','1280px');imp(g,'margin-left','auto');imp(g,'margin-right','auto');imp(g,'transform','none')}});sec.querySelectorAll('img').forEach(function(img){var rr=img.getBoundingClientRect();if(rr.width<140&&sw>900){imp(img,'width','100%');imp(img,'max-width','100%')}if(rr.height<150){imp(img,'min-height','260px');imp(img,'object-fit','cover')}});var form=sec.querySelector('form');if(form&&form.getBoundingClientRect().width<520&&sw>900){imp(form,'width','min(860px,100%)');imp(form,'max-width','860px');imp(form,'margin-left','auto');imp(form,'margin-right','auto')}})}
   function run(){normalize();setTimeout(normalize,150);setTimeout(normalize,900)}if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();window.addEventListener('load',function(){setTimeout(normalize,60)});
 })();</script>'''
     raw = re.sub(r'</body>', script + '</body>', raw, count=1, flags=re.I)
@@ -14220,13 +14259,13 @@ html,body{zoom:1!important;transform:none!important;min-width:0!important;overfl
 [data-simo-section] button,[data-simo-section] .btn,[data-simo-section] a[class*="btn"]{min-height:48px!important;padding:13px 22px!important;font-size:15px!important}
 [data-simo-section] input,[data-simo-section] textarea,[data-simo-section] select{min-height:46px!important;font-size:16px!important;padding:12px 14px!important;box-sizing:border-box!important}
 [data-simo-section] article img,[data-simo-section] figure img{width:100%!important;min-height:230px!important;object-fit:cover!important;display:block!important}
-[data-simo-section="hero"]{position:relative!important;isolation:isolate!important;overflow:hidden!important;min-height:clamp(650px,82vh,920px)!important;padding:0!important;background:#111!important;color:#fff!important}
+[data-simo-section="hero"]{position:relative!important;isolation:isolate!important;overflow:hidden!important;padding:0!important;background:#111!important;color:#fff!important}
 [data-simo-section="hero"] .simo-v86-hero-copy{position:relative!important;z-index:3!important;box-sizing:border-box!important}
 [data-simo-section="hero"] h1{font-size:clamp(56px,7vw,108px)!important;line-height:.93!important;letter-spacing:-.055em!important;margin:0 0 22px!important;max-width:12ch!important;overflow:visible!important;height:auto!important}
 [data-simo-section="hero"] p{font-size:clamp(18px,1.5vw,22px)!important;line-height:1.55!important;max-width:650px!important}
 [data-simo-section="hero"] nav{z-index:6!important;position:relative!important;width:100%!important}
 .simo-v86-grid{display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))!important;gap:clamp(22px,2.4vw,36px)!important;width:min(1240px,100%)!important;margin-inline:auto!important}.simo-v86-grid>*{min-width:0!important}.simo-v86-project-grid img{min-height:clamp(260px,28vw,430px)!important}
-@media(max-width:820px){[data-simo-section]:not([data-simo-section="hero"]),section:not([data-simo-section="hero"]){padding:64px 20px!important}[data-simo-section="hero"]{min-height:680px!important}[data-simo-section="hero"] h1{font-size:clamp(46px,13vw,76px)!important}}
+@media(max-width:820px){[data-simo-section]:not([data-simo-section="hero"]),section:not([data-simo-section="hero"]){padding:64px 20px!important}[data-simo-section="hero"]{min-height:0!important}[data-simo-section="hero"] h1{font-size:clamp(46px,13vw,76px)!important}}
 </style>'''
     raw = re.sub(r"</head>", css + "</head>", raw, count=1, flags=re.I)
     script = '''<script id="simo-v86-composition-runtime">(function(){
@@ -14786,7 +14825,95 @@ def _simo_v102_ensure_image_slots(html: str, prompt: str) -> str:
     return raw
 
 
-def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: int = 3):
+def _simo_local_website_image_ready(image_url: str) -> bool:
+    """A local-looking URL is ready only if its stored image can actually decode."""
+    from urllib.parse import urlsplit, unquote
+    url = unquote(urlsplit(str(image_url or "")).path)
+    if url.startswith("/generated-images/"):
+        path = local_generated_image_path_from_url(url)
+    elif url.startswith("/static/simo_web_images/"):
+        path = os.path.join(STATIC_DIR, "simo_web_images", os.path.basename(url))
+    else:
+        return False
+    try:
+        from PIL import Image
+        if not path or not os.path.isfile(path) or os.path.getsize(path) == 0:
+            return False
+        with Image.open(path) as image:
+            image.verify()
+        with Image.open(path) as image:
+            image.load()
+            width, height = image.size
+        return width >= 700 and height >= 450
+    except Exception:
+        return False
+
+
+def _simo_safe_image_failure(failures):
+    """Expose first image failure without dumping credentials into API responses."""
+    value = str((failures or ["unknown image failure"])[0])
+    value = re.sub(r"sk-[A-Za-z0-9_-]{12,}", "[redacted]", value)
+    value = re.sub(r"(?i)(api[_ -]?key\s*[:=]\s*)[^\s,;]+", r"\1[redacted]", value)
+    return value[:350]
+
+
+def _simo_universal_cards_finish(html: str) -> str:
+    """Non-destructive layout safety for generated service/pricing cards.
+
+    Do not edit textual prices, image sources, link targets or unrelated pages.
+    """
+    raw = str(html or "")
+    if not re.search(r'<(?:section|div)\b[^>]*(?:class=["\'][^"\']*(?:services|pricing|offerings)|data-simo-section=["\'](?:services|pricing|offerings))', raw, re.I):
+        return raw
+    ident = 'simo-universal-card-layout-v1'
+    if ident in raw:
+        return raw
+    css = r"""<style id="simo-universal-card-layout-v1">
+/* Generated card content stays in normal document flow as text changes. */
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) :is(.service-card,.pricing-card,.price-card){display:flex!important;flex-direction:column!important;align-items:stretch!important;height:auto!important;min-height:0!important;overflow:visible!important;gap:0!important}
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) :is(.service-card,.pricing-card,.price-card) > :is(h2,h3,h4){position:static!important;transform:none!important;margin:0 0 14px!important}
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) :is(.service-card,.pricing-card,.price-card) > p{position:static!important;transform:none!important;margin:0 0 18px!important}
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) :is(.service-card,.pricing-card,.price-card) > :is(strong,.price,[class*="price"],b){position:static!important;display:block!important;transform:none!important;margin:8px 0 18px!important;line-height:1.4!important}
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) :is(.service-card,.pricing-card,.price-card) > :is(a,button,.cta){position:static!important;transform:none!important;display:inline-flex!important;align-self:center!important;justify-content:center!important;align-items:center!important;max-width:100%!important;margin:0 auto 0!important;min-height:44px!important}
+:is([data-simo-section="services"],[data-simo-section="pricing"],[data-simo-section="offerings"],.services,.pricing,.offerings) > figure{grid-column:1/-1;max-width:100%}
+@media(max-width:700px){:is(.services,.pricing,.offerings){grid-template-columns:minmax(0,1fr)!important}}
+</style>"""
+    return re.sub(r'</head>', lambda m: css+m.group(0), raw, count=1, flags=re.I) if re.search(r'</head>',raw,re.I) else raw
+
+
+def _simo_v120_rescue_missing_composition(html: str) -> str:
+    """Repair missing base layout semantics, never waive content/image quality checks.
+
+    This runs only when an otherwise complete HTML document has fewer than
+    four explicit CSS layout operations. It does not replace the authored page.
+    """
+    raw = str(html or '')
+    if not re.search(r'</head>', raw, re.I) or not re.search(r'</html>', raw, re.I):
+        return raw
+    if 'simo-v120-composition-rescue' in raw:
+        return raw
+    css = '\n'.join(re.findall(r'<style[^>]*>([\s\S]*?)</style>', raw, re.I))
+    operations = len(re.findall(r'(?:display\s*:\s*(?:grid|flex)|grid-template|gap\s*:|position\s*:\s*(?:absolute|sticky|fixed))', css, re.I))
+    if operations >= 4:
+        return raw
+    fix = '''<style id="simo-v120-composition-rescue">
+/* Conservatively supply missing layout primitives without replacing original art direction. */
+*,*::before,*::after{box-sizing:border-box}
+html,body{max-width:100%;overflow-x:clip}
+body{margin:0;line-height:1.55}
+:where(main,section,article,header,footer){min-width:0}
+:where(img){max-width:100%;height:auto}
+:where(nav){display:flex;gap:clamp(12px,2vw,28px);flex-wrap:wrap;align-items:center}
+:where(.container,.wrap,.site-container){width:min(1200px,calc(100% - 32px));margin-inline:auto}
+:where(.services,.service-grid,.product-grid,.products,.cards,.gallery-grid,.features-grid){display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:clamp(16px,2.2vw,28px)}
+:where(.service-card,.pricing-card,.product-card){min-width:0;display:flex;flex-direction:column;gap:14px;height:auto}
+:where(.service-card,.pricing-card,.product-card)>:is(a,button,.cta){position:static;margin-top:auto;align-self:flex-start}
+@media(max-width:700px){:where(.services,.service-grid,.product-grid,.products,.cards,.gallery-grid,.features-grid){grid-template-columns:minmax(0,1fr)}}
+</style>'''
+    return re.sub(r'</head>', lambda m:fix+m.group(0),raw,count=1,flags=re.I)
+
+
+def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: int = 1):
     """Author the required website imagery with SIMO's configured image model and save it locally.
 
     9.9 proved that remote image URLs can fail wholesale in the user's runtime. 10.0
@@ -14805,7 +14932,9 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
         return raw, {"ok": False, "target": target, "authored": 0, "remaining_remote": 0, "failed": ["image client unavailable"]}
 
     subject = _simo_rc2_clean_subject(prompt) or "the requested subject"
-    subject_lock = _simo_subject_lock_contract(prompt)
+    # Keep website-copy instructions out of photographic subject descriptions.
+    subject = re.split(r"\.\s*(?:exact subject lock|every headline|use subject-specific)\b", subject, maxsplit=1, flags=re.I)[0].strip()
+    subject_lock = f"The sole photographic subject is {subject}."
     tags = list(re.finditer(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', raw, flags=re.I))
     if not tags:
         return raw, {"ok": False, "target": target, "authored": 0, "remaining_remote": 0, "failed": ["no image slots in composed page"]}
@@ -14833,21 +14962,64 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
         )
         base_role = role_ladder[idx % len(role_ladder)]
         supplied_role = (alt or heading or '').strip()
-        role = base_role if idx == 0 else (base_role + (f'; section context: {supplied_role}' if supplied_role else ''))
-        slots.append({"src":src,"role":role,"idx":idx})
+        # A scene's actual HTML section and heading have priority over generic
+        # photography roles, but do not carry markup or user instructions.
+        preceding = raw[max(0, m.start()-2200):m.start()]
+        section_hits = re.findall(r'<(?:section|header|figure)\b[^>]*?(?:data-simo-section|class)=["\']([^"\']+)', preceding, re.I)
+        section_role = re.sub(r'[^a-zA-Z0-9 ,&/-]', ' ', section_hits[-1])[:70] if section_hits else ''
+        heading_role = re.sub(r'[^a-zA-Z0-9 ,&/-]', ' ', heading)[:80]
+        site_kind = detect_business_type(prompt)
+        is_beauty = bool(re.search(r'\b(nail|manicure|pedicure|beauty|salon|spa)\b', subject, re.I))
+        if is_beauty:
+            beauty_roles = (
+                'wide sophisticated nail salon interior with natural furniture, warm lighting, elegant professional manicure stations and no prominent people',
+                'realistic luxury nail salon treatment setting with a client receiving a careful manicure, natural correct hands and tools',
+                'macro photograph of a finished professionally painted manicure on one anatomically correct hand, five natural fingers',
+                'premium manicure and pedicure products artfully arranged on a salon station, authentic bottles and instruments',
+                'luxury pedicure seating and foot-care environment, authentic clean salon architecture',
+                'finished nail-art portfolio closeup, naturally shaped nails with distinct refined polish designs',
+                'elegant salon ambiance and hospitality with subtle authentic service context',
+            )
+            base_role = beauty_roles[idx % len(beauty_roles)]
+        elif site_kind in {'ecommerce', 'computer_store', 'camera_store', 'appliance_store'} or re.search(r'\b(watch|jewelry|jewellery|product|retail)\b', subject, re.I):
+            product_roles = (
+                'hero product photograph on an elegant stage, the requested product clearly dominant',
+                'authentic showroom or product collection for the exact requested merchandise',
+                'macro close-up of materials and functional details of the actual product',
+                'distinct alternate product model or offering from the requested category',
+                'realistic use scenario with correct real-world proportions and no unrelated props',
+                'comparison or curated collection showing varied relevant products',
+            )
+            base_role = product_roles[idx % len(product_roles)]
+        elif re.search(r'\b(bakery|baker|bread|pastr(?:y|ies)|cake|croissant|patisserie)\b', subject, re.I):
+            bakery_roles = (
+                'warm artisan bakery storefront interior with a handcrafted bread display, flour-dusted wood and golden morning light',
+                'freshly baked sourdough boules and crusty baguettes displayed on natural linen in a premium bakery',
+                'close-up of flaky croissants and laminated pastry layers with natural baked texture',
+                'elegant signature cakes, tartlets and patisserie creations in a refrigerated bakery showcase',
+                'authentic baker hands preparing dough on a flour-dusted worktable, realistic professional food preparation',
+                'curated baked goods gift box and specialty pastries with original bakery packaging without fake text',
+                'inviting cafe bakery seating and real coffee paired with fresh pastries',
+            )
+            base_role = bakery_roles[idx % len(bakery_roles)]
+        role = base_role
+        if section_role or heading_role:
+            role += f'; HTML context: {section_role or "website visual"}; heading: {heading_role or "supporting visual"}' 
+        slots.append({"src":src,"role":role,"idx":idx,"start":m.start(),"end":m.end(),"tag":tag})
 
     # Preserve already-local SIMO images. We only need to author enough distinct assets
     # to satisfy the subject's visual target, then eliminate every remaining remote slot.
     local_urls=[]
     for sl in slots:
-        if str(sl['src']).startswith('/generated-images/') or str(sl['src']).startswith('/static/simo_web_images/'):
+        if _simo_local_website_image_ready(sl['src']):
             if sl['src'] not in local_urls:
                 local_urls.append(sl['src'])
 
     need=max(0,target-len(local_urls))
-    candidates=[sl for sl in slots if not (str(sl['src']).startswith('/generated-images/') or str(sl['src']).startswith('/static/simo_web_images/'))]
+    candidates=[sl for sl in slots if not _simo_local_website_image_ready(sl['src'])]
     candidates=candidates[:max(need,0)]
     failures=[]
+    replacements=[]
 
     def one(slot):
         role=slot['role']
@@ -14866,21 +15038,23 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
             'Do not automatically add a person. Unless this image role specifically calls for customer/lifestyle/action context or the subject itself is a person, prioritize the requested product, environment, materials, craftsmanship, result or venue. Avoid repeating the same-looking model/face across the website. '
         )
         image_prompt=(
-            f'Exact website subject: {subject}. Image role: {role}. {composition}. '
+            f'Create one photograph only, showing {subject}. Scene: {role}. {composition}. '
             f'{subject_lock} '
             f'{human_guard}'
             'Razor-benchmark commercial art direction: premium, highly detailed, realistic, refined lighting, strong depth, tactile materials, expensive editorial photography, attention-grabbing but believable. '
-            'No text, no logos, no watermark, no UI, no collage, no illustration, no placeholder geometry.'
+            'Never render a website, landing page, poster, mockup, navigation, headings, captions, testimonial panel, FAQ panel, lettering or button graphics. All website copy is added separately in HTML. No text, no logos, no watermark, no UI, no collage, no illustration, no placeholder geometry.'
         )
         out=generate_visual_image(image_prompt, client, prebuilt_prompt=True)
         url=str(out.get('url') or '').strip()
-        if out.get('ok') and (url.startswith('/generated-images/') or url.startswith('/static/')):
+        if out.get('ok') and _simo_local_website_image_ready(url):
             return slot['src'], url, ''
         return slot['src'], '', str(out.get('error') or 'image generation did not return a local asset')
 
     if candidates:
         import concurrent.futures
-        workers=min(max(1,int(max_workers or 1)),3,len(candidates))
+        # Website images run sequentially by default to avoid a burst of concurrent
+        # paid image requests and rate-limit failures on small accounts.
+        workers=min(max(1,int(os.getenv("SIMO_WEBSITE_IMAGE_WORKERS", str(max_workers)) or 1)),3,len(candidates))
         with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
             futs={pool.submit(one,sl):sl for sl in candidates}
             for fut in concurrent.futures.as_completed(futs):
@@ -14889,11 +15063,21 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
                 except Exception as exc:
                     old,new,err=futs[fut]['src'],'',str(exc)
                 if new:
-                    raw=raw.replace(old,new)
+                    slot = futs[fut]
+                    # Replace this image occurrence only, even when placeholders repeat.
+                    tag = slot["tag"]
+                    src_match = re.search(r'\bsrc=["\']([^"\']+)["\']', tag, flags=re.I)
+                    updated = tag[:src_match.start(1)] + new + tag[src_match.end(1):]
+                    replacements.append((slot["start"], slot["end"], updated))
                     if new not in local_urls:
                         local_urls.append(new)
                 else:
                     failures.append((old,err))
+                    print("[SIMO BUILDER IMAGE] slot %s failed: %s" % (futs[fut]["idx"] + 1, err), flush=True)
+
+    # Apply from the end so original offsets remain valid.
+    for start, end, updated in sorted(replacements, reverse=True):
+        raw = raw[:start] + updated + raw[end:]
 
     # Every remaining remote image must be removed from the delivery artifact. If we
     # have enough good authored assets, reuse them deterministically for surplus slots.
@@ -14912,7 +15096,60 @@ def _simo_v100_author_local_images(html: str, prompt: str, client, max_workers: 
     return raw, {"ok":ok,"target":target,"authored":len(distinct),"remaining_remote":remaining_remote,"remaining_pending":remaining_pending,"failed":failures}
 
 
-def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous_html: str = "", max_workers: int = 3):
+
+# RC8 — compare LOCAL image pixels, not just filenames. No external requests.
+def _simo_rc8_visual_fingerprint(local_url):
+    """64-bit dHash of stored local image; None when file cannot be inspected."""
+    from urllib.parse import urlsplit, unquote
+    url = unquote(urlsplit(str(local_url or '')).path)
+    if url.startswith('/generated-images/'):
+        name = os.path.basename(url)
+        paths = [os.path.join(base, name) for base in generated_image_storage_dirs()]
+    elif url.startswith('/static/simo_web_images/'):
+        paths = [os.path.join(STATIC_DIR, 'simo_web_images', os.path.basename(url))]
+    else:
+        return None
+    try:
+        from PIL import Image, ImageOps
+    except ImportError:
+        return None
+    for path in paths:
+        if not os.path.isfile(path):
+            continue
+        try:
+            with Image.open(path) as img:
+                image = ImageOps.exif_transpose(img).convert('L')
+                grayscale = image.resize((9, 8))
+                px = list(grayscale.getdata())
+                value = 0
+                for row in range(8):
+                    for col in range(8):
+                        value = (value << 1) | int(px[row * 9 + col] > px[row * 9 + col + 1])
+                sample = list(image.resize((8, 8)).getdata())
+                average = sum(sample) / len(sample)
+                ahash = 0
+                for pixel in sample:
+                    ahash = (ahash << 1) | int(pixel > average)
+                return (value, ahash)
+        except Exception:
+            continue
+    return None
+
+
+def _simo_rc8_near_duplicates(urls, max_distance=5):
+    """Return indexes of repeated visual scenes, ignoring unavailable originals."""
+    prior = []
+    repeated = []
+    for idx, url in enumerate(urls):
+        fp = _simo_rc8_visual_fingerprint(url)
+        if any(url == prev_url or (fp is not None and prev_fp is not None and (fp[0] ^ prev_fp[0]).bit_count() <= max_distance and (fp[1] ^ prev_fp[1]).bit_count() <= 6)
+               for prev_url, prev_fp in prior):
+            repeated.append(idx)
+        else:
+            prior.append((url, fp))
+    return repeated
+
+def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous_html: str = "", max_workers: int = 1):
     """Refresh duplicate/recycled local image slots before a page is released.
 
     10.12 improved scene-role prompting, but surplus slots could still reuse an authored
@@ -14927,6 +15164,7 @@ def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous
     prev_sources = set(re.findall(r'<img\b[^>]*\bsrc=["\']((?:/generated-images/|/static/simo_web_images/)[^"\']+)["\']', str(previous_html or ""), flags=re.I))
     tags = list(re.finditer(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\'][^>]*>', raw, flags=re.I))
     seen = set()
+    prior_visuals = []
     tasks = []
     role_ladder = (
         'hero flagship scene', 'environment/context scene', 'detail/material/craftsmanship scene',
@@ -14937,9 +15175,15 @@ def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous
         src = m.group(1)
         if not (src.startswith('/generated-images/') or src.startswith('/static/simo_web_images/')):
             continue
-        duplicate = src in seen
+        fp = _simo_rc8_visual_fingerprint(src)
+        duplicate = src in seen or any(
+            fp is not None and earlier_fp is not None and (fp[0] ^ earlier_fp[0]).bit_count() <= 5 and (fp[1] ^ earlier_fp[1]).bit_count() <= 6
+            for earlier_fp in prior_visuals
+        )
         recycled = bool(previous_html) and src in prev_sources
         seen.add(src)
+        if not duplicate and fp is not None:
+            prior_visuals.append(fp)
         if not (duplicate or recycled):
             continue
         tag = m.group(0)
@@ -14971,7 +15215,7 @@ def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous
 
     import concurrent.futures
     results = []
-    workers = min(max(1, int(max_workers or 1)), 3, len(tasks))
+    workers = min(max(1, int(os.getenv("SIMO_WEBSITE_IMAGE_WORKERS", str(max_workers)) or 1)), 3, len(tasks))
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
         futs = [pool.submit(one, t) for t in tasks]
         for fut in concurrent.futures.as_completed(futs):
@@ -14995,11 +15239,39 @@ def _simo_v1013_unique_local_image_pass(html: str, prompt: str, client, previous
         raw = raw[:start] + new_tag + raw[end:]
 
     final_sources = re.findall(r'<img\b[^>]*\bsrc=["\']((?:/generated-images/|/static/simo_web_images/)[^"\']+)["\']', raw, flags=re.I)
-    duplicate_count = max(0, len(final_sources) - len(set(final_sources)))
+    duplicate_count = len(_simo_rc8_near_duplicates(final_sources))
     recycled_left = sum(1 for src in final_sources if previous_html and src in prev_sources)
     ok = not failures and duplicate_count == 0 and recycled_left == 0
     return raw, {"ok":ok, "refreshed":len(replacements), "failed":failures, "duplicate_count":duplicate_count, "recycled_left":recycled_left}
 
+
+
+
+def _simo_rc5_remove_remote_image_dependencies(html: str, prompt: str):
+    # Final safety gate: localize any leftover Pollinations URL in generated CSS.
+    raw = str(html or "")
+    if not raw:
+        return raw, {"ok": False, "reason": "empty website"}
+    local = []
+    for match in re.finditer(r"<img\b[^>]*\bsrc=[\"']([^\"']+)[\"']", raw, re.I):
+        src = match.group(1)
+        if (src.startswith('/generated-images/') or src.startswith('/static/simo_web_images/')) and src not in local:
+            local.append(src)
+    # Remove the obsolete image-service preconnect: it is not an image and
+    # must never force the final readiness test to reject valid local assets.
+    raw = re.sub(r'<link\b(?=[^>]*\brel=["\']preconnect["\'])(?=[^>]*image\.pollinations\.ai)[^>]*>', '', raw, flags=re.I)
+    remote_re = re.compile(r"https?://image\.pollinations\.ai/prompt/[^\s\"'<>\)]+", re.I)
+    count = len(remote_re.findall(raw))
+    if count and not local:
+        return raw, {"ok": False, "reason": "remote backgrounds without local authored assets", "remote": count}
+    index = [0]
+    def replace(match):
+        result = local[index[0] % len(local)]
+        index[0] += 1
+        return result
+    raw = remote_re.sub(replace, raw) if count else raw
+    unresolved = bool(re.search(r'image\.pollinations\.ai', raw, re.I))
+    return raw, {"ok": not unresolved, "replaced": count, "reason": "unresolved remote reference" if unresolved else ""}
 
 def _simo_v99_localize_images_strict(html: str, prompt: str, timeout_seconds: float = 7.0):
     """Warm every website image before success and validate the bytes/dimensions.
@@ -15029,12 +15301,16 @@ def _simo_v99_localize_images_strict(html: str, prompt: str, timeout_seconds: fl
         for u in re.findall(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', raw, flags=re.I):
             if (u.startswith('/generated-images/') or u.startswith('/static/simo_web_images/')) and u not in local_asset_urls:
                 local_asset_urls.append(u)
+        invalid_local = [url for url in local_asset_urls if not _simo_local_website_image_ready(url)]
+        remaining_remote = len(re.findall(r'<img\b[^>]*\bsrc=["\']https?://', raw, flags=re.I))
+        remaining_pending = len(re.findall(r'<img\b[^>]*\bsrc=["\']simo-pending://', raw, flags=re.I))
         return raw, {
-            "ok": len(local_asset_urls) >= target,
+            "ok": len(local_asset_urls) >= target and not invalid_local and not remaining_remote and not remaining_pending,
             "target": target,
-            "localized": len(local_asset_urls),
-            "remaining_remote": 0,
-            "failed": [],
+            "localized": len(local_asset_urls) - len(invalid_local),
+            "remaining_remote": remaining_remote,
+            "remaining_pending": remaining_pending,
+            "failed": [(url, "local image missing, undecodable, or undersized") for url in invalid_local],
         }
 
     cache_dir = os.path.join(STATIC_DIR, "simo_web_images")
@@ -15354,7 +15630,7 @@ def _simo_v116_refresh_active_years_for_editor_redesign(html: str) -> str:
 
 def _simo_v99_razor_review(html: str, prompt: str):
     """Static final-release review layered on the existing semantic/design gate."""
-    good, reasons = _simo_v71_html_review(html, prompt)
+    good, reasons = _simo_v71_html_review(html, prompt, accept_local_authored=True)
     raw = str(html or "")
     low = raw.lower()
     family = _simo_v86_site_family(prompt)
@@ -15582,6 +15858,19 @@ def _simo_v1024_non_destructive_finish(html: str, prompt: str) -> str:
 :where([data-simo-section]) :where([class*="card" i],[class*="tile" i]) > :where(img,picture,figure){width:100%;max-height:340px;aspect-ratio:4/3;overflow:hidden;object-fit:cover}
 :where([data-simo-section]) :where([class*="card" i],[class*="tile" i]) > picture img,:where([data-simo-section]) :where([class*="card" i],[class*="tile" i]) > figure img{width:100%;height:100%;object-fit:cover}
 </style>'''
+    # Responsive typography safety: retain site art direction but constrain
+    # headings and media in Builder Preview and published HTML alike.
+    safety_css = '''<style id="simo-website-text-overflow-safety">
+    :where(html){overflow-x:clip}
+    :where(body){min-width:0;overflow-wrap:break-word}
+    :where([data-simo-section]){min-width:0}
+    :where([data-simo-section]) :where(h1,h2,h3){max-width:100%;min-width:0;overflow-wrap:break-word;text-wrap:balance}
+    :where([data-simo-section]) :where(h1){font-size:min(var(--simo-hero-heading-cap, 9vw), 96px);line-height:1.02}
+    :where([data-simo-section]) :where(img,video,svg){max-width:100%}
+    @media(max-width:680px){:where([data-simo-section]) :where(h1){font-size:clamp(32px,9vw,58px)!important;line-height:1.06!important}}
+    </style>'''
+    if 'id="simo-website-text-overflow-safety"' not in raw.lower():
+        raw = re.sub(r"</head>", safety_css + "</head>", raw, count=1, flags=re.I)
     if 'id="simo-v1024-nondestructive-finish"' not in raw.lower():
         raw = re.sub(r"</head>", css + "</head>", raw, count=1, flags=re.I)
     return raw
@@ -15682,6 +15971,277 @@ CURRENT CANONICAL HTML:
     candidate = _simo_v106_placeholder_cleanup(candidate, prompt)
     return candidate
 
+
+def _simo_rc3_generated_page_style_safety(html: str, prompt: str) -> str:
+    # Final browser-facing layout guard; operates only on generated website HTML.
+    raw = str(html or "")
+    if not re.search(r"</head\s*>", raw, flags=re.I):
+        return raw
+    # Refresh our owned guard instead of retaining an older rule set after edits.
+    raw = re.sub(r'<style\b[^>]*\bid=["\']simo-rc3-(?:page-style-safety|requested-dark-theme)["\'][^>]*>[\s\S]*?</style\s*>', '', raw, flags=re.I)
+    requested = str(prompt or "").lower()
+    dark = bool(re.search(r"(?:black.and.silver|black.and.gold|dark.and.luxur|dark.themed|dark.theme|dark.design|dark.palette|dark.background|sophisticated black|premium dark)", requested))
+    # General layout constraints apply to every subject. Dark-theme corrections are
+    # intentionally conditional: light websites remain light websites.
+    css = r'''<style id="simo-rc3-page-style-safety">
+html{box-sizing:border-box;max-width:100%;overflow-x:clip}*,*::before,*::after{box-sizing:inherit}
+body{max-width:100%;min-width:0;overflow-x:clip;margin:0}
+main,section,article,header,footer,nav,div{min-width:0}
+img,video,picture,svg{max-width:100%}
+body h1,body h2,body h3,body p{overflow-wrap:break-word;word-break:normal}
+body h1{font-size:clamp(2.5rem,5.4vw,5.5rem)!important;line-height:1.02!important;letter-spacing:-.035em!important;max-width:min(100%,17ch)!important}
+body h2{font-size:clamp(1.9rem,3.3vw,3.6rem)!important;line-height:1.12!important}
+body h3{font-size:clamp(1.2rem,1.9vw,1.65rem)!important;line-height:1.22!important}
+body p,body li{line-height:1.6}
+body section:not(.hero):not([data-simo-section="hero"]){padding-inline:clamp(18px,4vw,68px)}
+body section:not(.hero):not([data-simo-section="hero"]) img{max-height:520px!important;object-fit:cover}
+body article,body figure{min-width:0;max-width:100%}
+body figure{margin-inline:0}
+body :is(.products,.product-grid,.collection-grid,.cards-grid,.service-grid,[data-simo-grid="products"]){display:grid!important;grid-template-columns:repeat(auto-fit,minmax(min(100%,230px),1fr))!important;gap:clamp(15px,2.5vw,30px)!important;align-items:stretch!important}
+body :is(.products,.product-grid,.collection-grid,.cards-grid,.service-grid,[data-simo-grid="products"])> *{min-width:0;max-width:100%;overflow:hidden}
+body :is(.products,.product-grid,.collection-grid,.cards-grid,.service-grid,[data-simo-grid="products"]) img{width:100%!important;aspect-ratio:4/3!important;object-fit:cover!important;max-height:330px!important}
+body a,body button{min-height:fit-content}
+body [data-simo-section="hero"],body .hero{max-width:100%;overflow:hidden}
+body [data-simo-section="hero"] h1,body .hero h1{font-size:clamp(2.4rem,5.2vw,5.3rem)!important;max-width:min(100%,16ch)!important;line-height:1.02!important;margin-inline:0!important;transform:none!important}
+body [data-simo-section="hero"]>*,body .hero>*{min-width:0}
+/* Direct hero copy must form one readable vertical group. Wrapped split heroes are untouched. */
+body :is([data-simo-section="hero"],.hero):has(>h1):has(>p){display:flex!important;flex-direction:column!important;justify-content:center!important;align-items:center!important;gap:0!important;height:auto!important;min-height:clamp(520px,78svh,860px)!important;padding:clamp(56px,9vw,120px) clamp(24px,6vw,96px)!important;text-align:center}
+body :is([data-simo-section="hero"],.hero):has(>h1):has(>p)>h1{flex:none!important;width:auto!important;max-width:min(100%,16ch)!important;margin:0 0 24px!important}
+body :is([data-simo-section="hero"],.hero):has(>h1):has(>p)>p{flex:none!important;max-width:min(100%,48ch)!important;margin:0 0 28px!important;font-size:clamp(17px,2.2vw,23px);line-height:1.55!important}
+body :is([data-simo-section="hero"],.hero):has(>h1):has(>p)>:is(button,a,[role="button"]){flex:none!important;width:auto!important;max-width:100%;white-space:normal;min-height:48px;padding:14px 26px!important;margin:0!important;transform:none!important}
+@media(max-width:760px){body h1,body [data-simo-section="hero"] h1,body .hero h1{font-size:clamp(2.3rem,9vw,3.8rem)!important;max-width:100%!important}body section{padding-inline:18px!important}body section:not(.hero):not([data-simo-section="hero"]) img{max-height:390px!important}}
+</style>'''
+    if dark:
+        css += r'''<style id="simo-rc3-requested-dark-theme">
+html,body{background:#0b0e13!important;color:#f0f2f4!important}
+body main,body main>section,body section,body article,body aside,body footer,body .card,body [class*="product"],body [class*="Product"]{background-color:#11151c!important;color:#f0f2f4!important}
+body main>section:nth-of-type(even),body section:nth-of-type(even){background-color:#171c24!important}
+body section h1,body section h2,body section h3,body section h4,body article h2,body article h3,body footer h2,body footer h3{color:#f7f7f8!important}
+body section p,body section li,body article p,body article li,body footer p{color:#c9ced6!important;font-size:max(1rem,16px)!important}
+body section a:not(.button):not([class*="btn"]),body footer a:not(.button):not([class*="btn"]){color:#dce5f1!important}
+body section button,body section .button,body section [class*="btn"],body section a[role="button"]{border-radius:8px}
+body [data-simo-section="hero"],body .hero{background-color:#080b10!important}
+body [data-simo-section="hero"] h1,body .hero h1{color:#fff!important}
+body input,body select,body textarea{background:#1e2530!important;color:#fff!important;border-color:#495361!important}
+</style>'''
+    return re.sub(r'</head\s*>', lambda m: css + m.group(0), raw, count=1, flags=re.I)
+
+
+# RC7 — project-neutral website art direction. No extra model call, no external dependencies.
+def _simo_rc12_responsive_format_only(html: str) -> str:
+    """Presentation-only repair; no changes to semantic content or generated assets."""
+    raw = str(html or '')
+    if not re.search(r'</head\s*>', raw, re.I) or 'id="simo-rc12-responsive-format"' in raw:
+        return raw
+    css = r'''<style id="simo-rc12-responsive-format">
+/* Keep existing image choices and copy; constrain their presentation only. */
+html,body{width:100%;max-width:100%;overflow-x:clip}
+body{min-width:0}
+body :is(main,section,header,article,figure,div){min-width:0}
+body :is(h1,h2,h3,p){max-width:100%;overflow-wrap:break-word}
+body :is(img,video){max-width:100%}
+/* Preserve full non-hero photographs; avoid forced clipping at narrow widths. */
+body :is(section:not([data-simo-section="hero"]),article,figure) img:not(.simo-v98-hero-image){height:auto!important;max-height:none!important;object-fit:contain!important;object-position:center!important}
+body :is(.gallery,.gallery-grid,.services,.service-grid,.products,.product-grid,.cards-grid){min-width:0;max-width:100%}
+body :is(.service-card,.pricing-card,.product-card){height:auto!important;min-height:0;overflow:visible!important}
+body :is(.service-card,.pricing-card,.product-card) :is(a,button,.cta){position:static!important;transform:none!important;max-width:100%}
+/* The hero remains cinematic but its *text* must not be clipped when window/zoom changes. */
+body [data-simo-section="hero"]{height:auto!important;min-height:clamp(360px,65svh,700px)!important;max-height:none!important;padding:clamp(48px,7vw,100px) clamp(18px,5vw,76px)!important;overflow:hidden;display:flex!important;flex-direction:column!important;align-items:center;justify-content:center;gap:clamp(12px,2vw,24px);text-align:center}
+body [data-simo-section="hero"] :is(h1,p,a,button){position:relative;z-index:2;flex:0 0 auto;max-width:min(100%,850px)!important;transform:none!important}
+body [data-simo-section="hero"] h1{font-size:clamp(32px,5vw,74px)!important;line-height:1.12!important;margin:0!important;overflow-wrap:break-word}
+body [data-simo-section="hero"] p{font-size:clamp(16px,1.6vw,22px)!important;line-height:1.5!important;margin:0!important}
+body [data-simo-section="hero"]>.simo-v98-hero-image{position:absolute!important;inset:0;width:100%!important;height:100%!important;object-fit:cover!important;object-position:center center!important;z-index:-2!important}
+@media(max-width:900px){
+ body [data-simo-section="hero"]{min-height:clamp(340px,58svh,620px)!important;padding:56px 22px!important}
+ body :is(.services,.service-grid,.products,.product-grid,.gallery-grid,.cards-grid){grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr))!important}
+}
+@media(max-width:580px){
+ body [data-simo-section="hero"]{min-height:360px!important;padding:48px 18px!important}
+ body [data-simo-section="hero"] h1{font-size:clamp(30px,9vw,48px)!important}
+ body :is(.services,.service-grid,.products,.product-grid,.gallery-grid,.cards-grid){grid-template-columns:minmax(0,1fr)!important}
+ body :is(.service-card,.pricing-card,.product-card){padding:clamp(14px,4vw,26px)}
+}
+</style>'''
+    return re.sub(r'</head\s*>', lambda m:css+m.group(0), raw, count=1, flags=re.I)
+
+
+def _simo_rc10_final_layout_integrity(html: str) -> str:
+    """Universal final browser layout check; no API/image calls, no unrelated app effects."""
+    raw = str(html or "")
+    if not re.search(r"</body\s*>", raw, re.I) or 'id="simo-rc10-layout-integrity"' in raw:
+        return raw
+    script = r'''<script id="simo-rc10-layout-integrity">(function(){
+      function run(){
+        var hero=document.querySelector('[data-simo-section="hero"], section.hero, header.hero, .hero');
+        if(hero){
+          var styles=getComputedStyle(hero);
+          var children=Array.from(hero.children).filter(function(x){return !/^(SCRIPT|STYLE)$/i.test(x.tagName)});
+          var visible=children.filter(function(x){var r=x.getBoundingClientRect();return r.height>0&&styles.display!=='none'});
+          var box=hero.getBoundingClientRect();
+          var bottom=visible.reduce(function(m,x){return Math.max(m,x.getBoundingClientRect().bottom-box.top)},0);
+          // Only remove a proven large *trailing* blank region; never crop a visible image.
+          if(box.height>670&&bottom>0&&box.height-bottom>280&&!hero.querySelector('video')){
+            hero.style.setProperty('min-height','0','important');
+            hero.style.setProperty('height','auto','important');
+          }
+        }
+        // RC10: correct genuine heading/CTA overlap without changing hero art or page text.
+        // Rectangles are measured in viewport coordinates so nested/absolute positioning is supported.
+        if(hero){
+          var heads=Array.from(hero.querySelectorAll('h1,h2,h3')).filter(function(el){return el.getBoundingClientRect().height>0});
+          var actions=Array.from(hero.querySelectorAll('a,button,[role="button"]')).filter(function(el){
+            var r=el.getBoundingClientRect(),cs=getComputedStyle(el);
+            return r.width>20&&r.height>10&&cs.visibility!=='hidden'&&cs.display!=='none'&&
+              !el.closest('nav')&&!/^(collection|about|testimonials|contact|home|menu)$/i.test((el.textContent||'').trim());
+          });
+          function crosses(a,b){return a.left<b.right-2&&a.right>b.left+2&&a.top<b.bottom-2&&a.bottom>b.top+2;}
+          actions.forEach(function(action){
+            // Don't cumulate offsets if the page fires both DOMContentLoaded and load.
+            if(action.dataset.simoRc10Shift)action.style.removeProperty('transform');
+            var ar=action.getBoundingClientRect(), required=0;
+            heads.forEach(function(h){var hr=h.getBoundingClientRect();if(crosses(ar,hr))required=Math.max(required,hr.bottom-ar.top+18)});
+            if(required>0){
+              // Translate the actual CTA, leaving the intentionally authored image and headline intact.
+              var base=getComputedStyle(action).transform;
+              action.style.setProperty('transform',base&&base!=='none'?'translateY('+required+'px) '+base:'translateY('+required+'px)','important');
+              action.dataset.simoRc10Shift='1';
+              var moved=action.getBoundingClientRect(),heroBox=hero.getBoundingClientRect();
+              if(moved.bottom>heroBox.bottom-12){
+                var grow=Math.min(240,Math.ceil(moved.bottom-heroBox.bottom+24));
+                hero.style.setProperty('padding-bottom',grow+'px','important');
+              }
+            }
+          });
+        }
+        // Cards can have arbitrary class names. Group only intact sibling cards,
+        // never rearrange plain images or content blocks whose structure is unknown.
+        document.querySelectorAll('section,[data-simo-section]').forEach(function(sec){
+          if(sec===hero)return;
+          Array.from(sec.querySelectorAll('div,ul')).forEach(function(group){
+            var kids=Array.from(group.children);
+            if(kids.length<2||kids.length>12)return;
+            var cards=kids.filter(function(el){return el.matches('article,li,[class*="card" i],[class*="product" i]')&&el.querySelector('img')&&el.querySelector('h3,h4,[class*="title" i]')});
+            if(cards.length<2||cards.length!==kids.length)return;
+            if(/testimonial|review|quote/i.test((sec.id||'')+' '+(sec.className||'')))return;
+            group.style.setProperty('display','grid','important');
+            group.style.setProperty('grid-template-columns','repeat(auto-fit,minmax(min(100%,240px),1fr))','important');
+            group.style.setProperty('gap','clamp(16px,2.2vw,28px)','important');
+            cards.forEach(function(c){c.style.setProperty('min-width','0');var im=c.querySelector('img');if(im){im.style.setProperty('width','100%');im.style.setProperty('height','auto');im.style.setProperty('aspect-ratio','4/3');im.style.setProperty('object-fit','cover')}});
+          });
+        });
+      }
+      if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
+      window.addEventListener('load',run);
+    })();</script>'''
+    return re.sub(r"</body\s*>", lambda m: script+m.group(0), raw, count=1, flags=re.I)
+
+
+def _simo_rc11_final_presentation(html: str) -> str:
+    """Bounded browser-side presentation repair. No provider calls or template replacements."""
+    raw = str(html or "")
+    if not re.search(r"</body\s*>", raw, re.I) or 'id="simo-rc11-presentation"' in raw:
+        return raw
+    patch = r'''<style id="simo-rc11-presentation">
+    html{overflow-x:hidden} body{overflow-wrap:break-word}
+    :where(section,header,footer,main,article){min-width:0}
+    :where(section,header) h1{line-height:1.12;overflow-wrap:break-word}
+    :where(section,header) h2{line-height:1.2}
+    :where(section,header) p{line-height:1.5}
+    :where(section,header) a{max-width:100%}
+    :where(section,header) img{max-width:100%}
+    :where(section,header) form{display:grid;gap:12px;max-width:720px}
+    :where(section,header) form :is(input,textarea,select){box-sizing:border-box;min-height:42px;min-width:0;max-width:100%;width:100%;padding:10px 13px;border:1px solid #708090;border-radius:8px;font:inherit;font-size:max(15px,1em)}
+    :where(section,header) form textarea{min-height:110px;resize:vertical}
+    :where(section,header) form :is(button,input[type=submit]){min-height:43px;padding:10px 18px;border-radius:8px;cursor:pointer;font:inherit;width:fit-content;max-width:100%}
+    footer{padding:clamp(24px,4vw,64px) clamp(16px,4vw,64px)!important;line-height:1.7;overflow-wrap:anywhere}
+    footer a{overflow-wrap:anywhere}
+    @media(max-width:640px){:where(section,header) h1{font-size:clamp(32px,7vw,58px)}:where(section,header) form{width:100%}}
+    </style><script id="simo-rc11-presentation">(function(){
+      function visible(el){var s=getComputedStyle(el),r=el.getBoundingClientRect();return r.width>1&&r.height>1&&s.display!=='none'&&s.visibility!=='hidden'}
+      function intersects(a,b){var x=a.getBoundingClientRect(),y=b.getBoundingClientRect();return x.left<y.right-2&&x.right>y.left+2&&x.top<y.bottom-2&&x.bottom>y.top+2}
+      function repair(){
+        var hero=document.querySelector('[data-simo-section="hero"],section.hero,header.hero,.hero');
+        if(!hero)return;
+        var heading=hero.querySelector('h1');if(!heading||!visible(heading))return;
+        var candidates=Array.from(hero.querySelectorAll('h2,h3,p,.lead,.subtitle,.subhead,a,button,[role="button"]'))
+          .filter(function(e){return visible(e)&&!e.closest('nav')&&!e.closest('footer')&&!heading.contains(e)});
+        // Only intervene where the page genuinely paints semantic text blocks over one another.
+        var previous=heading;
+        candidates.sort(function(a,b){return a.getBoundingClientRect().top-b.getBoundingClientRect().top});
+        candidates.forEach(function(el){
+          if(!intersects(previous,el)){previous=el;return}
+          var old=el.getBoundingClientRect(),before=previous.getBoundingClientRect();
+          var delta=Math.min(240,Math.ceil(before.bottom-old.top+14));
+          if(delta<1)return;
+          // Moving a normal-flow item with margin rather than transform also moves following siblings.
+          var cs=getComputedStyle(el),position=cs.position;
+          if(position==='static'||position==='relative'){
+            var mt=parseFloat(cs.marginTop)||0;
+            el.style.setProperty('margin-top',(mt+delta)+'px','important');
+          }else{
+            el.style.setProperty('transform','translateY('+delta+'px)','important');
+          }
+          var next=el.getBoundingClientRect(),edge=hero.getBoundingClientRect();
+          if(next.bottom>edge.bottom-12){var pad=parseFloat(getComputedStyle(hero).paddingBottom)||0;
+            hero.style.setProperty('padding-bottom',(pad+Math.min(260,Math.ceil(next.bottom-edge.bottom+24)))+'px','important')}
+          previous=el;
+        });
+      }
+      // Run once after fonts/images settle. Avoid multiplying adjustments across load events.
+      if(document.readyState==='complete')repair();else window.addEventListener('load',repair,{once:true});
+    })();</script>'''
+    return re.sub(r"</body\s*>", lambda m: patch+m.group(0), raw, count=1, flags=re.I)
+
+
+def _simo_rc7_design_directive(design_prompt: str, customer_request: str) -> str:
+    request = str(customer_request or "")
+    return str(design_prompt or "") + "\n\n" + (
+        "RELEASE-CANDIDATE COMPOSITION REQUIREMENTS (ALL SUBJECTS):\n"
+        "Respect the user's explicit design palette and wording. Make text readable over imagery: "
+        "hero heading and navigation must have adequate contrast with their actual backgrounds, "
+        "not dark text over dark photographs. Avoid giant empty strips or edge-cropped typography.\n"
+        "For product/collection/offerings sections, use a responsive editorial CARD GRID "
+        "with 2–3 cards per row on desktop and one card per row on small screens; "
+        "each card groups its own photograph, specific name, short informative description, "
+        "price when appropriate and a real call to action. Avoid one full-width product image per row. "
+        "For non-commerce subjects, apply the same card integrity to services, projects or features.\n"
+        "Build hero copy as one vertical content group: heading, supporting paragraph, then CTA. "
+        "Use a dedicated copy wrapper for split heroes; never make those three text elements competing flex-row columns. "
+        "Premium art direction requires a deliberate type pairing, restrained subject-specific palette, "
+        "distinct section compositions, and a polished footer. Luxury does not automatically mean bright yellow bars. "
+        "Do not invent contact email addresses or dead social links; use working in-page actions when details are absent. "
+        "For another premium version, change the hero architecture, typography system, section rhythm and card composition, "
+        "rather than only swapping images or paraphrasing copy. Preserve the subject and explicit user palette. "
+        "Create an intentional VISUAL STORY: hero, contextual scene, clean product/service detail, "
+        "different offering(s), proof and one purposeful human-use/process scene only if relevant. "
+        "Do not put the same person, hand-and-tool demonstration, watch/product perspective, "
+        "or near-identical subject scene in multiple different sections. "
+        "Give every image slot a unique scene purpose; use descriptive alt text aligned with its section.\n"
+        "Do not invent generic placeholder product names such as Model A, Model B, Model C; "
+        "use distinctive, plausible collection names, clearly shown as illustrative where not provided. "
+        "Don't invent actual customer identities or imply testimonials are verified; clearly label samples if needed.\n"
+        "Every page must work in both embedded Builder and stand-alone browser Preview "
+        "using the same standalone CSS, with mobile-friendly wrapping and object-fit cropping.\n"
+        "CUSTOMER REQUEST TO PRESERVE EXACTLY: " + request
+    )
+
+
+def _simo_rc7_final_image_inventory_check(html: str):
+    """Read-only check on the final page, AFTER repair; never spend credits here."""
+    raw = str(html or "")
+    srcs = re.findall(r'<img\b[^>]*\bsrc=["\']([^"\']+)["\']', raw, flags=re.I)
+    image_srcs = [s for s in srcs if s.startswith('/generated-images/') or s.startswith('/static/simo_web_images/')]
+    duplicate_urls = sorted({s for s in image_srcs if image_srcs.count(s) > 1})
+    visually_repeated = _simo_rc8_near_duplicates(image_srcs)
+    nonlocal_imgs = [s for s in srcs if s.startswith('https://') or s.startswith('http://') or s.startswith('simo-pending://')]
+    remote_css = bool(re.search(r'image\.pollinations\.ai|url\s*\(\s*["\']?https?://', raw, flags=re.I))
+    invalid_local = [url for url in set(image_srcs) if not _simo_local_website_image_ready(url)]
+    return {"ok": not visually_repeated and not nonlocal_imgs and not remote_css and not invalid_local,
+            "invalid_local": invalid_local,
+            "duplicate_count": len(duplicate_urls), "visually_repeated_count": len(visually_repeated),
+            "nonlocal_count": len(nonlocal_imgs),
+            "remote_css": remote_css, "local_count": len(image_srcs)}
+
 def _simo_canonical_website_generate():
     """SIMO 7.6: route-safe generation with richer image storytelling and working editor utilities."""
     try:
@@ -15707,6 +16267,8 @@ def _simo_canonical_website_generate():
             prompt = (
                 f"Build a premium, publish-ready website for {resolved_subject}. "
                 f"{_simo_subject_lock_contract(original_prompt)} "
+                f"CUSTOMER'S COMPLETE ORIGINAL REQUEST (including palette, theme, layout and detailed requirements): {original_prompt} "
+                "Treat the customer's original visual specifications as mandatory; do not discard them during subject resolution. "
                 "Use subject-specific headline, offers, services/products, proof, FAQ, CTA, footer, and imagery. "
                 "Do not use placeholder phrases such as 'that business', 'for that business', "
                 "'tailored excellence', or generic bespoke-services copy unless the user actually requested those words."
@@ -15720,13 +16282,21 @@ def _simo_canonical_website_generate():
             )
         model = (os.getenv("SIMO_WEBSITE_MODEL") or os.getenv("OPENAI_MODEL") or OPENAI_MODEL or "gpt-4o").strip()
 
-        editor_content_reference = _simo_v117_editor_content_reference(previous_html) if editor_redesign else ""
+        editor_content_reference = _simo_v117_editor_content_reference(previous_html) if previous_html else ""
         # Critical redesign rule: do not give the website model the old DOM/CSS for a
         # whole-site natural-language redesign. It was anchoring generation to the
         # previous structure (the last observed result was 0.974 structurally similar).
-        design_previous_html = "" if editor_redesign else previous_html
+        design_previous_html = ""  # Never anchor a new premium composition to the old DOM/CSS.
         model_user_request = prompt
         brief_request = prompt
+        if previous_html and not editor_redesign:
+            model_user_request = (
+                prompt + "\n\nANOTHER PREMIUM VERSION: create a new composition from first principles. "
+                "Preserve the following factual content; the old DOM/CSS is intentionally withheld. "
+                "Change hero architecture, typography, navigation, section rhythm and card layout.\n"
+                + editor_content_reference
+            )
+            brief_request = model_user_request
         if editor_redesign:
             model_user_request = (
                 f"ORIGINAL WEBSITE REQUEST:\n{prompt}\n\n"
@@ -15735,6 +16305,8 @@ def _simo_canonical_website_generate():
             )
             brief_request = model_user_request
 
+        _simo_builder_started = time.monotonic()
+        print("[SIMO BUILDER] starting AI composition", flush=True)
         creative_brief = _simo_v93_creative_brief(client, model, brief_request, variant)
         if editor_redesign:
             current_identity_note = (
@@ -15757,10 +16329,11 @@ def _simo_canonical_website_generate():
                   "EXISTING BUSINESS CONTENT REFERENCE — FACTS ONLY, NOT A LAYOUT TEMPLATE:\n"
                   + editor_content_reference
             )
+        print("[SIMO BUILDER] creative brief ready at %.1fs" % (time.monotonic() - _simo_builder_started), flush=True)
         first = _simo_v71_model_call(
             client,
             model,
-            _simo_v71_design_prompt(prompt, variant=variant, previous_html=design_previous_html, creative_brief=creative_brief),
+            _simo_rc7_design_directive(_simo_v71_design_prompt(prompt, variant=variant, previous_html=design_previous_html, creative_brief=creative_brief), prompt),
             model_user_request,
         )
         # 9.6: enrich first, judge second. A missing scene is repairable and must
@@ -15770,6 +16343,7 @@ def _simo_canonical_website_generate():
         # RC11.8.2: deterministically repair stale years in active/upcoming sections
         # before quality review so a harmless old date does not trigger paid repair work.
         first = _simo_v116_refresh_active_years_for_editor_redesign(first)
+        first = _simo_v120_rescue_missing_composition(first)
         good, reasons = _simo_v71_html_review(first, prompt, defer_image_quota=True)
         html = first
         attempt = 1
@@ -15778,12 +16352,13 @@ def _simo_canonical_website_generate():
             html = _simo_v71_model_call(
                 client,
                 model,
-                _simo_v71_design_prompt(prompt, repair_notes, variant=variant, previous_html=design_previous_html, creative_brief=creative_brief),
+                _simo_rc7_design_directive(_simo_v71_design_prompt(prompt, repair_notes, variant=variant, previous_html=design_previous_html, creative_brief=creative_brief), prompt),
                 model_user_request,
             )
             html = _simo_v96_visual_enrichment_pass(html, prompt)
             html = _simo_v106_placeholder_cleanup(html, prompt)
             html = _simo_v116_refresh_active_years_for_editor_redesign(html)
+            html = _simo_v120_rescue_missing_composition(html)
             good, reasons = _simo_v71_html_review(html, prompt, defer_image_quota=True)
             attempt = 2
         if not good:
@@ -15791,6 +16366,7 @@ def _simo_canonical_website_generate():
             html = _simo_v96_visual_enrichment_pass(html, prompt)
             html = _simo_v106_placeholder_cleanup(html, prompt)
             html = _simo_v116_refresh_active_years_for_editor_redesign(html)
+            html = _simo_v120_rescue_missing_composition(html)
             good, reasons = _simo_v71_html_review(html, prompt, defer_image_quota=True)
             attempt = 3
         if not good:
@@ -15813,7 +16389,7 @@ def _simo_canonical_website_generate():
             alt = _simo_v71_model_call(
                 client,
                 model,
-                _simo_v71_design_prompt(prompt, variant_notes, variant=variant + 1, previous_html=design_previous_html, creative_brief=creative_brief),
+                _simo_rc7_design_directive(_simo_v71_design_prompt(prompt, variant_notes, variant=variant + 1, previous_html=design_previous_html, creative_brief=creative_brief), prompt),
                 model_user_request,
             )
             alt = _simo_v96_visual_enrichment_pass(alt, prompt)
@@ -15830,6 +16406,7 @@ def _simo_canonical_website_generate():
                     "editor_redesign_not_different",
                     f"structural_similarity={redesign_similarity:.3f}"
                 )
+        print("[SIMO BUILDER] HTML candidate reviewed at %.1fs" % (time.monotonic() - _simo_builder_started), flush=True)
         # 9.9 RAZOR BENCHMARK FINALIZATION: preserve the authored composition,
         # then make the browser-facing artifact prove that its imagery is ready.
         html = _simo_v81_builder_annotation_completion(html, prompt)
@@ -15844,12 +16421,13 @@ def _simo_canonical_website_generate():
         # image model and persist it locally before release. Third-party hotlinks are
         # composition placeholders only, never a delivery dependency.
         html = _simo_v102_ensure_image_slots(html, prompt)
+        print("[SIMO BUILDER] starting local image authoring at %.1fs" % (time.monotonic() - _simo_builder_started), flush=True)
         html, authored_images = _simo_v100_author_local_images(html, prompt, client)
         if not authored_images.get("ok"):
             return _simo_contract_json_error(
                 "Simo composed the website, but could not finish its Razor-benchmark local image set. The unfinished page was not shown.",
                 502, "local_image_authoring_failed",
-                f"authored={authored_images.get('authored',0)} of target {authored_images.get('target',0)}; remaining_remote={authored_images.get('remaining_remote',0)}; failed={len(authored_images.get('failed') or [])}"
+                f"authored={authored_images.get('authored',0)} of target {authored_images.get('target',0)}; remaining_remote={authored_images.get('remaining_remote',0)}; failed={len(authored_images.get('failed') or [])}; first_error={_simo_safe_image_failure(authored_images.get('failed') or [])}"
             )
         html, image_uniqueness = _simo_v1013_unique_local_image_pass(html, prompt, client, previous_html=previous_html)
         if not image_uniqueness.get("ok"):
@@ -15880,12 +16458,22 @@ def _simo_canonical_website_generate():
                 502, "image_readiness_failed", detail
             )
 
+        html, remote_image_check = _simo_rc5_remove_remote_image_dependencies(html, prompt)
+        if not remote_image_check.get("ok"):
+            return _simo_contract_json_error(
+                "Simo completed the page but could not verify its background images. No rate-limited images were released.",
+                502, "remote_background_image_blocked", str(remote_image_check.get("reason"))
+            )
+        if remote_image_check.get("replaced"):
+            print("[SIMO BUILDER] localized %s additional CSS/HTML remote references" % remote_image_check["replaced"], flush=True)
         html = _simo_v1024_non_destructive_finish(html, prompt)
         html = _simo_v106_placeholder_cleanup(html, prompt)
         # RC11.8.2: safe for normal generation too; only active/upcoming sections
         # are changed, while historical/timeline years remain untouched.
         html = _simo_v116_refresh_active_years_for_editor_redesign(html)
+        html = _simo_v120_rescue_missing_composition(html)
         polished_good, polished_reasons = _simo_v99_razor_review(html, prompt)
+        print("[SIMO BUILDER] image stages complete at %.1fs" % (time.monotonic() - _simo_builder_started), flush=True)
         # 10.4: the Razor benchmark is a repair target, not a premature dead-end.
         # A nearly-good page gets up to two bounded final repair passes using its
         # exact canonical HTML and the concrete failed checks. The verified local
@@ -15902,6 +16490,7 @@ def _simo_canonical_website_generate():
             html = _simo_v106_placeholder_cleanup(html, prompt)
             html = _simo_v116_refresh_active_years_for_editor_redesign(html)
             polished_good, polished_reasons = _simo_v99_razor_review(html, prompt)
+        print("[SIMO BUILDER] final Razor review complete at %.1fs" % (time.monotonic() - _simo_builder_started), flush=True)
         if not polished_good:
             return _simo_contract_json_error(
                 "SIMO generated the website and attempted a bounded Razor-benchmark repair, but the final browser-facing result still was not strong enough to release.",
@@ -15916,6 +16505,28 @@ def _simo_canonical_website_generate():
                     "editor_redesign_final_not_different",
                     f"structural_similarity={final_redesign_similarity:.3f}"
                 )
+        # Final model repair can introduce external image URLs after the first image
+        # readiness check. Validate the actual HTML that will be saved and returned.
+        html, final_remote_check = _simo_rc5_remove_remote_image_dependencies(html, prompt)
+        if not final_remote_check.get("ok"):
+            return _simo_contract_json_error(
+                "Simo could not safely finish all website images. The unfinished page was not released.",
+                502, "final_remote_image_check_failed", str(final_remote_check.get("reason"))
+            )
+        html = _simo_rc3_generated_page_style_safety(html, prompt)
+        html = _simo_rc10_final_layout_integrity(html)
+        html = _simo_rc11_final_presentation(html)
+        html = _simo_universal_cards_finish(html)
+        html = _simo_rc12_responsive_format_only(html)
+        # The previous uniqueness check runs before final model repair. Protect the
+        # *delivered* HTML too; otherwise late repair can put repeated/remote assets back.
+        final_images = _simo_rc7_final_image_inventory_check(html)
+        if not final_images["ok"]:
+            print("[SIMO BUILDER RC7] final image contract rejected: " + str(final_images), flush=True)
+            return _simo_contract_json_error(
+                "Simo could not safely deliver a complete, non-repeating local image set.",
+                502, "final_image_inventory_invalid", str(final_images)
+            )
         canonical_hash = hashlib.sha256(html.encode("utf-8")).hexdigest()
         title = _simo_rc2_title(prompt)
         match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.I | re.S)
@@ -16000,32 +16611,33 @@ picture{display:block;max-width:100%;overflow:hidden;}
 
 
 def _simo_v107_image_edit_contract(instruction: str) -> dict:
-    """Classify natural-language website edits that require changing image pixels.
-
-    This is intentionally universal: it looks for image/object edit intent rather than
-    business categories. It supports casual wording and common misspellings by using
-    broad stems (etch*, engrav*, recolor*, etc.).
-    """
+    """Require a positive image/pixel instruction, not unrelated words across clauses."""
     text = re.sub(r"\s+", " ", str(instruction or "").strip().lower())
-    if not text:
-        return {"requires_pixel_edit": False, "all_images": False, "hero_only": False, "reason": ""}
-
-    image_words = bool(re.search(r"\b(image|images|photo|photos|picture|pictures|photograph|photographs|hero|gallery|visual|visuals)\b", text))
-    physical_marking = bool(re.search(r"\b(etch\w*|engrav\w*|print\w*|stamp\w*|emboss\w*|inscrib\w*|monogram\w*|label\w*|logo|name|word|text|lettering)\b", text))
-    pixel_actions = bool(re.search(r"\b(replace\w*|swap\w*|change\w*|edit\w*|alter\w*|remove\w*|delete\w*|add\w*|put\w*|place\w*|show\w*|make\w*|turn\w*|recolor\w*|colour\w*|color\w*|etch\w*|engrav\w*|print\w*|stamp\w*|emboss\w*|inscrib\w*|monogram\w*)\b", text))
-    object_target = bool(re.search(r"\b(bottle|bottles|product|products|shirt|shirts|sign|signs|vehicle|car|cars|package|packaging|box|boxes|book|books|cover|covers|object|objects|item|items)\b", text))
-    more_only = bool(re.search(r"\b(show|add|include)\s+(me\s+)?more\s+(image|images|photo|photos|picture|pictures)\b", text))
-
-    # "Show more images" is a layout/content request, not a request to repaint pixels.
-    requires = (image_words and pixel_actions and not more_only) or (physical_marking and object_target)
-    all_images = bool(re.search(r"\b(all|every|each)\b[^.]{0,50}\b(image|images|photo|photos|picture|pictures)\b", text) or re.search(r"\b(image|images|photo|photos|picture|pictures)\b[^.]{0,50}\b(all|every|each)\b", text))
-    hero_only = bool(re.search(r"\bhero\b", text)) and not all_images
-    return {
-        "requires_pixel_edit": bool(requires),
-        "all_images": bool(all_images),
-        "hero_only": bool(hero_only),
-        "reason": "visible image/pixel edit requested" if requires else "",
-    }
+    noun = r"(?:images?|photos?|pictures?|photographs?|visuals?)"
+    clauses = re.split(r"[.!?;]|\bbut\b|\band(?=\s+(?:replace|swap|change|edit|recolor|engrave|etch)\b)", text)
+    positive = []
+    for clause in clauses:
+        clause = clause.strip()
+        if not clause:
+            continue
+        # Preservation instructions never authorize a paid image edit.
+        if re.search(r"\b(?:preserve|keep|retain|leave|do not|don't|without changing)\b", clause):
+            continue
+        more = re.search(r"\b(?:show|add|include)\s+(?:me\s+)?more\s+" + noun + r"\b", clause)
+        direct = re.search(
+            r"\b(?:replace|swap|change|edit|alter|recolor|retouch|regenerate)\s+"
+            r"(?:(?:the|this|these|existing|current|all|every|each|of|my|our|hero|background|product|testimonial|testimonials|review|gallery|about|section)\s+){0,7}" + noun + r"\b"
+            r"|\b(?:make|turn)\s+(?:the\s+)?(?:hero\s+|background\s+)?" + noun + r"\s+(?:brighter|darker|sharper|warmer|cooler|blue|red|green|gold|black|white)\b"
+            r"|\b(?:remove|add|put|place)\b.{0,70}\b(?:in|inside|into|from|within)\s+(?:the\s+)?(?:hero\s+)?" + noun + r"\b", clause)
+        physical = re.search(r"\b(?:etch\w*|engrav\w*|emboss\w*|inscrib\w*|monogram\w*)\b", clause)
+        physical = physical or re.search(r"\b(?:print|stamp|put|add|place)\b.{0,60}\b(?:on|onto)\s+(?:the\s+|all\s+|each\s+|every\s+)*(?:bottles?|products?|shirts?|signs?|cars?|packaging|boxes|covers?|objects?)\b", clause)
+        if physical or (direct and not more):
+            positive.append(clause)
+    selected = " ".join(positive)
+    all_images = bool(re.search(r"\b(?:all|every|each)\b.{0,35}\b" + noun + r"\b|\b" + noun + r"\b.{0,25}\b(?:all|every|each)\b", selected))
+    return {"requires_pixel_edit": bool(positive), "all_images": all_images,
+            "hero_only": bool(re.search(r"\bhero\b", selected)) and not all_images,
+            "reason": "explicit image/pixel edit requested" if positive else ""}
 
 
 def _simo_v107_local_image_urls(html: str):
@@ -16492,14 +17104,8 @@ def _simo_canonical_website_edit():
         edit_scope = "FULL ART-DIRECTION REDESIGN" if full_art_direction else "FOCUSED PRESERVE-FIRST EDIT"
         interpreted_intent = _simo_v80_edit_intent(instruction)
         image_edit_contract = _simo_v107_image_edit_contract(instruction)
-        explicit_image_change = bool(
-            image_edit_contract.get("requires_pixel_edit")
-            or re.search(
-                r"\b(?:replace|change|swap|remove|add|generate|new|different)\s+(?:the\s+)?(?:hero\s+)?(?:image|images|photo|photos|picture|pictures)\b"
-                r"|\b(?:hero\s+image|hero\s+photo|background\s+image|background\s+photo|product\s+images|gallery\s+images)\b",
-                instruction_low,
-            )
-        )
+        explicit_image_change = bool(image_edit_contract.get("requires_pixel_edit") or re.search(
+            r"\b(?:show|add|include)\s+(?:me\s+)?more\s+(?:images?|photos?|pictures?)\b", instruction_low))
         preserve_style_images = bool(not explicit_image_change)
         # Pure pixel edits should preserve the exact site and avoid an unnecessary
         # HTML rewrite before touching images.
@@ -16824,6 +17430,7 @@ Apply the user's instruction OBVIOUSLY but professionally now. Preserve unrelate
                     "visible_image_insert_not_delivered",
                     "requested image insertion was missing from final HTML"
                 )
+        html = _simo_universal_cards_finish(html)
         return jsonify({
             "ok": True,
             "html": html,
@@ -17841,7 +18448,7 @@ def _simo_website_edit_meter_cost():
         return "website_premium_variant", SIMO_CREDIT_COSTS["website_premium_variant"]
     if re.search(r"redesign|make.*luxur|more luxur|new theme|rebrand|complete redesign|full redesign", text):
         return "website_redesign", SIMO_CREDIT_COSTS["website_redesign"]
-    if re.search(r"\b(image|photo|picture|hero image|gallery|replace image|swap image|etch|engrave|recolor)\b", text):
+    if _simo_v107_image_edit_contract(text).get("requires_pixel_edit"):
         return "website_image_edit", SIMO_CREDIT_COSTS["website_image_edit"]
     return "website_edit", SIMO_CREDIT_COSTS["website_edit"]
 
@@ -18319,6 +18926,16 @@ try:
     _simo_video_service.credits.risk_ready_fn = _simo_video_reserve_ready
     _simo_video_service.credits.start_fn = _simo_video_mark_started
     _simo_video_service.credits.consume_fn = _simo_video_consume
+    # Restore isolated Long Video route registration after Short Video is ready.
+    # Long Video uses the already configured Short Video service/credit bridge.
+    try:
+        from simo_long_video.register import register_simo_long_video
+        _simo_long_service = register_simo_long_video(app, _simo_video_service)
+        print("[SIMO LONG VIDEO] routes registered", flush=True)
+    except Exception as _simo_long_boot_exc:
+        # Preserve working Short Video if Long Video has a separate dependency issue.
+        print("[SIMO LONG VIDEO] registration failed:", str(_simo_long_boot_exc)[:300], flush=True)
+
     def _simo_video_narration_writer(prompt, total_seconds, minimum_words, maximum_words, scene_count):
         # Called only after the Long Video service reserves the complete quote.
         # One bounded text call; no paid retry/fallback loop.
@@ -18370,7 +18987,114 @@ def simo_demo_status():
     response = jsonify({"loggedIn": is_logged_in()})
     response.headers["Cache-Control"] = "no-store"
     return response
+def build_universal_premium_html(user_text: str) -> str:
+    subject = extract_website_subject(user_text) or "your project"
+    brand = title_case_brand(subject)
+    headline = f"Welcome to {brand}"
+    subheadline = f"A professional, ready-to-publish website built around {subject.lower()}. Clean design, clear messaging, and a polished first impression."
 
+    q = subject.lower().replace(" ", "+")
+    hero_img = f"https://source.unsplash.com/1600x900/?{q},premium"
+    img1 = f"https://source.unsplash.com/800x600/?{q},detail"
+    img2 = f"https://source.unsplash.com/800x600/?{q},lifestyle"
+
+    return f'''<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{brand}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>body {{ font-family: 'Inter', system-ui, sans-serif; }}</style>
+</head>
+<body class="bg-zinc-950 text-white">
+  <header class="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-50">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+      <div class="text-2xl font-bold">{brand}</div>
+      <nav class="hidden md:flex gap-8 text-sm text-zinc-400">
+        <a href="#features" class="hover:text-white">Features</a>
+        <a href="#about" class="hover:text-white">About</a>
+        <a href="#contact" class="hover:text-white">Contact</a>
+      </nav>
+      <a href="#contact" class="px-5 py-2.5 rounded-full bg-white text-black text-sm font-semibold">Get Started</a>
+    </div>
+  </header>
+
+  <section class="relative overflow-hidden">
+    <div class="absolute inset-0">
+      <img src="{hero_img}" class="w-full h-full object-cover opacity-40" alt="" />
+      <div class="absolute inset-0 bg-gradient-to-b from-zinc-950/70 via-zinc-950/40 to-zinc-950"></div>
+    </div>
+    <div class="relative max-w-6xl mx-auto px-6 py-28 md:py-40">
+      <div class="max-w-3xl">
+        <p class="text-emerald-400 text-sm font-medium mb-4">Built with Simo</p>
+        <h1 class="text-5xl md:text-7xl font-bold tracking-tight leading-none mb-6">{headline}</h1>
+        <p class="text-xl text-zinc-300 mb-10 max-w-xl">{subheadline}</p>
+        <div class="flex flex-wrap gap-4">
+          <a href="#contact" class="px-8 py-4 rounded-full bg-white text-black font-semibold">Get Started</a>
+          <a href="#features" class="px-8 py-4 rounded-full border border-zinc-700">Learn More</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="py-24 bg-zinc-900/50">
+    <div class="max-w-6xl mx-auto px-6">
+      <h2 class="text-4xl font-bold mb-4">What We Offer</h2>
+      <p class="text-zinc-400 mb-16 max-w-2xl">Everything presented clearly and professionally.</p>
+      <div class="grid md:grid-cols-3 gap-8">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
+          <img src="{img1}" class="w-full h-48 object-cover rounded-2xl mb-6" alt="" />
+          <h3 class="text-xl font-semibold mb-3">Quality Focus</h3>
+          <p class="text-zinc-400">Attention to detail so the result feels premium and trustworthy.</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
+          <img src="{img2}" class="w-full h-48 object-cover rounded-2xl mb-6" alt="" />
+          <h3 class="text-xl font-semibold mb-3">Clear Messaging</h3>
+          <p class="text-zinc-400">Visitors quickly understand what you offer and why it matters.</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-8">
+          <div class="w-full h-48 bg-gradient-to-br from-zinc-800 to-zinc-700 rounded-2xl mb-6 flex items-center justify-center text-4xl">✨</div>
+          <h3 class="text-xl font-semibold mb-3">Ready to Publish</h3>
+          <p class="text-zinc-400">Clean structure and mobile-friendly layout from the start.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="about" class="py-24">
+    <div class="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
+      <div>
+        <h2 class="text-4xl font-bold mb-6">Built for {brand}</h2>
+        <p class="text-zinc-400 text-lg mb-8">Designed around {subject.lower()}. You can edit any section with plain language and Simo will update the preview.</p>
+        <ul class="space-y-4 text-zinc-300">
+          <li class="flex gap-3"><span class="text-emerald-400">✓</span> Clean modern design</li>
+          <li class="flex gap-3"><span class="text-emerald-400">✓</span> Mobile responsive</li>
+          <li class="flex gap-3"><span class="text-emerald-400">✓</span> Easy to customize</li>
+          <li class="flex gap-3"><span class="text-emerald-400">✓</span> Ready to download or publish</li>
+        </ul>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-10">
+        <h3 class="text-2xl font-semibold mb-4">Next Step</h3>
+        <p class="text-zinc-400 mb-8">Tell Simo what you want changed in normal words.</p>
+        <a href="#contact" class="inline-block px-8 py-4 rounded-full bg-white text-black font-semibold">Contact Us</a>
+      </div>
+    </div>
+  </section>
+
+  <footer id="contact" class="border-t border-zinc-800 py-12">
+    <div class="max-w-6xl mx-auto px-6 flex flex-col md:flex-row justify-between gap-8 text-sm text-zinc-500">
+      <div>{brand} · Built with Simo</div>
+      <div class="flex gap-6">
+        <a href="#" class="hover:text-white">Privacy</a>
+        <a href="#" class="hover:text-white">Terms</a>
+        <a href="#" class="hover:text-white">Contact</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>'''
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
