@@ -184,6 +184,72 @@
 #simo-guest-demo video {display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:12px;background:#081322;}
 @media(max-width:560px){ #simo-guest-demo summary {align-items:flex-start;flex-direction:column;gap:12px;padding:16px;}#simo-guest-demo .simo-demo-content {padding:0 16px 16px;}}
 </style>
+
+<style id="simo-sidebar-demo-rc1-styles">
+  /* SIMO SIDEBAR DEMO RC1: small, accessible public showcase entry.
+     No JavaScript, API, login, billing, credits, or video-generation changes. */
+  .simo-sidebar-demo-link {
+    display:none;
+    text-decoration:none;
+    color:#edf6ff;
+    border:1px solid rgba(96,178,240,.38);
+    border-radius:12px;
+    background:linear-gradient(135deg,rgba(5,43,73,.95),rgba(20,33,69,.93));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    padding:10px 9px;
+    align-items:center;
+    gap:8px;
+    margin:0 4px 14px;
+    min-width:0;
+  }
+  .simo-sidebar-demo-play {
+    flex:0 0 30px; height:30px; border-radius:9px;
+    background:linear-gradient(135deg,#00b8ed,#6254fa);
+    color:#fff; display:grid; place-items:center; font-size:12px;
+  }
+  .simo-sidebar-demo-text {min-width:0; text-align:left; line-height:1.3;}
+  .simo-sidebar-demo-text strong {display:block; font-weight:750; font-size:11px; line-height:1.32;}
+  .simo-sidebar-demo-text small {display:block; margin-top:4px; font-size:10px; color:#b6d5f2;}
+  .simo-sidebar-demo-link:hover {border-color:#79ccff; background:linear-gradient(135deg,rgba(12,60,96,.98),rgba(37,43,89,.98));}
+  .simo-sidebar-demo-link:focus-visible {outline:2px solid #7dd3fc; outline-offset:3px;}
+  @media (min-width:981px) {
+    .simo-sidebar-demo-link {display:flex;}
+    /* Keep the original guest demo and its player intact; only hide the wide duplicate. */
+    #simo-guest-demo {display:none !important;}
+  }
+  /* On small screens the sidebar is already hidden; guests retain the original
+     working, in-page video strip. Avoid changing any mobile feature controls. */
+</style>
+
+<style id="simo-sidebar-demo-rc2-player-styles">
+  /* Standalone showcase player only. Never alters Simo AI video production or routing. */
+  .simo-sidebar-demo-link {width:calc(100% - 8px); cursor:pointer; font-family:inherit;}
+  #simoSidebarDemoDialogRC2 {
+    position:fixed; box-sizing:border-box; width:min(900px,calc(100vw - 28px));
+    max-width:900px; max-height:calc(100dvh - 36px); margin:auto; padding:0;
+    border:1px solid rgba(110,190,245,.55); border-radius:18px;
+    background:#071727; color:#f0f7ff; box-shadow:0 20px 90px rgba(0,0,0,.72);
+    overflow:auto; z-index:21500;
+  }
+  #simoSidebarDemoDialogRC2::backdrop {background:rgba(0,5,15,.85); backdrop-filter:blur(5px);}
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-header {
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    padding:14px 18px; border-bottom:1px solid rgba(150,200,250,.2);
+  }
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-title {font-size:16px; font-weight:750; line-height:1.35;}
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-close {
+    font:inherit; font-weight:750; cursor:pointer; padding:7px 12px;
+    color:#f2f8ff; background:#173b5e; border:1px solid rgba(150,205,255,.5);
+    border-radius:9px;
+  }
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-close:focus-visible {outline:2px solid #8ddcff; outline-offset:2px;}
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-content {padding:14px 16px 16px;}
+  #simoSidebarDemoDialogRC2 video {
+    display:block; width:100%; max-height:75dvh; aspect-ratio:16/9;
+    object-fit:contain; background:#000; border-radius:12px;
+  }
+  #simoSidebarDemoDialogRC2 .simo-demo-dialog-note {display:block; margin-top:10px; font-size:12px; color:#acc5db;}
+</style>
 </head>
 <body>
   <div class="app-shell">
@@ -195,6 +261,15 @@
           <small id="simoSidebarAccountId" class="simo-account-id" hidden></small>
         </div>
       </div>
+
+      <!-- SIMO DEMO SIDEBAR RC2: open existing showcase in an on-page video dialog.
+           A direct MP4 link can force a download, so do not navigate to the media URL. -->
+      <button type="button" class="simo-sidebar-demo-link" id="simoSidebarDemoOpenRC2"
+              aria-haspopup="dialog" aria-controls="simoSidebarDemoDialogRC2"
+              aria-label="Play Simo one-minute demo">
+        <span class="simo-sidebar-demo-play" aria-hidden="true">▶</span>
+        <span class="simo-sidebar-demo-text"><strong>See what Simo can create</strong><small>Watch demo · 1 min</small></span>
+      </button>
 
       <nav class="simo-home-nav" aria-label="Simo modes">
         <button type="button" class="simo-nav-item is-home" data-simo-home="1"><span>⌂</span><b>Home</b></button>
@@ -341,6 +416,25 @@
     </main>
   </div>
 
+
+  <!-- SIMO DEMO SIDEBAR RC2: In-page HTML5 player. Uses the existing showcase asset;
+       no download link and no modification to Simo's video creation system. -->
+  <dialog id="simoSidebarDemoDialogRC2" aria-labelledby="simoSidebarDemoTitleRC2">
+    <div class="simo-demo-dialog-header">
+      <strong class="simo-demo-dialog-title" id="simoSidebarDemoTitleRC2">See what Simo can create</strong>
+      <button type="button" class="simo-demo-dialog-close" id="simoSidebarDemoCloseRC2" aria-label="Close demo video">✕ Close</button>
+    </div>
+    <div class="simo-demo-dialog-content">
+      <video id="simoSidebarDemoVideoRC2" controls playsinline preload="none"
+             poster="/static/simo-demo-poster-rc10.jpg"
+             aria-label="Simo one-minute capability showcase">
+        <source src="/static/simo-demo-rc10.mp4" type="video/mp4" />
+        Your browser does not support HTML5 video.
+      </video>
+      <span class="simo-demo-dialog-note">Created with Simo · One-minute showcase</span>
+    </div>
+  </dialog>
+
   <script>
     window.SIMO_BOOT = {{ simo_boot_json | safe }};
   </script>
@@ -397,5 +491,28 @@
   <script src="/static/simo-sidebar-toggle-local-003.js?v=local-sidebar-003"></script>
   <script src="/static/simo-helper-panel-rc1.js?v=helper-rc1"></script>
   <script src="/static/simo-credit-sidebar-rc1.js?v=sidebar-credit-rc1"></script>
+
+<script id="simo-sidebar-demo-player-rc2">
+(() => {
+  'use strict';
+  const openButton = document.getElementById('simoSidebarDemoOpenRC2');
+  const dialog = document.getElementById('simoSidebarDemoDialogRC2');
+  const closeButton = document.getElementById('simoSidebarDemoCloseRC2');
+  const video = document.getElementById('simoSidebarDemoVideoRC2');
+  if (!openButton || !dialog || !closeButton || !video) return;
+  openButton.addEventListener('click', () => {
+    if (dialog.open) return;
+    dialog.showModal();
+    // A video element plays inline; visiting the raw .mp4 URL could download it.
+    const playback = video.play();
+    if (playback && typeof playback.catch === 'function') {
+      playback.catch(() => { /* Native Play control remains available. */ });
+    }
+  });
+  closeButton.addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => video.pause());
+  dialog.addEventListener('cancel', () => video.pause());
+})();
+</script>
 </body>
 </html>
