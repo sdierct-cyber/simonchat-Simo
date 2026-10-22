@@ -250,6 +250,12 @@
   }
   #simoSidebarDemoDialogRC2 .simo-demo-dialog-note {display:block; margin-top:10px; font-size:12px; color:#acc5db;}
 </style>
+  <style id="simo-legal-sidebar-style">
+    .simo-legal-sidebar { margin:24px 10px 10px; padding:16px 4px 12px; border-top:1px solid rgba(160,190,225,.18); display:flex; flex-direction:column; align-items:flex-start; gap:7px; font-size:11px; }
+    .simo-legal-sidebar a {color:#a9c7e6; text-decoration:none; font-weight:600;}
+    .simo-legal-sidebar a:hover,.simo-legal-sidebar a:focus-visible {color:#fff; text-decoration:underline; text-underline-offset:3px;}
+    .simo-legal-sidebar small {font-size:10px; color:#7791ac; line-height:1.5;}
+  </style>
 </head>
 <body>
   <div class="app-shell">
@@ -302,6 +308,11 @@
       <button id="settingsBtn" class="simo-nav-item" type="button"><span>⚙</span><b>Settings & Voice</b></button>
       <button id="signupBtn" class="simo-nav-item" type="button"><span>♙</span><b>Easy Signup</b></button>
       <button id="reopenLastPreviewBtn" class="simo-nav-item hidden" type="button"><span>↻</span><b>Reopen Last Build</b></button>
+      <!-- Legal links are discreetly available to guests and signed-in users. -->
+      <footer class="simo-legal-sidebar" aria-label="Simo legal information">
+        <a href="/privacy">Privacy Policy</a>
+        <small>© 2026 U.S. Publications, Inc.</small>
+      </footer>
     </aside>
 
     <main class="main simo-premium-main">
