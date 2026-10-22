@@ -6732,6 +6732,110 @@ def home():
 # They do not alter Chat, Website Builder, Design, Video,
 # Stripe, credits, authentication, libraries, or API logic.
 # =========================================================
+# Privacy requests: isolated routes and SQLite table. No AI provider calls.
+# On Render, configure SIMO_PRIVACY_DB_PATH to a path on a persistent disk.
+# Without durable storage, submissions are refused rather than falsely acknowledged.
+def simo_privacy_db_path():
+    configured = (os.getenv("SIMO_PRIVACY_DB_PATH") or "").strip()
+    if os.getenv("RENDER") and not configured:
+        return None
+    return configured or DB_PATH
+
+
+def simo_privacy_connect():
+    path = simo_privacy_db_path()
+    if not path:
+        raise RuntimeError("Privacy storage not configured")
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    conn = sqlite3.connect(path, timeout=8)
+    conn.row_factory = sqlite3.Row
+    conn.execute("""CREATE TABLE IF NOT EXISTS simo_privacy_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        created_at TEXT NOT NULL,
+        name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        category TEXT NOT NULL,
+        message TEXT NOT NULL,
+        ip_hash TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'new'
+    )""")
+    conn.commit()
+    return conn
+
+
+def simo_privacy_token():
+    if not session.get("simo_privacy_csrf"):
+        session["simo_privacy_csrf"] = secrets.token_urlsafe(32)
+    return session["simo_privacy_csrf"]
+
+
+@app.route("/privacy", methods=["GET"])
+def simo_privacy_policy():
+    return render_template("privacy.html", privacy_csrf=simo_privacy_token())
+
+
+@app.route("/privacy/contact", methods=["POST"])
+def simo_privacy_contact():
+    # Give visitors a useful, styled error instead of a generic Flask Bad Request.
+    # Never acknowledge receipt unless the database transaction commits.
+    def invalid(reason):
+        return render_template("privacy_result.html", success=False, message=reason), 400
+
+    if not secrets.compare_digest(str(request.form.get("csrf", "")), str(session.get("simo_privacy_csrf", ""))):
+        return invalid("Your form session expired or changed. Return to the Privacy Policy, refresh the page, and submit again.")
+    # Avoid autofill-sensitive hidden honeypots that reject legitimate users.
+    name = request.form.get("name", "").strip()
+    email = request.form.get("email", "").strip().lower()
+    category = request.form.get("category", "general").strip()
+    message = request.form.get("message", "").strip()
+    allowed = {"general", "access", "deletion", "correction", "other"}
+    if not 1 <= len(name) <= 120:
+        return invalid("Enter your name (up to 120 characters).")
+    if not (5 <= len(email) <= 254 and re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email)):
+        return invalid("Enter a valid email address.")
+    if category not in allowed:
+        return invalid("Please select a valid request type.")
+    if not 10 <= len(message) <= 4000:
+        return invalid("Your message must contain 10 to 4,000 characters (not counting spaces at the beginning or end).")
+    remote = request.remote_addr or "unknown"
+    ip_hash = hashlib.sha256((APP_SECRET + remote).encode()).hexdigest()
+    conn = None
+    try:
+        conn = simo_privacy_connect()
+        # Cap requests from one network: 3 in a rolling hour.
+        since = (dt.datetime.utcnow() - dt.timedelta(hours=1)).isoformat() + "Z"
+        count = conn.execute("SELECT COUNT(*) FROM simo_privacy_requests WHERE ip_hash=? AND created_at>=?", (ip_hash,since)).fetchone()[0]
+        if count >= 3:
+            return render_template("privacy_result.html", success=False, message="Too many requests from this connection. Please try again later."), 429
+        now = dt.datetime.utcnow().isoformat() + "Z"
+        conn.execute("INSERT INTO simo_privacy_requests (created_at,name,email,category,message,ip_hash) VALUES (?,?,?,?,?,?)", (now,name,email,category,message,ip_hash))
+        conn.commit()
+    except (sqlite3.Error, OSError, RuntimeError):
+        app.logger.exception("Privacy request could not be stored")
+        return render_template("privacy_result.html", success=False, message="Your request could not be saved. Please try again later."), 503
+    finally:
+        if conn is not None:
+            conn.close()
+    return render_template("privacy_result.html", success=True, message="Your privacy request was received. Our team will review it."), 200
+
+
+@app.route("/privacy/admin", methods=["GET"])
+def simo_privacy_admin():
+    # The owner must explicitly set SIMO_ADMIN_EMAILS on Render and sign in.
+    if not simo_admin_email_set() or not is_simo_admin_email():
+        abort(404)
+    try:
+        conn = simo_privacy_connect()
+        try:
+            rows = conn.execute("SELECT id,created_at,name,email,category,message,status FROM simo_privacy_requests ORDER BY id DESC LIMIT 200").fetchall()
+        finally:
+            conn.close()
+    except (sqlite3.Error, OSError, RuntimeError):
+        abort(503)
+    return render_template("privacy_admin.html", requests=rows)
+
+
+
 @app.route("/landing")
 def simo_launch_landing():
     return render_template("landing.html")
