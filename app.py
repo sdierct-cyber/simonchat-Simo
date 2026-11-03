@@ -5177,15 +5177,26 @@ def build_visual_generation_failed_reply(user_text: str, error: str = "") -> str
 # =========================================================
 # System prompt
 # =========================================================
-SYSTEM_PROMPT = """You are Simo, a warm, smart, non-judgmental best-friend style AI assistant.
-You are helpful, emotionally aware, direct, and practical.
-Avoid robotic filler.
-When users ask for build, design, app, website, startup, game, 3D, music, creator, or visual help, be capable and concrete.
-Keep answers useful and grounded.
-Only mention a 3D model URL if it is actually verified and provided to you.
-Do not claim that a model exists unless it is truly available.
-If no verified 3D model exists, be honest and say so clearly.
-When a verified 3D model exists, keep the reply very short and natural.
+SYSTEM_PROMPT = """You are Simo (S-I-M-O), 'Your Best Friend AI', an independently created AI assistant at simonchat.ai. Your purpose is to understand and help with the user's actual request, across subjects and creative workflows. You are warm, smart, non-judgmental, practical and direct; never substitute a generic template or unrelated feature for the requested task.
+
+UNIVERSAL CONVERSATION CONTRACT:
+- Identify the OUTPUT the user wants (answer, press release, explanation, story, plan, website, visual, video, edit), the SUBJECT it concerns, and the constraints/context from the current conversation. The output is not the same as the subjects mentioned in it.
+- If asked to WRITE ABOUT websites, video, books, design or other features, WRITE the requested text; do not claim to have generated that feature. If asked to explain or compare a feature, ANSWER, rather than activating it.
+- A short follow-up (such as 'shorter', 'continue', 'make it more professional', 'change the headline') usually refers to the current conversational draft. Follow the latest user's direction and retain agreed facts until they change the topic.
+- Deliver a useful finished answer when the task is clear; clarify only essential ambiguity. Never say you completed a tool action without real confirmation.
+- On unrelated new requests, switch topics naturally. Do not force earlier subjects or creator beliefs on the user.
+
+SIMO IDENTITY AND VERIFIED CAPABILITY GUIDE (for questions ABOUT SIMO, demonstrations, press releases, and marketing):
+- Simo was created by Simon Gojcaj and is operated by U.S. Publications, Inc. Simo is a faith-led product created by its Christian founder. Its intended ethos emphasizes honesty, kindness, responsibility, respect and service. Mention this naturally when the user asks about Simo's origin, mission, values or faith. Do not presume users share the founder's religion or impose it on unrelated requests.
+- General AI chat supports questions, brainstorming, writing and rewriting (including press releases, scripts, stories, book manuscripts, proposals, business ideas), explanations and planning. Do not confuse writing a book with producing a fully formatted/published book unless such a workflow is actually available.
+- Website Builder: natural-language website generation and editing, previews, website library save/reopen, and publishing workflows (where available).
+- Design Workspace: visual design concepts, generated images/product and invention concepts, editing and design library workflows. Image analysis is available for uploaded images.
+- Simo Video: short and longer-form AI video creation workflows with optional narration, music/audio controls and video options; standard output targets 1080p, with 4K as a premium option where supported. Do not promise flawless rendering, unbounded lengths, or features not verified in a user's account.
+- Existing tools, pricing, availability and export options can vary by plan and provider. If unsure whether a specific feature works right now, describe it as an offered workflow, not a confirmed successful result.
+- Desktop software, independent Music Studio, Podcast Studio and live multiparty video meetings are planned/proposed expansions, NOT current production features. Do not market them as already shipped.
+- For requested press releases and descriptions of Simo, accurately connect the capabilities to real benefits to users. Do not invent user counts, market leadership, awards, partnerships, investor backing or official endorsements.
+
+Never invent a 3D model link or claim a model exists unless its URL is verified and available. If a feature is not available, say so clearly and offer the supported alternative.
 """
 
 
@@ -6277,7 +6288,57 @@ def classify_request(user_text: str):
         "parsed_request": None,
     }
 
+# SIMO NOV03 SAFETY: A writing request ABOUT a feature is not a request to run that feature.
+# Keep this lightweight, deterministic, and independent of account/billing/website engines.
+def simo_is_document_writing_request(user_text: str) -> bool:
+    text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
+    if not text:
+        return False
+    # An actual website-build command can include press-release CONTENT.
+    if re.search(r"^(?:please\s+|can you\s+|could you\s+|i want you to\s+)?(?:build|create|make|design)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:website|web\s*site|landing\s+page|web\s*page)\b", text):
+        return False
+    document = r"(?:press\s+release|news\s+release|media\s+release|announcement|email|e-mail|letter|article|blog\s+post|biography|bio|business\s+proposal|memo|report|speech|social\s+media\s+post)"
+    # Dictation commonly produces "build me up a press release" or "build me a press release".
+    # Those are writing requests, NOT 3D design commands. Likewise, users can ask for
+    # a release using plain language without saying "write".
+    writing_action = r"(?:write|draft|prepare|compose|rewrite|polish|shorten|summarize|word|create|make|generate|build|develop|produce|give me|put together)"
+    if re.search(r"\b" + writing_action + r"\b.{0,140}\b" + document + r"\b", text):
+        return True
+    if re.search(r"\b(?:press\s+release|news\s+release|media\s+release)\b", text) and re.search(
+        r"\b(?:i\s+(?:need|want)|can\s+you|could\s+you|help\s+me|tell\s+me|draft|announcement|put\s+together)\b", text
+    ):
+        return True
+    return bool(re.match(r"^(?:please\s+)?(?:a\s+|an\s+|the\s+)?" + document + r"\b", text))
+
+
+def simo_is_chat_first_request(user_text: str) -> bool:
+    """Protect writing, questions, explanations and feature discussions from keyword routing."""
+    text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
+    if not text:
+        return False
+    # The user explicitly orders an artifact: its tool is still eligible to run.
+    if re.match(r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b",text):
+        return False
+    if simo_is_document_writing_request(text):
+        return True
+    # 'Make me a checklist for my website' should not generate a website.
+    writing_output = r"(?:checklist|outline|list|plan|instructions|steps|guide|tips|story|script|chapter|novel|manuscript|lyrics|poem|copy|headline|tagline|summary|review|analysis|description|paragraph|caption|answer|explanation)"
+    if re.search(r"\b(?:write|draft|prepare|compose|rewrite|polish|shorten|summarize|create|make|generate|give me)\b.{0,100}\b"+writing_output+r"\b",text):
+        return True
+    # Prefer the general AI for informational questions across every subject.
+    if re.match(r"^(?:please\s+)?(?:how|why|what|which|when|where|who|whose|is|are|does|do|did|can|could|would|should)\b",text):
+        # A polite direct request to BUILD is not a question ABOUT building.
+        if re.match(r"^(?:can|could|would)\s+you\s+(?:please\s+)?(?:build|create|make|design|generate|render|produce)\s+",text):
+            return False
+        return True
+    if re.match(r"^(?:please\s+)?(?:explain|describe|compare|discuss|summarize|review|teach|introduce yourself|tell me about|tell me why|tell me more about|help me understand|help me learn|tell me what|tell me how|show me how|give me an overview|what can simo do|what can you do)\b",text):
+        return True
+    return False
+
+
 def is_builder_request(user_text: str) -> bool:
+    if simo_is_chat_first_request(user_text):
+        return False
     text = normalize_prompt_typos(user_text).strip().lower()
     if not text:
         return False
@@ -7515,6 +7576,10 @@ def api_chat():
         explicit_mode = str(data.get("simo_mode") or data.get("lane") or "").strip().lower()
         if explicit_mode not in {"website", "business", "design", "analyze", "chat"}:
             explicit_mode = ""
+        # The requested output and user's current topic outrank mentions of other features.
+        document_writing_request = simo_is_chat_first_request(user_message)
+        if document_writing_request:
+            explicit_mode = "chat"
 
         if not user_message:
             return jsonify({"ok": False, "error": "Message is required."}), 400
@@ -7553,6 +7618,17 @@ def api_chat():
 
         clean_user_text = strip_mode_and_preset_lines(normalize_simo_intent_text(user_message)).strip() or normalize_simo_intent_text(user_message)
         lower_clean = clean_user_text.lower()
+        # A short instruction after ordinary chat normally edits the previous chat response.
+        # Do not let an older Website Builder session consume that conversation.
+        chat_followup = bool(
+            not document_writing_request
+            and explicit_mode in {"", "chat"}
+            and session.get("simo_last_main_chat_lane") == "general"
+            and not re.search(r"\b(?:make|turn|convert|transform)\s+(?:it|this)\s+(?:into\s+)?(?:a\s+)?(?:website|webpage|site|landing page)\b", lower_clean)
+            and re.match(r"^(?:please\s+)?(?:make it|shorten|lengthen|expand|continue|rewrite|revise|rephrase|polish|change the wording|change the headline|tell me more|add a paragraph|make this|keep going|more detail|less detail|same subject|use a|use the)\b", lower_clean)
+        )
+        if chat_followup:
+            explicit_mode = "chat"
         hard_3d_request = is_hard_3d_request(clean_user_text)
 
         explicit_builder_request = is_builder_request(clean_user_text)
@@ -7574,7 +7650,12 @@ def api_chat():
             builder_request = False
 
         builder_kind = builder_request_kind(clean_user_text) if builder_request else ""
-        route = classify_request(clean_user_text)
+        route = empty_model_route() if (document_writing_request or chat_followup) else classify_request(clean_user_text)
+        if document_writing_request or chat_followup:
+            builder_request = False
+            hard_3d_request = False
+            followup_builder_request = False
+            explicit_builder_request = False
         website_terms = [
             "website", "site", "landing page", "homepage", "web page",
             "build me a site", "build a site", "build a website",
@@ -7619,10 +7700,18 @@ def api_chat():
             house_route = "design_studio"
         elif hard_3d_request:
             house_route = "3d"
-        elif has_website_signal:
+        elif has_website_signal and builder_request:
             house_route = "builder"
-        elif has_design_signal:
+        elif has_design_signal and not (document_writing_request or chat_followup):
             house_route = "design_studio"
+
+        # The requested output (document) takes precedence over subjects mentioned
+        # inside it, including websites, products, video, books and designs.
+        if document_writing_request or chat_followup:
+            house_route = "general"
+            builder_request = False
+            builder_kind = ""
+            visual_first_request = False
 
         if explicit_mode == "website":
             house_route = "builder"
@@ -7821,6 +7910,8 @@ Do not default to an unrelated generic business type.
             assistant_text = "Simo is running, but OPENAI_API_KEY is missing, so chat generation is unavailable right now."
 
        
+        # Track the current conversation lane for context-aware short followups.
+        session["simo_last_main_chat_lane"] = house_route
         compact_assistant = compact_history_content("assistant", assistant_text)
         if compact_assistant:
             history.append({"role": "assistant", "content": compact_assistant})
@@ -18526,6 +18617,13 @@ def _simo_chat_meter_cost():
     data = request.get_json(silent=True) or {}
     mode = str(data.get("simo_mode") or data.get("lane") or "").strip().lower()
     text = str(data.get("message") or data.get("text") or "").strip().lower()
+    # Avoid crediting/metering a press release ABOUT website creation as a website generation.
+    if simo_is_chat_first_request(text) or (
+        mode in {"", "chat"}
+        and session.get("simo_last_main_chat_lane") == "general"
+        and re.match(r"^(?:please\s+)?(?:make it|shorten|lengthen|expand|continue|rewrite|revise|rephrase|polish|change the wording|change the headline|tell me more|add a paragraph|make this|keep going|more detail|less detail|same subject|use a|use the)\b", text)
+    ):
+        return "chat", SIMO_CREDIT_COSTS["chat"]
     if mode == "website" or re.search(r"\b(build|make|create|design)\b.{0,30}\b(website|site|landing page|web page)\b", text):
         return "website_generate", SIMO_CREDIT_COSTS["website_generate"]
     if mode == "design" or re.search(r"\b(create|generate|design|render|show me)\b.{0,35}\b(image|visual|logo|product|book cover)\b", text):
