@@ -460,8 +460,60 @@
   </script>
   <!-- SIMO Architecture Baseline: load the Website Builder owner BEFORE legacy script.js,
        so website prompts are captured before older Design Workspace/dashboard handlers. -->
+  <!-- SIMO NOV03: writing requests take normal chat even when the prompt discusses websites.
+       Runs before the Website Builder owner attaches its Send/Enter event handlers. -->
+  <script id="simo-document-intent-preboot">
+  (() => {
+    'use strict';
+    function chatFirst(raw) {
+      const text = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
+      if (!text) return false;
+      const artifact = /^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b/;
+      if (artifact.test(text)) return false;
+      const documentName = String.raw`(?:press\s+release|news\s+release|media\s+release|announcement|email|e-mail|letter|article|blog\s+post|biography|bio|business\s+proposal|memo|report|speech|social\s+media\s+post)`;
+      // Keep speech-recognition wording such as "build me up a press release" in writing/chat.
+      const action = '(?:write|draft|prepare|compose|rewrite|polish|shorten|summarize|word|create|make|generate|build|develop|produce|give me|put together)';
+      if (new RegExp('\\b' + action + '\\b.{0,140}\\b' + documentName + '\\b').test(text) ||
+          (/\b(?:press\s+release|news\s+release|media\s+release)\b/.test(text) &&
+           /\b(?:i\s+(?:need|want)|can\s+you|could\s+you|help\s+me|tell\s+me|draft|announcement|put\s+together)\b/.test(text)) ||
+          new RegExp('^(?:please\\s+)?(?:a\\s+|an\\s+|the\\s+)?' + documentName + '\\b').test(text)) return true;
+      const writingOutput = String.raw`(?:checklist|outline|list|plan|instructions|steps|guide|tips|story|script|chapter|novel|manuscript|lyrics|poem|copy|headline|tagline|summary|review|analysis|description|paragraph|caption|answer|explanation)`;
+      if (new RegExp('\\b(?:write|draft|prepare|compose|rewrite|polish|shorten|summarize|create|make|generate|give me)\\b.{0,100}\\b' + writingOutput + '\\b').test(text)) return true;
+      if (/^(?:please\s+)?(?:how|why|what|which|when|where|who|whose|is|are|does|do|did|can|could|would|should)\b/.test(text)) {
+        return !/^(?:can|could|would)\s+you\s+(?:please\s+)?(?:build|create|make|design|generate|render|produce)\s+/.test(text);
+      }
+      return /^(?:please\s+)?(?:explain|describe|compare|discuss|summarize|review|teach|introduce yourself|tell me about|tell me why|tell me more about|help me understand|help me learn|tell me what|tell me how|show me how|give me an overview)\b/.test(text);
+    }
+    const chatFollowup = /^(?:please\s+)?(?:make it|shorten|lengthen|expand|continue|rewrite|revise|rephrase|polish|change the wording|change the headline|tell me more|add a paragraph|make this|keep going|more detail|less detail|same subject|use a|use the)\b/;
+    function shouldCapture(raw) {
+      const text = String(raw || '').trim().toLowerCase();
+      if (chatFirst(text)) return true;
+      return window.__SIMO_CHAT_THREAD_ACTIVE__ === true &&
+        String(window.__SIMO_ACTIVE_MODE__ || 'chat').toLowerCase() === 'chat' &&
+        chatFollowup.test(text) &&
+        !/\b(?:make|turn|convert|transform)\s+(?:it|this)\s+(?:into\s+)?(?:a\s+)?(?:website|webpage|site|landing page)\b/.test(text);
+    }
+    window.__SIMO_DOCUMENT_INTENT__ = chatFirst;
+    window.__SIMO_CHAT_FIRST_INTENT__ = shouldCapture;
+    function sendAsChat(event) {
+      const input = document.getElementById('chatInput');
+      if (!input || !shouldCapture(input.value) || typeof window.__SIMO_FORCE_CHAT_SEND__ !== 'function') return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.__SIMO_ACTIVE_MODE__ = 'chat';
+      window.__SIMO_CHAT_THREAD_ACTIVE__ = true;
+      window.__SIMO_FORCE_CHAT_SEND__();
+    }
+    document.addEventListener('click', (e) => {
+      if (e.target && e.target.closest && e.target.closest('#sendBtn')) sendAsChat(e);
+    }, true);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target && e.target.id === 'chatInput') sendAsChat(e);
+    }, true);
+  })();
+  </script>
   <script src="/static/simo-website-builder-recovery.js?v=simo-oct17-portable-export-rc2"></script>
-  <script src="/static/script.js?v=simo-oct10-mic-state-rc1"></script>
+  <script src="/static/script.js?v=simo-nov03-universal-intent-mic-rc2"></script>
   <script src="/static/simo-ui-recovery.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/phase29b-safe-addon.js?v=r1059j-image-analysis-chat"></script>
   <script src="/static/phase30-image-intake-safe.js?v=simo-oct17-intake-race-rc1"></script>
