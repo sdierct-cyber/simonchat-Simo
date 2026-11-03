@@ -4725,12 +4725,13 @@ function applyComposerText(text) {
   return true;
 }
 
-async function sendMessage(overrideMessage = "") {
+async function sendMessage(overrideMessage = "", modeOverride = "") {
   if (state.sending) return;
 
   const text = String(overrideMessage || inputEl?.value || "").trim();
   if (!text) return;
-  const activeMode = String(window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat";
+  const isChatFirst = !!(window.__SIMO_CHAT_FIRST_INTENT__ && window.__SIMO_CHAT_FIRST_INTENT__(text));
+  const activeMode = isChatFirst ? "chat" : (String(modeOverride || window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat");
   const hasImageReady = !!(state.selectedImageUrl && state.selectedImageFilename);
   if (activeMode === "analyze" && !hasImageReady) {
     if (inputEl) {
@@ -4841,6 +4842,9 @@ if (builderResult.handled) {
     setTimeout(() => scrollChatToBottom(true), 220);
   }
 }
+
+// Called only by the early HTML document-intent guard, before the Website Builder's send owner.
+window.__SIMO_FORCE_CHAT_SEND__ = function () { return sendMessage("", "chat"); };
 
 /* === PHASE 4.8B — HELPER TOGGLE (STATE-SAFE, CLEAN OPEN/CLOSE) === */
 
@@ -9882,6 +9886,10 @@ setSuggestionsVisible(false);
 
   var recognition = null;
   var listening = false;
+  var keepListening = false; // User owns the stop control; silence must not end dictation.
+  var recognitionRestartTimer = null;
+  var recognitionBase = "";
+  var fallbackStarting = false;
 
   function voiceSettings() {
     try { return JSON.parse(localStorage.getItem("simo_voice_settings_v1") || "{}") || {}; }
@@ -9987,7 +9995,7 @@ setSuggestionsVisible(false);
   }
 
   async function startRecorderFallback() {
-    if (fallbackBusy) return;
+    if (fallbackBusy || fallbackStarting) return;
     if (fallbackRecording) {
       try { if (fallbackRecorder && fallbackRecorder.state !== "inactive") fallbackRecorder.stop(); } catch (_) {}
       return;
@@ -9997,6 +10005,8 @@ setSuggestionsVisible(false);
       return;
     }
 
+    fallbackStarting = true;
+    refresh();
     try {
       fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
       fallbackChunks = [];
@@ -10017,7 +10027,9 @@ setSuggestionsVisible(false);
         if (e && e.data && e.data.size) fallbackChunks.push(e.data);
       };
       fallbackRecorder.onerror = function() {
+        fallbackStarting = false;
         setFallbackState(false);
+        refresh();
         stopFallbackTracks();
         status("Microphone recording stopped. Tap the mic to try again.");
       };
@@ -10025,21 +10037,24 @@ setSuggestionsVisible(false);
         var type = (fallbackRecorder && fallbackRecorder.mimeType) || "audio/webm";
         var blob = new Blob(fallbackChunks, { type: type });
         fallbackChunks = [];
+        fallbackStarting = false;
         setFallbackState(false);
+        refresh();
         stopFallbackTracks();
         transcribeRecordedBlob(blob);
       };
 
       fallbackRecorder.start();
+      fallbackStarting = false;
       setFallbackState(true);
-      status("Listening… tap the mic again when you're done.");
-      fallbackTimer = setTimeout(function() {
-        try {
-          if (fallbackRecorder && fallbackRecorder.state !== "inactive") fallbackRecorder.stop();
-        } catch (_) {}
-      }, 20000);
+      refresh();
+      status("Recording… tap the mic again when you're finished.");
+      // No 20-second stop: the user explicitly stops the recording.
+      // The server's existing max-upload-size and transcription limits remain enforced.
     } catch (err) {
+      fallbackStarting = false;
       setFallbackState(false);
+      refresh();
       stopFallbackTracks();
       var name = String((err && err.name) || "");
       if (name === "NotAllowedError" || name === "SecurityError") {
@@ -10088,7 +10103,9 @@ setSuggestionsVisible(false);
     var enabled = !!voiceSettings().micEnabled;
     b.disabled = false;
     // Keep recording fallback and browser speech recognition visually in sync.
-    var active = !!(listening || fallbackRecording);
+    var active = !!(keepListening || listening || fallbackRecording || fallbackStarting);
+    b.textContent = active ? "■" : "🎙️";
+    b.setAttribute("aria-label", active ? "Stop microphone" : "Start microphone");
     b.setAttribute("aria-pressed", active ? "true" : "false");
     b.setAttribute("data-simo-listening", active ? "1" : "0");
     b.classList.toggle("is-listening", active);
@@ -10098,10 +10115,12 @@ setSuggestionsVisible(false);
       : (enabled ? "Microphone input" : "Tap to enable microphone input");
   }
   function stop(silent) {
-    if (recognition && listening) { try { recognition.stop(); } catch (_) {} }
+    keepListening = false;
+    if (recognitionRestartTimer) { clearTimeout(recognitionRestartTimer); recognitionRestartTimer = null; }
+    if (recognition) { try { recognition.stop(); } catch (_) {} }
     listening = false;
     refresh();
-    if (!silent) status("Mic stopped. Press Send when ready.");
+    if (!silent) status("Mic stopped. Review your words, then press Send.");
   }
   function start() {
     if (!voiceSettings().micEnabled) {
@@ -10126,57 +10145,81 @@ setSuggestionsVisible(false);
       else status("Microphone speech input is not supported in this browser.");
       return;
     }
-    if (listening) { stop(false); return; }
+    if (keepListening || listening) { stop(false); return; }
 
     recognition = new Ctor();
     recognition.lang = "en-US";
-    recognition.continuous = false;
+    recognition.continuous = true;
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
+    keepListening = true;
+    recognitionBase = String((composer() && composer().value) || "");
+    refresh();
 
-    var base = "";
     recognition.onstart = function () {
-      listening = true; refresh(); status("Listening… speak now.");
-      var input = composer(); base = input ? String(input.value || "") : "";
+      if (!keepListening) { try { recognition.stop(); } catch (_) {} return; }
+      listening = true;
+      recognitionBase = String((composer() && composer().value) || "");
+      refresh();
+      status("Listening… tap the mic again when you're finished.");
     };
     recognition.onresult = function (event) {
       var finalText = "", interim = "";
-      for (var i = event.resultIndex; i < event.results.length; i++) {
-        var text = event.results[i][0] ? event.results[i][0].transcript : "";
-        if (event.results[i].isFinal) finalText += text; else interim += text;
+      // Collect ALL final results in this session; resultIndex alone drops earlier words.
+      for (var i = 0; i < event.results.length; i++) {
+        var segment = event.results[i][0] ? String(event.results[i][0].transcript || "").trim() : "";
+        if (!segment) continue;
+        if (event.results[i].isFinal) finalText += (finalText ? " " : "") + segment;
+        else interim += (interim ? " " : "") + segment;
       }
       var input = composer();
       if (!input) return;
-      var spoken = (finalText || interim).trim();
-      input.value = base + (base && spoken ? " " : "") + spoken;
+      var spoken = [finalText, interim].filter(Boolean).join(" ").trim();
+      input.value = recognitionBase + (recognitionBase && spoken ? " " : "") + spoken;
       input.dispatchEvent(new Event("input", { bubbles: true }));
     };
     recognition.onerror = function (event) {
+      var code = event && event.error ? String(event.error) : "";
+      if (code === "no-speech" || code === "aborted") {
+        // Chrome may close a silent listening session; onend restarts while enabled.
+        if (keepListening) status("Listening… you can pause and keep talking.");
+        return;
+      }
+      keepListening = false;
       listening = false;
       refresh();
-      var code = event && event.error ? String(event.error) : "";
       if (code === "service-not-allowed" && canRecordFallback()) {
-        status("Switching to Simo mobile microphone…");
+        status("Switching to Simo's recording microphone…");
         setTimeout(function() { startRecorderFallback(); }, 60);
       } else if (code === "not-allowed") {
         status("Microphone permission is blocked. Allow microphone access for Simo, then tap the mic again.");
-      } else if (code === "no-speech") {
-        status("I didn't hear speech. Tap the mic and try again.");
       } else if (code === "audio-capture") {
         status("No microphone was available to the browser.");
       } else {
-        status("Microphone stopped. Tap the mic to try again.");
+        status("Browser microphone interrupted. Tap the mic to try again.");
       }
     };
     recognition.onend = function () {
       listening = false;
       refresh();
+      if (keepListening) {
+        // A browser silence timeout is not the user's stop request.
+        if (recognitionRestartTimer) clearTimeout(recognitionRestartTimer);
+        recognitionRestartTimer = setTimeout(function () {
+          recognitionRestartTimer = null;
+          if (!keepListening) return;
+          try { recognition.start(); }
+          catch (_) { keepListening = false; refresh(); status("Browser ended dictation. Tap the mic to resume."); }
+        }, 250);
+        return;
+      }
       var input = composer();
       status(input && String(input.value || "").trim() ? "Speech added. Press Send when ready." : "Ready.");
     };
     try {
       recognition.start();
     } catch (_) {
+      keepListening = false;
       listening = false;
       refresh();
       if (canRecordFallback()) startRecorderFallback();
@@ -10188,9 +10231,9 @@ setSuggestionsVisible(false);
     if (!b || b.dataset.simoCurrentMicBound === "true") { refresh(); return; }
     b.dataset.simoCurrentMicBound = "true";
     b.addEventListener("click", function (e) {
-      e.preventDefault(); e.stopPropagation();
+      e.preventDefault(); e.stopImmediatePropagation();
       start();
-    });
+    }, true);
     refresh();
   }
   window.addEventListener("simo:voice-settings-updated", bind);
