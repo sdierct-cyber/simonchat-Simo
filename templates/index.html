@@ -332,6 +332,12 @@
         </div>
       </section>
 
+      <!-- SIMO HOME MINIMIZE RC1: presentation-only control; all original home content remains in DOM. -->
+      <div class="simo-home-collapse-bar" id="simoHomeCollapseBar">
+        <span class="simo-home-collapse-title">✦ Simo — Your Best Friend AI</span>
+        <button type="button" id="simoHomeCollapseBtn" aria-controls="simoHomeIntroRegion" aria-expanded="true">− Minimize welcome</button>
+      </div>
+      <div id="simoHomeIntroRegion" class="simo-home-intro-region">
       <section class="simo-premium-home">
         <div class="simo-home-hero">
           <div class="simo-trust-stack" aria-hidden="true">
@@ -411,6 +417,7 @@
           <span id="libraryCountValue">0</span>
         </div>
       </section>
+      </div><!-- /simoHomeIntroRegion -->
 
       <section class="chat-wrap simo-home-chat" id="chat">
         <div id="chatMessages"></div>
@@ -575,6 +582,29 @@
   closeButton.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => video.pause());
   dialog.addEventListener('cancel', () => video.pause());
+})();
+</script>
+
+<script id="simo-home-minimize-rc1">
+(() => {
+  'use strict';
+  const button = document.getElementById('simoHomeCollapseBtn');
+  const region = document.getElementById('simoHomeIntroRegion');
+  if (!button || !region) return;
+  const key = 'simo_home_collapsed_rc1';
+  const apply = (collapsed) => {
+    region.classList.toggle('simo-home-intro-collapsed', collapsed);
+    button.setAttribute('aria-expanded', String(!collapsed));
+    button.textContent = collapsed ? '+ Expand welcome' : '− Minimize welcome';
+  };
+  let collapsed = false;
+  try { collapsed = localStorage.getItem(key) === '1'; } catch (_) {}
+  apply(collapsed);
+  button.addEventListener('click', () => {
+    collapsed = !collapsed;
+    apply(collapsed);
+    try { localStorage.setItem(key, collapsed ? '1' : '0'); } catch (_) {}
+  });
 })();
 </script>
 </body>
