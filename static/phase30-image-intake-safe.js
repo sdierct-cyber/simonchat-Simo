@@ -7,6 +7,17 @@
 (function () {
   "use strict";
 
+  // SIMO NOV 5 — Single-owner image intake protection.
+  // The main script.js now owns clipboard paste, drag/drop, file selection,
+  // pending preview, and the explicit Send action. Never register a second
+  // uploader/analyzer when the main controller is active: the old Phase 30
+  // path auto-called analyzeStagedImage(false) after uploading and created
+  // duplicate attachment trays and chat responses before the user pressed Send.
+  if (window.__SIMO_BOOTED__) {
+    console.info("[SIMO] Phase 30 legacy image intake skipped; core chat owns image attachments.");
+    return;
+  }
+
   if (window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__) return;
   window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__ = true;
 
@@ -247,7 +258,7 @@
       try { window.__SIMO_STAGED_IMAGE__ = staged; } catch {}
       updateTray(staged.status);
       setStatus("Image uploaded. Ready for analysis or your next prompt.", false);
-      await analyzeStagedImage(false);
+      // Hold the upload as a draft. Analyze only when the user explicitly clicks Analyze. 
     } catch (err) {
       if (staged !== uploadImage) return;
       const message = err && err.name === "AbortError" ? "Image upload timed out before Simo could finish." : (err && err.message ? err.message : "Image upload failed.");

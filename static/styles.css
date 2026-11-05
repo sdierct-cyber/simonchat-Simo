@@ -4806,3 +4806,39 @@ body[data-simo-theme="default"]::before{
     margin: 4px 0 2px;
   }
 }
+
+/* SIMO HOME MINIMIZE RC1 — presentation only, keep original content mounted. */
+body .simo-home-collapse-bar {
+  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  flex:0 0 auto; min-height:36px; padding:5px 12px;
+  border:1px solid rgba(103,171,240,.23); border-radius:12px;
+  background:linear-gradient(90deg,rgba(8,37,61,.91),rgba(8,18,35,.88));
+  color:#dcefff;
+}
+body .simo-home-collapse-title {font-weight:700;font-size:12px;letter-spacing:.01em;}
+body #simoHomeCollapseBtn {
+  background:rgba(40,110,173,.20); border:1px solid rgba(117,196,255,.38);
+  border-radius:9px; color:#e5f4ff; cursor:pointer; font:inherit;
+  font-size:12px; font-weight:700; padding:6px 11px; white-space:nowrap;
+}
+body #simoHomeCollapseBtn:hover {background:rgba(40,110,173,.38);}
+body #simoHomeCollapseBtn:focus-visible {outline:2px solid #83d7ff;outline-offset:2px;}
+body .simo-home-intro-region {display:contents;}
+body .simo-home-intro-region.simo-home-intro-collapsed > .simo-premium-home {
+  display:none !important;
+}
+/* If credit counter has not been moved into sidebar, preserve the counter
+   on the compact bar by keeping its home section rather than hiding it. */
+body:not(.simo-credit-in-sidebar-rc1) .simo-home-intro-region.simo-home-intro-collapsed > .simo-premium-home {
+  display:block !important; min-height:0 !important; padding:0 !important;
+}
+body:not(.simo-credit-in-sidebar-rc1) .simo-home-intro-region.simo-home-intro-collapsed .simo-home-hero,
+body:not(.simo-credit-in-sidebar-rc1) .simo-home-intro-region.simo-home-intro-collapsed .simo-video-flagship,
+body:not(.simo-credit-in-sidebar-rc1) .simo-home-intro-region.simo-home-intro-collapsed #simo-guest-demo,
+body:not(.simo-credit-in-sidebar-rc1) .simo-home-intro-region.simo-home-intro-collapsed .simo-capability-grid {
+  display:none !important;
+}
+body .simo-home-intro-region.simo-home-intro-collapsed + .simo-home-chat {
+  flex:1 1 auto !important; min-height:0 !important;
+}
+@media(max-width:620px){body .simo-home-collapse-title{font-size:11px;} body #simoHomeCollapseBtn{font-size:11px;padding:6px 8px;}}

@@ -3023,6 +3023,58 @@ function maybeHandleBuilderResponse(text) {
   // -----------------------------
   // uploads / analyze
   // -----------------------------
+  // One attachment at a time. Prevent Send while a pasted/dropped image uploads.
+  let imageUploadPromise = null;
+  async function acceptChatImage(file) {
+    if (!file || !String(file.type || "").startsWith("image/")) {
+      toast("Please choose an image file.", "error");
+      return null;
+    }
+    if (imageUploadPromise) {
+      toast("Please finish the current image upload first.", "info");
+      return imageUploadPromise;
+    }
+    imageUploadPromise = uploadSelectedImage(file);
+    try { return await imageUploadPromise; }
+    finally { imageUploadPromise = null; }
+  }
+
+  // Pending image belongs to the composer until the user explicitly sends it.
+  function updatePendingImageDraft() {
+    let preview = document.getElementById("simoPendingImageDraft");
+    if (!preview) {
+      preview = document.createElement("div");
+      preview.id = "simoPendingImageDraft";
+      preview.setAttribute("role", "status");
+      preview.style.cssText = "display:none;align-items:center;gap:10px;padding:9px 12px;border:1px solid rgba(110,168,255,.35);border-radius:12px;background:#10243b;color:#eaf3ff;max-width:100%;";
+      const composer = document.querySelector(".composer-wrap");
+      if (composer && composer.parentNode) composer.parentNode.insertBefore(preview, composer);
+    }
+    if (!preview) return;
+    preview.replaceChildren();
+    if (!state.selectedImageUrl) { preview.style.display = "none"; return; }
+    const img = document.createElement("img");
+    img.src = state.selectedImageUrl;
+    img.alt = "Image attached, not sent";
+    img.style.cssText = "width:48px;height:48px;object-fit:cover;border-radius:7px;";
+    const caption = document.createElement("span");
+    caption.style.cssText = "flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere;";
+    caption.textContent = `${state.selectedImageFilename || "Image"} — attached, not sent. Add your prompt, then press Send.`;
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.textContent = "Remove";
+    remove.setAttribute("aria-label", "Remove pending image");
+    remove.style.cssText = "border:1px solid #7491b3;background:#172e49;color:white;border-radius:8px;padding:7px 9px;cursor:pointer;";
+    remove.addEventListener("click", () => {
+      state.selectedImageUrl = "";
+      state.selectedImageFilename = "";
+      updatePendingImageDraft();
+      inputEl?.focus();
+    });
+    preview.append(img, caption, remove);
+    preview.style.display = "flex";
+  }
+
   async function uploadSelectedImage(file) {
     if (!file) return null;
 
@@ -3045,8 +3097,9 @@ function maybeHandleBuilderResponse(text) {
     state.selectedImageFilename = data.filename || file.name || "";
 
     if (state.selectedImageUrl) {
-      addImageBubble(state.selectedImageUrl, state.selectedImageFilename);
-      toast("Image uploaded.", "success");
+      updatePendingImageDraft();
+      toast("Image attached. Type your prompt and press Send.", "success");
+      inputEl?.focus();
     }
 
     return data;
@@ -3054,6 +3107,7 @@ function maybeHandleBuilderResponse(text) {
 
   async function analyzeLastImage() {
     try {
+      if (imageUploadPromise) await imageUploadPromise;
       const prompt =
         (inputEl && inputEl.value && inputEl.value.trim()) ||
         "Analyze this image in detail.";
@@ -3067,6 +3121,9 @@ function maybeHandleBuilderResponse(text) {
         const reply = String(data.reply || "Done.");
         state.lastAssistantText = reply;
         addAssistantMessageWith3D(reply);
+        state.selectedImageUrl = "";
+        state.selectedImageFilename = "";
+        updatePendingImageDraft();
         scrollAfterUiChange();
         return data;
       }
@@ -4726,9 +4783,14 @@ function applyComposerText(text) {
 }
 
 async function sendMessage(overrideMessage = "", modeOverride = "") {
+  if (imageUploadPromise) {
+    try { await imageUploadPromise; }
+    catch { return; } // Upload already reported an error; never send a stale image.
+  }
   if (state.sending) return;
 
-  const text = String(overrideMessage || inputEl?.value || "").trim();
+  const text = String(overrideMessage || inputEl?.value || "").trim() ||
+    (state.selectedImageUrl ? "Please look at this image and help me with our current conversation." : "");
   if (!text) return;
   const isChatFirst = !!(window.__SIMO_CHAT_FIRST_INTENT__ && window.__SIMO_CHAT_FIRST_INTENT__(text));
   const activeMode = isChatFirst ? "chat" : (String(modeOverride || window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat");
@@ -4742,7 +4804,14 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
     return;
   }
 
-  addMessage("user", text);
+  if (hasImageReady) {
+    // Show image and instructions as one user message only after Send was pressed.
+    addMessage("user", "", { html: `<div style="display:flex;flex-direction:column;gap:9px;"><span style="white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(text)}</span><img src="${escapeHtml(state.selectedImageUrl)}" alt="${escapeHtml(state.selectedImageFilename)}" style="max-width:320px;width:100%;border-radius:12px;" /></div>` });
+    const draftPreview = document.getElementById("simoPendingImageDraft");
+    if (draftPreview) draftPreview.style.display = "none";
+  } else {
+    addMessage("user", text);
+  }
 
   if (inputEl) {
     inputEl.value = "";
@@ -4824,7 +4893,12 @@ if (builderResult.handled) {
     }
 
     maybeToastRouteInfo(data);
+    // The image was consumed by this message; prevent it silently attaching to later turns.
+    state.selectedImageUrl = "";
+    state.selectedImageFilename = "";
+    updatePendingImageDraft();
   } catch (err) {
+    updatePendingImageDraft();
     const msg = err.message || "Message failed.";
 
     if (/daily limit/i.test(msg)) {
@@ -4946,6 +5020,7 @@ async function clearSessionHistory() {
     state.draftHtml = "";
     state.selectedImageUrl = "";
     state.selectedImageFilename = "";
+    updatePendingImageDraft();
 
     toast("History cleared.", "success");
     scrollAfterUiChange();
@@ -4968,6 +5043,7 @@ async function startNewChat() {
     state.draftHtml = "";
     state.selectedImageUrl = "";
     state.selectedImageFilename = "";
+    updatePendingImageDraft();
 
     if (inputEl) {
       inputEl.value = "";
@@ -5014,7 +5090,7 @@ function wireChat() {
       if (!file) return;
 
       try {
-        await uploadSelectedImage(file);
+        await acceptChatImage(file);
       } catch (err) {
         toast(err.message || "Image upload failed.", "error");
       } finally {
@@ -5022,6 +5098,45 @@ function wireChat() {
         setTimeout(() => scrollChatToBottom(true), 100);
         setTimeout(() => scrollChatToBottom(true), 260);
       }
+    });
+  }
+
+  // Paste an image copied from a screenshot tool or clipboard into the chat.
+  // Text-only pastes retain the browser's normal behavior.
+  if (!document.documentElement.dataset.simoChatImagePasteBound) {
+    document.documentElement.dataset.simoChatImagePasteBound = "true";
+    document.addEventListener("paste", (e) => {
+      const target = e.target;
+      if (target && target.closest && target.closest('input:not(#chatInput), textarea:not(#chatInput), [contenteditable="true"]')) return;
+      const items = Array.from((e.clipboardData && e.clipboardData.items) || []);
+      const item = items.find((entry) => entry.kind === "file" && entry.type.startsWith("image/"));
+      if (!item) return;
+      const file = item.getAsFile();
+      if (!file) return;
+      e.preventDefault();
+      acceptChatImage(file).catch((err) => toast(err.message || "Image paste failed.", "error"));
+    });
+  }
+
+  // Drag an image onto the chat or composer without allowing browser navigation.
+  if (!document.documentElement.dataset.simoChatImageDropBound) {
+    document.documentElement.dataset.simoChatImageDropBound = "true";
+    const isFileDrag = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes("Files");
+    document.addEventListener("dragover", (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    });
+    document.addEventListener("drop", (e) => {
+      if (!isFileDrag(e)) return;
+      e.preventDefault();
+      const target = e.target;
+      const inChat = target && target.closest && target.closest('#chatInput, #chat, .chat-wrap, .composer, #imageBtn, #sendBtn');
+      if (!inChat) { toast("Drop the image into Simo's chat area.", "info"); return; }
+      const file = Array.from((e.dataTransfer && e.dataTransfer.files) || [])
+        .find((candidate) => String(candidate.type || "").startsWith("image/"));
+      if (!file) { toast("Please drop an image file.", "error"); return; }
+      acceptChatImage(file).catch((err) => toast(err.message || "Image drop failed.", "error"));
     });
   }
 
