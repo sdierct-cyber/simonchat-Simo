@@ -1234,6 +1234,33 @@ def compact_builder_html_for_history(html: str) -> str:
     return f"[Builder HTML generated: {title}; sections: {section_text}]"
 
 
+def simo_contextual_image_prompt(user_request: str, prior_history: list) -> str:
+    """Ask vision to solve the user's ongoing task, not to describe a screenshot by default."""
+    turns = []
+    for entry in (prior_history or [])[-7:]:
+        if not isinstance(entry, dict):
+            continue
+        role = str(entry.get("role") or "").lower()
+        if role not in {"user", "assistant"}:
+            continue
+        content = str(entry.get("content") or "")[:5000]
+        if content:
+            turns.append(f"{role.upper()}: {content}")
+    context = "\n".join(turns) or "No earlier conversation available."
+    return (
+        "You are Simo, an assistant continuing the SAME user conversation. "
+        "The attached image may be a screenshot of an error, limit, warning, draft, or other relevant evidence. "
+        "Use the preceding conversation to understand WHY the user shared it. "
+        "Act on the user's task; do not automatically give a style/color/layout analysis. "
+        "If the screenshot shows that a social-media post exceeds a character limit, "
+        "rewrite the immediately preceding post within that platform's limit and provide ready-to-paste text. "
+        "Do not invent unrelated topics, recipients, or letters. "
+        "If the image is illegible, say so rather than guessing.\n\n"
+        f"RECENT CONVERSATION:\n{context}\n\n"
+        f"CURRENT USER REQUEST: {user_request or 'Please help with this image in the context of our conversation.'}"
+    )
+
+
 def compact_history_content(role: str, content: str) -> str:
     text = str(content or "").strip()
     if not text:
@@ -7763,12 +7790,7 @@ def api_chat():
             if not has_image or not image_path or not os.path.isfile(image_path):
                 assistant_text = "Attach an image first, then tell me what you want analyzed."
             elif client:
-                vision_prompt = (
-                    "Analyze the uploaded image carefully and answer the user's exact request. "
-                    "Describe only what is supported by the image, separate observation from suggestion, "
-                    "and give practical improvement advice when requested.\n\n"
-                    f"User request: {clean_user_text}"
-                )
+                vision_prompt = simo_contextual_image_prompt(clean_user_text, history[:-1])
                 try:
                     assistant_text = analyze_image_file_with_openai(image_path, vision_prompt, client).strip()
                 except Exception as exc:
@@ -7886,25 +7908,39 @@ Do not default to an unrelated generic business type.
             assistant_text = route["reply"]
 
         elif client:
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-            for item in history:
-                role = str(item.get("role", "")).strip()
-                content = str(item.get("content", "")).strip()
-                if role in {"user", "assistant", "system"} and content:
-                    messages.append({"role": role, "content": content})
+            # A screenshot attached to an ordinary chat message must actually be read.
+            # The previous implementation only passed its URL as plain text.
+            attached_path = session.get("last_uploaded_image") if has_image else None
+            if attached_path and os.path.isfile(attached_path):
+                try:
+                    assistant_text = analyze_image_file_with_openai(
+                        attached_path,
+                        simo_contextual_image_prompt(clean_user_text, history[:-1]),
+                        client,
+                    ).strip()
+                except Exception as exc:
+                    print(f"[SIMO CONTEXT IMAGE] vision failed: {str(exc)[:180]}", flush=True)
+                    assistant_text = "I couldn't read the attached image. Please try uploading it again."
+            if not assistant_text:
+                messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+                for item in history:
+                    role = str(item.get("role", "")).strip()
+                    content = str(item.get("content", "")).strip()
+                    if role in {"user", "assistant", "system"} and content:
+                        messages.append({"role": role, "content": content})
 
-            try:
-                resp = client.responses.create(
-                    model=OPENAI_MODEL,
-                    input=messages,
-                )
-                assistant_text = extract_first_text_from_openai_response(resp)
-            except Exception:
-                resp = client.chat.completions.create(
-                    model=OPENAI_MODEL,
-                    messages=messages,
-                )
-                assistant_text = extract_first_text_from_openai_response(resp)
+                try:
+                    resp = client.responses.create(
+                        model=OPENAI_MODEL,
+                        input=messages,
+                    )
+                    assistant_text = extract_first_text_from_openai_response(resp)
+                except Exception:
+                    resp = client.chat.completions.create(
+                        model=OPENAI_MODEL,
+                        messages=messages,
+                    )
+                    assistant_text = extract_first_text_from_openai_response(resp)
 
         else:
             assistant_text = "Simo is running, but OPENAI_API_KEY is missing, so chat generation is unavailable right now."
@@ -9287,7 +9323,18 @@ def api_analyze_image():
             return jsonify({"ok": False, "error": "OPENAI_API_KEY is missing."}), 500
 
         try:
-            text = analyze_image_file_with_openai(image_path, prompt, client)
+            previous = session.get("chat_history", [])
+            if not isinstance(previous, list):
+                previous = []
+            text = analyze_image_file_with_openai(
+                image_path, simo_contextual_image_prompt(prompt, previous), client
+            )
+            updated = previous[-6:] + [
+                {"role": "user", "content": compact_history_content("user", prompt)},
+                {"role": "assistant", "content": compact_history_content("assistant", text)},
+            ]
+            session["chat_history"] = updated[-8:]
+            session["simo_last_main_chat_lane"] = "general"
             return jsonify({"ok": True, "reply": text})
         except Exception as e:
             print(f"[SIMO R10.59J] image analysis failed: {e}", flush=True)
