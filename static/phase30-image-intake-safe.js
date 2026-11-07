@@ -1,4 +1,4 @@
-// PHASE 14M-R10.59J — Image Intake Chat Preview Safe
+// PHASE 14M-R10.61A — Image Intake and Form Chat Routing Safe
 // Safe add-on only.
 // Owns image button click, file picker, paste image, upload preview, /api/upload-image, and /api/analyze-image.
 // Does not touch app.py, core visual logic, subject lock, library, account sync, or normal Send/Enter behavior.
@@ -7,21 +7,10 @@
 (function () {
   "use strict";
 
-  // SIMO NOV 5 — Single-owner image intake protection.
-  // The main script.js now owns clipboard paste, drag/drop, file selection,
-  // pending preview, and the explicit Send action. Never register a second
-  // uploader/analyzer when the main controller is active: the old Phase 30
-  // path auto-called analyzeStagedImage(false) after uploading and created
-  // duplicate attachment trays and chat responses before the user pressed Send.
-  if (window.__SIMO_BOOTED__) {
-    console.info("[SIMO] Phase 30 legacy image intake skipped; core chat owns image attachments.");
-    return;
-  }
-
   if (window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__) return;
   window.__SIMO_PHASE30_IMAGE_INTAKE_SAFE__ = true;
 
-  const PHASE = "PHASE 14M-R10.59J — Image Intake Chat Preview Safe";
+  const PHASE = "PHASE 14M-R10.61G — Conversation-Aware Screenshot Understanding";
   const MAX_BYTES = 18 * 1024 * 1024;
   const UPLOAD_TIMEOUT_MS = 65000;
 
@@ -258,7 +247,7 @@
       try { window.__SIMO_STAGED_IMAGE__ = staged; } catch {}
       updateTray(staged.status);
       setStatus("Image uploaded. Ready for analysis or your next prompt.", false);
-      // Hold the upload as a draft. Analyze only when the user explicitly clicks Analyze. 
+      // An upload is only staged. Analyze only when asked via Analyze or Send.
     } catch (err) {
       if (staged !== uploadImage) return;
       const message = err && err.name === "AbortError" ? "Image upload timed out before Simo could finish." : (err && err.message ? err.message : "Image upload failed.");
@@ -289,7 +278,12 @@
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: "Analyze this uploaded image for Simo. Describe what it shows, style, colors, layout/composition, useful design clues, and what the user could ask Simo to build or improve from it. Keep it concise and practical."
+          prompt: (function () {
+            const question = clean(getInput() && getInput().value);
+            return question
+              ? "Look closely at the attached image and follow the user's question. If it is a form, give concrete field-by-field suggestions and ready-to-copy wording instead of design ideas. Question: " + question
+              : "Look closely at this image and explain what it contains in a useful way. For forms, list the readable fields and what information belongs in each. Do not invent business or contact details, and do not generate a design, website or 3D object.";
+          })()
         })
       });
       const data = await res.json().catch(function () { return {}; });
@@ -351,6 +345,23 @@
     uploadFile(file, "pasted image");
   }
 
+  // Image prompts are chat questions by default. A prior Design tab must not
+  // force a NEW form/screenshot question to launch an image or 3D tool.
+  // Only a clear creation command in this same prompt opts into visual tools.
+  function imagePromptMode(message) {
+    const t = String(message || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const formTask = /\b(?:fill(?:ing)?\s+(?:out|in)|complete\s+(?:this|the|my)\s+form|what\s+(?:do|should)\s+i\s+(?:put|write|enter)|help\s+me\s+(?:fill|complete|write|answer))\b/.test(t) && /\b(?:form|listing|fields?|application|advertisement)\b/.test(t);
+    const imageQuestion = /^(?:no\s+|please\s+|can\s+you\s+|could\s+you\s+)?(?:look\s+at|read|explain|describe|identify|analy[sz]e|review|tell\s+me|help\s+me\s+(?:with|on))\b/.test(t);
+    const asksForInfo = formTask || imageQuestion;
+    // Explicit 3D command keeps its existing dedicated backend route.
+    // An empty simo_mode lets the existing 3D classifier handle it.
+    if (/\b(?:create|build|make|generate|design|show|open|rotate)\b.{0,85}\b(?:3d\s+(?:model|viewer)|3-d\s+(?:model|viewer)|rotatable\s+model)\b/.test(t)) return "";
+    if (asksForInfo) return "chat";
+    if (/\b(?:build|create|make|design|generate|develop)\b.{0,85}\b(?:website|web\s*site|landing\s+page|web\s*page|homepage)\b/.test(t)) return "website";
+    if (/\b(?:create|generate|draw|render|design|turn\s+(?:this|it)\s+into)\b.{0,85}\b(?:image|illustration|picture|logo|artwork|render|design\s+concept|3d\s+model|3-d\s+model)\b/.test(t)) return "design";
+    return "chat";
+  }
+
   async function sendWithImage(event) {
     if (!staged || !staged.url || busy) return false;
     const input = getInput();
@@ -388,7 +399,8 @@
           message: message,
           has_image: true,
           image_url: imagePayload.url,
-          image_filename: imagePayload.filename || imagePayload.fileName || "uploaded-image"
+          image_filename: imagePayload.filename || imagePayload.fileName || "uploaded-image",
+          simo_mode: imagePromptMode(message)
         })
       });
       const data = await res.json().catch(function () { return {}; });
@@ -418,13 +430,18 @@
     return true;
   }
 
+  // Earliest document-level capture (index preboot) uses this owner, preventing
+  // legacy Design/3D handlers from also sending an attached image prompt.
+  window.__SIMO_PHASE30_SEND_STAGED__ = sendWithImage;
+  window.__SIMO_PHASE30_INTENT_MODE__ = imagePromptMode;
+
   function onSendClick(event) {
     if (staged && staged.url) sendWithImage(event);
   }
 
   function onKeyDown(event) {
     if (!staged || !staged.url) return;
-    if (event.key !== "Enter" || event.shiftKey) return;
+    if (event.key !== "Enter" || event.shiftKey || event.isComposing) return;
     sendWithImage(event);
   }
 
