@@ -6311,6 +6311,32 @@ def simo_is_document_writing_request(user_text: str) -> bool:
     return bool(re.match(r"^(?:please\s+)?(?:a\s+|an\s+|the\s+)?" + document + r"\b", text))
 
 
+def simo_is_feature_discussion_request(user_text: str) -> bool:
+    """Feature ideas and feasibility questions are conversation, not artifact commands.
+
+    Do not consume an inherited Design/Website mode for a proposal about Simo.
+    Explicit requests to implement or generate an artifact still use their owners.
+    """
+    text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
+    if not text:
+        return False
+    proposal = bool(re.search(
+        r"\b(?:i (?:have|had|got|thought of|was thinking of) (?:an? |another )?(?:idea|feature|suggestion)|"
+        r"(?:new|another|additional) feature (?:we|for|to)|"
+        r"(?:feature|functionality|capability) (?:we|you|simo) (?:can|could|should|might) (?:add|offer|provide)|"
+        r"can we (?:add|offer|provide|support|integrate)|"
+        r"(?:what (?:if|about)|how (?:about|would we)|would it be possible to) (?:add|offer|provide|integrate)|"
+        r"(?:let'?s|we should|we could) (?:discuss|explore|consider|plan|look into|add)\b)", text
+    ))
+    about_simo = bool(re.search(r"\b(?:simo|platform|our app|our website|our users|we|feature|functionality)\b", text))
+    explicit_artifact = bool(re.match(
+        r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?"
+        r"(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?"
+        r"(?:website|web\s*site|landing page|image|picture|logo|video|3d model)\b", text
+    ))
+    return proposal and about_simo and not explicit_artifact
+
+
 def simo_is_chat_first_request(user_text: str) -> bool:
     """Protect writing, questions, explanations and feature discussions from keyword routing."""
     text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
@@ -6319,6 +6345,11 @@ def simo_is_chat_first_request(user_text: str) -> bool:
     # The user explicitly orders an artifact: its tool is still eligible to run.
     if re.match(r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b",text):
         return False
+    if simo_is_feature_discussion_request(text):
+        return True
+    # Calling/account-feature implementation suggestions are not visual instructions.
+    if re.search(r"\b(?:let'?s|we (?:should|could|can)|can we|i (?:have|got|want|would like))\b.{0,90}\b(?:add|build|offer|provide|create|integrate|implement|feature|functionality)\b", text) and re.search(r"\b(?:simo|platform|users?|accounts?|feature|calling|voicemail|phone)\b", text):
+        return True
     if simo_is_document_writing_request(text):
         return True
     # 'Make me a checklist for my website' should not generate a website.
@@ -19437,6 +19468,19 @@ def build_universal_premium_html(user_text: str) -> str:
   </footer>
 </body>
 </html>'''
+
+# SIMO R10.62: isolated handle-to-handle calling beta. No AI engine changes.
+from simo_calling_beta import register_simo_calling_beta
+register_simo_calling_beta(app, get_db, current_user_email)
+
+# SIMO R10.63: separate authenticated conversations; no existing route changes.
+from simo_connect_messages import register_simo_connect_messages
+register_simo_connect_messages(app, get_db, current_user_email)
+
+
+# R10.66 — Isolated authenticated deletion REQUEST (not automated deletion).
+from simo_account_deletion_requests import register_simo_account_deletion_requests
+register_simo_account_deletion_requests(app, current_user_email, simo_privacy_connect)
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
