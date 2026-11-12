@@ -28,7 +28,7 @@
     #simoConnectMic[aria-pressed="true"]{background:#186454;border-color:#70e4af}#simoConnectStatus{min-height:16px;color:#a8d5e8;margin:6px 0}
     @media(max-width:600px){#simoMessagesBtn{right:14px;bottom:198px}#simoMessagesPanel{bottom:252px;max-height:calc(100vh - 270px)}}`;
   document.head.appendChild(css);
-  const button = document.createElement('button'); button.type='button';button.id='simoMessagesBtn';button.textContent='✉ Simo Messages (Beta)';
+  const button = document.createElement('button'); button.type='button';button.id='simoMessagesBtn';button.textContent='✉ Simo Messages';
   const panel=document.createElement('section');panel.id='simoMessagesPanel';panel.hidden=true;panel.setAttribute('aria-label','Simo messages');
   panel.innerHTML=`<button type="button" id="simoMessagesClose" style="float:right" aria-label="Close messages">×</button>
     <h3 style="margin:3px 0 6px">✉ Simo Messages</h3><small>Private Simo-to-Simo messages. Not SMS; no end-to-end encryption claim.</small>
@@ -74,7 +74,7 @@
   async function markRead(){if(!state.thread||!state.open)return;try{await api('read',{thread:state.thread});}catch(e){}}
   async function notificationPoll(){
     try{const data=await api('notifications');const list=data.threads||[];state.unread=data.unread_total||0;
-      button.textContent='✉ Simo Messages (Beta)'+(state.unread?' · '+state.unread:'');
+      button.textContent='✉ Simo Messages'+(state.unread?' · '+state.unread:'');
       const next=new Map(list.map(t=>[t.thread_id,t.latest_id]));
       if(state.notificationReady){for(const t of list){if(t.thread_id===state.thread&&state.open)continue;
         if(t.latest_id!==state.unreadIds.get(t.thread_id)){
