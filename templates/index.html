@@ -834,5 +834,35 @@
   })();
   </script>
 
+  <!-- R10.61G: UI-only guard for an unavailable 3D rotation workspace.
+       No prompt, model, intent, API, app.py, or script.js changes. -->
+  <script id="simo-hide-unavailable-3d-rotate-ui-r1061g">
+  (() => {
+    'use strict';
+    const label = /^3d\s*\/\s*rotate\s+workspace$/i;
+    const selector = 'button, [role="button"]';
+    const hideMatching = (root) => {
+      if (!root || root.nodeType !== 1) return;
+      const buttons = root.matches(selector)
+        ? [root, ...root.querySelectorAll(selector)]
+        : root.querySelectorAll(selector);
+      for (const button of buttons) {
+        if (!label.test((button.textContent || '').trim())) continue;
+        button.hidden = true;
+        button.style.setProperty('display', 'none', 'important');
+        button.setAttribute('aria-hidden', 'true');
+        if ('disabled' in button) button.disabled = true;
+      }
+    };
+    hideMatching(document.body);
+    const observer = new MutationObserver((records) => {
+      for (const record of records) {
+        for (const node of record.addedNodes) hideMatching(node);
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  })();
+  </script>
+
 </body>
 </html>
