@@ -378,6 +378,7 @@
 
       <button id="settingsBtn" class="simo-nav-item" type="button"><span>⚙</span><b>Settings & Voice</b></button>
       <button id="signupBtn" class="simo-nav-item" type="button"><span>♙</span><b>Easy Signup</b></button>
+      <button id="simoAccountDeletionOpenR1066" class="simo-nav-item" type="button" title="Request account deletion"><span>♧</span><b>Delete My Account</b></button>
       <button id="reopenLastPreviewBtn" class="simo-nav-item hidden" type="button"><span>↻</span><b>Reopen Last Build</b></button>
       <!-- Legal links are discreetly available to guests and signed-in users. -->
       <footer class="simo-legal-sidebar" aria-label="Simo legal information">
@@ -547,6 +548,13 @@
       if (!text) return false;
       const artifact = /^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b/;
       if (artifact.test(text)) return false;
+      // Feature proposals/feasibility questions must not open an inherited Design workspace.
+      const featureProposal = /\b(?:i (?:have|had|got|thought of|was thinking of) (?:an? |another )?(?:idea|feature|suggestion)|(?:new|another|additional) feature (?:we|for|to)|(?:feature|functionality|capability) (?:we|you|simo) (?:can|could|should|might) (?:add|offer|provide)|can we (?:add|offer|provide|support|integrate)|(?:what (?:if|about)|how (?:about|would we)|would it be possible to) (?:add|offer|provide|integrate)|(?:let'?s|we should|we could) (?:discuss|explore|consider|plan|look into|add)\b)/;
+      if (featureProposal.test(text) && /\b(?:simo|platform|our app|our website|our users|we|feature|functionality)\b/.test(text)) return true;
+      // R10.62: feature proposals and account-to-account calling belong to normal chat.
+      // This executes before all legacy workspace Send/Enter handlers.
+      const featureIdea = /\b(?:let'?s|we (?:should|could|can)|can we|i (?:have|got|want|would like))\b.{0,90}\b(?:add|build|offer|provide|create|integrate|implement|feature|functionality)\b|\b(?:calling|phone|voicemail|username|user handles?|internet phone numbers?|voip)\b.{0,100}\b(?:simo|platform|users?|accounts?|feature)\b/;
+      if (featureIdea.test(text) && /\b(?:simo|platform|users?|accounts?|feature|calling|voicemail|phone)\b/.test(text)) return true;
       // R10.61A: filling out a form/listing is an answer request, not creation.
       if (/\b(?:fill(?:ing)?\s+(?:out|in)|complete|populate|what\s+(?:should|do)\s+i\s+(?:put|write|enter))\b.{0,110}\b(?:form|listing|fields?|application|advertisement)\b|\b(?:form|listing|fields?|application)\b.{0,110}\b(?:fill(?:ing)?\s+(?:out|in)|what\s+(?:should|do)\s+i\s+(?:put|write|enter))\b/i.test(text)) return true;
       const documentName = String.raw`(?:press\s+release|news\s+release|media\s+release|announcement|email|e-mail|letter|article|blog\s+post|biography|bio|business\s+proposal|memo|report|speech|social\s+media\s+post)`;
@@ -615,6 +623,14 @@
       window.__SIMO_CHAT_THREAD_ACTIVE__ = true;
       window.__SIMO_FORCE_CHAT_SEND__();
     }
+    // Capture on window BEFORE older workspace owners; document capture is too late
+    // if a legacy Design handler already consumed the event at window level.
+    window.addEventListener('click', (e) => {
+      if (e.target && e.target.closest && e.target.closest('#sendBtn')) sendAsChat(e);
+    }, true);
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey && !e.isComposing && e.target && e.target.id === 'chatInput') sendAsChat(e);
+    }, true);
     document.addEventListener('click', (e) => {
       if (e.target && e.target.closest && e.target.closest('#sendBtn')) sendAsChat(e);
     }, true);
@@ -631,6 +647,9 @@
   <script src="/static/designstudio.js"></script>
   <script src="/static/simo_visualcore_PHASE_13A.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
+  <script src="/static/simo-calling-beta.js?v=r1068-video-visible"></script>
+  <script src="/static/simo-connect-messages.js?v=r1068-conversation-controls"></script>
+  <script src="/static/simo-account-deletion-request.js?v=r1066-confirmed-request"></script>
   <script src="/static/simo-live-workspace-isolated.js?v=simo-oct4-final-foundation-rc10"></script>
   <!-- Main Design/Workspace Library owner; intentionally separate from Website Builder Library. -->
   <script src="/static/simo-library-rescue.js?v=r1060-coordinated-recovery-final"></script>
