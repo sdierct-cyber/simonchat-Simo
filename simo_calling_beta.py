@@ -155,9 +155,8 @@ def register_simo_calling_beta(app, get_db, current_user_email):
                 return response_error('Only the caller can offer.', 403)
             now = int(time.time())
             other = row['recipient'] if email == row['caller'] else row['caller']
-            if kind == 'hangup' and row['state'] == 'ringing' and email == row['caller']:
-                conn.execute('''INSERT OR IGNORE INTO simo_call_missed(call_id,recipient,caller,created_at)
-                                VALUES (?,?,?,?)''',(call_id,row['recipient'],row['caller'],now))
+            # Canceling your own outgoing ringing call is NOT a missed call.
+            # Only unanswered calls that actually expire become missed in poll().
             if kind in ('decline','hangup'):
                 conn.execute('UPDATE simo_calls SET state=?,updated_at=? WHERE id=?', ('ended',now,call_id))
             elif kind in ('accept','answer'):

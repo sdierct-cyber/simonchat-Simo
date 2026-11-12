@@ -19478,9 +19478,17 @@ from simo_connect_messages import register_simo_connect_messages
 register_simo_connect_messages(app, get_db, current_user_email)
 
 
+# R10.71 — Server-side Simo Connect sign-in gate, including file downloads.
+from simo_connect_signin_guard import register_simo_connect_signin_guard
+register_simo_connect_signin_guard(app, current_user_email, get_user_by_email)
+
 # R10.66 — Isolated authenticated deletion REQUEST (not automated deletion).
 from simo_account_deletion_requests import register_simo_account_deletion_requests
 register_simo_account_deletion_requests(app, current_user_email, simo_privacy_connect)
+
+# R10.73: Private per-account contact nicknames; isolated from AI brain.
+from simo_connect_contacts import register_simo_connect_contacts
+register_simo_connect_contacts(app, get_db, current_user_email)
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
