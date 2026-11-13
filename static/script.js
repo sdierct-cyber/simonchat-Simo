@@ -10003,7 +10003,7 @@ setSuggestionsVisible(false);
   var listening = false;
   var keepListening = false; // User owns the stop control; silence must not end dictation.
   var recognitionRestartTimer = null;
-  var recognitionBase = "";
+  var deliveredFinalByIndex = Object.create(null);
   var fallbackStarting = false;
 
   function voiceSettings() {
@@ -10012,6 +10012,32 @@ setSuggestionsVisible(false);
   }
   function recognitionCtor() {
     return window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  }
+
+  function normalizeSimoDictation(raw, currentText) {
+    var text = String(raw || "").trim();
+    // Touch only NEW dictated words, never what the user has typed or corrected.
+    text = text.replace(/\bS\s*[-. ]\s*I\s*[-. ]\s*M\s*[-. ]\s*O\b/gi, "Simo");
+    text = text.replace(/\bS[.\s-]+E[.\s-]+M[.\s-]+O\b/gi, "Simo");
+    text = text.replace(/\b(?:semo|see[ -]?mo|cimo|simo)\b/gi, "Simo");
+    // "emo" may be ordinary speech. Only correct it when Simo is the clear topic.
+    var context = String(currentText || "") + " " + text;
+    if (/\b(?:simo|semo|spell(?:ing)?|my\s+ai|your\s+ai|our\s+ai|product\s+name|simonchat|linkedin|promot(?:e|ing)|custom\s+ids?)\b/i.test(context) || /^emo[.!?]?$/i.test(text)) {
+      text = text.replace(/\bE[.\s-]+M[.\s-]+O\b/gi, "Simo");
+      text = text.replace(/\bemo\b/gi, "Simo");
+    }
+    return text;
+  }
+
+  function appendDictation(input, segment) {
+    if (!input || !segment) return;
+    // Read the CURRENT value at commit time. Never replay a stale base.
+    var current = String(input.value || "");
+    var words = normalizeSimoDictation(segment, current);
+    if (!words) return;
+    var needsSpace = !!current && !/\s$/.test(current);
+    input.value = current + (needsSpace ? " " : "") + words;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
   }
 
   var fallbackRecorder = null;
@@ -10095,9 +10121,7 @@ setSuggestionsVisible(false);
         status("I couldn't hear clear speech. Tap the mic and try again.");
         return;
       }
-      var base = String(input.value || "").trim();
-      input.value = base + (base ? " " : "") + spoken;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      appendDictation(input, spoken);
       input.dispatchEvent(new Event("change", { bubbles: true }));
       try { input.focus(); } catch (_) {}
       status("Speech added. Press Send when ready.");
@@ -10268,30 +10292,40 @@ setSuggestionsVisible(false);
     recognition.interimResults = true;
     recognition.maxAlternatives = 1;
     keepListening = true;
-    recognitionBase = String((composer() && composer().value) || "");
+    deliveredFinalByIndex = Object.create(null);
     refresh();
 
     recognition.onstart = function () {
       if (!keepListening) { try { recognition.stop(); } catch (_) {} return; }
       listening = true;
-      recognitionBase = String((composer() && composer().value) || "");
+      // Chrome indexes results afresh after a silence auto-restart.
+      deliveredFinalByIndex = Object.create(null);
       refresh();
       status("Listening… tap the mic again when you're finished.");
     };
     recognition.onresult = function (event) {
-      var finalText = "", interim = "";
-      // Collect ALL final results in this session; resultIndex alone drops earlier words.
-      for (var i = 0; i < event.results.length; i++) {
-        var segment = event.results[i][0] ? String(event.results[i][0].transcript || "").trim() : "";
-        if (!segment) continue;
-        if (event.results[i].isFinal) finalText += (finalText ? " " : "") + segment;
-        else interim += (interim ? " " : "") + segment;
-      }
       var input = composer();
-      if (!input) return;
-      var spoken = [finalText, interim].filter(Boolean).join(" ").trim();
-      input.value = recognitionBase + (recognitionBase && spoken ? " " : "") + spoken;
-      input.dispatchEvent(new Event("input", { bubbles: true }));
+      if (!input || !event || !event.results) return;
+      var newlyFinal = [];
+      var interim = [];
+      // Web Speech sends previous final results on every update. Commit each
+      // final index ONCE, leaving user edits alone. Interim is status-only.
+      for (var i = 0; i < event.results.length; i++) {
+        var result = event.results[i];
+        var segment = result && result[0] ? String(result[0].transcript || "").trim() : "";
+        if (!segment) continue;
+        if (result.isFinal) {
+          if (!deliveredFinalByIndex[i]) {
+            deliveredFinalByIndex[i] = true;
+            newlyFinal.push(segment);
+          }
+        } else {
+          interim.push(segment);
+        }
+      }
+      if (newlyFinal.length) appendDictation(input, newlyFinal.join(" "));
+      if (interim.length) status("Listening… " + normalizeSimoDictation(interim.join(" "), input.value));
+      else if (newlyFinal.length) status("Speech added. Keep talking, or stop and press Send.");
     };
     recognition.onerror = function (event) {
       var code = event && event.error ? String(event.error) : "";
