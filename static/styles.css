@@ -4842,3 +4842,53 @@ body .simo-home-intro-region.simo-home-intro-collapsed + .simo-home-chat {
   flex:1 1 auto !important; min-height:0 !important;
 }
 @media(max-width:620px){body .simo-home-collapse-title{font-size:11px;} body #simoHomeCollapseBtn{font-size:11px;padding:6px 8px;}}
+
+
+/* SIMO R10.68 — visual-only Connect toolbar isolation.
+   Protect original image / prompt / microphone / send layout.
+   No change to Connect authentication, calling, messaging or APIs. */
+body #simoConnectToolbarR1068.simo-connect-toolbar-r1068 {
+  flex: 0 0 auto !important;
+  box-sizing: border-box;
+  display: flex !important;
+  flex-direction: row !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  gap: 8px !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+  padding: 1px 4px !important;
+  position: relative !important;
+  z-index: 91 !important;
+}
+body #simoConnectToolbarR1068[hidden] { display: none !important; }
+body #simoConnectToolbarR1068 > .simo-connect-toolbar-action-r1068 {
+  position: static !important;
+  inset: auto !important;
+  transform: none !important;
+  float: none !important;
+  margin: 0 !important;
+  flex: 0 1 auto !important;
+  max-width: 100% !important;
+  min-height: 34px !important;
+  white-space: normal !important;
+  visibility: visible !important;
+}
+body .composer-wrap #simoMicBtn,
+body .composer-wrap #sendBtn {
+  position: static !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex-shrink: 0 !important;
+  z-index: 2 !important;
+}
+@media (max-width: 620px) {
+  body #simoConnectToolbarR1068 { justify-content: center !important; gap: 6px !important; }
+  body #simoConnectToolbarR1068 > .simo-connect-toolbar-action-r1068 {
+    flex: 1 1 auto !important;
+    font-size: 11px !important;
+    padding: 7px 9px !important;
+  }
+}
