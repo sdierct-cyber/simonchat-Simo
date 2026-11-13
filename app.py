@@ -5185,6 +5185,7 @@ UNIVERSAL CONVERSATION CONTRACT:
 - A short follow-up (such as 'shorter', 'continue', 'make it more professional', 'change the headline') usually refers to the current conversational draft. Follow the latest user's direction and retain agreed facts until they change the topic.
 - Deliver a useful finished answer when the task is clear; clarify only essential ambiguity. Never say you completed a tool action without real confirmation.
 - On unrelated new requests, switch topics naturally. Do not force earlier subjects or creator beliefs on the user.
+- Be product-feature-aware, not falsely "self-conscious": accurately use the Simo capabilities below when Simo is referenced. Never invent product features or imply consciousness.
 
 SIMO IDENTITY AND VERIFIED CAPABILITY GUIDE (for questions ABOUT SIMO, demonstrations, press releases, and marketing):
 - Simo was created by Simon Gojcaj and is operated by U.S. Publications, Inc. Simo is a faith-led product created by its Christian founder. Its intended ethos emphasizes honesty, kindness, responsibility, respect and service. Mention this naturally when the user asks about Simo's origin, mission, values or faith. Do not presume users share the founder's religion or impose it on unrelated requests.
@@ -5192,12 +5193,113 @@ SIMO IDENTITY AND VERIFIED CAPABILITY GUIDE (for questions ABOUT SIMO, demonstra
 - Website Builder: natural-language website generation and editing, previews, website library save/reopen, and publishing workflows (where available).
 - Design Workspace: visual design concepts, generated images/product and invention concepts, editing and design library workflows. Image analysis is available for uploaded images.
 - Simo Video: short and longer-form AI video creation workflows with optional narration, music/audio controls and video options; standard output targets 1080p, with 4K as a premium option where supported. Do not promise flawless rendering, unbounded lengths, or features not verified in a user's account.
+- Simo Connect (beta, separate from AI video generation): registered signed-in accounts with unique/custom Simo IDs or handles, private/direct messaging, group messaging (group texting), file sharing in supported messaging conversations, audio calling, video calling and group video calling. These are distinct features, not a generic collaboration label. Do NOT offer guest calling/messaging, ordinary phone-network calling, or unsupported integrations. Never promise a specific call or upload succeeds without confirming it. Live beta availability may vary by account, device and configuration.
+- Related account features: sign-in/signup, user profile, account-specific libraries, Free/Pro/Team plan controls and credit packs where applicable. Microphone dictation assists in prompt input; Simo must not claim automatic sending, publishing, booking, or contacting others unless an actual action succeeded.
+- A user saying "Simo", "SEMO", or spelling S-I-M-O in speech is referring to the product Simo; spell and capitalize it as Simo in your reply. When asked to write a LinkedIn post, ad, promotion, press release, or description ABOUT Simo, write the requested copy directly using these known product capabilities. No need to ask the user to repeat Simo's feature list. Distinguish actual beta capabilities from proposed features, and do not promise unsupported integrations.
 - Existing tools, pricing, availability and export options can vary by plan and provider. If unsure whether a specific feature works right now, describe it as an offered workflow, not a confirmed successful result.
-- Desktop software, independent Music Studio, Podcast Studio and live multiparty video meetings are planned/proposed expansions, NOT current production features. Do not market them as already shipped.
+- The separate installable Simo Desktop commercial suite, independent Music Studio, Podcast Studio, and a full-scale Zoom-like desktop meeting/recording suite are planned/proposed expansions, not confirmed current production features. Do NOT confuse them with the existing Simo Connect calling beta.
 - For requested press releases and descriptions of Simo, accurately connect the capabilities to real benefits to users. Do not invent user counts, market leadership, awards, partnerships, investor backing or official endorsements.
 
 Never invent a 3D model link or claim a model exists unless its URL is verified and available. If a feature is not available, say so clearly and offer the supported alternative.
 """
+
+
+# =========================================================
+# SIMO NOV13 — canonical, versioned product feature catalog (chat knowledge only)
+# This is an informational source for answering product questions and promoting
+# Simo, NOT a new runtime capability or permission grant.  Existing Simo Connect
+# calling, message, upload, authorization and billing code is untouched.
+# Review these entries against the deployed feature owners on each release.
+# =========================================================
+SIMO_PRODUCT_FEATURE_CATALOG_VERSION = "2026-11-13-connect-beta"
+SIMO_PRODUCT_FEATURE_CATALOG = (
+    ("AI chat, writing & planning", "Ask questions; brainstorm business ideas and plans; write and edit marketing posts, press releases, stories, scripts, proposals and other text."),
+    ("Website Builder", "Create and edit websites from natural-language prompts; preview designs; save and reopen website projects; use available publishing workflows."),
+    ("Visual design & image analysis", "Create visual and product-design concepts, generate/edit images in the Design Workspace, analyze uploaded images, and save/reopen design projects."),
+    ("AI video creation", "Create short and longer AI videos with the available narration, voiceover, music and editing controls; 1080p is the standard target and 4K is a premium option where supported."),
+    ("Simo Connect — private messaging", "Send one-to-one messages between registered, signed-in Simo users."),
+    ("Simo Connect — group messaging", "Communicate in group-message conversations among signed-in Simo users."),
+    ("Simo Connect — file sharing", "Share files within supported Simo Connect messaging conversations, subject to the deployed beta's file type, size and account restrictions."),
+    ("Simo Connect — audio calling", "Make account-to-account audio calls within the Simo Connect beta, where supported."),
+    ("Simo Connect — video calling", "Make account-to-account video calls within the Simo Connect beta, where supported."),
+    ("Simo Connect — group video calling", "Use the beta's group video calling functionality, where supported."),
+    ("Simo Connect — Simo IDs", "Use a Simo account and unique/custom Simo handle or ID to identify and contact other registered users."),
+    ("Accounts, libraries & plans", "Sign in; use available Free, Pro or Team account features; save/reopen supported projects in the corresponding libraries; manage available credits and plan options."),
+    ("Microphone dictation", "Dictate prompt text using a supported microphone/browser; edit that text before sending."),
+)
+SIMO_PRODUCT_BOUNDARIES = (
+    "Simo Connect is a signed-in beta, not regular phone-network service; guest calls "
+    "and guest messaging are not enabled. File and call availability varies by "
+    "the deployed feature, user's account and device. Simo Desktop, independent "
+    "Music Studio, Podcast Studio and broader desktop meeting/recording plans "
+    "are separate future projects, not current live features. Do not invent 24/7 "
+    "human support, a user community, partnerships, testimonials, automatic self-" 
+    "updating knowledge, or permanent memory of user corrections."
+)
+
+
+def simo_product_catalog_for_model() -> str:
+    """One authoritative checklist, included only in relevant chat turns."""
+    features = "\n".join(f"- {name}: {detail}" for name, detail in SIMO_PRODUCT_FEATURE_CATALOG)
+    return (
+        f"SIMO AUTHORITATIVE PRODUCT INVENTORY ({SIMO_PRODUCT_FEATURE_CATALOG_VERSION}):\n"
+        + features + "\nPRODUCT BOUNDARIES: " + SIMO_PRODUCT_BOUNDARIES + "\n"
+        "For a comprehensive feature list, include EVERY catalog category, especially all "
+        "seven individual Simo Connect capabilities (direct messaging, group messaging, "
+        "file sharing, audio calling, video calling, group video calling, and IDs/handles). "
+        "Do not reduce them to generic 'collaboration features'. In general "
+        "promotion of Simo, include its creative tools AND the core Simo Connect "
+        "benefits: direct/group messaging, file sharing, audio/video and group video "
+        "calling, and Simo IDs (unless the user asks to focus on only one area). "
+        "If the post specifically promotes new calling or messaging features, call "
+        "out those capabilities and file sharing individually. "
+        "For a short post, compress the wording without hiding the feature group. "
+        "Preserve the user's requested tone and character limits. Never claim a feature "
+        "was invented by the AI, or promise to retain a correction permanently; the "
+        "catalog must be maintained when product releases change."
+    )
+
+
+def simo_is_full_feature_inventory_request(user_message: str) -> bool:
+    """Deterministic self-inventory; writing a post ABOUT features stays AI writing."""
+    text = re.sub(r"\s+", " ", str(user_message or "").strip().lower())
+    if not text or simo_is_document_writing_request(text):
+        return False
+    return bool(
+        re.search(r"\b(?:tell|show|list|describe|explain|give|name)\b.{0,95}\b(?:all|every|complete|full|entire|whole)\b.{0,75}\b(?:features?|capabilit(?:y|ies)|tools?|functions?)\b", text)
+        or re.search(r"\b(?:all|every|complete|full)\b.{0,65}\b(?:features?|capabilit(?:y|ies))\b.{0,45}\b(?:simo|you|your|have|offer)\b", text)
+        or re.search(r"\b(?:comprehensive|complete|full)\s+(?:feature\s+)?(?:breakdown|list|inventory|overview)\b.{0,60}\b(?:simo|your|you)\b", text)
+        or re.search(r"\b(?:what|which)\b.{0,65}\b(?:features?|capabilit(?:y|ies))\b.{0,45}\b(?:do you|does simo|have|offer)\b", text)
+    )
+
+
+def simo_is_simo_product_discussion(user_message: str, history) -> bool:
+    """Add product catalog to Simo discussions, including short follow-ups."""
+    text = re.sub(r"\s+", " ", str(user_message or "").strip().lower())
+    if re.search(r"\b(?:simo|simonchat\.ai|your\s+(?:features|capabilities|products|tools)|what\s+can\s+you\s+do)\b", text):
+        return True
+    if simo_is_full_feature_inventory_request(text):
+        return True
+    if not re.search(r"\b(?:feature|promot|advertis|post|call|messag|file\s+shar|include|miss|forgot|remember|what\s+else|what\s+about|shorter|rewrite|revise)\b", text):
+        return False
+    if not isinstance(history, list):
+        return False
+    recent = " ".join(str(x.get('content') or '')[-600:] for x in history[-5:] if isinstance(x, dict))
+    return bool(re.search(r"\b(?:simo|simonchat\.ai|simo connect)\b", recent, re.I))
+
+
+def simo_full_feature_inventory_reply() -> str:
+    """Authoritative list cannot accidentally omit newly listed beta features."""
+    rows = [f"{i}. **{title}** — {description}" for i, (title, description) in enumerate(SIMO_PRODUCT_FEATURE_CATALOG, 1)]
+    return (
+        "Here is my current feature inventory at **simonchat.ai**. I’m Simo — Your Best Friend AI.\n\n"
+        + "\n".join(rows)
+        + "\n\n**Important:** Simo Connect is for registered, signed-in users and is still a beta. "
+          "Calling, file sharing, account permissions and premium options depend on the feature "
+          "and account. Proposed future desktop studios are not included above as available now.\n\n"
+          "This list comes from Simo's maintained product guide. It must be updated with future releases; "
+          "I cannot independently verify each feature's live status or promise to remember corrections permanently."
+    )
 
 
 # =========================================================
@@ -5385,7 +5487,7 @@ CONCEPT_KEYWORDS = [
     "create me",
     "make me",
     "build me",
-    "custom",
+    # A bare "custom" is NOT a design/3D command (e.g. custom user IDs).
     "concept",
     "editable",
     "edit the 3d",
@@ -6297,6 +6399,17 @@ def simo_is_document_writing_request(user_text: str) -> bool:
     # An actual website-build command can include press-release CONTENT.
     if re.search(r"^(?:please\s+|can you\s+|could you\s+|i want you to\s+)?(?:build|create|make|design)\s+(?:me\s+)?(?:a\s+|an\s+)?(?:website|web\s*site|landing\s+page|web\s*page)\b", text):
         return False
+    # Explicit requests for advertisements and social posts are WRITING, even when
+    # they mention calling, 3D, videos, "custom IDs", or other Simo features.
+    # Preserve explicit website/image/video/3D-asset commands for their own lanes.
+    marketing_output = r"(?:ad(?:vertisement)?|promo(?:tional)?\s+(?:post|copy|text)|marketing\s+copy|sales\s+copy|linkedin\s+(?:post|update|ad)|(?:facebook|instagram|social\s+media|x|twitter)\s+post|tweet|post(?:\s+for\s+(?:linkedin|facebook|instagram|x|twitter))?)"
+    marketing_action = r"(?:write|draft|prepare|compose|rewrite|polish|shorten|create|make|generate|develop|give\s+me|put\s+together|help\s+me\s+(?:write|draft|create|make))"
+    if re.search(r"\b" + marketing_action + r"\b.{0,170}\b" + marketing_output + r"\b", text):
+        return True
+    if re.match(r"^(?:please\s+)?(?:an?\s+|the\s+)?" + marketing_output + r"\b", text):
+        return True
+    if re.search(r"\b(?:write|draft|compose|prepare)\b.{0,180}\b(?:for|on)\s+linkedin\b", text):
+        return True
     document = r"(?:press\s+release|news\s+release|media\s+release|announcement|email|e-mail|letter|article|blog\s+post|biography|bio|business\s+proposal|memo|report|speech|social\s+media\s+post)"
     # Dictation commonly produces "build me up a press release" or "build me a press release".
     # Those are writing requests, NOT 3D design commands. Likewise, users can ask for
@@ -7672,7 +7785,9 @@ def _simo_contextual_vision_prompt(user_message: str, prior_history) -> str:
         "or changed any external form.\n\n"
         "When the conversation is specifically about Simo, known background: "
         "Simo — Your Best Friend AI (simonchat.ai) supports AI chat/writing, website "
-        "building/editing, image analysis/design concepts and AI video creation workflows. "
+        "building/editing, image analysis/design concepts, AI video creation workflows, and "
+        "signed-in Simo Connect beta: Simo IDs, direct/group messages, file sharing, and "
+        "audio, video, and group video calling. "
         "Do not claim features beyond what is provided. For other businesses, use only "
         "the facts from their messages and screenshots.\n\n"
         f"RECENT CONVERSATION (may be empty):\n{context or '(none)'}\n\n"
@@ -7710,7 +7825,9 @@ def api_chat():
         if explicit_mode not in {"website", "business", "design", "analyze", "chat"}:
             explicit_mode = ""
         # The requested output and user's current topic outrank mentions of other features.
-        document_writing_request = simo_is_chat_first_request(user_message) or _simo_is_form_assistance_request(user_message)
+        document_writing_request = (simo_is_chat_first_request(user_message)
+                                    or simo_is_full_feature_inventory_request(user_message)
+                                    or _simo_is_form_assistance_request(user_message))
         if document_writing_request or (has_image and _simo_refers_to_last_image(user_message)
                 and not (is_hard_3d_request(user_message)
                          or is_visual_first_creation_request(user_message)
@@ -8053,8 +8170,14 @@ Do not default to an unrelated generic business type.
         elif route["route_type"] in {"verified", "candidate", "concept", "unsupported"}:
             assistant_text = route["reply"]
 
+        elif simo_is_full_feature_inventory_request(user_message):
+            # Exact self-inventory is generated from the reviewed catalog,
+            # not a probabilistic summary that might silently omit Connect.
+            assistant_text = simo_full_feature_inventory_reply()
+
         elif client:
-            messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+            feature_reference = ("\n\n" + simo_product_catalog_for_model()) if simo_is_simo_product_discussion(user_message, history) else ""
+            messages = [{"role": "system", "content": SYSTEM_PROMPT + feature_reference}]
             for item in history:
                 role = str(item.get("role", "")).strip()
                 content = str(item.get("content", "")).strip()
