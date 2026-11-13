@@ -494,6 +494,9 @@
         <div id="chatMessages"></div>
       </section>
 
+      <!-- R10.68 UI ONLY: separate home for Simo Connect buttons, outside the prompt. -->
+      <nav id="simoConnectToolbarR1068" class="simo-connect-toolbar-r1068" aria-label="Simo communication tools" hidden></nav>
+
       <section class="composer-wrap simo-premium-composer">
         <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
         <input id="imageInput" type="file" accept="image/*" hidden />
@@ -886,6 +889,50 @@
       }
     });
     observer.observe(document.body, { childList: true, subtree: true });
+  })();
+  </script>
+
+  <!-- R10.68 CONNECT TOOLBAR: visual relocation only. Existing button nodes and listeners stay intact. -->
+  <script id="simo-connect-toolbar-layout-r1068">
+  (() => {
+    'use strict';
+    const toolbar = document.getElementById('simoConnectToolbarR1068');
+    const composer = document.querySelector('section.composer-wrap');
+    if (!toolbar || !composer) return;
+    const classify = (el) => {
+      if (!el || !el.matches || !el.matches('button, a, [role="button"]')) return '';
+      if (composer.contains(el) && ['sendBtn', 'simoMicBtn', 'micBtn', 'imageBtn'].includes(el.id)) return '';
+      const label = [(el.getAttribute('aria-label') || ''), (el.textContent || '')]
+        .join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
+      if (/simo\s+messages/.test(label) && label.length < 110) return 'messages';
+      if (/simo\s+audio\s*\/\s*video/.test(label) && label.length < 130) return 'calling';
+      return '';
+    };
+    function relocate() {
+      const buttons = document.querySelectorAll('button, a, [role="button"]');
+      let found = false;
+      for (const el of buttons) {
+        const kind = classify(el);
+        if (!kind || el === toolbar || !el.isConnected) continue;
+        // Never clone/replace the interactive element: retain direct event handlers.
+        if (el.parentElement !== toolbar) toolbar.appendChild(el);
+        el.classList.add('simo-connect-toolbar-action-r1068');
+        el.dataset.simoConnectToolbar = kind;
+        found = true;
+      }
+      toolbar.hidden = !found;
+    }
+    relocate();
+    // The communication extension may inject its buttons after page load.
+    // Observe only new nodes; do not react to our own moves inside the toolbar.
+    let pending = false;
+    const observer = new MutationObserver((records) => {
+      if (records.every(r => toolbar.contains(r.target))) return;
+      if (pending) return;
+      pending = true;
+      queueMicrotask(() => { pending = false; relocate(); });
+    });
+    observer.observe(document.body, {childList: true, subtree: true});
   })();
   </script>
 
