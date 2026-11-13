@@ -557,6 +557,12 @@
       if (featureIdea.test(text) && /\b(?:simo|platform|users?|accounts?|feature|calling|voicemail|phone)\b/.test(text)) return true;
       // R10.61A: filling out a form/listing is an answer request, not creation.
       if (/\b(?:fill(?:ing)?\s+(?:out|in)|complete|populate|what\s+(?:should|do)\s+i\s+(?:put|write|enter))\b.{0,110}\b(?:form|listing|fields?|application|advertisement)\b|\b(?:form|listing|fields?|application)\b.{0,110}\b(?:fill(?:ing)?\s+(?:out|in)|what\s+(?:should|do)\s+i\s+(?:put|write|enter))\b/i.test(text)) return true;
+      // Marketing COPY is chat, even when mentioning Simo Connect or custom IDs.
+      const marketingOutput = String.raw`(?:ad(?:vertisement)?|promo(?:tional)?\s+(?:post|copy|text)|marketing\s+copy|sales\s+copy|linkedin\s+(?:post|update|ad)|(?:facebook|instagram|social\s+media|x|twitter)\s+post|tweet|post(?:\s+for\s+(?:linkedin|facebook|instagram|x|twitter))?)`;
+      const marketingAction = String.raw`(?:write|draft|prepare|compose|rewrite|polish|shorten|create|make|generate|develop|give\s+me|put\s+together|help\s+me\s+(?:write|draft|create|make))`;
+      if (new RegExp('\\b' + marketingAction + '\\b.{0,170}\\b' + marketingOutput + '\\b').test(text) ||
+          new RegExp('^(?:please\\s+)?(?:an?\\s+|the\\s+)?' + marketingOutput + '\\b').test(text) ||
+          /\b(?:write|draft|compose|prepare)\b.{0,180}\b(?:for|on)\s+linkedin\b/.test(text)) return true;
       const documentName = String.raw`(?:press\s+release|news\s+release|media\s+release|announcement|email|e-mail|letter|article|blog\s+post|biography|bio|business\s+proposal|memo|report|speech|social\s+media\s+post)`;
       // Keep speech-recognition wording such as "build me up a press release" in writing/chat.
       const action = '(?:write|draft|prepare|compose|rewrite|polish|shorten|summarize|word|create|make|generate|build|develop|produce|give me|put together)';
