@@ -43,13 +43,30 @@ def register_simo_connect_contacts(app, get_db, current_user_email):
                     LIMIT 150''', (owner,)).fetchall()
                 return jsonify(ok=True, contacts=[{'nickname':r['nickname'],
                     'handle':r['handle'], 'favorite':bool(r['favorite'])} for r in rows])
-            data = request.get_json(silent=True) or {}
-            handle = str(data.get('handle') or '').strip().lower().lstrip('@')
-            if not HANDLE.fullmatch(handle):
-                return error('Enter a valid Simo handle.')
-            row = conn.execute('SELECT email FROM simo_call_handles WHERE handle=?', (handle,)).fetchone()
-            if not row:
-                return error('That registered Simo handle does not exist.', 404)
+            data = request.get_json(silent=True)
+            if not isinstance(data, dict):
+                return error('Expected a JSON object.')
+            conn.execute('BEGIN IMMEDIATE')
+            thread = data.get('thread')
+            if request.method == 'POST' and thread is not None:
+                if not isinstance(thread, str) or not 1 <= len(thread) <= 64:
+                    return error('Invalid conversation.')
+                row = conn.execute('''SELECT peer.email FROM simo_connect_threads t
+                    JOIN simo_connect_members own ON own.thread_id=t.id AND own.email=?
+                    JOIN simo_connect_members peer ON peer.thread_id=t.id AND peer.email<>own.email
+                    JOIN simo_call_handles h ON h.email=peer.email
+                    WHERE t.id=? AND t.kind='direct' AND
+                      (SELECT COUNT(*) FROM simo_connect_members WHERE thread_id=t.id)=2''',
+                    (owner, thread)).fetchone()
+                if not row:
+                    return error('Contact unavailable for this conversation.', 404)
+            else:
+                handle = str(data.get('handle') or '').strip().lower().lstrip('@')
+                if not HANDLE.fullmatch(handle):
+                    return error('Enter a valid Simo handle.')
+                row = conn.execute('SELECT email FROM simo_call_handles WHERE handle=?', (handle,)).fetchone()
+                if not row:
+                    return error('That registered Simo handle does not exist.', 404)
             contact_email = str(row['email'])
             if contact_email == owner:
                 return error('Your own handle cannot be a contact.')
@@ -62,10 +79,11 @@ def register_simo_connect_contacts(app, get_db, current_user_email):
                 return error('Choose a contact nickname of 1–48 printable characters.')
             if not isinstance(data.get('favorite',False),bool):
                 return error('Favorite must be true or false.')
-            favorite = int(data.get('favorite',False))
+            existing = conn.execute('SELECT favorite FROM simo_connect_contacts WHERE owner=? AND contact_email=?',
+                                    (owner, contact_email)).fetchone()
+            favorite = int(data.get('favorite', bool(existing['favorite']) if existing else False))
             count = conn.execute('SELECT COUNT(*) AS n FROM simo_connect_contacts WHERE owner=?',(owner,)).fetchone()['n']
-            exists = conn.execute('SELECT 1 FROM simo_connect_contacts WHERE owner=? AND contact_email=?',(owner,contact_email)).fetchone()
-            if count >= 150 and not exists:
+            if count >= 150 and not existing:
                 return error('Contacts limit reached (150).', 409)
             conn.execute('''INSERT INTO simo_connect_contacts(owner,contact_email,nickname,favorite,created_at)
                 VALUES(?,?,?,?,?) ON CONFLICT(owner,contact_email) DO UPDATE SET

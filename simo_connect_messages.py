@@ -15,6 +15,7 @@ from flask import jsonify, request
 
 HANDLE_RE = re.compile(r'^[a-z][a-z0-9_]{2,23}$')
 MAX_BODY = 2000
+EDIT_WINDOW_SECONDS = 15 * 60
 MAX_MEMBERS = 12
 MAX_FILE_BYTES = 5 * 1024 * 1024  # local-test limit
 FILE_TYPES = {
@@ -73,6 +74,11 @@ def register_simo_connect_messages(app, get_db, current_user_email):
             sender TEXT NOT NULL, body TEXT NOT NULL,
             created_at INTEGER NOT NULL)''')
         conn.execute('CREATE INDEX IF NOT EXISTS sc_message_thread ON simo_connect_messages(thread_id,id)')
+        conn.execute('''CREATE TABLE IF NOT EXISTS simo_connect_message_edits (
+            revision INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL UNIQUE,
+            thread_id TEXT NOT NULL, edited_at INTEGER NOT NULL)''')
+        conn.execute('''CREATE INDEX IF NOT EXISTS sc_edit_thread_revision
+            ON simo_connect_message_edits(thread_id, revision)''')
         conn.execute('''CREATE TABLE IF NOT EXISTS simo_connect_files (
             id TEXT PRIMARY KEY, message_id INTEGER NOT NULL UNIQUE,
             thread_id TEXT NOT NULL, sender TEXT NOT NULL,
@@ -180,21 +186,99 @@ def register_simo_connect_messages(app, get_db, current_user_email):
         email=user()
         if not email: return error('Please sign in.',401)
         thread=str(request.args.get('thread') or '')
-        try: after=max(0,int(request.args.get('after','0')))
-        except (ValueError,TypeError): return error('Invalid cursor.')
-        conn=db()
         try:
-            if not member(conn,thread,email): return error('Conversation not found.',404)
-            rows=conn.execute('''SELECT m.id,m.body,m.created_at,h.handle sender,
+            after = int(request.args.get('after', '0'))
+            after_edit = int(request.args.get('after_edit', '0'))
+            if not all(0 <= cursor <= 2**63 - 1 for cursor in (after, after_edit)):
+                return error('Invalid cursor.')
+        except (ValueError, TypeError):
+            return error('Invalid cursor.')
+        conn = db()
+        try:
+            conn.execute('BEGIN')
+            if not member(conn, thread, email):
+                return error('Conversation not found.', 404)
+            view = conn.execute('''SELECT cleared_through_id FROM simo_connect_user_views
+                WHERE thread_id=? AND email=?''', (thread, email)).fetchone()
+            cleared = view['cleared_through_id'] if view else 0
+            rows = conn.execute('''SELECT m.id,m.body,m.created_at,h.handle sender,
                 f.id as attachment_id,f.original_name as attachment_name,
-                f.mime as attachment_type,f.size_bytes as attachment_size
+                f.mime as attachment_type,f.size_bytes as attachment_size,
+                COALESCE(e.revision,0) AS revision,e.edited_at,
+                CASE WHEN m.sender=? AND m.body<>'' AND f.id IS NULL
+                  THEN m.created_at + ? END AS editable_until
                 FROM simo_connect_messages m LEFT JOIN simo_call_handles h ON h.email=m.sender
                 LEFT JOIN simo_connect_files f ON f.message_id=m.id
-                WHERE m.thread_id=? AND m.id>MAX(?,COALESCE((SELECT v.cleared_through_id
-                  FROM simo_connect_user_views v WHERE v.thread_id=? AND v.email=?),0))
-                ORDER BY m.id ASC LIMIT 100''',(thread,after,thread,email)).fetchall()
-            return jsonify({'ok':True,'messages':[dict(r) for r in rows]})
-        finally:conn.close()
+                LEFT JOIN simo_connect_message_edits e ON e.message_id=m.id
+                WHERE m.thread_id=? AND m.id>?
+                ORDER BY m.id ASC LIMIT 100''',
+                (email, EDIT_WINDOW_SECONDS, thread, max(after, cleared))).fetchall()
+            edits = conn.execute('''SELECT m.id,m.body,e.revision,e.edited_at
+                FROM simo_connect_message_edits e JOIN simo_connect_messages m ON m.id=e.message_id
+                WHERE e.thread_id=? AND e.revision>? AND m.id>? AND m.id<=?
+                ORDER BY e.revision ASC LIMIT 100''', (thread, after_edit, cleared, after)).fetchall()
+            response = jsonify(ok=True, messages=[dict(row) for row in rows], edits=[dict(row) for row in edits])
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        finally:
+            conn.close()
+
+    @app.post('/api/simo-connect/messages/edit')
+    def simo_connect_edit_message():
+        email = user()
+        if not email:
+            return error('Please sign in.', 401)
+        if not guard():
+            return error('Invalid request origin or content type.', 403)
+        data = request.get_json(silent=True)
+        if not isinstance(data, dict):
+            return error('Expected a JSON object.')
+        thread = data.get('thread')
+        message_id = data.get('id')
+        revision = data.get('revision')
+        body = data.get('body')
+        if not isinstance(thread, str) or not thread or len(thread) > 64:
+            return error('Invalid conversation.')
+        if (type(message_id) is not int or not 0 < message_id <= 2**63 - 1
+                or type(revision) is not int or not 0 <= revision <= 2**63 - 1):
+            return error('Invalid message or revision.')
+        if not isinstance(body, str) or not 1 <= len(body.strip()) <= MAX_BODY:
+            return error('Message must contain 1 to 2,000 characters.')
+        body = body.strip()
+        conn = db()
+        try:
+            conn.execute('BEGIN IMMEDIATE')
+            if not member(conn, thread, email):
+                return error('Conversation not found.', 404)
+            message = conn.execute('''SELECT m.body,m.created_at,COALESCE(e.revision,0) AS revision,
+                       e.edited_at
+                FROM simo_connect_messages m
+                LEFT JOIN simo_connect_message_edits e ON e.message_id=m.id
+                LEFT JOIN simo_connect_user_views v ON v.thread_id=m.thread_id AND v.email=m.sender
+                WHERE m.id=? AND m.thread_id=? AND m.sender=? AND m.body<>''
+                AND m.id>COALESCE(v.cleared_through_id,0)
+                AND NOT EXISTS (SELECT 1 FROM simo_connect_files f WHERE f.message_id=m.id)''',
+                (message_id, thread, email)).fetchone()
+            if not message:
+                return error('Editable message not found.', 404)
+            now = int(time.time())
+            if now >= message['created_at'] + EDIT_WINDOW_SECONDS:
+                return error('Messages can be edited for 15 minutes after sending.', 409)
+            if message['body'] == body:
+                return jsonify(ok=True, message=dict(id=message_id, body=body,
+                    revision=message['revision'], edited_at=message['edited_at']))
+            if message['revision'] != revision:
+                return error('This message changed. Cancel and reopen the editor to try again.', 409)
+            conn.execute('UPDATE simo_connect_messages SET body=? WHERE id=?', (body, message_id))
+            edited = conn.execute('''INSERT INTO simo_connect_message_edits(message_id,thread_id,edited_at)
+                VALUES(?,?,?) ON CONFLICT(message_id) DO UPDATE SET
+                revision=excluded.revision,edited_at=excluded.edited_at RETURNING revision''',
+                (message_id, thread, now)).fetchone()
+            conn.commit()
+            return jsonify(ok=True, message=dict(id=message_id, body=body,
+                revision=edited['revision'], edited_at=now))
+        finally:
+            conn.close()
 
     @app.post('/api/simo-connect/messages')
     def simo_connect_send():
