@@ -3587,7 +3587,10 @@ def valid_password(password: str) -> bool:
     return len(str(password or "")) >= 6
 
 
-def set_logged_in_user(email: str, name: str = "", google_sub: str = ""):
+def set_logged_in_user(email: str, name: str = "", google_sub: str = "", *, verified_google: bool = False):
+    session.pop("verified_google_sub", None)
+    if verified_google and google_sub:
+        session["verified_google_sub"] = google_sub.strip()
     session["user_email"] = str(email or "").strip().lower()
     session["user_name"] = str(name or "").strip()
     session["google_sub"] = str(google_sub or "").strip()
@@ -3597,6 +3600,7 @@ def clear_logged_in_user():
     session.pop("user_email", None)
     session.pop("user_name", None)
     session.pop("google_sub", None)
+    session.pop("verified_google_sub", None)
 
 
 init_db()
@@ -7234,7 +7238,10 @@ def auth_google_callback():
             return jsonify({"ok": False, "error": "Google login did not return an email."}), 400
 
         upsert_user(email=email, name=name, google_sub=sub, auth_provider="google")
-        set_logged_in_user(email=email, name=name, google_sub=sub)
+        set_logged_in_user(
+            email=email, name=name, google_sub=sub,
+            verified_google=user_info.get("email_verified") is True,
+        )
 
         # Recover Stripe status immediately on login.
         sync_user_pro_from_stripe(email)
@@ -19612,6 +19619,9 @@ register_simo_account_deletion_requests(app, current_user_email, simo_privacy_co
 # R10.73: Private per-account contact nicknames; isolated from AI brain.
 from simo_connect_contacts import register_simo_connect_contacts
 register_simo_connect_contacts(app, get_db, current_user_email)
+
+from simo_owner_admin import register_simo_owner_admin
+register_simo_owner_admin(app, get_db, current_user_email)
 
 if __name__ == "__main__":
     host = os.getenv("HOST", "127.0.0.1")
