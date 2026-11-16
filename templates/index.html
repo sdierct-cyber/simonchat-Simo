@@ -9,6 +9,7 @@
   <title>Simo — Your Best Friend</title>
   <!-- SIMO PHASE 14M-R10.59K VERIFIED COMPOSER ALIGNMENT READY -->
   <link rel="stylesheet" href="/static/styles.css?v=simo-oct21-sidebar-credit-rc1" />
+  <link rel="stylesheet" href="/static/simo-connect-mobile.css?v=3" />
   <link rel="stylesheet" href="/static/designstudio.css">
 
   <!-- R10.61D: working header minimize preserved; expanded workspace is full width. -->
@@ -230,6 +231,28 @@
     body .composer-wrap #simoProHelperToggleBtn { order:3 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
     body .composer-wrap #simoMicBtn, body .composer-wrap #micBtn { order:4 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
     body .composer-wrap #sendBtn { order:5 !important; position:static !important; inset:auto !important; transform:none !important; flex:0 0 42px !important; width:42px !important; height:42px !important; margin:0 !important; }
+    @media (max-width: 700px), (max-height: 500px) and (pointer: coarse) {
+      body .main > .composer-wrap.simo-premium-composer {
+        flex-wrap: wrap !important;
+        gap: 6px !important;
+        padding: 8px !important;
+      }
+
+      body .main > .composer-wrap.simo-premium-composer > textarea#chatInput {
+        order: 0 !important;
+        flex: 0 0 100% !important;
+        height: auto !important;
+        min-height: calc(3 * 1.375em + 12px) !important;
+        max-height: none !important;
+        padding: 6px 8px !important;
+        font-size: 16px !important;
+        line-height: 1.375 !important;
+      }
+
+      body .main > .composer-wrap.simo-premium-composer > #imageBtn {
+        margin-inline-end: auto !important;
+      }
+    }
   </style>
 <style id="simo-home-showcase-styles">
   .simo-home-showcase {position:relative; margin:22px 0; padding:clamp(16px,2.4vw,25px); border:1px solid rgba(125,174,244,.28); border-radius:19px; background:linear-gradient(150deg,rgba(15,31,57,.95),rgba(5,15,28,.98)); box-shadow:0 14px 42px rgba(0,0,0,.22); color:#ecf5ff;}
@@ -500,7 +523,7 @@
       <section class="composer-wrap simo-premium-composer">
         <button id="imageBtn" class="icon-btn" type="button" aria-label="Upload image">🖼️</button>
         <input id="imageInput" type="file" accept="image/*" hidden />
-        <textarea id="chatInput" placeholder="What would you like Simo to help you create?"></textarea>
+        <textarea id="chatInput" aria-label="Prompt for Simo" placeholder="What would you like Simo to help you create?"></textarea>
         <button id="simoMicBtn" class="icon-btn simo-mic-btn" type="button" aria-label="Use microphone" title="Use microphone">🎙️</button>
         <button id="sendBtn" class="send-btn" type="button" aria-label="Send">➤</button>
       </section>
@@ -656,8 +679,8 @@
   <script src="/static/designstudio.js"></script>
   <script src="/static/simo_visualcore_PHASE_13A.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
-  <script src="/static/simo-calling-beta.js?v=r1068-video-visible"></script>
-  <script src="/static/simo-connect-messages.js?v=r1068-conversation-controls"></script>
+  <script src="/static/simo-calling-beta.js?v=save-chat-contact-1"></script>
+  <script src="/static/simo-connect-messages.js?v=save-chat-contact-1"></script>
   <script src="/static/simo-account-deletion-request.js?v=r1066-confirmed-request"></script>
   <script src="/static/simo-live-workspace-isolated.js?v=simo-oct4-final-foundation-rc10"></script>
   <!-- Main Design/Workspace Library owner; intentionally separate from Website Builder Library. -->
