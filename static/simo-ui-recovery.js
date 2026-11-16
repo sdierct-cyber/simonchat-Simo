@@ -197,9 +197,7 @@
     // Do not capture or redirect it here; the main owner opens the signup modal
     // even when an existing Pro session is active.
 
-    bindClick("profileBtn", function () {
-      window.location.href = "/api/me";
-    });
+    // The main script owns the account button and displays its status in the app.
 
     var send = $("sendBtn");
     if (send && !send.dataset.simoUiRecoverySendGuardBound) {
