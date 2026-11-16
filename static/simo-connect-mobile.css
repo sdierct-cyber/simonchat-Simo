@@ -1,0 +1,282 @@
+body :is(#simoMessagesPanel, #simoCallingPanel) .simo-handle-setup[data-needs-handle="true"] {
+  flex: none;
+  padding: 12px;
+  border: 1px solid #6ce5b8;
+  border-radius: 12px;
+  background: #102f39;
+}
+
+.simo-handle-setup p {
+  margin: 6px 0;
+  color: #d0e6f5;
+}
+
+body :is(#simoMessagesPanel, #simoCallingPanel) .simo-handle-setup[data-needs-handle="true"] button {
+  background: #1c6a55;
+  border-color: #8be8c5;
+  color: white;
+  font-weight: 700;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  #simoMessagesPanel:not([hidden]) .simo-handle-setup[data-needs-handle="true"],
+  #simoCallingPanel:not([hidden]) .simo-handle-setup[data-needs-handle="true"] {
+    animation: simo-handle-highlight 1s ease-out 2;
+  }
+
+  @keyframes simo-handle-highlight {
+    50% { box-shadow: 0 0 0 4px #6ce5b852; }
+  }
+}
+
+.simo-connect-mobile-modes,
+#simoConnectVoice,
+#simoMessagesPanel .sc-thread-tools > summary,
+#simoMessagesPanel .sc-file-tools > summary {
+  display: none;
+}
+
+@media (max-width: 700px), (max-height: 500px) and (pointer: coarse) {
+  body #simoConnectToolbarR1068 .simo-connect-toolbar-action-r1068 {
+    display: none !important;
+  }
+
+  .simo-connect-mobile-modes {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: 100%;
+  }
+
+  .simo-connect-mobile-modes button {
+    min-width: 0;
+    min-height: 44px;
+    padding: 6px 4px;
+    border: 1px solid #477da0;
+    border-radius: 10px;
+    background: #103b56;
+    color: #f1f8ff;
+    font: 700 13px system-ui, sans-serif;
+  }
+
+  body #simoMessagesPanel:not([hidden]),
+  body #simoCallingPanel:not([hidden]) {
+    position: fixed;
+    inset: var(--simo-connect-top, 0px) 0 auto !important;
+    z-index: 10000;
+    width: 100%;
+    height: 100vh;
+    height: var(--simo-connect-height, 100dvh);
+    max-height: none !important;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+      max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    border: 0;
+    border-radius: 0;
+    background: #081a2e;
+    font: 15px/1.4 system-ui, sans-serif;
+  }
+
+  body:has(#simoMessagesPanel:not([hidden]), #simoCallingPanel:not([hidden])) {
+    overflow: hidden;
+  }
+
+  body:has(#simoMessagesPanel:not([hidden]), #simoCallingPanel:not([hidden])) > .app-shell {
+    isolation: isolate;
+  }
+
+  body :is(#simoMessagesPanel, #simoCallingPanel) button {
+    min-height: 44px;
+    margin: 0;
+    padding: 8px 11px;
+    font-size: 14px;
+  }
+
+  body :is(#simoMessagesPanel, #simoCallingPanel) :is(input, textarea, select) {
+    font-size: 16px;
+  }
+
+  body :is(#simoMessagesPanel, #simoCallingPanel) > h3 {
+    margin: 0 !important;
+    font-size: 20px;
+  }
+
+  body :is(#simoMessagesClose, #simoCallClose) {
+    align-self: flex-start;
+    flex: none;
+  }
+
+  #simoMessagesPanel .sc-description,
+  #simoMessagesPanel .sc-message-label > span,
+  #simoCallingPanel .simo-call-description {
+    display: none;
+  }
+
+  #simoMessagesPanel .sc-conversations {
+    flex: none;
+  }
+
+  #simoMessagesPanel[data-thread-open="true"] #simoConnectGroupOptions {
+    display: none;
+  }
+
+  #simoMessagesPanel #simoConnectThreadActions > button {
+    margin-inline-end: 6px;
+  }
+
+  body #simoMessagesPanel .sc-threads {
+    flex-direction: row;
+    max-height: none;
+    overflow-x: auto;
+    padding-block: 3px;
+    margin-block: 4px;
+  }
+
+  #simoMessagesPanel .sc-threads button {
+    flex: none;
+    max-width: 85%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body #simoConnectHistory {
+    flex: 1 1 180px;
+    min-height: 140px;
+    height: auto;
+    margin: 0;
+  }
+
+  #simoMessagesPanel .sc-composer {
+    flex: none;
+    background: #081a2e;
+  }
+
+  #simoMessagesPanel .sc-compose-actions {
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  #simoConnectVoice:not([hidden]),
+  #simoMessagesPanel .sc-thread-tools > summary,
+  #simoMessagesPanel .sc-file-tools > summary {
+    display: inline-block;
+  }
+
+  #simoMessagesPanel summary {
+    cursor: pointer;
+    padding: 9px 0;
+    color: #b9e1f6;
+  }
+
+  body #simoConnectBody {
+    min-height: 44px;
+    max-height: 100px;
+    padding: 8px 10px;
+    margin: 0;
+    resize: vertical;
+  }
+
+  #simoConnectMicHelp {
+    display: block;
+    margin-top: 4px;
+    color: #b9d2e5;
+  }
+
+  #simoCallingPanel[data-mode="audio"] #simoCallStartVideo,
+  #simoCallingPanel[data-mode="video"] #simoCallStart,
+  #simoCallingPanel[data-active="true"] .simo-call-setup,
+  #simoCallingPanel[data-active="true"] #simoCallMissedList,
+  #simoCallingPanel[data-mode="audio"] #simoCallVideoGrid,
+  #simoCallingPanel[data-active="false"] #simoCallVideoGrid,
+  #simoCallingPanel:not([hidden]) ~ #simoOutgoingRing {
+    display: none;
+  }
+
+  #simoCallingPanel .simo-call-actions {
+    order: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+  }
+
+  #simoCallingPanel[data-active="true"] .simo-call-actions {
+    margin-top: auto;
+  }
+
+  body #simoCallHangup:not([hidden]) {
+    background: #812f40;
+    border-color: #efadb9;
+  }
+
+  #simoCallVideoControls {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  body #simoCallVideoGrid {
+    position: relative;
+    display: block;
+    flex: 1 1 220px;
+    min-height: 110px;
+    max-height: none;
+    overflow: hidden;
+    border: 1px solid #34536c;
+    border-radius: 14px;
+    background: #040d16;
+  }
+
+  body #simoCallVideoGrid #simoRemoteVideoTile {
+    width: 100%;
+    height: 100%;
+  }
+
+  body #simoCallVideoGrid #simoLocalVideoTile {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    width: min(32%, 150px);
+    aspect-ratio: 4 / 5;
+  }
+
+  body #simoCallVideoGrid video {
+    width: 100%;
+    height: 100%;
+    max-height: none;
+  }
+
+  body #simoCallVideoGrid #simoCallLocalVideo {
+    object-fit: cover;
+  }
+
+  body #simoCallMini {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    bottom: auto;
+  }
+
+  body #simoCallMini button {
+    min-height: 44px;
+  }
+
+  body #simoIncomingRing,
+  body #simoOutgoingRing {
+    top: max(68px, calc(env(safe-area-inset-top) + 64px));
+  }
+
+  body #simoMessagesPanel:not([hidden]) ~ #simoConnectNotice {
+    z-index: 10400 !important;
+    top: auto !important;
+    bottom: 175px;
+    pointer-events: none;
+  }
+}

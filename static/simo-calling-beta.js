@@ -5,9 +5,10 @@
   if (window.__SIMO_CALLING_BETA__) return;
   window.__SIMO_CALLING_BETA__ = true;
   const $ = id => document.getElementById(id);
+  const mobile = window.matchMedia('(max-width: 700px), (max-height: 500px) and (pointer: coarse)');
   let last = 0, current = '', pc = null, local = null, incoming = null, pendingIce = [];
   let myHandle = '', calling = false, busy = false, poller = null, lastMissedIds = new Set(), missedBoot = false;
-  let callMode = 'audio', remoteStream = null;
+  let callMode = 'audio', preferredMode = 'audio', answering = false, callAccepted = false, remoteStream = null;
   let guestMode = false;
   let ringNotice = null;
   const originalTitle=document.title; let incomingTitle=false;
@@ -90,13 +91,15 @@
     if($('simoCallVideoControls'))$('simoCallVideoControls').hidden=true;
     if($('simoCallMicToggle'))$('simoCallMicToggle').textContent='Mute microphone';
     if($('simoCallCameraToggle'))$('simoCallCameraToggle').textContent='Turn camera off';
-    current=''; incoming=null; pendingIce=[]; calling=false;window.__simoCallOffer=null;
+    current=''; incoming=null; pendingIce=[]; calling=false; answering=false;callAccepted=false;window.__simoCallOffer=null;
+    updateCallView();
     hideOutgoing();
     if($('simoCallMini'))$('simoCallMini').hidden=true;
     if(incomingTitle){document.title=originalTitle;incomingTitle=false;}
     hideRing();
     $('simoCallAnswer').hidden=true;
     $('simoCallHangup').hidden=true;
+    $('simoCallHangup').textContent='Decline / Hang up';
     $('simoCallStart').disabled=false;
     $('simoCallStartVideo').disabled=false;
   }
@@ -141,46 +144,64 @@
   async function flushIce() {if(!pc?.remoteDescription)return;while(pendingIce.length) await pc.addIceCandidate(pendingIce.shift()).catch(()=>{});}
   async function begin(mode='audio') {
     if(guestMode){say('Sign in or create a Simo account to place calls.');showGuestGate();return;}
-    if(calling)return;
+    if (!myHandle) {
+      say('Save your Simo handle before calling.');
+      $('simoCallHandle').focus();
+      return;
+    }
+    if(calling || current)return;
     try {
       const handle = String($('simoCallTarget').value||'').trim().replace(/^@/,'');
       if(!handle){say('Enter the recipient handle.');return;}
-      calling=true;callMode=mode;remoteHandle=cleanHandle(handle);updateVideoIdentity();
+      calling=true;callMode=mode;preferredMode=mode;remoteHandle=cleanHandle(handle);updateVideoIdentity();
+      updateCallView();
+      if(mobile.matches)say('Requesting '+(mode==='video'?'camera and microphone':'microphone')+' access…');
       await mediaConnection(); // ask permission before initiating a call
       const result=await api('start',{handle,mode:callMode}); current=result.call_id;
-      $('simoCallHangup').hidden=false; $('simoCallStart').disabled=true;$('simoCallStartVideo').disabled=true;
+      $('simoCallHangup').textContent=mobile.matches?'Cancel call':'Decline / Hang up';
+      $('simoCallStart').disabled=true;$('simoCallStartVideo').disabled=true;
       const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
       await send('offer',{sdp:pc.localDescription.toJSON()});
+      $('simoCallHangup').hidden=false;
       say('Calling @'+handle+' ('+callMode+')…');
       showOutgoing(handle,callMode);
-      panel.hidden=true;
+      if(!mobile.matches)hideCallPanel();
     } catch(e){say(e.message);cleanup();}
   }
   async function answer() {
-    if(!incoming)return;
+    if(!incoming || answering || callAccepted)return;
+    answering=true;
     try {
       current=incoming;
       if(incomingTitle){document.title=originalTitle;incomingTitle=false;}
       hideRing();
       hideIncomingToast();
-      panel.hidden=false;
+      if(mobile.matches)showCallPanel(callMode);
+      else panel.hidden=false;
+      $('simoCallAnswer').hidden=true;
+      $('simoCallHangup').hidden=true;
       await mediaConnection();
       await send('accept');
+      callAccepted=true;
+      updateCallView();
       $('simoCallAnswer').hidden=true; $('simoCallHangup').hidden=false;
+      if(mobile.matches)$('simoCallHangup').textContent='Hang up';
       say('Connecting…');
     } catch(e){say(e.message);await send('decline').catch(()=>{});cleanup();}
+    finally{answering=false;updateCallView();}
   }
-  async function end() {hideRing();await send(incoming?'decline':'hangup').catch(()=>{});cleanup();say('Call ended — returned to standby.');notice('Call ended');await missedCheck();}
+  async function end() {hideRing();await send(incoming&&!callAccepted?'decline':'hangup').catch(()=>{});cleanup();say('Call ended — returned to standby.');notice('Call ended');await missedCheck();}
   async function eventHandler(ev) {
     if(ev.kind==='incoming') {
-      if(current || incoming) {const old=current;current=ev.call_id;await send('decline').catch(()=>{});current=old;return;}
+      if(current || incoming || calling) {await api('signal',{call_id:ev.call_id,kind:'decline',data:{}}).catch(()=>{});return;}
       incoming=ev.call_id; current=ev.call_id;callMode=ev.data.mode==='video'?'video':'audio';remoteHandle=cleanHandle(ev.data.from);updateVideoIdentity();
       // Incoming calls have a separate, compact, accessible alert. Preserve the workspace.
-      panel.hidden=true; // Incoming alert stays compact; never cover the work area.
+      if(!mobile.matches)panel.hidden=true;
+      updateCallView();
       showRing(ev.data.from, callMode);
       document.title=(callMode==='video'?'📹 Incoming video call':'☎ Incoming audio call')+' — Simo';incomingTitle=true;
       if(document.hidden && 'Notification' in window && Notification.permission==='granted'){
-        try{const n=new Notification('Simo '+(callMode==='video'?'video':'audio')+' call',{body:'Incoming from @'+String(ev.data.from||'unknown')+'. Open Simo to answer.',tag:'simo-incoming-call'});n.onclick=()=>{window.focus();panel.hidden=false;n.close();};}catch(_){ }
+        try{const n=new Notification('Simo '+(callMode==='video'?'video':'audio')+' call',{body:'Incoming from @'+String(ev.data.from||'unknown')+'. Open Simo to answer.',tag:'simo-incoming-call'});n.onclick=()=>{window.focus();showCallPanel(callMode);n.close();};}catch(_){ }
       }
       notice((callMode==='video'?'📹 Incoming video call':'☎ Incoming audio call')+' from @'+String(ev.data.from||'unknown')+' — open Simo Calling to answer.',15000);
       $('simoCallAnswer').textContent=callMode==='video'?'📹 Answer video call':'Answer audio call';
@@ -194,7 +215,7 @@
         await pc.setRemoteDescription(ev.data.sdp); await flushIce();
         const answer=await pc.createAnswer();await pc.setLocalDescription(answer);await send('answer',{sdp:pc.localDescription.toJSON()});
       }}
-      if(ev.kind==='accept' && pc && !incoming){say('Answered — connecting '+callMode+'…');hideIncomingToast();hideOutgoing();if(panel.hidden)mini.hidden=false;}
+      if(ev.kind==='accept' && pc && !incoming){if(mobile.matches)$('simoCallHangup').textContent='Hang up';say('Answered — connecting '+callMode+'…');hideIncomingToast();hideOutgoing();if(panel.hidden)mini.hidden=false;}
       if(ev.kind==='answer' && pc) {await pc.setRemoteDescription(ev.data.sdp);await flushIce();}
       if(ev.kind==='ice' && ev.data.candidate) {if(pc?.remoteDescription) await pc.addIceCandidate(ev.data.candidate);else pendingIce.push(ev.data.candidate);}
       if(ev.kind==='decline'||ev.kind==='hangup') {cleanup();notice(ev.kind==='decline'?'Call declined':'Call ended');say(ev.kind==='decline'?'Call declined — returned to standby.':'Call ended by other participant — returned to standby.');}
@@ -248,10 +269,10 @@
   const style=document.createElement('style');style.textContent=css+extraCss;document.head.appendChild(style);
   const btn=document.createElement('button');btn.id='simoCallingBtn';btn.type='button';btn.textContent='☎ Simo Audio / Video';
   const panel=document.createElement('section');panel.id='simoCallingPanel';panel.hidden=true;
-  panel.innerHTML=`<button id="simoCallClose" type="button" aria-label="Minimize calling panel">— Minimize</button><h3 style="margin:0 0 10px">☎ Simo Calling<span id="simoCallMissedCount"></span></h3><small>One-to-one browser voice/video between signed-in Simo users. No telephone numbers or voicemail yet.</small><p id="simoCallStatus" role="status">Sign in to use calling.</p><label>Your unique handle<input id="simoCallHandle" maxlength="24" placeholder="e.g. simo_friend" autocomplete="off"></label><button type="button" id="simoCallSave">Save handle</button><hr style="border:0;border-top:1px solid #35536a;margin:12px 0"><label>Call another handle<input id="simoCallTarget" maxlength="25" placeholder="@friend_handle" autocomplete="off"></label><button type="button" id="simoCallStart">Audio call</button><button type="button" id="simoCallStartVideo">📹 Start video call</button><button type="button" id="simoCallAnswer" hidden>Answer</button><button type="button" id="simoCallHangup" hidden>Decline / Hang up</button><div id="simoCallVideoControls" hidden><button type="button" id="simoCallMicToggle">Mute microphone</button><button type="button" id="simoCallCameraToggle" hidden>Turn camera off</button></div><div id="simoCallVideoGrid"><div class="simo-video-tile" id="simoRemoteVideoTile" hidden><video id="simoCallRemoteVideo" autoplay playsinline hidden aria-label="Other participant video"></video><span class="simo-video-id" id="simoRemoteVideoLabel">Other participant</span></div><div class="simo-video-tile" id="simoLocalVideoTile" hidden><video id="simoCallLocalVideo" autoplay muted playsinline hidden aria-label="Your camera preview"></video><span class="simo-video-id" id="simoLocalVideoLabel">You</span></div></div><div id="simoCallMissedList" aria-label="Missed calls"></div><audio id="simoCallAudio" autoplay playsinline></audio>`;
+  panel.innerHTML=`<button id="simoCallClose" type="button" aria-label="Minimize calling panel">— Minimize</button><h3 style="margin:0 0 10px"><span id="simoCallHeading">☎ Simo Calling</span><span id="simoCallMissedCount"></span></h3><small class="simo-call-description">One-to-one browser voice/video between signed-in Simo users. No telephone numbers or voicemail yet.</small><p id="simoCallStatus" role="status">Sign in to use calling.</p><div class="simo-call-setup"><form id="simoCallHandleSetup" class="simo-handle-setup" aria-labelledby="simoCallHandleTitle"><div id="simoCallHandleGuide" hidden><strong id="simoCallHandleTitle">Set up your Simo handle</strong><p>Tap Your Simo handle, choose a name, then tap Save my handle. Use it for texts, voice calls, and video calls.</p></div><label>Your Simo handle<input id="simoCallHandle" maxlength="24" placeholder="e.g. simo_friend" autocomplete="off" autocapitalize="none" spellcheck="false" required></label><button type="submit" id="simoCallSave">Save my handle</button></form><hr style="border:0;border-top:1px solid #35536a;margin:12px 0"><label>Call another handle<input id="simoCallTarget" maxlength="25" placeholder="@friend_handle" autocomplete="off"></label><button type="button" id="simoCallStart">Audio call</button><button type="button" id="simoCallStartVideo">📹 Start video call</button></div><div class="simo-call-actions"><button type="button" id="simoCallAnswer" hidden>Answer</button><button type="button" id="simoCallHangup" hidden>Decline / Hang up</button><div id="simoCallVideoControls" hidden><button type="button" id="simoCallMicToggle">Mute microphone</button><button type="button" id="simoCallCameraToggle" hidden>Turn camera off</button></div></div><div id="simoCallVideoGrid"><div class="simo-video-tile" id="simoRemoteVideoTile" hidden><video id="simoCallRemoteVideo" autoplay playsinline hidden aria-label="Other participant video"></video><span class="simo-video-id" id="simoRemoteVideoLabel">Other participant</span></div><div class="simo-video-tile" id="simoLocalVideoTile" hidden><video id="simoCallLocalVideo" autoplay muted playsinline hidden aria-label="Your camera preview"></video><span class="simo-video-id" id="simoLocalVideoLabel">You</span></div></div><div id="simoCallMissedList" aria-label="Missed calls"></div><audio id="simoCallAudio" autoplay playsinline></audio>`;
   const contactsBox=document.createElement('div');contactsBox.id='simoCallContacts';contactsBox.hidden=true;
   contactsBox.innerHTML='<label>Saved contacts<select id="simoContactsSelect"><option value="">Choose a contact…</option></select></label><div class="contact-row"><input id="simoContactNickname" maxlength="48" placeholder="Nickname (e.g. Mom)"><button id="simoContactSave" type="button">Save contact</button><button id="simoContactRemove" type="button">Remove</button></div><label style="display:block;margin-top:6px"><input id="simoContactFavorite" type="checkbox" style="width:auto"> Favorite</label>';
-  panel.insertBefore(contactsBox, panel.querySelector('#simoCallTarget').closest('label'));
+  panel.querySelector('.simo-call-setup').insertBefore(contactsBox, panel.querySelector('#simoCallTarget').closest('label'));
   const outgoing=document.createElement('aside');outgoing.id='simoOutgoingRing';outgoing.hidden=true;
   outgoing.setAttribute('role','status');outgoing.setAttribute('aria-live','polite');
   outgoing.innerHTML='<strong id="simoOutgoingTitle">Calling…</strong><div id="simoOutgoingTo"></div><div>Ringing — waiting for an answer</div><button id="simoOutgoingCancel" type="button">Cancel call</button>';
@@ -280,7 +301,7 @@
   }
   function hideOutgoing(){outgoing.hidden=true;btn.classList.remove('simo-call-outgoing');}
   $('simoOutgoingCancel').onclick=()=>end();
-  $('simoMiniOpen').onclick=()=>{panel.hidden=false;mini.hidden=true;};
+  $('simoMiniOpen').onclick=()=>showCallPanel();
   $('simoMiniHangup').onclick=()=>end();
   async function loadContacts(){
     try {const data=await contactsApi();savedContacts=data.contacts||[];
@@ -307,27 +328,106 @@
   };
   const guestGate=document.createElement('div');guestGate.id='simoCallGuestGate';guestGate.hidden=true;
   guestGate.innerHTML='<strong>Sign in to use Simo Connect</strong><p>Voice and video calls require a registered Simo account.</p><p>Use the Sign in or Easy Signup option in Simo.</p>';
-  panel.insertBefore(guestGate,panel.querySelector('label'));
+  panel.querySelector('.simo-call-setup').prepend(guestGate);
   function showGuestGate(){guestMode=true;guestGate.hidden=false;
+    $('simoCallHandleSetup').hidden=true;
     ['simoCallSave','simoCallStart','simoCallStartVideo'].forEach(id=>{$(id).disabled=true;});
     contactsBox.hidden=true;
     say('Sign in or create a free Simo account to use Simo Connect.');
   }
   function clearGuestGate(){guestMode=false;guestGate.hidden=true;contactsBox.hidden=false;
+    $('simoCallHandleSetup').hidden=false;
     ['simoCallSave','simoCallStart','simoCallStartVideo'].forEach(id=>{$(id).disabled=false;});
   }
-  btn.onclick=()=>{const opening=panel.hidden;if(opening)window.dispatchEvent(new CustomEvent('simo-connect:panel-open',{detail:{panel:'calling'}}));panel.hidden=!panel.hidden;if(!panel.hidden){mini.hidden=true;refresh();}};
-  // R10.69: switch visible Connect panels; don't terminate an active call.
-  window.addEventListener('simo-connect:panel-open', event=>{if(event.detail?.panel==='messages'){panel.hidden=true;if(current&&!incoming&&outgoing.hidden)mini.hidden=false;}});
-  $('simoCallClose').onclick=()=>{panel.hidden=true;if(current&&!incoming&&outgoing.hidden)mini.hidden=false;};
-  $('simoCallSave').onclick=async()=>{if(guestMode){showGuestGate();return;}try{const d=await api('profile',{handle:$('simoCallHandle').value});myHandle=d.handle;updateVideoIdentity();say('Your handle is @'+myHandle);beginMonitoring();}catch(e){say(e.message);}};
+  function updateCallView() {
+    const mode = current || calling ? callMode : preferredMode;
+    panel.dataset.mode = mode;
+    panel.dataset.active = String(calling || answering || callAccepted);
+    $('simoCallHeading').textContent = mobile.matches
+      ? (mode === 'video' ? 'Video call' : 'Voice call')
+      : '☎ Simo Calling';
+    $('simoCallClose').textContent = mobile.matches ? '‹ Simo' : '— Minimize';
+    $('simoCallClose').setAttribute('aria-label', mobile.matches ? 'Return to Simo' : 'Minimize calling panel');
+  }
+  function showCallPanel(mode) {
+    if (mode && !current && !calling) preferredMode = mode;
+    updateCallView();
+    window.dispatchEvent(new CustomEvent('simo-connect:panel-open', {detail:{panel:'calling'}}));
+    panel.hidden = false;
+    mini.hidden = true;
+    if (!current && !calling) refresh();
+  }
+  function hideCallPanel() {
+    panel.hidden = true;
+    if (current && (!incoming || callAccepted) && outgoing.hidden) mini.hidden = false;
+  }
+  mobile.addEventListener?.('change', updateCallView);
+  updateCallView();
+  btn.onclick = () => panel.hidden ? showCallPanel() : hideCallPanel();
+  window.addEventListener('simo-connect:open-call', event => {
+    if (event.detail?.handle && !current && !calling) $('simoCallTarget').value = event.detail.handle;
+    showCallPanel(event.detail?.mode);
+  });
+  window.addEventListener('simo-connect:panel-open', event => {
+    if (event.detail?.panel === 'messages') hideCallPanel();
+  });
+  $('simoCallClose').onclick = hideCallPanel;
+  $('simoCallHandleSetup').onsubmit = async event => {
+    event.preventDefault();
+    const save = $('simoCallSave');
+    if (guestMode || save.disabled) return;
+    save.disabled = true;
+    try {
+      const result = await api('profile', {handle:$('simoCallHandle').value});
+      window.dispatchEvent(new CustomEvent('simo-connect:handle-saved', {detail:{handle:result.handle}}));
+      if (!panel.hidden) $('simoCallTarget').focus();
+    } catch (error) {
+      say(error.message);
+    } finally {
+      save.disabled = guestMode;
+    }
+  };
   $('simoCallStart').onclick=()=>begin('audio');
   $('simoCallStartVideo').onclick=()=>begin('video');
   $('simoCallMicToggle').onclick=()=>{const track=local?.getAudioTracks()[0];if(!track)return;track.enabled=!track.enabled;$('simoCallMicToggle').textContent=track.enabled?'Mute microphone':'Unmute microphone';};
   $('simoCallCameraToggle').onclick=()=>{const track=local?.getVideoTracks()[0];if(!track)return;track.enabled=!track.enabled;$('simoCallCameraToggle').textContent=track.enabled?'Turn camera off':'Turn camera on';};
   $('simoCallAnswer').onclick=async()=>{await answer();if(pc && window.__simoCallOffer){try{await pc.setRemoteDescription(window.__simoCallOffer);await flushIce();const a=await pc.createAnswer();await pc.setLocalDescription(a);await send('answer',{sdp:pc.localDescription.toJSON()});window.__simoCallOffer=null;}catch(e){say(e.message);}}};
   $('simoCallHangup').onclick=end;
-  async function refresh() {try{const d=await api('profile');clearGuestGate();myHandle=d.handle;updateVideoIdentity();$('simoCallHandle').value=myHandle||'';say(myHandle?'Signed in as @'+myHandle:'Choose a unique Simo handle to start.');if(myHandle){beginMonitoring();loadContacts();}}catch(e){if(/sign in|account|unauthoriz/i.test(e.message))showGuestGate();else say(e.message);}}
+  function syncHandleGuide() {
+    $('simoCallHandleSetup').dataset.needsHandle = String(!myHandle);
+    $('simoCallHandleGuide').hidden = Boolean(myHandle);
+  }
+
+  async function refresh() {
+    try {
+      const result = await api('profile');
+      clearGuestGate();
+      myHandle = result.handle || '';
+      const input = $('simoCallHandle');
+      if (myHandle || !input.value) input.value = myHandle;
+      syncHandleGuide();
+      updateVideoIdentity();
+      say(myHandle ? 'Signed in as @' + myHandle : '');
+      if (myHandle) {
+        beginMonitoring();
+        loadContacts();
+      }
+    } catch (error) {
+      if (/sign in|account|unauthoriz/i.test(error.message)) showGuestGate();
+      else say(error.message);
+    }
+  }
+
+  window.addEventListener('simo-connect:handle-saved', event => {
+    myHandle = event.detail.handle;
+    $('simoCallHandle').value = myHandle;
+    syncHandleGuide();
+    updateVideoIdentity();
+    say('Your handle is @' + myHandle);
+    beginMonitoring();
+    loadContacts();
+  });
+  window.addEventListener('simo-connect:contacts-changed', loadContacts);
   // Begin checking incoming calls when an authenticated Simo handle is loaded.
   refresh();
   window.addEventListener('pagehide',()=>{if(current)send('hangup').catch(()=>{});cleanup();});
