@@ -13,6 +13,12 @@
   const LAST_PREVIEW_KEY = "simo_last_preview_v2";
   const PREVIEW_HISTORY_KEY = "simo_preview_history_v1";
   const SETTINGS_KEY = "simo_ui_settings_v2";
+  const INTERFACE_FONTS = {
+    default: "",
+    readable: '"Atkinson Hyperlegible Next", Verdana, Tahoma, sans-serif',
+    classic: '"PT Serif", Georgia, "Times New Roman", serif',
+    mono: '"IBM Plex Mono", Consolas, "Courier New", monospace',
+  };
 
   const SIMO = window.SIMO_BOOT || {};
 
@@ -62,6 +68,7 @@
       loggedIn: !!SIMO.loggedIn,
       email: SIMO.email || "",
       name: SIMO.name || "",
+      preferredName: SIMO.memoryPreferredName || "",
       pro: !!SIMO.pro,
       team: !!SIMO.team,
     },
@@ -96,6 +103,7 @@
     ui: {
       theme: "default",
       accent: "blue",
+      font: "default",
     },
 
     previewHistoryLimit: 8,
@@ -737,6 +745,7 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
     return safeJsonParse(localStorage.getItem(SETTINGS_KEY), {
       theme: "default",
       accent: "blue",
+      font: "default",
     });
   }
 
@@ -890,6 +899,12 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
 
     body.dataset.simoTheme = state.ui.theme || "default";
     body.dataset.simoAccent = state.ui.accent || "blue";
+    const font = Object.hasOwn(INTERFACE_FONTS, state.ui.font) ? state.ui.font : "default";
+    body.dataset.simoFont = font;
+    if (INTERFACE_FONTS[font]) body.style.setProperty("--simo-interface-font", INTERFACE_FONTS[font]);
+    else body.style.removeProperty("--simo-interface-font");
+    const fontSelect = $("simoInterfaceFont");
+    if (fontSelect) fontSelect.value = font;
 
     const themes = {
       default: {
@@ -1029,7 +1044,9 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
   function updatePremiumHomeUi() {
     const hour = new Date().getHours();
     const greeting = $("simoGreeting");
-    if (greeting) greeting.textContent = hour < 12 ? "Good morning!" : hour < 18 ? "Good afternoon!" : "Good evening!";
+    const salutation = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+    const preferredName = state.me.loggedIn ? state.me.preferredName : "";
+    if (greeting) greeting.textContent = preferredName ? `${salutation}, ${preferredName}!` : `${salutation}!`;
 
     const signedText = $("simoSidebarSignedText");
     if (signedText) signedText.textContent = state.me.loggedIn ? "Signed in" : "Ready";
@@ -1378,6 +1395,7 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
             body: JSON.stringify(body),
           });
 
+          clearChatForAccountChange(data.email || "");
           state.me.loggedIn = !!data.loggedIn;
           state.me.email = data.email || "";
           state.me.name = data.name || "";
@@ -1543,6 +1561,7 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
 
         try {
           await api("/api/logout", { method: "POST" });
+          clearChatForAccountChange("");
           state.me.loggedIn = false;
           state.me.email = "";
           state.me.name = "";
@@ -1577,9 +1596,11 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
   async function refreshMe() {
     try {
       const data = await api("/api/me");
+      clearChatForAccountChange(data.email || "");
       state.me.loggedIn = !!data.loggedIn;
       state.me.email = data.email || "";
       state.me.name = data.name || "";
+      state.me.preferredName = state.me.loggedIn ? (data.memory_preferred_name || "") : "";
       state.me.pro = !!data.pro;
       state.me.team = !!data.team;
       state.usageToday = Number(data.usage_today || 0);
@@ -1596,6 +1617,7 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
   async function refreshProStatus() {
     try {
       const data = await api("/api/pro-status");
+      clearChatForAccountChange(data.email || "");
       state.me.loggedIn = !!data.loggedIn;
       state.me.email = data.email || "";
       state.me.pro = !!data.pro;
@@ -1691,14 +1713,31 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
   }
 
   function formatInlineText(text) {
-    let html = escapeHtml(String(text || ""));
-    html = html.replace(
-      /`([^`\n]+)`/g,
-      '<code style="padding:2px 6px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);font-size:.95em;color:#f4f7ff;">$1</code>'
-    );
+    const fragments = [];
+    const inlineToken = /`([^`\n]+)`|(?<!!)\[([^\]\n]+)\]\(((?:[^\s()<>"`\\]|\([^\s()<>"`\\]*\))+)\)|(\b(?:https?:\/\/|www\.)(?:[^\s()<>"`*\\]|\([^\s()<>"`*\\]*\))+)/gi;
+    const saveFragment = html => `\0${fragments.push(html) - 1}\0`;
+    const marked = String(text || "").replace(/\0/g, "\uFFFD").replace(inlineToken, (token, code, label, markdownUrl, rawUrl) => {
+      if (code !== undefined) {
+        return saveFragment(`<code style="padding:2px 6px;border-radius:8px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);font-size:.95em;color:#f4f7ff;">${escapeHtml(code)}</code>`);
+      }
+      const displayUrl = markdownUrl || rawUrl.replace(/[.,;:!?]+$/, "");
+      const candidate = /^www\./i.test(displayUrl) ? `https://${displayUrl}` : displayUrl;
+      if (!/^https?:\/\//i.test(candidate)) return token;
+      let url;
+      try {
+        url = new URL(candidate);
+      } catch {
+        return token;
+      }
+      if (url.username || url.password) return token;
+
+      const link = `<a href="${escapeHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:#a8c7ff;text-decoration:underline;overflow-wrap:anywhere;">${escapeHtml(label || displayUrl)}</a>`;
+      return saveFragment(link) + (rawUrl ? rawUrl.slice(displayUrl.length) : "");
+    });
+    let html = escapeHtml(marked);
     html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     html = html.replace(/\*([^*\n]+)\*/g, "<em>$1</em>");
-    return html;
+    return html.replace(/\0(\d+)\0/g, (_, index) => fragments[Number(index)]);
   }
 
   function renderAssistantTextHtml(text) {
@@ -4459,6 +4498,23 @@ function closeRecentBuilds() {
             </div>
           </section>
 
+          <section style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px;background:rgba(255,255,255,.04);display:grid;gap:8px;">
+            <label for="simoInterfaceFont" style="font-size:15px;font-weight:700;">Font</label>
+            <select id="simoInterfaceFont" aria-describedby="simoFontPreview" style="max-width:100%;width:240px;padding:9px 12px;border-radius:9px;border:1px solid #42587b;color:#eef4ff;background:#0d192b;">
+              <option value="default">Simo default</option>
+              <option value="readable">Readable sans serif</option>
+              <option value="classic">Classic serif</option>
+              <option value="mono">Monospaced</option>
+            </select>
+            <div id="simoFontPreview" style="font-size:15px;color:rgba(235,242,255,.85);">Preview · What would you like Simo to help you create?</div>
+          </section>
+
+          <section style="border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:16px;background:rgba(255,255,255,.04);display:grid;gap:8px;">
+            <div style="font-size:15px;font-weight:700;">Memory</div>
+            <div style="font-size:12px;color:rgba(235,242,255,.72);">Sign in to save preferences or personal details. Try “Call me Mike,” “Remember that I prefer short answers,” or “Forget my preferred name.”</div>
+            <button id="simoReviewMemory" type="button" style="justify-self:start;">Review saved memory</button>
+          </section>
+
           <section id="simoBillingSection" style="
             border:1px solid rgba(74,222,128,.18);
             border-radius:18px;
@@ -4649,6 +4705,8 @@ function closeRecentBuilds() {
   }
 
   function closeSettings() {
+    state.ui.font = getUiSettings()?.font || "default";
+    applyUiSettings();
     modalClose($("settingsModal"));
   }
 
@@ -4659,6 +4717,24 @@ function closeRecentBuilds() {
     const saveBtn = $("settingsSaveBtn");
     const resetBtn = $("settingsResetBtn");
     const modal = $("settingsModal");
+    const fontSelect = $("simoInterfaceFont");
+    if (fontSelect && fontSelect.dataset.boundChange !== "true") {
+      fontSelect.dataset.boundChange = "true";
+      fontSelect.addEventListener("change", () => {
+        state.ui.font = fontSelect.value;
+        applyUiSettings();
+      });
+    }
+    const reviewMemoryBtn = $("simoReviewMemory");
+    if (reviewMemoryBtn && reviewMemoryBtn.dataset.boundClick !== "true") {
+      reviewMemoryBtn.dataset.boundClick = "true";
+      styleActionButton(reviewMemoryBtn);
+      reviewMemoryBtn.addEventListener("click", () => {
+        if (state.sending) return;
+        closeSettings();
+        sendMessage("What do you remember about me?", "chat");
+      });
+    }
 
     $$('[data-simo-subscribe]').forEach((btn) => {
       if (btn.dataset.boundBilling === "true") return;
@@ -4718,6 +4794,7 @@ function closeRecentBuilds() {
       resetBtn.addEventListener("click", () => {
         state.ui.theme = "default";
         state.ui.accent = "blue";
+        state.ui.font = "default";
         saveUiSettings();
         applyUiSettings();
         toast("Settings reset.", "success", 1800);
@@ -4792,9 +4869,12 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
   const text = String(overrideMessage || inputEl?.value || "").trim() ||
     (state.selectedImageUrl ? "Please look at this image and help me with our current conversation." : "");
   if (!text) return;
+  const accountAtSend = state.me.email;
+  const pricingNavigation = !!window.__SIMO_PRICING_PAGE_REQUEST__?.(text);
+  const memoryCommand = !!window.__SIMO_MEMORY_COMMAND__?.(text);
   const isChatFirst = !!(window.__SIMO_CHAT_FIRST_INTENT__ && window.__SIMO_CHAT_FIRST_INTENT__(text));
   const activeMode = isChatFirst ? "chat" : (String(modeOverride || window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat");
-  const hasImageReady = !!(state.selectedImageUrl && state.selectedImageFilename);
+  const hasImageReady = !pricingNavigation && !memoryCommand && !!(state.selectedImageUrl && state.selectedImageFilename);
   if (activeMode === "analyze" && !hasImageReady) {
     if (inputEl) {
       inputEl.value = text;
@@ -4824,22 +4904,49 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
   scrollAfterUiChange();
 
   try {
-    const hasImage = !!(state.selectedImageUrl && state.selectedImageFilename);
-
     const data = await api("/api/chat", {
       method: "POST",
       body: JSON.stringify({
         message: text,
-        image_url: state.selectedImageUrl || "",
-        image_filename: state.selectedImageFilename || "",
-        has_image: hasImage,
+        image_url: hasImageReady ? state.selectedImageUrl : "",
+        image_filename: hasImageReady ? state.selectedImageFilename : "",
+        has_image: hasImageReady,
         simo_mode: activeMode,
         lane: activeMode,
         active_visual_project: safeJsonParse(localStorage.getItem("simo_active_visual_project_v1"), null),
       }),
     });
 
+    if (state.me.email !== accountAtSend) return;
     const reply = String(data.reply || "").trim();
+
+    if (data.memory_reply) {
+      if (typeof data.memory_preferred_name === "string") {
+        state.me.preferredName = data.memory_preferred_name;
+        updatePremiumHomeUi();
+      }
+      state.lastAssistantText = reply;
+      addMessage("assistant", reply);
+      return;
+    }
+
+    if (data.public_page_url) {
+      const page = new URL(data.public_page_url, window.location.origin);
+      if (page.origin === window.location.origin) {
+        const bubble = addMessage("assistant", reply);
+        const link = document.createElement("a");
+        link.href = page.href;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = "View Simo Pricing & Plans";
+        link.style.display = "block";
+        link.style.marginTop = "8px";
+        link.style.color = "inherit";
+        bubble.appendChild(link);
+        state.lastAssistantText = `${reply}\n${page.href}`;
+        return;
+      }
+    }
 
     const model3d = data && data.model3d ? data.model3d : null;
     const topLevelOptions =
@@ -5006,6 +5113,25 @@ function wireComposerHook() {
   };
 }
 
+function clearChatView() {
+  ensureChatShell().replaceChildren();
+  state.lastAssistantText = "";
+  state.draftHtml = "";
+  state.selectedImageUrl = "";
+  state.selectedImageFilename = "";
+  updatePendingImageDraft();
+}
+
+function clearChatForAccountChange(nextEmail) {
+  if (state.me.email === nextEmail) return;
+  state.me.preferredName = "";
+  clearChatView();
+  if (inputEl) {
+    inputEl.value = "";
+    autoGrow(inputEl);
+  }
+}
+
 async function clearSessionHistory() {
   try {
     await api("/api/session/clear", {
@@ -5013,14 +5139,7 @@ async function clearSessionHistory() {
       body: JSON.stringify({}),
     });
 
-    const target = ensureChatShell();
-    target.innerHTML = "";
-
-    state.lastAssistantText = "";
-    state.draftHtml = "";
-    state.selectedImageUrl = "";
-    state.selectedImageFilename = "";
-    updatePendingImageDraft();
+    clearChatView();
 
     toast("History cleared.", "success");
     scrollAfterUiChange();
@@ -5036,14 +5155,7 @@ async function startNewChat() {
       body: JSON.stringify({}),
     });
 
-    const target = ensureChatShell();
-    target.innerHTML = "";
-
-    state.lastAssistantText = "";
-    state.draftHtml = "";
-    state.selectedImageUrl = "";
-    state.selectedImageFilename = "";
-    updatePendingImageDraft();
+    clearChatView();
 
     if (inputEl) {
       inputEl.value = "";
