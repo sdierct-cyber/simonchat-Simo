@@ -43,6 +43,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 import stripe
 from authlib.integrations.flask_client import OAuth
 from openai import OpenAI
+import simo_personal_memory
+import simo_feature_help
 
 load_dotenv()
 print("RUNNING APP FILE:", os.path.abspath(__file__))
@@ -2714,6 +2716,7 @@ def ensure_column(conn, table_name: str, column_name: str, column_sql: str):
 def init_db():
     conn = get_db()
     cur = conn.cursor()
+    cur.execute("BEGIN IMMEDIATE")
 
     cur.execute(
         """
@@ -2841,6 +2844,7 @@ def init_db():
     ensure_column(conn, "users", "stripe_customer_id", "TEXT")
     ensure_column(conn, "users", "stripe_subscription_id", "TEXT")
     ensure_column(conn, "users", "stripe_subscription_status", "TEXT")
+    ensure_column(conn, "users", "simo_memory", "TEXT NOT NULL DEFAULT '{}'")
 
     ensure_column(conn, "saved_builds", "source_text", "TEXT")
     ensure_column(conn, "saved_builds", "notes", "TEXT")
@@ -3588,10 +3592,14 @@ def valid_password(password: str) -> bool:
 
 
 def set_logged_in_user(email: str, name: str = "", google_sub: str = "", *, verified_google: bool = False):
+    email = str(email or "").strip().lower()
+    if email != current_user_email():
+        for key in ("chat_history", "simo_last_main_chat_lane", "simo_last_chat_image"):
+            session.pop(key, None)
     session.pop("verified_google_sub", None)
     if verified_google and google_sub:
         session["verified_google_sub"] = google_sub.strip()
-    session["user_email"] = str(email or "").strip().lower()
+    session["user_email"] = email
     session["user_name"] = str(name or "").strip()
     session["google_sub"] = str(google_sub or "").strip()
 
@@ -3601,6 +3609,8 @@ def clear_logged_in_user():
     session.pop("user_name", None)
     session.pop("google_sub", None)
     session.pop("verified_google_sub", None)
+    for key in ("chat_history", "simo_last_main_chat_lane", "simo_last_chat_image"):
+        session.pop(key, None)
 
 
 init_db()
@@ -5215,7 +5225,58 @@ Never invent a 3D model link or claim a model exists unless its URL is verified 
 # calling, message, upload, authorization and billing code is untouched.
 # Review these entries against the deployed feature owners on each release.
 # =========================================================
-SIMO_PRODUCT_FEATURE_CATALOG_VERSION = "2026-11-13-connect-beta"
+SIMO_PRODUCT_FEATURE_CATALOG_VERSION = "2026-11-17"
+SIMO_PRICING_PAGE_NAME = r"(?:(?:landing\s*|la\s*)?page|section)"
+SIMO_PRICING_PAGE_REQUEST = (
+    r"^(?:simo[, ]\s*)?(?:please\s+)?"
+    r"(?:(?:(?:can|could|would) you\s+(?:please\s+)?)?"
+    r"(?:show me|take me to|bring me to|send me|give me|share|open|pull up|find|link to)"
+    r"\s+(?:(?:a|the)\s+(?:(?:direct|clickable)\s+)?link\s+(?:to|for)\s+)?"
+    r"|where (?:can i|can we|can users|can people|do i) (?:see|find|view|compare|check)\s+|where is\s+"
+    r"|(?:i (?:want|need)|i'd like) to (?:see|view|find|compare|open)\s+)"
+    r"(?:the\s+)?"
+    r"(?:(?:simo(?:'s)?|your|simonchat\.ai)\s+(?:subscription\s+)?"
+    rf"(?:pricing(?:\s+plans?)?(?:\s+{SIMO_PRICING_PAGE_NAME})?"
+    rf"|plans(?:\s+and\s+pric(?:es|ing))?(?:\s+{SIMO_PRICING_PAGE_NAME})?|prices)"
+    rf"|pricing(?:\s+plans?)?\s+{SIMO_PRICING_PAGE_NAME}|subscription\s+plans"
+    r"|(?:plans|prices|pricing)(?=\s+(?:on|for)\s+(?:simo|simonchat\.ai)\b)"
+    r"|(?:simo(?:'s)?|your|simonchat\.ai)\s+(?:(?:user|public|official)\s+)?"
+    r"(?:landing\s+page|home\s*page)"
+    r"(?:\s+(?:with|for|showing)\s+(?:the\s+)?(?:plans?|prices|pricing)|(?=\s+(?:so|to)\s)))"
+    r"(?:\s+(?:on|for)\s+(?:simo|simonchat\.ai))?"
+    r"(?:\s+(?:so\s+(?:(?:that\s+)?(?:i|we|users|people|customers|visitors)\s+can)\s+"
+    r"(?:see|view|compare|check)\s+(?:(?:the|your|simo's|different)\s+)*(?:prices|pricing|plans?)"
+    r"|to\s+(?:see|view|compare|check)\s+(?:the\s+)?(?:prices|pricing|plans?)|please))?"
+    r"(?:(?:[.!?,]+\s*|\s+)(?:and\s+)?(?:please\s+)?(?:just\s+)?"
+    r"(?:(?:give|send|show)\s+me\s+|share\s+)(?:a|the)\s+"
+    r"(?:(?:direct|clickable)\s+)?link(?:\s+please)?)?"
+    r"[.!?]*$"
+)
+
+
+def simo_requests_pricing_page(message: str) -> bool:
+    text = " ".join(str(message or "").lower().replace("’", "'").split())
+    return bool(re.match(SIMO_PRICING_PAGE_REQUEST, text))
+
+
+SIMO_LINK_REQUEST_START = (
+    r"^(?:simo[, ]\s*)?(?:please\s+)?"
+    r"(?:(?:can|could|would) you\s+(?:please\s+)?)?"
+)
+SIMO_GITHUB_LINK_REQUEST = SIMO_LINK_REQUEST_START + (
+    r"(?:(?:take|bring|send) me to|open|pull up|show me|find|link to|"
+    r"(?:give|send|show) me (?:a|the) (?:direct |clickable )?link to)\s+"
+    r"(?:the\s+)?(?:official\s+)?(?:github(?:\s+(?:home\s*page|website|site))?|github\.com)"
+    r"(?:\s+please)?[.!?]*$"
+)
+SIMO_RESOURCE_LINK_REQUEST = SIMO_GITHUB_LINK_REQUEST + "|" + SIMO_LINK_REQUEST_START + (
+    r"(?:(?:take|bring|send) me to\s+\S|open\s+https?://"
+    r"|(?:show me|give me|send me|find(?: me)?|share(?: with me)?|provide(?: me with)?|look up)\s+"
+    r"(?:(?:a|an|the|some|official|direct|clickable|helpful|useful|online)\s+)*"
+    r"(?:links?|resources?|sources?|references?)\b)"
+)
+
+
 SIMO_PRODUCT_FEATURE_CATALOG = (
     ("AI chat, writing & planning", "Ask questions; brainstorm business ideas and plans; write and edit marketing posts, press releases, stories, scripts, proposals and other text."),
     ("Website Builder", "Create and edit websites from natural-language prompts; preview designs; save and reopen website projects; use available publishing workflows."),
@@ -5230,6 +5291,8 @@ SIMO_PRODUCT_FEATURE_CATALOG = (
     ("Simo Connect — Simo IDs", "Use a Simo account and unique/custom Simo handle or ID to identify and contact other registered users."),
     ("Accounts, libraries & plans", "Sign in; use available Free, Pro or Team account features; save/reopen supported projects in the corresponding libraries; manage available credits and plan options."),
     ("Microphone dictation", "Dictate prompt text using a supported microphone/browser; edit that text before sending."),
+    ("Saved account memory", "Signed-in users can ask Simo to save a preferred name, reply style, or personal note, review what was saved, and ask Simo to forget it."),
+    ("Feature help & appearance", "Ask how to use Simo features for instructions. Open Settings & Voice to customize theme, accent, or font."),
 )
 SIMO_PRODUCT_BOUNDARIES = (
     "Simo Connect is a signed-in beta, not regular phone-network service; guest calls "
@@ -5238,7 +5301,7 @@ SIMO_PRODUCT_BOUNDARIES = (
     "Music Studio, Podcast Studio and broader desktop meeting/recording plans "
     "are separate future projects, not current live features. Do not invent 24/7 "
     "human support, a user community, partnerships, testimonials, automatic self-" 
-    "updating knowledge, or permanent memory of user corrections."
+    "updating knowledge, or unlimited recall of past chats."
 )
 
 
@@ -6459,6 +6522,8 @@ def simo_is_chat_first_request(user_text: str) -> bool:
     text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
     if not text:
         return False
+    if re.match(SIMO_RESOURCE_LINK_REQUEST, text):
+        return True
     # The user explicitly orders an artifact: its tool is still eligible to run.
     if re.match(r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b",text):
         return False
@@ -6924,6 +6989,11 @@ def home():
         "stripePublishableKey": STRIPE_PUBLISHABLE_KEY,
         "stripePriceId": STRIPE_PRICE_ID,
         "baseUrl": BASE_URL,
+        "pricingPageRequest": SIMO_PRICING_PAGE_REQUEST,
+        "resourceLinkRequest": SIMO_RESOURCE_LINK_REQUEST,
+        "memoryCommand": simo_personal_memory.MEMORY_COMMAND_PATTERN,
+        "featureHelpRequest": simo_feature_help.HELP_REQUEST_PATTERN,
+        "memoryPreferredName": simo_personal_memory.preferred_name(simo_personal_memory.load_memory(get_db, current_user_email())),
         "builderLibraryKey": "simo_builder_library_v5_1_builder_first",
         "lastPreviewKey": "simo_last_preview_v2",
     }
@@ -6931,7 +7001,6 @@ def home():
     return render_template(
         "index.html",
         simo_boot=boot,
-        simo_boot_json=json.dumps(boot),
     )
 
 
@@ -8185,6 +8254,9 @@ Do not default to an unrelated generic business type.
         elif client:
             feature_reference = ("\n\n" + simo_product_catalog_for_model()) if simo_is_simo_product_discussion(user_message, history) else ""
             messages = [{"role": "system", "content": SYSTEM_PROMPT + feature_reference}]
+            saved_context = simo_personal_memory.memory_for_model(simo_personal_memory.load_memory(get_db, current_user_email()))
+            if saved_context:
+                messages.append({"role": "user", "content": saved_context})
             for item in history:
                 role = str(item.get("role", "")).strip()
                 content = str(item.get("content", "")).strip()
@@ -10287,7 +10359,7 @@ def api_rename_build():
 # ---------------------------------------------------------
 @app.route("/api/session/clear", methods=["POST"])
 def api_session_clear():
-    keep = {"user_email", "user_name", "google_sub", "anon_id"}
+    keep = {"user_email", "user_name", "google_sub", "verified_google_sub", "anon_id"}
     for key in list(session.keys()):
         if key not in keep:
             session.pop(key, None)
@@ -17959,10 +18031,15 @@ def _simo_canonical_home():
             "pro": is_pro_user(), "team": (_simo_account_plan() == "team"), "accountOwnedLibrary": bool(is_logged_in() and is_pro_user()), "freeDailyLimit": FREE_DAILY_LIMIT,
             "usageToday": usage_today, "imageCredits": image_credits,
             "stripePublishableKey": STRIPE_PUBLISHABLE_KEY, "stripePriceId": STRIPE_PRICE_ID,
-            "baseUrl": BASE_URL, "builderLibraryKey": "simo_builder_library_v5_1_builder_first",
+            "baseUrl": BASE_URL, "pricingPageRequest": SIMO_PRICING_PAGE_REQUEST,
+            "resourceLinkRequest": SIMO_RESOURCE_LINK_REQUEST,
+            "memoryCommand": simo_personal_memory.MEMORY_COMMAND_PATTERN,
+            "featureHelpRequest": simo_feature_help.HELP_REQUEST_PATTERN,
+            "memoryPreferredName": simo_personal_memory.preferred_name(simo_personal_memory.load_memory(get_db, current_user_email())),
+            "builderLibraryKey": "simo_builder_library_v5_1_builder_first",
             "lastPreviewKey": "simo_last_preview_v2", "release": SIMO_RELEASE_ID,
         }
-        return render_template("index.html", simo_boot=boot, simo_boot_json=json.dumps(boot))
+        return render_template("index.html", simo_boot=boot)
     data = request.get_json(silent=True) or {}
     explicit_visual = bool(
         data.get("active_visual_project")
@@ -19027,6 +19104,26 @@ def _simo_increment_free_chat_global(day_key: str):
 
 
 def api_chat():
+    data = request.get_json(silent=True) or {}
+    message = data.get("message") if isinstance(data, dict) else ""
+    memory_reply = simo_personal_memory.respond_to_command(get_db, current_user_email(), message)
+    if memory_reply is not None:
+        response = jsonify({"ok": True, "memory_reply": True, **memory_reply})
+        response.headers["Cache-Control"] = "no-store"
+        return response
+    if simo_requests_pricing_page(message):
+        # A public page lookup needs no credits, model call, or Builder state.
+        return jsonify({
+            "ok": True,
+            "reply": "You can compare Simo’s Free, Pro, and Team Pro plans on the public pricing page.",
+            "public_page_url": url_for("simo_launch_landing", _anchor="pricing"),
+        })
+    if re.match(SIMO_GITHUB_LINK_REQUEST, " ".join(str(message or "").lower().split())):
+        return jsonify({"ok": True, "reply": "[Open GitHub](https://github.com/)"})
+    help_reply = simo_feature_help.feature_help_reply(message)
+    if help_reply:
+        return jsonify({"ok": True, "reply": help_reply})
+
     action, cost = _simo_chat_meter_cost()
     plan = _simo_account_plan(str(current_user_email() or "").strip().lower())
 
@@ -19209,6 +19306,7 @@ def api_me_profit_shield():
         "loggedIn": is_logged_in(),
         "email": email,
         "name": current_user_name(),
+        "memory_preferred_name": simo_personal_memory.preferred_name(simo_personal_memory.load_memory(get_db, email)),
         "pro": plan in {"pro", "team", "admin"},
         "team": plan == "team",
         "plan": plan,
