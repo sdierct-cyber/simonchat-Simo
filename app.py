@@ -5294,17 +5294,22 @@ def simo_requests_resource_links(message: str) -> bool:
     return bool(re.match(SIMO_RESOURCE_LINK_REQUEST, normalize_whitespace(message).lower()))
 
 
-# Public entry points for a general request to promote Simo. Specific requests
-# about an audience, channel or budget continue through ordinary chat.
+# General requests for public promotion links can be answered locally.
+# Requests with a specific audience, channel, or deliverable go to regular chat.
 SIMO_PROMOTION_LINK_REQUEST = re.compile(SIMO_LINK_REQUEST_START + (
-    r"(?:(?:(?:show(?: me)?|give me|send me|find(?: me)?|recommend(?: me)?|suggest|list) )"
-    r"(?:(?:a|an|the|some|best|direct|clickable|three|3) )*"
-    r"(?:links?|places?|resources?|platforms?|sites?|websites?) "
-    r"(?:(?:where )?(?:i|we) (?:can|could) (?:click(?: on)? to )?|(?:for |to ))"
-    r"|(?:(?:show(?: me)?|tell me) )?where "
+    r"(?:(?:(?:show(?: me)?|give me|send me|find(?: me)?|recommend(?: me)?|suggest|list|"
+    r"share(?: with me)?|what are|are there|i(?:'m| am) looking for) )"
+    r"(?:(?:a|an|the|some|any|good|best|direct|clickable|three|3|free|online) )*"
+    r"(?:links?|places?|resources?|platforms?|sites?|websites?|directories|communities|channels?) "
+    r"(?:(?:to (?:go(?: to)?|look) )?(?:to |for )|(?:where )?(?:i|we) "
+    r"(?:can|could|should) (?:click(?: on)? to )?)"
+    r"|(?:(?:show me|tell me|do you know) )?where "
     r"(?:(?:can|could|should) (?:i|we)|(?:i|we) (?:can|could|should)|to) )"
-    r"(?:promote|advertise|market|promoting|advertising|marketing) "
-    r"(?:simo|simonchat\.ai)[.!?]*"
+    r"(?:promot(?:e|ing)|advertis(?:e|ing)|market(?:ing)?) "
+    r"(?:simo|simonchat\.ai|your features)"
+    r"(?: and (?:its|your|simo's) features)?"
+    r"(?: (?:online|for free|without (?:paying|spending money)))*"
+    r"(?:,? please)?[.!?]*"
 ))
 SIMO_PROMOTION_DESTINATIONS = (
     ("Submit on Product Hunt", "https://www.producthunt.com/posts/new",
@@ -5317,7 +5322,9 @@ SIMO_PROMOTION_DESTINATIONS = (
 
 
 def simo_promotion_links_reply(message: str) -> str:
-    if not SIMO_PROMOTION_LINK_REQUEST.fullmatch(normalize_whitespace(message).lower()):
+    text = normalize_whitespace(message).lower().replace("’", "'")
+    text = re.sub(r"\b(?:smio|siom|semo)\b", "simo", text)
+    if not SIMO_PROMOTION_LINK_REQUEST.fullmatch(text):
         return ""
     destinations = "\n".join(
         f"- [{label}]({url}) — {description}"
@@ -19218,7 +19225,9 @@ def api_chat():
         })
     if re.match(SIMO_GITHUB_LINK_REQUEST, " ".join(str(message or "").lower().split())):
         return jsonify({"ok": True, "reply": "[Open GitHub](https://github.com/)"})
-    promotion_reply = simo_promotion_links_reply(message)
+    promotion_reply = ""
+    if not (data.get("has_image") or data.get("image_url")):
+        promotion_reply = simo_promotion_links_reply(message)
     if promotion_reply:
         history = session.get("chat_history", [])
         if not isinstance(history, list):
