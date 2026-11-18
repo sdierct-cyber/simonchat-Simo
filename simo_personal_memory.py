@@ -14,8 +14,11 @@ _CALL_ME = (
 _CALL_ACTION = r"(?:at|back|later|now|today|tomorrow|tonight|when|once|after|on|in|this|next|via|using|if|for|as soon as)\b"
 _ON_FUTURE_VISITS = re.compile(
     r",?\s+(?:from now on|going forward|in (?:future|new) chats|"
-    r"(?:every\s*time|each time|whenever|when) i(?:'m (?:logged|signed) in| (?:log|sign) in|"
-    r"(?:'m (?:talking|chatting|speaking)| (?:talk|chat|speak)) (?:to|with) you))$",
+    r"(?:every\s*time|each time|whenever|when) "
+    r"(?:i(?:'m (?:logged|signed) in| (?:log|sign) in|"
+    r"(?:'m (?:talking|chatting|speaking)| (?:talk|chat|speak)) (?:to|with) you)"
+    r"|we(?:'re (?:engaging|interacting|talking|chatting|speaking)| (?:engage|interact|talk|chat|speak))"
+    r"(?: together| (?:to|with) (?:each other|one another))?))['‘]?$",
     re.IGNORECASE,
 )
 _PATTERNS = {
