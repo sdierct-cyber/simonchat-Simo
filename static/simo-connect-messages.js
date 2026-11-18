@@ -9,9 +9,16 @@
   const api = async (path, data, base = '/api/simo-connect/') => {
     const r = await fetch(base + path, {credentials:'same-origin',
       ...(data === undefined ? {} : {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)})});
-    const d = await r.json();if (!r.ok || !d.ok) throw new Error(d.error || 'Simo Connect unavailable');return d;
+    const d = await r.json();
+    if (!r.ok || !d.ok) {
+      const error = new Error(d.error || 'Simo Connect unavailable');
+      error.status = r.status;
+      throw error;
+    }
+    return d;
   };
   const recipientHint = 'Enter the recipient’s handle to start a message.';
+  const maxAttachmentBytes = 5 * 1024 * 1024;
   const info = message => {
     const status = el('simoConnectStatus');
     status.textContent = message;
@@ -39,6 +46,26 @@
     #simoConnectContactForm{margin-block:8px;padding:10px;border:1px solid #4c799c;border-radius:8px}
     #simoConnectContactForm input{font-size:16px}
     #simoConnectContactStatus{display:block;color:#a8d5e8}
+    #simoMessagesPanel .sc-tool-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px}
+    #simoMessagesPanel #simoConnectShortcuts{display:contents}
+    #simoMessagesPanel .sc-tool-row button,#simoMessagesPanel .sc-tool-list button{margin:0;min-height:36px}
+    #simoMessagesPanel .sc-tool-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
+    #simoMessagesPanel #simoConnectToolMenu{border:1px solid #4c799c;border-radius:8px;padding:0 8px;margin:6px 0}
+    #simoMessagesPanel #simoConnectToolMenu summary{color:#b9e1f6;cursor:pointer;padding:7px 0}
+    #simoMessagesPanel #simoConnectToolOptions{border:0;margin:0;padding:0 0 6px}
+    #simoMessagesPanel #simoConnectToolOptions label{display:flex;align-items:center;gap:8px;min-height:29px}
+    #simoMessagesPanel #simoConnectToolOptions input{width:auto;margin:0;accent-color:#b99bfa}
+    #simoMessagesPanel #simoConnectToolOptions legend{padding:0;margin-bottom:2px}
+    #simoMessagesPanel #simoConnectAttachment,#simoMessagesPanel #simoConnectGroupOptions{border:1px solid #4c799c;border-radius:8px;padding:8px;margin:6px 0}
+    #simoMessagesPanel[data-thread-open="true"] #simoConnectGroupOptions:not([hidden]){display:block}
+    #simoMessagesPanel .sc-compose-actions{display:flex;justify-content:flex-end}
+    #simoConnectIdPanel{margin:6px 0;padding:8px;border:1px solid #4c799c;border-radius:8px}
+    #simoConnectIdQr{display:block;width:min(100%,204px);height:auto;margin:6px auto;background:white}
+    #simoConnectIdVideo{display:block;width:100%;max-height:min(28vh,210px);object-fit:contain;background:#04111f}
+    #simoConnectIdLink{display:block;overflow-wrap:anywhere;color:#b8ddff}
+    #simoConnectPhotoPanel{margin:6px 0;padding:8px;border:1px solid #4c799c;border-radius:8px}
+    #simoConnectPhotoPanel :is(video,img){display:block;width:100%;max-height:min(30vh,220px);object-fit:contain;background:#04111f;border-radius:6px}
+    #simoConnectPhotoStatus{margin:6px 0;color:#d0e6f5}
     #simoConnectMic[aria-pressed="true"]{background:#186454;border-color:#70e4af}#simoConnectStatus{min-height:16px;color:#a8d5e8;margin:6px 0}
     @media(max-width:600px){#simoMessagesBtn{right:14px;bottom:198px}#simoMessagesPanel{bottom:252px;max-height:calc(100vh - 270px)}}`;
   document.head.appendChild(css);
@@ -57,10 +84,6 @@
     <div id="simoConnectDirectTo"><label>To (recipient’s Simo handle)<input id="simoConnectDirectRecipient" maxlength="25" placeholder="@friend_handle" autocomplete="off" autocapitalize="none" spellcheck="false"></label></div>
     <div class="sc-conversations">
     <button type="button" id="simoConnectNewMessage" hidden>New message</button>
-    <details id="simoConnectGroupOptions"><summary>New group conversation</summary>
-    <label>Recipient handles, separated by commas<input id="simoConnectRecipients" maxlength="300" placeholder="simo_test2, friend2"></label>
-    <label>Group name<input id="simoConnectTitle" maxlength="64" placeholder="Friends and family"></label>
-    <button type="button" id="simoConnectCreate">Create group</button></details>
     <h4 style="margin:12px 0 5px">Conversations</h4><div id="simoConnectThreads" class="sc-threads"></div></div>
     <div id="simoConnectConversationTitle" style="margin-top:9px;font-weight:700">New message</div>
     <div id="simoConnectThreadActions" hidden><button id="simoConnectContact" type="button" hidden>Save contact</button><button type="button" id="simoConnectVoice">Voice call</button><details class="sc-thread-tools" open><summary>Conversation options</summary>
@@ -78,10 +101,60 @@
     </form>
     <div id="simoConnectHistory" class="sc-chat" role="log" aria-live="polite" hidden></div>
     <div class="sc-composer"><label class="sc-message-label"><span>Message</span><textarea id="simoConnectBody" rows="2" maxlength="2000" aria-label="Message" placeholder="Type a message..."></textarea></label>
-    <details class="sc-file-tools" open><summary>Attach file</summary><label style="margin-top:7px">Attach file (PNG, JPG, WEBP, PDF, TXT or CSV, max 5 MB)
-      <input type="file" id="simoConnectFile" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.csv" /></label>
-    <button type="button" id="simoConnectUpload">Share file</button></details>
-    <div class="sc-compose-actions"><button type="button" id="simoConnectMic" aria-pressed="false" aria-label="Dictate a message">🎙 Dictate</button><button type="button" id="simoConnectSend">Send message</button></div><small id="simoConnectMicHelp">Dictation fills the message box; review before sending. Never sends automatically.</small></div>`;
+    <div class="sc-tool-row">
+      <button type="button" id="simoConnectTools" aria-expanded="false" aria-controls="simoConnectToolMenu">Tools ▾</button>
+      <div id="simoConnectShortcuts" role="group" aria-label="Pinned tools"></div>
+    </div>
+    <div id="simoConnectToolMenu" hidden>
+      <div id="simoConnectMenuActions" class="sc-tool-list" aria-label="More tools">
+        <button type="button" id="simoConnectAttach" aria-expanded="false" aria-controls="simoConnectAttachment">Attach file</button>
+        <button type="button" id="simoConnectCamera" aria-expanded="false" aria-controls="simoConnectPhotoPanel">Take Photo</button>
+        <button type="button" id="simoConnectMic" aria-pressed="false" aria-label="Dictate a message">Dictate</button>
+        <button type="button" id="simoConnectMyId">Share my Simo ID</button>
+        <button type="button" id="simoConnectScanId">Scan a Simo ID</button>
+        <button type="button" id="simoConnectGroupTool" aria-expanded="false" aria-controls="simoConnectGroupOptions">New group conversation</button>
+      </div>
+      <details id="simoConnectCustomize">
+        <summary>Customize shortcuts</summary>
+        <fieldset id="simoConnectToolOptions">
+          <legend>Show beside Tools</legend>
+        </fieldset>
+      </details>
+    </div>
+    <section id="simoConnectAttachment" aria-label="Attach file" hidden>
+      <label>Choose a file (PNG, JPG, WEBP, PDF, TXT or CSV, max 5 MB)
+        <input type="file" id="simoConnectFile" accept=".png,.jpg,.jpeg,.webp,.pdf,.txt,.csv" />
+      </label>
+      <button type="button" id="simoConnectUpload">Share file</button>
+    </section>
+    <section id="simoConnectGroupOptions" aria-label="New group conversation" hidden>
+      <label>Recipient handles, separated by commas<input id="simoConnectRecipients" maxlength="300" placeholder="simo_test2, friend2"></label>
+      <label>Group name<input id="simoConnectTitle" maxlength="64" placeholder="Friends and family"></label>
+      <button type="button" id="simoConnectCreate">Create group</button>
+    </section>
+    <section id="simoConnectIdPanel" aria-label="Simo contact card" hidden>
+      <strong id="simoConnectIdHandle" hidden></strong>
+      <p id="simoConnectIdStatus" role="status"></p>
+      <video id="simoConnectIdVideo" aria-label="QR camera preview" playsinline muted hidden></video>
+      <canvas id="simoConnectIdQr" aria-label="QR code for your Simo ID" role="img" hidden></canvas>
+      <a id="simoConnectIdLink" hidden></a>
+      <button type="button" id="simoConnectIdCopy" hidden>Copy link</button>
+      <button type="button" id="simoConnectIdShare" hidden>Share in conversation</button>
+      <button type="button" id="simoConnectIdSave" hidden>Save contact</button>
+      <button type="button" id="simoConnectIdMessage" hidden>Message</button>
+      <button type="button" id="simoConnectIdCall" hidden>Call</button>
+      <button type="button" id="simoConnectIdClose">Close</button>
+    </section>
+    <section id="simoConnectPhotoPanel" aria-label="Take a photo" hidden>
+      <video id="simoConnectPhotoVideo" playsinline muted hidden></video>
+      <img id="simoConnectPhotoPreview" alt="Photo preview" hidden />
+      <p id="simoConnectPhotoStatus" role="status"></p>
+      <button type="button" id="simoConnectPhotoCapture" hidden>Capture</button>
+      <button type="button" id="simoConnectPhotoRetake" hidden>Retake</button>
+      <button type="button" id="simoConnectPhotoShare" hidden>Share photo</button>
+      <button type="button" id="simoConnectPhotoCancel">Cancel</button>
+    </section>
+    <div class="sc-compose-actions"><button type="button" id="simoConnectSend">Send message</button></div></div>`;
   const messageNotice=document.createElement('div');messageNotice.id='simoConnectNotice';messageNotice.hidden=true;
   messageNotice.setAttribute('role','status');messageNotice.style.cssText='position:fixed;right:14px;top:140px;z-index:9490;max-width:min(390px,calc(100vw - 28px));border:1px solid #5daeda;border-radius:12px;padding:12px 15px;background:#113852;color:white;font:600 13px system-ui;box-shadow:0 8px 24px #0008';
   document.body.append(button,panel,messageNotice);
@@ -159,7 +232,7 @@
       const isMobile = mobile.matches;
       el('simoMessagesClose').textContent = isMobile ? '‹ Simo' : '×';
       el('simoMessagesClose').setAttribute('aria-label', isMobile ? 'Return to Simo' : 'Close messages');
-      for (const details of panel.querySelectorAll('.sc-thread-tools, .sc-file-tools')) details.open = !isMobile;
+      for (const details of panel.querySelectorAll('.sc-thread-tools')) details.open = !isMobile;
       for (const surface of [panel, callingPanel]) {
         if (isMobile) surface.setAttribute('role', 'dialog');
         else {
@@ -250,6 +323,10 @@
     if(state.thread && !state.threads.some(t=>t.id===state.thread)) composeNewMessage();
   }
   function activateThread(thread) {
+    if (state.thread !== (thread?.id || '')) {
+      closePhoto();
+      closeContactCard();
+    }
     state.thread = thread ? thread.id : '';
     panel.dataset.threadOpen = String(Boolean(thread));
     if (thread && el('simoConnectStatus').textContent === recipientHint) info('');
@@ -262,7 +339,7 @@
     el('simoConnectThreadActions').hidden = !thread;
     el('simoConnectVideo').hidden = !thread || thread.kind !== 'direct';
     el('simoConnectVoice').hidden = el('simoConnectVideo').hidden;
-    if (thread) el('simoConnectGroupOptions').open = false;
+    closeToolForms();
     syncContactDisplay();
   }
 
@@ -289,7 +366,22 @@
   function updateText(item, message) {
     if (Number(item.dataset.revision) > message.revision) return;
     item.dataset.revision = message.revision;
-    item.querySelector('.sc-message-text').textContent = message.body;
+    const body = item.querySelector('.sc-message-text');
+    const contactId = parseContactLink(message.body);
+    if (contactId) {
+      const link = document.createElement('a');
+      link.className = 'sc-attachment';
+      link.href = contactLink(contactId);
+      link.textContent = 'Open Simo contact card';
+      link.onclick = event => {
+        if (event.ctrlKey || event.altKey || event.metaKey || event.shiftKey) return;
+        event.preventDefault();
+        showContactCard(contactId);
+      };
+      body.replaceChildren(link);
+    } else {
+      body.textContent = message.body;
+    }
     item.querySelector('.sc-edit-label').hidden = !message.edited_at;
   }
 
@@ -424,7 +516,7 @@
     }
   }
   async function open(){state.open=true;panel.hidden=false;try{await loadThreads();await loadMessages();await markRead();loadContacts().catch(()=>{});}catch(e){info(e.message);}if(state.open)startPolling();}
-  function close(){state.open=false;panel.hidden=true;if(state.recognition){try{state.recognition.stop();}catch(e){}}if(state.timer){clearTimeout(state.timer);state.timer=null;}}
+  function close(){state.open=false;closeToolsMenu();closeToolForms();closePhoto();closeContactCard();panel.hidden=true;if(state.recognition){try{state.recognition.stop();}catch(e){}}if(state.timer){clearTimeout(state.timer);state.timer=null;}}
   async function tick(){
     if(!state.open)return;
     if(!document.hidden){await loadMessages();}
@@ -497,6 +589,7 @@
       const result = await api('threads', {kind:'group', handles, title:el('simoConnectTitle').value});
       await loadThreads();
       await select(result.thread.id);
+      closeToolForms();
       info('Group conversation ready.');
     } catch (error) {
       info(error.message);
@@ -617,18 +710,458 @@
       send.disabled = false;
     }
   };
-  el('simoConnectUpload').onclick=async()=>{
-    if(!state.thread){info('Choose a conversation first.');return;}
-    const file=el('simoConnectFile').files[0];if(!file){info('Choose a file first.');return;}
-    if(file.size>5*1024*1024){info('File exceeds 5 MB.');return;}
-    const button=el('simoConnectUpload');button.disabled=true;
-    try{
-      const form=new FormData();form.append('thread',state.thread);form.append('file',file);
-      const response=await fetch('/api/simo-connect/files',{
-        method:'POST',credentials:'same-origin',headers:{'X-Simo-Connect-Upload':'1'},body:form});
-      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Upload failed');
-      el('simoConnectFile').value='';await loadMessages();await loadThreads();info('File shared.');
-    }catch(e){info(e.message);}finally{button.disabled=false;}
+  async function uploadAttachment(thread, file) {
+    if (file.size > maxAttachmentBytes) throw new Error('File exceeds 5 MB.');
+    const form = new FormData();
+    form.append('thread', thread);
+    form.append('file', file);
+    const response = await fetch('/api/simo-connect/files', {
+      method: 'POST', credentials: 'same-origin',
+      headers: {'X-Simo-Connect-Upload': '1'}, body: form
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) throw new Error(result.error || 'Upload failed.');
+  }
+
+  el('simoConnectUpload').onclick = async () => {
+    if (!state.thread) { info('Choose a conversation first.'); return; }
+    const picker = el('simoConnectFile');
+    const file = picker.files[0];
+    if (!file) { info('Choose a file first.'); return; }
+    const button = el('simoConnectUpload');
+    const view = state.viewVersion;
+    button.disabled = true;
+    try {
+      await uploadAttachment(state.thread, file);
+      if (picker.files[0] === file) {
+        picker.value = '';
+        if (state.open && state.viewVersion === view) closeToolForms();
+      }
+      if (!state.open || state.viewVersion !== view) return;
+      await loadMessages();
+      await loadThreads();
+      if (state.open && state.viewVersion === view) info('File shared.');
+    } catch (error) {
+      if (state.open && state.viewVersion === view) info(error.message);
+    } finally {
+      button.disabled = false;
+    }
+  };
+
+  const cameraButton = el('simoConnectCamera');
+  const photoPanel = el('simoConnectPhotoPanel');
+  const photoVideo = el('simoConnectPhotoVideo');
+  const photoPreview = el('simoConnectPhotoPreview');
+  const photoStatus = el('simoConnectPhotoStatus');
+  const captureButton = el('simoConnectPhotoCapture');
+  const retakeButton = el('simoConnectPhotoRetake');
+  const sharePhotoButton = el('simoConnectPhotoShare');
+  let photoSession = null;
+
+  function stopPhotoCamera() {
+    photoVideo.srcObject?.getTracks().forEach(track => track.stop());
+    photoVideo.srcObject = null;
+    photoVideo.hidden = true;
+  }
+
+  function closePhoto() {
+    if (!photoSession) return;
+    stopPhotoCamera();
+    if (photoSession.previewUrl) URL.revokeObjectURL(photoSession.previewUrl);
+    photoSession = null;
+    photoPreview.removeAttribute('src');
+    photoPreview.hidden = true;
+    captureButton.hidden = retakeButton.hidden = sharePhotoButton.hidden = true;
+    retakeButton.disabled = sharePhotoButton.disabled = false;
+    cameraButton.setAttribute('aria-expanded', 'false');
+    photoPanel.hidden = true;
+  }
+
+  async function openPhoto() {
+    if (!state.open || highlightHandleSetup()) return;
+    if (!state.handle || !state.thread) {
+      info('Open a signed-in conversation before taking a photo.');
+      return;
+    }
+    closeToolForms();
+    closePhoto();
+    closeContactCard();
+    const shot = {thread: state.thread, file: null, previewUrl: ''};
+    photoSession = shot;
+    photoPanel.hidden = false;
+    cameraButton.setAttribute('aria-expanded', 'true');
+    photoStatus.textContent = 'Opening camera…';
+    if (!navigator.mediaDevices?.getUserMedia) {
+      photoStatus.textContent = 'Camera unavailable here. Use Attach file to share a photo.';
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false, video: {facingMode: {ideal: 'environment'}}
+      });
+      if (photoSession !== shot) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      photoVideo.srcObject = stream;
+      photoVideo.hidden = false;
+      await photoVideo.play();
+      if (photoSession !== shot) return;
+      captureButton.hidden = false;
+      photoStatus.textContent = 'Frame your photo, then press Capture.';
+      captureButton.focus();
+    } catch (error) {
+      if (photoSession !== shot) return;
+      stopPhotoCamera();
+      photoStatus.textContent = error.name === 'NotAllowedError'
+        ? 'Allow camera access in your browser or use Attach file.'
+        : 'Could not open the camera. If it is busy, close the other camera session or use Attach file.';
+    }
+  }
+
+  captureButton.onclick = () => {
+    const shot = photoSession;
+    if (!shot || captureButton.hidden) return;
+    const width = photoVideo.videoWidth;
+    const height = photoVideo.videoHeight;
+    if (!width || !height) {
+      photoStatus.textContent = 'The camera is still starting. Try Capture again.';
+      return;
+    }
+    const scale = Math.min(1, 1600 / Math.max(width, height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(width * scale));
+    canvas.height = Math.max(1, Math.round(height * scale));
+    const context = canvas.getContext('2d');
+    if (!context) {
+      photoStatus.textContent = 'Could not capture this photo. Use Attach file instead.';
+      return;
+    }
+    context.drawImage(photoVideo, 0, 0, canvas.width, canvas.height);
+    captureButton.hidden = true;
+    stopPhotoCamera();
+    canvas.toBlob(blob => {
+      if (photoSession !== shot) return;
+      retakeButton.hidden = false;
+      if (!blob || blob.type !== 'image/jpeg' || !blob.size || blob.size > maxAttachmentBytes) {
+        photoStatus.textContent = 'Could not prepare this photo. Try Retake or use Attach file.';
+        return;
+      }
+      shot.file = new File([blob], 'simo-photo.jpg', {type: blob.type});
+      shot.previewUrl = URL.createObjectURL(blob);
+      photoPreview.src = shot.previewUrl;
+      photoPreview.hidden = false;
+      sharePhotoButton.hidden = false;
+      photoStatus.textContent = 'Review your photo before sharing.';
+      sharePhotoButton.focus();
+    }, 'image/jpeg', 0.86);
+  };
+
+  sharePhotoButton.onclick = async () => {
+    const shot = photoSession;
+    if (!shot?.file || shot.thread !== state.thread || !state.open || sharePhotoButton.disabled) return;
+    sharePhotoButton.disabled = retakeButton.disabled = true;
+    photoStatus.textContent = 'Sharing photo…';
+    try {
+      await uploadAttachment(shot.thread, shot.file);
+      if (photoSession !== shot) return;
+      const view = state.viewVersion;
+      closePhoto();
+      focusTool(cameraButton);
+      await loadMessages();
+      await loadThreads();
+      if (state.open && state.viewVersion === view) info('Photo shared.');
+    } catch (error) {
+      if (photoSession === shot) photoStatus.textContent = error.message;
+    } finally {
+      if (photoSession === shot) sharePhotoButton.disabled = retakeButton.disabled = false;
+    }
+  };
+
+  cameraButton.onclick = () => photoSession ? closePhoto() : openPhoto();
+  retakeButton.onclick = openPhoto;
+  el('simoConnectPhotoCancel').onclick = () => {
+    closePhoto();
+    focusTool(cameraButton);
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && photoSession && !photoSession.file) closePhoto();
+  });
+
+  const idPanel = el('simoConnectIdPanel');
+  const idStatus = el('simoConnectIdStatus');
+  const idHandle = el('simoConnectIdHandle');
+  const idVideo = el('simoConnectIdVideo');
+  const idQr = el('simoConnectIdQr');
+  const idLink = el('simoConnectIdLink');
+  const idCopy = el('simoConnectIdCopy');
+  const idShare = el('simoConnectIdShare');
+  const idSave = el('simoConnectIdSave');
+  const idMessage = el('simoConnectIdMessage');
+  const idCall = el('simoConnectIdCall');
+  const idActions = [idCopy, idShare, idSave, idMessage, idCall];
+  const cardIdPattern = /^[a-f0-9]{32}$/;
+  const pendingContactKey = 'simo_connect_pending_card';
+  const qrLibraries = new Map();
+  let contactSession = null;
+
+  function contactLink(id) {
+    return new URL('/#simo-id=' + id, window.location.origin).href;
+  }
+
+  function parseContactLink(value) {
+    if (typeof value !== 'string' || value.length > 300) return null;
+    try {
+      const link = new URL(value.trim());
+      const sameSimo = link.origin === window.location.origin ||
+        link.origin === 'https://simonchat.ai' || link.origin === 'https://www.simonchat.ai';
+      if (!sameSimo || link.username || link.password || link.pathname !== '/' || link.search) return null;
+      return link.hash.match(/^#simo-id=([a-f0-9]{32})$/)?.[1] || null;
+    } catch {
+      return null;
+    }
+  }
+
+  function loadQrLibrary(name, asset) {
+    if (typeof window[name] === 'function') return Promise.resolve(window[name]);
+    if (!qrLibraries.has(name)) {
+      const script = document.createElement('script');
+      script.src = '/static/vendor/' + asset;
+      const ready = new Promise((resolve, reject) => {
+        script.onload = () => typeof window[name] === 'function'
+          ? resolve(window[name]) : reject(new Error('QR tools could not start. Try again.'));
+        script.onerror = () => reject(new Error('QR tools could not load. Try again.'));
+      }).catch(error => {
+        script.remove();
+        qrLibraries.delete(name);
+        throw error;
+      });
+      qrLibraries.set(name, ready);
+      document.head.append(script);
+    }
+    return qrLibraries.get(name);
+  }
+
+  function closeContactCard() {
+    if (!contactSession) return;
+    clearTimeout(contactSession.scanTimer);
+    idVideo.srcObject?.getTracks().forEach(track => track.stop());
+    idVideo.srcObject = null;
+    contactSession = null;
+    idPanel.hidden = true;
+    for (const item of [idHandle, idVideo, idQr, idLink, ...idActions]) item.hidden = true;
+    for (const button of idActions) button.disabled = false;
+  }
+
+  function openContactPanel(message) {
+    closeToolForms();
+    closePhoto();
+    closeContactCard();
+    contactSession = {card: null, thread: state.thread, scanTimer: null};
+    idPanel.hidden = false;
+    idStatus.textContent = message;
+    return contactSession;
+  }
+
+  function drawContactQr(makeQr, link) {
+    const qr = makeQr(0, 'M');
+    qr.addData(link);
+    qr.make();
+    const count = qr.getModuleCount();
+    const moduleSize = 5;
+    idQr.width = idQr.height = (count + 8) * moduleSize;
+    const context = idQr.getContext('2d');
+    if (!context) throw new Error('Use the contact link to share your Simo ID.');
+    context.fillStyle = '#fff';
+    context.fillRect(0, 0, idQr.width, idQr.height);
+    context.fillStyle = '#111';
+    for (let row = 0; row < count; row++) {
+      for (let column = 0; column < count; column++) {
+        if (qr.isDark(row, column)) context.fillRect((column + 4) * moduleSize, (row + 4) * moduleSize, moduleSize, moduleSize);
+      }
+    }
+    idQr.hidden = false;
+  }
+
+  async function showMyContactCard() {
+    if (!state.open || highlightHandleSetup()) return;
+    const current = openContactPanel('Getting your Simo ID…');
+    el('simoConnectIdClose').focus();
+    try {
+      const {card} = await api('contact-card', {});
+      if (contactSession !== current) return;
+      current.card = card;
+      idHandle.textContent = '@' + card.handle;
+      idHandle.hidden = false;
+      idLink.href = contactLink(card.id);
+      idLink.textContent = 'Open my Simo ID';
+      idLink.hidden = idCopy.hidden = false;
+      idShare.hidden = !current.thread;
+      idStatus.textContent = current.thread ? 'Share this card in the current conversation.' : 'Show the QR code or copy your contact link.';
+      const makeQr = await loadQrLibrary('qrcode', 'qrcode-generator-1.4.4.js');
+      if (contactSession === current) drawContactQr(makeQr, idLink.href);
+    } catch (error) {
+      if (contactSession === current) idStatus.textContent = error.message;
+    }
+  }
+
+  async function showContactCard(id) {
+    const current = openContactPanel('Looking up this Simo ID…');
+    el('simoConnectIdClose').focus();
+    try {
+      const {card} = await api('contact-card?id=' + encodeURIComponent(id));
+      if (contactSession !== current) return;
+      current.card = card;
+      idHandle.textContent = '@' + card.handle;
+      idHandle.hidden = false;
+      idStatus.textContent = card.own ? 'This is your Simo ID.' : 'Choose what you want to do with this contact.';
+      idSave.hidden = idMessage.hidden = idCall.hidden = card.own;
+      return true;
+    } catch (error) {
+      if (contactSession !== current) return false;
+      idStatus.textContent = error.message;
+      return error.status === 404;
+    }
+  }
+
+  async function scanContactCard() {
+    if (!state.open || highlightHandleSetup()) return;
+    if (!state.handle) {
+      info('Sign in and save your Simo handle before scanning.');
+      return;
+    }
+    const current = openContactPanel('Opening QR scanner…');
+    el('simoConnectIdClose').focus();
+    try {
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('Camera unavailable. Ask for the Simo ID link instead.');
+      const decode = await loadQrLibrary('jsQR', 'jsqr-1.4.0.js');
+      if (contactSession !== current) return;
+      const stream = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: 'environment'}}, audio: false});
+      if (contactSession !== current) {
+        stream.getTracks().forEach(track => track.stop());
+        return;
+      }
+      idVideo.srcObject = stream;
+      idVideo.hidden = false;
+      await idVideo.play();
+      if (contactSession !== current) return;
+      idStatus.textContent = 'Point your camera at a Simo ID QR code.';
+      const frame = document.createElement('canvas');
+      const context = frame.getContext('2d', {willReadFrequently: true});
+      if (!context) throw new Error('QR scanning is unavailable. Ask for the Simo ID link.');
+      function scanFrame() {
+        if (contactSession !== current) return;
+        try {
+          if (idVideo.videoWidth && idVideo.videoHeight) {
+            const scale = Math.min(1, 640 / Math.max(idVideo.videoWidth, idVideo.videoHeight));
+            frame.width = Math.max(1, Math.round(idVideo.videoWidth * scale));
+            frame.height = Math.max(1, Math.round(idVideo.videoHeight * scale));
+            context.drawImage(idVideo, 0, 0, frame.width, frame.height);
+            const pixels = context.getImageData(0, 0, frame.width, frame.height);
+            const read = decode(pixels.data, frame.width, frame.height, {inversionAttempts: 'attemptBoth'});
+            if (read) {
+              const id = parseContactLink(read.data);
+              if (id) {
+                showContactCard(id);
+                return;
+              }
+              idStatus.textContent = 'That QR code is not a Simo ID. Try a Simo contact card.';
+            }
+          }
+          current.scanTimer = setTimeout(scanFrame, 150);
+        } catch {
+          closeContactCard();
+          info('The QR scanner stopped. Try reopening it or use the Simo ID link.');
+        }
+      }
+      scanFrame();
+    } catch (error) {
+      if (contactSession !== current) return;
+      idVideo.srcObject?.getTracks().forEach(track => track.stop());
+      idVideo.srcObject = null;
+      idVideo.hidden = true;
+      idStatus.textContent = error.name === 'NotAllowedError' ? 'Allow camera access, or open the Simo ID link.' : error.message;
+    }
+  }
+
+  async function runContactAction(button, action) {
+    const current = contactSession;
+    if (!current?.card || button.disabled || button.hidden) return;
+    const available = idActions.filter(control => !control.hidden);
+    for (const control of available) control.disabled = true;
+    try {
+      await action(current);
+    } catch (error) {
+      if (contactSession === current) idStatus.textContent = error.message;
+    } finally {
+      if (contactSession === current) for (const control of available) control.disabled = false;
+    }
+  }
+
+  el('simoConnectMyId').onclick = showMyContactCard;
+  el('simoConnectScanId').onclick = scanContactCard;
+  el('simoConnectIdClose').onclick = () => {
+    closeContactCard();
+    el('simoConnectTools').focus({preventScroll: true});
+  };
+  idCopy.onclick = () => runContactAction(idCopy, async current => {
+    try {
+      await navigator.clipboard.writeText(contactLink(current.card.id));
+      if (contactSession === current) idStatus.textContent = 'Contact link copied.';
+    } catch {
+      if (contactSession === current) idStatus.textContent = 'Use your browser’s Copy link option on Open my Simo ID.';
+    }
+  });
+  idShare.onclick = () => runContactAction(idShare, async current => {
+    if (!current.card.own || !current.thread || current.thread !== state.thread) return;
+    await api('messages', {thread: current.thread, body: contactLink(current.card.id)});
+    if (contactSession !== current) return;
+    idStatus.textContent = 'Simo ID shared in this conversation.';
+    await loadMessages();
+    await notificationPoll();
+  });
+  idSave.onclick = () => runContactAction(idSave, async current => {
+    await api('contacts', {contact_id: current.card.id});
+    if (contactSession !== current) return;
+    idStatus.textContent = 'Contact saved.';
+    window.dispatchEvent(new CustomEvent('simo-connect:contacts-changed'));
+    await loadContacts();
+  });
+  idMessage.onclick = () => runContactAction(idMessage, async current => {
+    if (highlightHandleSetup()) return;
+    const {thread} = await api('threads', {kind: 'direct', contact_id: current.card.id});
+    if (contactSession !== current) return;
+    if (!state.threads.some(entry => entry.id === thread.id)) state.threads.unshift(thread);
+    closeContactCard();
+    await select(thread.id);
+    el('simoConnectBody').focus();
+  });
+  idCall.onclick = () => runContactAction(idCall, current => {
+    window.dispatchEvent(new CustomEvent('simo-connect:open-call', {
+      detail: {handle: current.card.handle, contactId: current.card.id}
+    }));
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && contactSession && !contactSession.card) closeContactCard();
+  });
+
+  const openPendingContactCard = () => {
+    const incomingId = parseContactLink(window.location.href);
+    let pendingId = incomingId;
+    try {
+      if (incomingId) sessionStorage.setItem(pendingContactKey, incomingId);
+      else pendingId = sessionStorage.getItem(pendingContactKey);
+    } catch {}
+    if (cardIdPattern.test(pendingId || '')) {
+      window.dispatchEvent(new CustomEvent('simo-connect:panel-open', {detail: {panel: 'messages'}}));
+      open();
+      showContactCard(pendingId).then(resolved => {
+        if (!resolved) return;
+        try { sessionStorage.removeItem(pendingContactKey); } catch {}
+        if (incomingId) history.replaceState(history.state, '', window.location.pathname);
+      });
+    }
+
   };
   const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(SpeechRecognition){
@@ -644,7 +1177,120 @@
       sr.onend=()=>{state.recognition=null;mic.setAttribute('aria-pressed','false');};
       try{sr.start();}catch(e){state.recognition=null;mic.setAttribute('aria-pressed','false');info('Dictation could not start.');}
     };
-  }else {el('simoConnectMic').disabled=true;el('simoConnectMicHelp').textContent='Speech recognition is not supported by this browser; typing remains available.';}
+  } else {
+    const mic = el('simoConnectMic');
+    mic.disabled = true;
+    mic.title = 'Dictation is unavailable in this browser.';
+  }
+  const toolsToggle = el('simoConnectTools');
+  const toolsMenu = el('simoConnectToolMenu');
+  const pinnedTools = el('simoConnectShortcuts');
+  const menuTools = el('simoConnectMenuActions');
+  const toolOptions = el('simoConnectToolOptions');
+  const attachTool = el('simoConnectAttach');
+  const groupTool = el('simoConnectGroupTool');
+  const attachmentForm = el('simoConnectAttachment');
+  const groupForm = el('simoConnectGroupOptions');
+  const shortcuts = [
+    ['attach', attachTool],
+    ['photo', cameraButton],
+    ['dictate', el('simoConnectMic')],
+    ['my-id', el('simoConnectMyId')],
+    ['scan-id', el('simoConnectScanId')],
+    ['group', groupTool]
+  ];
+  const account = String(window.SIMO_BOOT?.email || '').trim().toLowerCase();
+  const shortcutKey = 'simo_connect_shortcuts_v1:' + (account || 'guest');
+  let selectedTools = new Set(['attach']);
+  try {
+    const saved = JSON.parse(localStorage.getItem(shortcutKey));
+    if (Array.isArray(saved)) selectedTools = new Set(saved);
+  } catch {}
+
+  function renderShortcuts() {
+    for (const [key, control] of shortcuts) {
+      const destination = selectedTools.has(key) ? pinnedTools : menuTools;
+      destination.append(control);
+    }
+    menuTools.hidden = !menuTools.childElementCount;
+  }
+
+  for (const [key, control] of shortcuts) {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selectedTools.has(key);
+    checkbox.addEventListener('change', () => {
+      if (checkbox.checked) selectedTools.add(key);
+      else selectedTools.delete(key);
+      renderShortcuts();
+      try {
+        localStorage.setItem(shortcutKey, JSON.stringify([...selectedTools]));
+      } catch {}
+    });
+    label.append(checkbox, control.textContent);
+    toolOptions.append(label);
+  }
+  renderShortcuts();
+
+  function closeToolsMenu() {
+    toolsMenu.hidden = true;
+    toolsToggle.setAttribute('aria-expanded', 'false');
+    el('simoConnectCustomize').open = false;
+  }
+
+  function focusTool(control) {
+    (toolsMenu.hidden && toolsMenu.contains(control) ? toolsToggle : control).focus({preventScroll: true});
+  }
+
+  function closeToolForms() {
+    attachmentForm.hidden = groupForm.hidden = true;
+    attachTool.setAttribute('aria-expanded', 'false');
+    groupTool.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggleToolForm(control, form, input) {
+    const open = form.hidden;
+    closeToolForms();
+    if (!open) return;
+    closePhoto();
+    closeContactCard();
+    form.hidden = false;
+    control.setAttribute('aria-expanded', 'true');
+    input.focus();
+  }
+
+  toolsToggle.onclick = () => {
+    if (!toolsMenu.hidden) return closeToolsMenu();
+    toolsMenu.hidden = false;
+    toolsToggle.setAttribute('aria-expanded', 'true');
+  };
+  attachTool.onclick = () => {
+    if (!state.thread) {
+      info('Choose a conversation first.');
+      return;
+    }
+    toggleToolForm(attachTool, attachmentForm, el('simoConnectFile'));
+  };
+  groupTool.onclick = () => {
+    if (highlightHandleSetup()) return;
+    toggleToolForm(groupTool, groupForm, el('simoConnectRecipients'));
+  };
+  for (const [, control] of shortcuts) {
+    control.addEventListener('click', () => {
+      if (toolsMenu.hidden || !toolsMenu.contains(control)) return;
+      closeToolsMenu();
+      if (toolsMenu.contains(document.activeElement) || document.activeElement === document.body) toolsToggle.focus({preventScroll: true});
+    }, true);
+  }
+  toolsMenu.addEventListener('keydown', event => {
+    if (event.key !== 'Escape') return;
+    event.preventDefault();
+    closeToolsMenu();
+    toolsToggle.focus({preventScroll: true});
+  });
+  openPendingContactCard();
+
   // Notifications are initialized without showing a stale-message popup on page load.
   notificationPoll();scheduleNotifications();
   window.addEventListener('pagehide',()=>{close();if(state.notificationTimer)clearInterval(state.notificationTimer);});

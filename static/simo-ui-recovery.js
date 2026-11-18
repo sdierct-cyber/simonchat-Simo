@@ -119,7 +119,9 @@
       if (!res.ok || !data.ok) throw new Error(data.error || "Chat request failed.");
 
       if (working) working.remove();
-      addMessage("assistant", esc(data.reply || "Done.").replace(/\n/g, "<br>"));
+      var reply = data.reply || "Done.";
+      var renderReply = window.SimoRenderAssistantTextHtml;
+      addMessage("assistant", typeof renderReply === "function" ? renderReply(reply) : esc(reply).replace(/\n/g, "<br>"));
       setStatus("Ready.");
     } catch (err) {
       if (working) working.remove();

@@ -142,6 +142,7 @@
     return pc;
   }
   async function flushIce() {if(!pc?.remoteDescription)return;while(pendingIce.length) await pc.addIceCandidate(pendingIce.shift()).catch(()=>{});}
+  let targetContactId = '';
   async function begin(mode='audio') {
     if(guestMode){say('Sign in or create a Simo account to place calls.');showGuestGate();return;}
     if (!myHandle) {
@@ -151,13 +152,18 @@
     }
     if(calling || current)return;
     try {
-      const handle = String($('simoCallTarget').value||'').trim().replace(/^@/,'');
+      let handle = String($('simoCallTarget').value||'').trim().replace(/^@/,'');
+      const contactId = targetContactId;
       if(!handle){say('Enter the recipient handle.');return;}
       calling=true;callMode=mode;preferredMode=mode;remoteHandle=cleanHandle(handle);updateVideoIdentity();
       updateCallView();
       if(mobile.matches)say('Requesting '+(mode==='video'?'camera and microphone':'microphone')+' access…');
       await mediaConnection(); // ask permission before initiating a call
-      const result=await api('start',{handle,mode:callMode}); current=result.call_id;
+      const result=await api('start', {handle, mode:callMode, ...(contactId ? {contact_id:contactId} : {})});
+      handle = result.to || handle;
+      remoteHandle = cleanHandle(handle);
+      updateVideoIdentity();
+      current=result.call_id;
       $('simoCallHangup').textContent=mobile.matches?'Cancel call':'Decline / Hang up';
       $('simoCallStart').disabled=true;$('simoCallStartVideo').disabled=true;
       const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
@@ -312,6 +318,7 @@
   }
   $('simoContactsSelect').onchange=()=>{
     const c=savedContacts.find(x=>x.handle===$('simoContactsSelect').value);if(!c)return;
+    targetContactId = '';
     $('simoCallTarget').value=c.handle;$('simoContactNickname').value=c.nickname;
     $('simoContactFavorite').checked=!!c.favorite;updateVideoIdentity();
   };
@@ -365,12 +372,16 @@
   updateCallView();
   btn.onclick = () => panel.hidden ? showCallPanel() : hideCallPanel();
   window.addEventListener('simo-connect:open-call', event => {
-    if (event.detail?.handle && !current && !calling) $('simoCallTarget').value = event.detail.handle;
+    if (event.detail?.handle && !current && !calling) {
+      $('simoCallTarget').value = event.detail.handle;
+      targetContactId = event.detail.contactId || '';
+    }
     showCallPanel(event.detail?.mode);
   });
   window.addEventListener('simo-connect:panel-open', event => {
     if (event.detail?.panel === 'messages') hideCallPanel();
   });
+  $('simoCallTarget').addEventListener('input', () => { targetContactId = ''; });
   $('simoCallClose').onclick = hideCallPanel;
   $('simoCallHandleSetup').onsubmit = async event => {
     event.preventDefault();

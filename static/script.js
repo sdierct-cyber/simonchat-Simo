@@ -1859,6 +1859,9 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
     return `<div style="display:grid; gap:10px;">${out.join("")}</div>`;
   }
 
+  // The recovery sender also renders replies from /api/chat.
+  window.SimoRenderAssistantTextHtml = renderAssistantTextHtml;
+
   function buildAssistantUtilityBar(rawText) {
     const safeText = encodeURIComponent(String(rawText || ""));
     return `
@@ -2326,6 +2329,8 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
 
     if (meta.html) {
       bubble.innerHTML = meta.html;
+    } else if (role === "assistant") {
+      bubble.innerHTML = renderAssistantTextHtml(text);
     } else {
       bubble.textContent = text || "";
       bubble.style.whiteSpace = "pre-wrap";
