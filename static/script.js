@@ -978,8 +978,8 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
     if (state.me.pro && credit && credit.unlimited) {
       setTextIfChanged(usageEl, "Unlimited");
       setWidthIfChanged(bar, "100%");
-      setTextIfChanged(smalls[0], "Simo Credits");
-      setTextIfChanged(smalls[1], "Unlimited admin testing");
+      setTextIfChanged(smalls[0], "Creator Testing");
+      setTextIfChanged(smalls[1], "No credit charges · operating limits apply");
       return;
     }
 
@@ -989,16 +989,18 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
       const purchased = Math.max(0, Number(credit.purchased_remaining || 0));
       const total = Math.max(0, Number(credit.remaining || 0));
 
-      // The main number is the funded monthly allowance, not the retired 0/25
-      // daily-message counter. Purchased rollover stays visible underneath.
+      const textChat = credit.text_chat;
+      const chatSummary = textChat
+        ? ` · Text chat ${textChat.remaining}/${textChat.daily_limit} left today`
+        : "";
       setTextIfChanged(usageEl, `${included} / ${limit}`);
       setWidthIfChanged(bar, `${limit > 0 ? Math.max(0, Math.min(100, (included / limit) * 100)) : 0}%`);
       setTextIfChanged(smalls[0], state.me.team ? "Team Simo Credits" : "Simo Credits");
       setTextIfChanged(
         smalls[1],
-        purchased > 0
+        (purchased > 0
           ? `${included} included remaining · +${purchased} rollover · ${total} total`
-          : `${included} included remaining`
+          : `${included} included remaining`) + chatSummary
       );
       return;
     }
@@ -5062,7 +5064,8 @@ if (builderResult.handled) {
       }
     }
 
-    if (typeof data.pro === "boolean") state.me.pro = !!data.pro;
+    if (typeof data.pro === "boolean" && !state.creditStatus?.unlimited) state.me.pro = !!data.pro;
+    if (data.text_chat && state.creditStatus) state.creditStatus.text_chat = data.text_chat;
     if (typeof data.usage_today === "number") state.usageToday = Number(data.usage_today || 0);
     if (typeof data.free_daily_limit === "number") {
       state.freeDailyLimit = Number(data.free_daily_limit || state.freeDailyLimit || 50);
@@ -5083,7 +5086,8 @@ if (builderResult.handled) {
 
     if (hasImageReady) {
       toast(msg, "error", 6500);
-    } else if (/daily limit/i.test(msg)) {
+    } else if (/daily limit|shared capacity/i.test(msg)) {
+      void refreshMe();
       addAssistantMessageWith3D(msg);
       toast(msg, "error", 4000);
     } else {
