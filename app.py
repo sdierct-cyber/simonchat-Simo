@@ -3070,6 +3070,11 @@ def current_user_name() -> str:
     return (session.get("user_name") or "").strip()
 
 
+def _simo_is_verified_creator(email: str) -> bool:
+    owner_email = os.getenv("SIMO_OWNER_EMAIL", "").strip().lower()
+    return bool(owner_email and email == owner_email and session.get("verified_google_sub"))
+
+
 def is_logged_in() -> bool:
     return bool(current_user_email())
 
@@ -8296,9 +8301,20 @@ Do not default to an unrelated generic business type.
                     "listing, or claim of live verification."
                 )
             messages = [{"role": "system", "content": SYSTEM_PROMPT + feature_reference + resource_guidance}]
-            saved_context = simo_personal_memory.memory_for_model(simo_personal_memory.load_memory(get_db, current_user_email()))
+            email = current_user_email()
+            memory = simo_personal_memory.load_memory(get_db, email)
+            saved_context = simo_personal_memory.memory_for_model(memory)
             if saved_context:
                 messages.append({"role": "user", "content": saved_context})
+            if email:
+                if _simo_is_verified_creator(email):
+                    messages[0]["content"] += (
+                        "\n\nThis signed-in account has been verified as Simon Gojcaj, the creator of Simo. "
+                        "Use this fact when relevant and respect any saved preferred name."
+                    )
+                profile_name = current_user_name()
+                if profile_name and not simo_personal_memory.preferred_name(memory):
+                    messages.append({"role": "user", "content": f"My signed-in profile name is {profile_name}."})
             for item in history:
                 role = str(item.get("role", "")).strip()
                 content = str(item.get("content", "")).strip()
@@ -19145,9 +19161,49 @@ def _simo_increment_free_chat_global(day_key: str):
         conn.close()
 
 
+def _simo_account_identity_reply(message) -> dict | None:
+    text = " ".join(str(message or "").lower().replace("’", "'").split()).rstrip(" .?!")
+    creator_question = re.fullmatch(
+        r"(?:who (?:created|built|made) (?:you|simo)|who (?:is|was) (?:your creator|the (?:creator|founder) of simo)"
+        r"|(?:did you forget|you forgot|do you remember) simon(?: gojcaj)?[?,]? the creator of simo)",
+        text,
+    )
+    name_question = re.fullmatch(
+        r"(?:who am i|what(?:'s| is) my (?:preferred )?name|what do you call me|do you remember (?:me|my name)"
+        r"|do you know (?:my name|who i am)|did you forget my name|you forgot my name)",
+        text,
+    )
+    if not (creator_question or name_question):
+        return None
+
+    email = current_user_email()
+    is_creator = _simo_is_verified_creator(email)
+    if creator_question and not is_creator:
+        return {"reply": "Simon Gojcaj created Simo. U.S. Publications, Inc. operates it."}
+    if not email:
+        return {"reply": "Sign in and I can check the name saved to your account."}
+
+    memory = simo_personal_memory.load_memory(get_db, email)
+    preferred = simo_personal_memory.preferred_name(memory)
+    if is_creator:
+        return {"reply": f"Yes, {preferred or 'Simon'}. You’re the creator of Simo."}
+    if preferred:
+        return {"reply": f"You asked me to call you {preferred}."}
+    profile_name = current_user_name()
+    if profile_name:
+        return {"reply": f"The name on your account is {profile_name}. You can tell me what you’d like me to call you."}
+    return {"reply": "Your account has no saved name yet. To set one, say “Call me” followed by the name you’d like to use."}
+
+
 def api_chat():
     data = request.get_json(silent=True) or {}
     message = data.get("message") if isinstance(data, dict) else ""
+    if isinstance(data, dict) and not (data.get("has_image") or data.get("image_url")):
+        identity_reply = _simo_account_identity_reply(message)
+        if identity_reply is not None:
+            response = jsonify({"ok": True, **identity_reply})
+            response.headers["Cache-Control"] = "no-store"
+            return response
     memory_reply = simo_personal_memory.respond_to_command(get_db, current_user_email(), message)
     if memory_reply is not None:
         response = jsonify({"ok": True, "memory_reply": True, **memory_reply})
