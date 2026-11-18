@@ -17,6 +17,10 @@ _GUIDES = (
         "Under **Font**, choose a style to preview it. Theme and Accent control the colors.",
         "Click **Save** to keep the selection in this browser.",
     )),
+    ("Dictating a Simo message", r"\b(?:dictat\w*|voice.to.text)\b.{0,36}\b(?:simo messages|simo connect|(?:a )?message|a conversation)\b", (
+        "Open **Simo Messages** and choose **Tools → Dictate**, or use your pinned **Dictate** shortcut.",
+        "Speak, review the text in the message box, and press **Send message**.",
+    )),
     ("Microphone", r"\b(?:microphone|mic|dictat\w*|voice.to.text)\b", (
         "Open **Settings & Voice**, turn on **Mic input**, and click **Save**.",
         "Click the microphone next to the composer and allow microphone access if the browser asks.",
@@ -27,13 +31,28 @@ _GUIDES = (
         "Ask **What do you remember about me?** or use **Settings & Voice → Review saved memory**.",
         "To remove an entry, say **Forget my preferred name** or **Forget that I prefer short answers**.",
     )),
+    ("Simo Messages shortcuts", r"\b(?:shortcuts?|customize (?:my |the )?tools|tools (?:menu|dropdown)|(?:pin|unpin|hide|show|rearrange)\b.{0,32}\b(?:buttons?|tools?|shortcuts?|take photo|attach file|scan a simo id|share my simo id|dictate|new group conversation))\b", (
+        "Open **Simo Messages → Tools → Customize shortcuts**.",
+        "Check a tool to keep it visible beside **Tools**. Uncheck it to put it back in the dropdown.",
+        "Your shortcuts are saved for your account on this browser.",
+    )),
+    ("Simo ID cards", r"\b(?:qr codes?|contact cards?|(?:share|scan|show|copy) (?:my |a |your )?simo id)\b", (
+        "Sign in, open **Simo Messages**, and save a handle if prompted.",
+        "Choose **Tools → Share my Simo ID** to show your QR code, copy its link, or share it in an open conversation.",
+        "Choose **Tools → Scan a Simo ID** or open a shared contact card. Then choose **Save contact**, **Message**, or **Call**.",
+    )),
+    ("Taking a photo in Messages", r"\b(?:take|capture) (?:a )?photo|\bcamera\b.{0,25}\b(?:simo messages|conversation)\b", (
+        "Sign in, open **Simo Messages**, and select a conversation.",
+        "Choose **Tools → Take Photo**, allow camera access when prompted, and press **Capture**.",
+        "Review the shot, then choose **Share photo** or **Retake**.",
+    )),
     ("Sharing a file", r"\b(?:send|share|attach|upload)\w*\b.{0,28}\bfiles?\b|\bfile sharing\b", (
         "Sign in, open **Simo Messages**, and select the conversation.",
-        "Click **Attach file**, choose a file, then click **Share file**.",
+        "Click **Attach file** beside **Tools** or find it in **Tools**, choose a file, then click **Share file**.",
     )),
     ("Group messages", r"\b(?:group (?:chat|messag\w*|conversation)|create (?:a )?group)\b", (
         "Sign in and open **Simo Messages**.",
-        "Open **New group conversation**, enter the recipient handles separated by commas, and add a group name.",
+        "Open **Tools → New group conversation**, enter the recipient handles separated by commas, and add a group name.",
         "Click **Create group**, then send your first message.",
     )),
     ("Saved contacts", r"\b(?:saved? contacts?|contacts?|save (?:a |the |someone's )?handle)\b", (

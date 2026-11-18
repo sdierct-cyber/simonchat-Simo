@@ -5271,10 +5271,54 @@ SIMO_GITHUB_LINK_REQUEST = SIMO_LINK_REQUEST_START + (
 )
 SIMO_RESOURCE_LINK_REQUEST = SIMO_GITHUB_LINK_REQUEST + "|" + SIMO_LINK_REQUEST_START + (
     r"(?:(?:take|bring|send) me to\s+\S|open\s+https?://"
-    r"|(?:show me|give me|send me|find(?: me)?|share(?: with me)?|provide(?: me with)?|look up)\s+"
-    r"(?:(?:a|an|the|some|official|direct|clickable|helpful|useful|online)\s+)*"
-    r"(?:links?|resources?|sources?|references?)\b)"
+    r"|(?:show(?: me)?|give me|send me|find(?: me)?|share(?: with me)?|provide(?: me with)?"
+    r"|look up|recommend(?: me)?|suggest|list|tell me)\s+"
+    r"(?:(?:a|an|the|some|official|direct|clickable|helpful|useful|online|best|top|"
+    r"one|two|three|four|five|six|seven|eight|nine|ten|[0-9]+)\s+)*"
+    r"(?:(?:links?|resources?|sources?|references?)\b"
+    r"|(?:places?|platforms?|sites?|websites?|directories|communities|channels?)\b"
+    r"(?=.{0,100}\b(?:promote|advertise|market|submit|list|launch|post|share)\b)"
+    r"|where\s+(?:to|(?:i|we)\s+(?:can|could|should))\s+"
+    r"(?:promote|advertise|market|submit|list|launch|post|share)\b)"
+    r"|where\s+(?:can|could|should)\s+(?:i|we)\s+"
+    r"(?:promote|advertise|market|submit|list|launch|post|share)\b)"
 )
+
+
+def simo_requests_resource_links(message: str) -> bool:
+    return bool(re.match(SIMO_RESOURCE_LINK_REQUEST, normalize_whitespace(message).lower()))
+
+
+# Public entry points for a general request to promote Simo. Specific requests
+# about an audience, channel or budget continue through ordinary chat.
+SIMO_PROMOTION_LINK_REQUEST = re.compile(SIMO_LINK_REQUEST_START + (
+    r"(?:(?:(?:show(?: me)?|give me|send me|find(?: me)?|recommend(?: me)?|suggest|list) )"
+    r"(?:(?:a|an|the|some|best|direct|clickable|three|3) )*"
+    r"(?:links?|places?|resources?|platforms?|sites?|websites?) "
+    r"(?:(?:where )?(?:i|we) (?:can|could) (?:click(?: on)? to )?|(?:for |to ))"
+    r"|(?:(?:show(?: me)?|tell me) )?where "
+    r"(?:(?:can|could|should) (?:i|we)|(?:i|we) (?:can|could|should)|to) )"
+    r"(?:promote|advertise|market|promoting|advertising|marketing) "
+    r"(?:simo|simonchat\.ai)[.!?]*"
+))
+SIMO_PROMOTION_DESTINATIONS = (
+    ("Submit on Product Hunt", "https://www.producthunt.com/posts/new",
+     "Prepare a product launch with a demo and a link to Simo."),
+    ("Open LinkedIn", "https://www.linkedin.com/feed/",
+     "Share your founder story or a short demo with your professional network."),
+    ("Open YouTube Studio", "https://studio.youtube.com/",
+     "Upload a walkthrough that shows what people can do with Simo."),
+)
+
+
+def simo_promotion_links_reply(message: str) -> str:
+    if not SIMO_PROMOTION_LINK_REQUEST.fullmatch(normalize_whitespace(message).lower()):
+        return ""
+    destinations = "\n".join(
+        f"- [{label}]({url}) — {description}"
+        for label, url, description in SIMO_PROMOTION_DESTINATIONS
+    )
+    return "Here are three places to promote Simo. Open any link to get started:\n\n" + destinations
 
 
 SIMO_PRODUCT_FEATURE_CATALOG = (
@@ -5924,25 +5968,13 @@ def build_model3d_payload(
 # Router helpers
 # =========================================================
 def detect_3d_intent(user_text: str) -> bool:
-    text = (user_text or "").strip().lower()
-    if not text:
-        return False
-
-    keywords = [
-        "3d",
-        "three d",
-        "model",
-        "glb",
-        "gltf",
-        "render",
-        "viewer",
-        "show me",
-        "open",
-        "preview",
-        "object",
-        "mesh",
-    ]
-    return any(word in text for word in keywords)
+    text = normalize_simo_intent_text(user_text).lower()
+    # Generic lookup verbs such as "show me", "open" and "preview" do not
+    # identify a 3D request by themselves.
+    return bool(re.search(
+        r"\b(?:3d|glb|gltf|mesh|model[- ]viewer|wireframe model|models? of|model files?)\b",
+        text,
+    ))
 
 
 def detect_music_creator_intent(user_text: str) -> bool:
@@ -6522,7 +6554,7 @@ def simo_is_chat_first_request(user_text: str) -> bool:
     text = re.sub(r"\s+", " ", str(user_text or "").strip().lower())
     if not text:
         return False
-    if re.match(SIMO_RESOURCE_LINK_REQUEST, text):
+    if simo_requests_resource_links(text):
         return True
     # The user explicitly orders an artifact: its tool is still eligible to run.
     if re.match(r"^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b",text):
@@ -8253,7 +8285,17 @@ Do not default to an unrelated generic business type.
 
         elif client:
             feature_reference = ("\n\n" + simo_product_catalog_for_model()) if simo_is_simo_product_discussion(user_message, history) else ""
-            messages = [{"role": "system", "content": SYSTEM_PROMPT + feature_reference}]
+            resource_guidance = ""
+            if simo_requests_resource_links(user_message):
+                resource_guidance = (
+                    "\n\nFor this resource request, recommend relevant places or sources and include "
+                    "a direct public web link for each known destination using Markdown "
+                    "[name](https://...). For promotion requests, explain briefly what the user "
+                    "can do on each site. You can provide known public URLs without live browsing. "
+                    "Use official pages where possible, and never invent a specific URL, account, "
+                    "listing, or claim of live verification."
+                )
+            messages = [{"role": "system", "content": SYSTEM_PROMPT + feature_reference + resource_guidance}]
             saved_context = simo_personal_memory.memory_for_model(simo_personal_memory.load_memory(get_db, current_user_email()))
             if saved_context:
                 messages.append({"role": "user", "content": saved_context})
@@ -19120,6 +19162,18 @@ def api_chat():
         })
     if re.match(SIMO_GITHUB_LINK_REQUEST, " ".join(str(message or "").lower().split())):
         return jsonify({"ok": True, "reply": "[Open GitHub](https://github.com/)"})
+    promotion_reply = simo_promotion_links_reply(message)
+    if promotion_reply:
+        history = session.get("chat_history", [])
+        if not isinstance(history, list):
+            history = []
+        history.extend([
+            {"role": "user", "content": compact_history_content("user", message)},
+            {"role": "assistant", "content": compact_history_content("assistant", promotion_reply)},
+        ])
+        session["chat_history"] = history[-8:]
+        session["simo_last_main_chat_lane"] = "general"
+        return jsonify({"ok": True, "reply": promotion_reply})
     help_reply = simo_feature_help.feature_help_reply(message)
     if help_reply:
         return jsonify({"ok": True, "reply": help_reply})

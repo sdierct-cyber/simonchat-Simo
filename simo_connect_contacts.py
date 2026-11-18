@@ -6,6 +6,7 @@ The Simo Connect sign-in gate covers these routes via /api/simo-connect/.
 import re
 import time
 from flask import jsonify, request
+from simo_connect_identity import resolve_contact_id
 
 HANDLE = re.compile(r'^[a-z][a-z0-9_]{2,23}$')
 
@@ -60,6 +61,10 @@ def register_simo_connect_contacts(app, get_db, current_user_email):
                     (owner, thread)).fetchone()
                 if not row:
                     return error('Contact unavailable for this conversation.', 404)
+            elif request.method == 'POST' and data.get('contact_id') is not None:
+                row = resolve_contact_id(conn, data['contact_id'])
+                if not row:
+                    return error('This Simo ID is no longer available.', 404)
             else:
                 handle = str(data.get('handle') or '').strip().lower().lstrip('@')
                 if not HANDLE.fullmatch(handle):
@@ -74,13 +79,15 @@ def register_simo_connect_contacts(app, get_db, current_user_email):
                 conn.execute('DELETE FROM simo_connect_contacts WHERE owner=? AND contact_email=?', (owner,contact_email))
                 conn.commit()
                 return jsonify(ok=True)
+            existing = conn.execute('SELECT favorite,nickname FROM simo_connect_contacts WHERE owner=? AND contact_email=?',
+                                    (owner, contact_email)).fetchone()
             nickname = str(data.get('nickname') or '').strip()
+            if data.get('contact_id') is not None and thread is None and not nickname:
+                nickname = existing['nickname'] if existing else row['handle']
             if not nickname or len(nickname)>48 or any(ord(ch)<32 for ch in nickname):
                 return error('Choose a contact nickname of 1–48 printable characters.')
             if not isinstance(data.get('favorite',False),bool):
                 return error('Favorite must be true or false.')
-            existing = conn.execute('SELECT favorite FROM simo_connect_contacts WHERE owner=? AND contact_email=?',
-                                    (owner, contact_email)).fetchone()
             favorite = int(data.get('favorite', bool(existing['favorite']) if existing else False))
             count = conn.execute('SELECT COUNT(*) AS n FROM simo_connect_contacts WHERE owner=?',(owner,)).fetchone()['n']
             if count >= 150 and not existing:

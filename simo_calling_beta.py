@@ -5,6 +5,7 @@ import re
 import time
 import uuid
 from flask import request, jsonify
+from simo_connect_identity import resolve_contact_id
 
 HANDLE = re.compile(r'^[a-z][a-z0-9_]{2,23}$')
 
@@ -95,19 +96,27 @@ def register_simo_calling_beta(app, get_db, current_user_email):
             return response_error('Cross-site request blocked.', 403)
         data = request.get_json(silent=True) or {}
         handle = str(data.get('handle') or '').strip().lower().lstrip('@')
+        contact_id = data.get('contact_id')
         call_mode = str(data.get('mode') or 'audio').strip().lower()
         if call_mode not in ('audio', 'video'):
             return response_error('Unsupported call type.')
-        if not HANDLE.fullmatch(handle):
+        if contact_id is None and not HANDLE.fullmatch(handle):
             return response_error('Enter a valid Simo handle.')
         conn = open_db()
         try:
             own_handle = identity(conn, email)
             if not own_handle:
                 return response_error('Choose your own handle first.')
-            dest = conn.execute('SELECT email FROM simo_call_handles WHERE handle=?', (handle,)).fetchone()
-            if not dest:
-                return response_error('No Simo user has that handle.', 404)
+            if contact_id is not None:
+                conn.execute('BEGIN IMMEDIATE')
+                dest = resolve_contact_id(conn, contact_id)
+                if not dest:
+                    return response_error('This Simo ID is no longer available.', 404)
+                handle = dest['handle']
+            else:
+                dest = conn.execute('SELECT email FROM simo_call_handles WHERE handle=?', (handle,)).fetchone()
+                if not dest:
+                    return response_error('No Simo user has that handle.', 404)
             recipient = str(dest['email'])
             if recipient == email:
                 return response_error('You cannot call yourself.')

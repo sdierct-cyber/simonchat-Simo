@@ -12,6 +12,7 @@ from werkzeug.utils import secure_filename
 from flask import send_file
 from urllib.parse import urlsplit
 from flask import jsonify, request
+from simo_connect_identity import get_or_create_contact_id, resolve_contact_id
 
 HANDLE_RE = re.compile(r'^[a-z][a-z0-9_]{2,23}$')
 MAX_BODY = 2000
@@ -119,6 +120,33 @@ def register_simo_connect_messages(app, get_db, current_user_email):
         return {'id':th['id'],'kind':th['kind'],'title':th['title'] or '',
                 'members':handles,'created_at':th['created_at']}
 
+    @app.route('/api/simo-connect/contact-card', methods=['GET', 'POST'])
+    def simo_connect_contact_card():
+        email = user()
+        if not email:
+            return error('Please sign in to use a Simo ID.', 401)
+        if not guard():
+            return error('Invalid request origin or content type.', 403)
+        conn = db()
+        try:
+            if request.method == 'POST':
+                conn.execute('BEGIN IMMEDIATE')
+                card = get_or_create_contact_id(conn, email)
+                if not card:
+                    return error('Save your Simo handle before sharing your ID.', 404)
+                conn.commit()
+            else:
+                contact_id = request.args.get('id')
+                contact = resolve_contact_id(conn, contact_id)
+                if not contact:
+                    return error('This Simo ID is no longer available.', 404)
+                card = {'id': contact_id, 'handle': contact['handle'], 'own': contact['email'] == email}
+            response = jsonify(ok=True, card=card)
+            response.headers['Cache-Control'] = 'no-store'
+            return response
+        finally:
+            conn.close()
+
     @app.post('/api/simo-connect/threads')
     def simo_connect_thread_create():
         email = user()
@@ -127,15 +155,25 @@ def register_simo_connect_messages(app, get_db, current_user_email):
         data = request.get_json(silent=True) or {}
         kind = str(data.get('kind') or 'direct').strip()
         raw = data.get('handles')
-        if not isinstance(raw,list): return error('Provide a list of handles.')
+        contact_id = data.get('contact_id')
+        if contact_id is not None:
+            if kind != 'direct' or raw is not None: return error('Choose one Simo ID for a direct chat.')
+            raw = []
+        elif not isinstance(raw,list): return error('Provide a list of handles.')
         if kind not in ('direct','group'): return error('Invalid conversation type.')
-        if not (1 <= len(raw) <= MAX_MEMBERS-1): return error('Choose 1 to 11 people.')
+        if contact_id is None and not (1 <= len(raw) <= MAX_MEMBERS-1): return error('Choose 1 to 11 people.')
         title = str(data.get('title') or '').strip()[:64]
         if kind == 'group' and not title: return error('Enter a group name.')
         conn = db()
         try:
             if not my_handle(conn,email): return error('Save your Simo handle first.')
             recipient_emails = []
+            if contact_id is not None:
+                conn.execute('BEGIN IMMEDIATE')
+                contact = resolve_contact_id(conn, contact_id)
+                if not contact: return error('This Simo ID is no longer available.', 404)
+                if contact['email'] == email: return error('You cannot add yourself as a recipient.')
+                recipient_emails.append(contact['email'])
             for handle in raw:
                 target = handle_email(conn,handle)
                 if not target: return error('Unknown or invalid handle: '+str(handle)[:30],404)
