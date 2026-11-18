@@ -18,6 +18,57 @@
     }
   </style>
 
+  <style id="simo-connect-toolbar-layout-css">
+    /* Keep the Connect launchers in their own row above the composer. */
+    body #simoConnectToolbarR1068.simo-connect-toolbar-r1068:not([hidden]) {
+      display: flex !important;
+      flex: 0 0 auto;
+      flex-flow: row wrap;
+      justify-content: flex-end;
+      align-items: center;
+      gap: 8px;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      padding: 1px 4px;
+      position: relative;
+      z-index: 91;
+    }
+    body #simoConnectToolbarR1068 > :is(#simoMessagesBtn, #simoCallingBtn) {
+      position: static !important;
+      inset: auto !important;
+      transform: none !important;
+      float: none !important;
+      margin: 0 !important;
+      display: inline-flex;
+      flex: 0 1 180px !important;
+      align-self: stretch;
+      align-items: center;
+      justify-content: center;
+      min-width: 0;
+      max-width: 100%;
+      min-height: 38px !important;
+      box-sizing: border-box;
+      padding: 8px 12px !important;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.25;
+      text-align: center;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+    body #simoConnectToolbarR1068 > #simoMessagesBtn {
+      background: #4e2e89;
+      border-color: #c2adff;
+    }
+    @media (max-width: 620px) {
+      body #simoConnectToolbarR1068.simo-connect-toolbar-r1068:not([hidden]) {
+        justify-content: center;
+      }
+    }
+  </style>
+
   <!-- R10.61D: working header minimize preserved; expanded workspace is full width. -->
   <style id="simo-sidebar-header-minimize-r1061c">
     .simo-premium-topbar { position:relative; }
@@ -698,15 +749,15 @@
   })();
   </script>
   <script src="/static/simo-website-builder-recovery.js?v=simo-oct17-portable-export-rc2"></script>
-  <script src="/static/script.js?v=simo-nov17-feature-help-fonts"></script>
-  <script src="/static/simo-ui-recovery.js?v=account-button-1"></script>
+  <script src="/static/script.js?v=simo-nov18-chat-links"></script>
+  <script src="/static/simo-ui-recovery.js?v=simo-nov18-chat-links"></script>
   <script src="/static/phase29b-safe-addon.js?v=r1059j-image-analysis-chat"></script>
   <script src="/static/phase30-image-intake-safe.js?v=simo-nov07-vision-forms-r1061d"></script>
   <script src="/static/designstudio.js"></script>
   <script src="/static/simo_visualcore_PHASE_13A.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
-  <script src="/static/simo-calling-beta.js?v=save-chat-contact-1"></script>
-  <script src="/static/simo-connect-messages.js?v=save-chat-contact-1"></script>
+  <script src="/static/simo-calling-beta.js?v=simo-connect-id-1"></script>
+  <script src="/static/simo-connect-messages.js?v=simo-connect-tools-1"></script>
   <script src="/static/simo-account-deletion-request.js?v=r1066-confirmed-request"></script>
   <script src="/static/simo-live-workspace-isolated.js?v=simo-oct4-final-foundation-rc10"></script>
   <!-- Main Design/Workspace Library owner; intentionally separate from Website Builder Library. -->
@@ -946,27 +997,19 @@
   (() => {
     'use strict';
     const toolbar = document.getElementById('simoConnectToolbarR1068');
-    const composer = document.querySelector('section.composer-wrap');
-    if (!toolbar || !composer) return;
-    const classify = (el) => {
-      if (!el || !el.matches || !el.matches('button, a, [role="button"]')) return '';
-      if (composer.contains(el) && ['sendBtn', 'simoMicBtn', 'micBtn', 'imageBtn'].includes(el.id)) return '';
-      const label = [(el.getAttribute('aria-label') || ''), (el.textContent || '')]
-        .join(' ').replace(/\s+/g, ' ').trim().toLowerCase();
-      if (/simo\s+messages/.test(label) && label.length < 110) return 'messages';
-      if (/simo\s+audio\s*\/\s*video/.test(label) && label.length < 130) return 'calling';
-      return '';
-    };
+    if (!toolbar) return;
+    const launchers = [
+      ['simoMessagesBtn', 'messages'],
+      ['simoCallingBtn', 'calling']
+    ];
     function relocate() {
-      const buttons = document.querySelectorAll('button, a, [role="button"]');
       let found = false;
-      for (const el of buttons) {
-        const kind = classify(el);
-        if (!kind || el === toolbar || !el.isConnected) continue;
-        // Never clone/replace the interactive element: retain direct event handlers.
-        if (el.parentElement !== toolbar) toolbar.appendChild(el);
-        el.classList.add('simo-connect-toolbar-action-r1068');
-        el.dataset.simoConnectToolbar = kind;
+      for (const [id, kind] of launchers) {
+        const button = document.getElementById(id);
+        if (!button || !button.isConnected) continue;
+        button.classList.add('simo-connect-toolbar-action-r1068');
+        button.dataset.simoConnectToolbar = kind;
+        if (button.parentElement !== toolbar) toolbar.appendChild(button);
         found = true;
       }
       toolbar.hidden = !found;
