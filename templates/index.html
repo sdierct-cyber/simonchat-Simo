@@ -644,11 +644,11 @@
     }
     window.__SIMO_PRICING_PAGE_REQUEST__ = requestsPricingPage;
     window.__SIMO_MEMORY_COMMAND__ = isMemoryCommand;
+    const artifact = /^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b/;
     function chatFirst(raw) {
       const text = String(raw || '').trim().toLowerCase().replace(/\s+/g, ' ');
       if (!text) return false;
       if (isMemoryCommand(text) || requestsPricingPage(text) || resourceLinkRequest?.test(text) || featureHelp?.test(text)) return true;
-      const artifact = /^(?:please\s+|can you\s+|could you\s+|would you\s+|i want you to\s+|i need you to\s+)?(?:build|create|make|design|generate|render|produce)\s+(?:me\s+)?(?:a\s+|an\s+|the\s+)?(?:(?:(?:4k|8k|1080p|short|long|cinematic|professional|promotional|ai|animated|one[-\s]minute|30[-\s]second|60[-\s]second)\s+){0,3})(?:website|web\s*site|landing\s+page|web\s*page|homepage|image|picture|logo|video(?!\s+(?:script|outline|plan))|3d\s+model)\b/;
       if (artifact.test(text)) return false;
       // Feature proposals/feasibility questions must not open an inherited Design workspace.
       const featureProposal = /\b(?:i (?:have|had|got|thought of|was thinking of) (?:an? |another )?(?:idea|feature|suggestion)|(?:new|another|additional) feature (?:we|for|to)|(?:feature|functionality|capability) (?:we|you|simo) (?:can|could|should|might) (?:add|offer|provide)|can we (?:add|offer|provide|support|integrate)|(?:what (?:if|about)|how (?:about|would we)|would it be possible to) (?:add|offer|provide|integrate)|(?:let'?s|we should|we could) (?:discuss|explore|consider|plan|look into|add)\b)/;
@@ -690,40 +690,20 @@
     }
     window.__SIMO_DOCUMENT_INTENT__ = chatFirst;
     window.__SIMO_CHAT_FIRST_INTENT__ = shouldCapture;
-    // R10.61A: the attached-image owner must be the only sender on Send/Enter.
-    // Capture ahead of legacy Script, Design Studio and 3D handlers.
-    function sendStagedImageFirst(event) {
-      const isSend = event.type === 'click' && event.target && event.target.closest && event.target.closest('#sendBtn');
-      const isEnter = event.type === 'keydown' && event.key === 'Enter' && !event.shiftKey && !event.isComposing && event.target && event.target.id === 'chatInput';
-      if (!isSend && !isEnter) return;
-      const staged = window.__SIMO_STAGED_IMAGE__;
-      if (!staged) return;
-      const input = document.getElementById('chatInput');
-      const prompt = input ? String(input.value || '') : '';
-      if (requestsPricingPage(prompt) || isMemoryCommand(prompt)) return;
-      const mode = typeof window.__SIMO_PHASE30_INTENT_MODE__ === 'function'
-        ? window.__SIMO_PHASE30_INTENT_MODE__(prompt) : 'chat';
-      // Allow explicit creative requests to reach their existing dedicated owner.
-      // Uploaded image QUESTIONS/forms always belong to vision chat, even if an
-      // older Design or Website Builder workspace remains selected in memory.
-      if (staged.url && mode !== 'chat' && !chatFirst(prompt)) return;
-      // Never allow the old sender to fire while an image is still uploading.
+    // Route an attached-image question through the main composer before older workspaces.
+    function sendAttachedImageFirst(event) {
+      const prompt = String(document.getElementById('chatInput')?.value || '').trim().toLowerCase();
+      const createsArtifact = artifact.test(prompt) ||
+        /\b(?:make|turn|convert|transform)\s+(?:it|this(?:\s+(?:image|screenshot|photo))?)\s+(?:into\s+)?(?:a\s+)?(?:website|webpage|site|landing page)\b/.test(prompt);
+      if (createsArtifact) return false;
+      if (!window.__SIMO_HAS_CHAT_ATTACHMENT__?.() || typeof window.__SIMO_FORCE_CHAT_SEND__ !== 'function') return false;
       event.preventDefault();
       event.stopImmediatePropagation();
-      if (!staged.url || typeof window.__SIMO_PHASE30_SEND_STAGED__ !== 'function') {
-        const hint = document.getElementById('loadingHint');
-        if (hint) hint.textContent = 'Image is still uploading. Send after it is ready.';
-        return;
-      }
-      window.__SIMO_PHASE30_SEND_STAGED__(event);
+      window.__SIMO_FORCE_CHAT_SEND__();
+      return true;
     }
-    // Window capture must be registered FIRST (ahead of older visual/3D owners).
-    window.addEventListener('click', sendStagedImageFirst, true);
-    window.addEventListener('keydown', sendStagedImageFirst, true);
-    // Defensive fallback for synthetic document-targeted events.
-    document.addEventListener('click', sendStagedImageFirst, true);
-    document.addEventListener('keydown', sendStagedImageFirst, true);
     function sendAsChat(event) {
+      if (sendAttachedImageFirst(event)) return;
       const input = document.getElementById('chatInput');
       if (!input || !shouldCapture(input.value) || typeof window.__SIMO_FORCE_CHAT_SEND__ !== 'function') return;
       event.preventDefault();
@@ -749,10 +729,9 @@
   })();
   </script>
   <script src="/static/simo-website-builder-recovery.js?v=simo-oct17-portable-export-rc2"></script>
-  <script src="/static/script.js?v=simo-nov18-chat-links"></script>
+  <script src="/static/script.js?v=simo-nov18-chat-tight-image-message"></script>
   <script src="/static/simo-ui-recovery.js?v=simo-nov18-chat-links"></script>
   <script src="/static/phase29b-safe-addon.js?v=r1059j-image-analysis-chat"></script>
-  <script src="/static/phase30-image-intake-safe.js?v=simo-nov07-vision-forms-r1061d"></script>
   <script src="/static/designstudio.js"></script>
   <script src="/static/simo_visualcore_PHASE_13A.js?v=simo-oct4-final-foundation-rc10"></script>
   <script src="/static/simo-account-sync.js?v=phase14m-r7"></script>
