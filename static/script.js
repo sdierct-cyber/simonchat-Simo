@@ -2327,6 +2327,18 @@ window.__SIMO_SCROLL_AFTER_VISUAL__ = function () {
     bubble.style.color = "#eef4ff";
     bubble.style.boxShadow = isVisualAssistantBubble ? "0 18px 46px rgba(0,0,0,.22)" : "0 12px 30px rgba(0,0,0,.16)";
 
+    if (meta.imageAttachment) {
+      bubble.classList.add("simo-image-message");
+      // Keep the attachment bubble compact even under the global chat bubble styles.
+      bubble.style.setProperty("box-sizing", "border-box", "important");
+      bubble.style.setProperty("width", "250px", "important");
+      bubble.style.setProperty("max-width", "92%", "important");
+      bubble.style.setProperty("min-width", "0", "important");
+      bubble.style.setProperty("display", "grid", "important");
+      bubble.style.gridTemplateColumns = "minmax(0, 1fr)";
+      bubble.style.gap = "8px";
+    }
+
     if (meta.html) {
       bubble.innerHTML = meta.html;
     } else if (role === "assistant") {
@@ -3069,9 +3081,18 @@ function maybeHandleBuilderResponse(text) {
   // -----------------------------
   // One attachment at a time. Prevent Send while a pasted/dropped image uploads.
   let imageUploadPromise = null;
+  let imageAnalysisInFlight = false;
   async function acceptChatImage(file) {
     if (!file || !String(file.type || "").startsWith("image/")) {
       toast("Please choose an image file.", "error");
+      return null;
+    }
+    if (file.size > 18 * 1024 * 1024) {
+      toast("Choose an image smaller than 18 MB.", "error");
+      return null;
+    }
+    if (state.sending || imageAnalysisInFlight) {
+      toast("Wait for the current request to finish before attaching another image.", "info");
       return null;
     }
     if (imageUploadPromise) {
@@ -3115,7 +3136,13 @@ function maybeHandleBuilderResponse(text) {
       updatePendingImageDraft();
       inputEl?.focus();
     });
-    preview.append(img, caption, remove);
+    const analyze = document.createElement("button");
+    analyze.type = "button";
+    analyze.textContent = "Analyze";
+    analyze.style.cssText = remove.style.cssText;
+    analyze.disabled = imageAnalysisInFlight || state.sending;
+    analyze.addEventListener("click", analyzeLastImage);
+    preview.append(img, caption, analyze, remove);
     preview.style.display = "flex";
   }
 
@@ -3125,19 +3152,28 @@ function maybeHandleBuilderResponse(text) {
     const fd = new FormData();
     fd.append("image", file);
 
-    const res = await fetch("/api/upload-image", {
-      method: "POST",
-      body: fd,
-      credentials: "same-origin",
-    });
-
-    const data = await res.json();
-
-    if (!res.ok || !data.ok) {
-      throw new Error((data && data.error) || "Image upload failed.");
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 65000);
+    let data;
+    try {
+      const res = await fetch("/api/upload-image", {
+        method: "POST",
+        body: fd,
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      data = await res.json();
+      if (!res.ok || !data.ok || !data.url) {
+        throw new Error(data.error || "Image upload failed.");
+      }
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("The image upload timed out. Try attaching it again.");
+      throw error;
+    } finally {
+      clearTimeout(timeout);
     }
 
-    state.selectedImageUrl = data.url || "";
+    state.selectedImageUrl = data.url;
     state.selectedImageFilename = data.filename || file.name || "";
 
     if (state.selectedImageUrl) {
@@ -3150,32 +3186,40 @@ function maybeHandleBuilderResponse(text) {
   }
 
   async function analyzeLastImage() {
-    try {
-      if (imageUploadPromise) await imageUploadPromise;
-      const prompt =
-        (inputEl && inputEl.value && inputEl.value.trim()) ||
-        "Analyze this image in detail.";
+    if (state.sending || imageAnalysisInFlight) return;
+    if (imageUploadPromise) {
+      toast("Wait for the image to finish attaching, then choose Analyze.", "info");
+      return;
+    }
+    const imageUrl = state.selectedImageUrl;
+    if (!imageUrl) {
+      toast("Attach an image first, then choose Analyze.", "info");
+      return;
+    }
 
+    const accountAtAnalysis = state.me.email;
+    imageAnalysisInFlight = true;
+    updatePendingImageDraft();
+    if (loadingHintEl) loadingHintEl.textContent = "Simo is analyzing the image...";
+    try {
+      const prompt = inputEl?.value.trim() || "Analyze this image in detail.";
       const data = await api("/api/analyze-image", {
         method: "POST",
         body: JSON.stringify({ prompt }),
       });
-
-      if (data && data.ok) {
-        const reply = String(data.reply || "Done.");
-        state.lastAssistantText = reply;
-        addAssistantMessageWith3D(reply);
-        state.selectedImageUrl = "";
-        state.selectedImageFilename = "";
-        updatePendingImageDraft();
-        scrollAfterUiChange();
-        return data;
-      }
-
-      throw new Error("Image analysis failed.");
-    } catch (err) {
-      toast(err.message || "Image analysis failed.", "error");
-      return null;
+      if (state.me.email !== accountAtAnalysis) return;
+      if (!data?.ok) throw new Error(data?.error || "Image analysis failed.");
+      const reply = String(data.reply || "Done.");
+      state.lastAssistantText = reply;
+      addMessage("assistant", reply, {
+        html: `<img src="${escapeHtml(imageUrl)}" alt="Analyzed image" style="display:block;max-width:100%;max-height:460px;border-radius:12px;margin-bottom:12px;" />${renderAssistantTextHtml(reply)}`,
+      });
+    } catch (error) {
+      toast(error.message || "Image analysis failed.", "error");
+    } finally {
+      imageAnalysisInFlight = false;
+      if (loadingHintEl) loadingHintEl.textContent = "Ready.";
+      updatePendingImageDraft();
     }
   }
 
@@ -4865,21 +4909,28 @@ function applyComposerText(text) {
 }
 
 async function sendMessage(overrideMessage = "", modeOverride = "") {
+  if (imageAnalysisInFlight) {
+    toast("Wait for image analysis to finish before sending another request.", "info");
+    return;
+  }
   if (imageUploadPromise) {
     try { await imageUploadPromise; }
     catch { return; } // Upload already reported an error; never send a stale image.
   }
   if (state.sending) return;
 
-  const text = String(overrideMessage || inputEl?.value || "").trim() ||
-    (state.selectedImageUrl ? "Please look at this image and help me with our current conversation." : "");
-  if (!text) return;
+  const composerDraft = inputEl?.value || "";
+  const text = String(overrideMessage || composerDraft).trim();
+  const imageUrl = state.selectedImageUrl;
+  const imageFilename = state.selectedImageFilename;
+  const hasImageReady = !!(imageUrl && imageFilename);
+  if (!text) {
+    if (hasImageReady) toast("Type what you want Simo to do with the image, then press Send.", "info");
+    return;
+  }
   const accountAtSend = state.me.email;
-  const pricingNavigation = !!window.__SIMO_PRICING_PAGE_REQUEST__?.(text);
-  const memoryCommand = !!window.__SIMO_MEMORY_COMMAND__?.(text);
   const isChatFirst = !!(window.__SIMO_CHAT_FIRST_INTENT__ && window.__SIMO_CHAT_FIRST_INTENT__(text));
   const activeMode = isChatFirst ? "chat" : (String(modeOverride || window.__SIMO_ACTIVE_MODE__ || "chat").trim().toLowerCase() || "chat");
-  const hasImageReady = !pricingNavigation && !memoryCommand && !!(state.selectedImageUrl && state.selectedImageFilename);
   if (activeMode === "analyze" && !hasImageReady) {
     if (inputEl) {
       inputEl.value = text;
@@ -4889,16 +4940,21 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
     return;
   }
 
+  let pendingImageMessage;
   if (hasImageReady) {
-    // Show image and instructions as one user message only after Send was pressed.
-    addMessage("user", "", { html: `<div style="display:flex;flex-direction:column;gap:9px;"><span style="white-space:pre-wrap;overflow-wrap:anywhere;">${escapeHtml(text)}</span><img src="${escapeHtml(state.selectedImageUrl)}" alt="${escapeHtml(state.selectedImageFilename)}" style="max-width:320px;width:100%;border-radius:12px;" /></div>` });
+    pendingImageMessage = addMessage("user", "", {
+      imageAttachment: true,
+      html: `<span class="simo-image-message-prompt" style="min-width:0;white-space:pre-wrap!important;overflow-wrap:anywhere!important;">${escapeHtml(text)}</span>
+        <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageFilename)}"
+          style="display:block;width:auto;height:auto;max-width:100%;max-height:156px;justify-self:start;border-radius:12px;" />`,
+    });
     const draftPreview = document.getElementById("simoPendingImageDraft");
     if (draftPreview) draftPreview.style.display = "none";
   } else {
     addMessage("user", text);
   }
 
-  if (inputEl) {
+  if (inputEl && !hasImageReady) {
     inputEl.value = "";
     autoGrow(inputEl);
     inputEl.dispatchEvent(new Event("input", { bubbles: true }));
@@ -4913,8 +4969,8 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
       method: "POST",
       body: JSON.stringify({
         message: text,
-        image_url: hasImageReady ? state.selectedImageUrl : "",
-        image_filename: hasImageReady ? state.selectedImageFilename : "",
+        image_url: hasImageReady ? imageUrl : "",
+        image_filename: hasImageReady ? imageFilename : "",
         has_image: hasImageReady,
         simo_mode: activeMode,
         lane: activeMode,
@@ -4923,6 +4979,21 @@ async function sendMessage(overrideMessage = "", modeOverride = "") {
     });
 
     if (state.me.email !== accountAtSend) return;
+    if (data?.ok === false) throw new Error(data.error || "Message failed.");
+    if (hasImageReady) {
+      pendingImageMessage = null;
+      if (state.selectedImageUrl === imageUrl) {
+        state.selectedImageUrl = "";
+        state.selectedImageFilename = "";
+      }
+      if (inputEl?.value === composerDraft) {
+        inputEl.value = "";
+        autoGrow(inputEl);
+        inputEl.dispatchEvent(new Event("input", { bubbles: true }));
+        inputEl.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      updatePendingImageDraft();
+    }
     const reply = String(data.reply || "").trim();
 
     if (data.memory_reply) {
@@ -5005,15 +5076,14 @@ if (builderResult.handled) {
     }
 
     maybeToastRouteInfo(data);
-    // The image was consumed by this message; prevent it silently attaching to later turns.
-    state.selectedImageUrl = "";
-    state.selectedImageFilename = "";
-    updatePendingImageDraft();
   } catch (err) {
-    updatePendingImageDraft();
+    if (state.me.email !== accountAtSend) return;
+    pendingImageMessage?.parentElement?.remove();
     const msg = err.message || "Message failed.";
 
-    if (/daily limit/i.test(msg)) {
+    if (hasImageReady) {
+      toast(msg, "error", 6500);
+    } else if (/daily limit/i.test(msg)) {
       addAssistantMessageWith3D(msg);
       toast(msg, "error", 4000);
     } else {
@@ -5024,12 +5094,14 @@ if (builderResult.handled) {
     scrollAfterUiChange();
   } finally {
     setSending(false);
+    updatePendingImageDraft();
     setTimeout(() => scrollChatToBottom(true), 80);
     setTimeout(() => scrollChatToBottom(true), 220);
   }
 }
 
-// Called only by the early HTML document-intent guard, before the Website Builder's send owner.
+// Used by the early page guard before legacy workspace handlers receive Send or Enter.
+window.__SIMO_HAS_CHAT_ATTACHMENT__ = () => !!(imageUploadPromise || state.selectedImageUrl);
 window.__SIMO_FORCE_CHAT_SEND__ = function () { return sendMessage("", "chat"); };
 
 /* === PHASE 4.8B — HELPER TOGGLE (STATE-SAFE, CLEAN OPEN/CLOSE) === */
@@ -5183,7 +5255,7 @@ function wireChat() {
     autoGrow(inputEl);
     inputEl.addEventListener("input", () => autoGrow(inputEl));
     inputEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
         e.preventDefault();
         sendMessage(inputEl.value);
       }
