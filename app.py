@@ -3073,7 +3073,11 @@ def current_user_name() -> str:
 
 def _simo_is_verified_creator(email: str) -> bool:
     owner_email = os.getenv("SIMO_OWNER_EMAIL", "").strip().lower()
-    return bool(owner_email and email == owner_email and session.get("verified_google_sub"))
+    return bool(
+        owner_email
+        and email == owner_email == current_user_email().lower()
+        and session.get("verified_google_sub")
+    )
 
 
 def is_logged_in() -> bool:
@@ -7998,7 +8002,9 @@ def api_chat():
         if should_reset_builder_context(user_message):
             clear_builder_session_state()
 
-        if not is_pro_user():
+        creator_testing = SIMO_OWNER_UNMETERED_AI and _simo_is_verified_creator(current_user_email())
+        chat_pro = creator_testing or is_pro_user()
+        if not chat_pro:
             ukey = user_key_for_limits()
             dkey = get_today_key()
             current_count = get_daily_usage_count(ukey, dkey)
@@ -8007,7 +8013,7 @@ def api_chat():
                     {
                         "ok": False,
                         "limitReached": True,
-                        "error": f"Free daily limit reached ({FREE_DAILY_LIMIT}/day). Upgrade to Pro for unlimited chat.",
+                        "error": f"Free daily limit reached ({FREE_DAILY_LIMIT}/day). Pro includes a separate daily text-chat allowance.",
                     }
                 ), 403
 
@@ -8143,9 +8149,11 @@ def api_chat():
         if compact_user:
             history.append({"role": "user", "content": compact_user})
         history = history[-8:]
-        if not has_image or house_route != "general":
+        if not request.environ.get("simo.included_chat") and (not has_image or house_route != "general"):
             session["chat_history"] = history
 
+        included_chat = request.environ.get("simo.included_chat")
+        text_chat = None
         assistant_text = ""
         client = get_client()
 
@@ -8157,6 +8165,9 @@ def api_chat():
 
         if explicit_mode == "analyze" and not has_image:
             return jsonify({"ok": False, "error": "Attach an image first, then tell me what you want analyzed."}), 400
+
+        if included_chat and (has_image or hard_3d_request or house_route != "general"):
+            return jsonify({"ok": False, "error": "Choose the corresponding creation or image mode to run this request."}), 400
 
         if hard_3d_request or house_route == "3d":
             assistant_text = build_3d_chat_reply(route, clean_user_text)
@@ -8290,6 +8301,21 @@ Do not default to an unrelated generic business type.
             assistant_text = simo_full_feature_inventory_reply()
 
         elif client:
+            if included_chat:
+                chat_email, chat_limit = included_chat
+                used = _simo_take_daily_allowance([
+                    (f"chat:{chat_email}", chat_limit),
+                    ("paid_chat_global", SIMO_PAID_CHAT_GLOBAL_DAILY_CAP),
+                ])
+                if used is None:
+                    text_chat = _simo_paid_chat_status(chat_email, _simo_account_plan(chat_email))
+                    message = (
+                        "You’ve reached your included text-chat daily limit. Your allowance resets tomorrow."
+                        if text_chat and not text_chat["remaining"] else
+                        "Included text chat has reached today’s shared capacity. Please try again tomorrow."
+                    )
+                    return jsonify({"ok": False, "code": "simo_text_chat_limit", "error": message}), 429
+                text_chat = {"daily_limit": chat_limit, "remaining": chat_limit - used}
             feature_reference = ("\n\n" + simo_product_catalog_for_model()) if simo_is_simo_product_discussion(user_message, history) else ""
             resource_guidance = ""
             if simo_requests_resource_links(user_message):
@@ -8326,12 +8352,14 @@ Do not default to an unrelated generic business type.
                 resp = client.responses.create(
                     model=OPENAI_MODEL,
                     input=messages,
+                    **({"max_output_tokens": SIMO_INCLUDED_CHAT_MAX_OUTPUT_TOKENS} if included_chat or creator_testing else {}),
                 )
                 assistant_text = extract_first_text_from_openai_response(resp)
             except Exception:
                 resp = client.chat.completions.create(
                     model=OPENAI_MODEL,
                     messages=messages,
+                    **({"max_completion_tokens": SIMO_INCLUDED_CHAT_MAX_OUTPUT_TOKENS} if included_chat or creator_testing else {}),
                 )
                 assistant_text = extract_first_text_from_openai_response(resp)
 
@@ -8347,7 +8375,7 @@ Do not default to an unrelated generic business type.
         session["chat_history"] = history[-8:]
 
         usage_today = get_daily_usage_count(user_key_for_limits(), get_today_key())
-        if not is_pro_user():
+        if not chat_pro:
             usage_today = increment_daily_usage(user_key_for_limits(), get_today_key())
 
         # Do not attach a model viewer to an image-question or form reply.
@@ -8372,9 +8400,10 @@ Do not default to an unrelated generic business type.
             {
                 "ok": True,
                 "reply": assistant_text,
-                "pro": is_pro_user(),
+                "pro": chat_pro,
                 "usage_today": usage_today,
                 "free_daily_limit": FREE_DAILY_LIMIT,
+                "text_chat": text_chat,
                 "model3d": model3d,
                 "model3d_options": model3d.get("model3d_options", []),
                 "builder_active": bool(builder_state_after.get("active")),
@@ -18247,10 +18276,15 @@ SIMO_CREDIT_COSTS = {
 }
 
 SIMO_CREDIT_PACK_CENTS = {"25": 499, "100": 1499, "250": 2999}
-# Strict by default: even the owner/admin does not get unmetered provider usage.
-# Turn this on only for a deliberate development session where owner-funded API
-# cost is acceptable.
-SIMO_OWNER_UNMETERED_AI = env_bool("SIMO_OWNER_UNMETERED_AI", False)
+# Owner testing bypasses customer credits, with separate operating limits.
+SIMO_OWNER_UNMETERED_AI = env_bool("SIMO_OWNER_UNMETERED_AI", True)
+SIMO_OWNER_TEST_DAILY_UNITS = max(1, int(os.getenv("SIMO_OWNER_TEST_DAILY_UNITS", "1000") or "1000"))
+SIMO_PAID_CHAT_DAILY_LIMITS = {
+    "pro": max(0, int(os.getenv("SIMO_PRO_CHAT_DAILY_LIMIT", "25") or "25")),
+    "team": max(0, int(os.getenv("SIMO_TEAM_CHAT_DAILY_LIMIT", "50") or "50")),
+}
+SIMO_PAID_CHAT_GLOBAL_DAILY_CAP = max(1, int(os.getenv("SIMO_PAID_CHAT_GLOBAL_DAILY_CAP", "2000") or "2000"))
+SIMO_INCLUDED_CHAT_MAX_OUTPUT_TOKENS = 4096
 
 # Final Profit Shield storage guard.
 # IMPORTANT: existing/legacy media must never suddenly lock the owner or existing users out.
@@ -18520,7 +18554,7 @@ def sync_user_pro_from_stripe(email: str):
 
 def _simo_account_plan(email: str = "") -> str:
     email = str(email or current_user_email() or "").strip().lower()
-    if is_simo_admin_email(email) and SIMO_OWNER_UNMETERED_AI:
+    if SIMO_OWNER_UNMETERED_AI and _simo_is_verified_creator(email):
         return "admin"
     if not email:
         return "anon"
@@ -18560,7 +18594,7 @@ def simo_design_credit_period_key(plan: str) -> str:
 
 def simo_credit_pack_options():
     raw = [
-        ("25", 25, SIMO_CREDIT_PACK_25_PRICE_ID, "25 Simo Credits", "$4.99", "Small top-up for chat, edits, or a quick creation session."),
+        ("25", 25, SIMO_CREDIT_PACK_25_PRICE_ID, "25 Simo Credits", "$4.99", "Small top-up for edits or a quick creation session."),
         ("100", 100, SIMO_CREDIT_PACK_100_PRICE_ID, "100 Simo Credits", "$14.99", "Good for active creation and multiple website/design sessions."),
         ("250", 250, SIMO_CREDIT_PACK_250_PRICE_ID, "250 Simo Credits", "$29.99", "Best value for heavier Simo creation usage."),
     ]
@@ -18617,6 +18651,7 @@ def _simo_credit_status(email: str = "") -> dict:
         "costs": dict(SIMO_CREDIT_COSTS),
         "auto_reload": auto,
         "storage": _simo_media_storage_status(),
+        "text_chat": _simo_paid_chat_status(email, plan),
     }
 
 
@@ -18776,7 +18811,17 @@ def _simo_reserve_credits(action_type: str, cost: int):
         return False, None, (jsonify({"ok": False, "error": "Video creation is temporarily unavailable because its spending protection module is missing. No generation started and no credits were taken.", "code": "simo_video_reserve_blocked"}), 503)
     if plan == "admin":
         risk = None
-        if profit_reserve is not None and profit_reserve.is_video_action(action_type):
+        if profit_reserve is None:
+            used = _simo_take_daily_allowance(
+                [(f"owner:{email}", SIMO_OWNER_TEST_DAILY_UNITS)], max(1, cost)
+            )
+            if used is None:
+                return False, None, (jsonify({
+                    "ok": False,
+                    "code": "simo_owner_test_limit",
+                    "error": "Owner testing reached today’s operating limit. No credits were used.",
+                }), 429)
+        elif profit_reserve.is_video_action(action_type):
             conn = get_db()
             try:
                 conn.execute("BEGIN IMMEDIATE")
@@ -19172,6 +19217,59 @@ def _simo_increment_free_chat_global(day_key: str):
         conn.close()
 
 
+def _simo_prepare_daily_allowance(conn):
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS simo_daily_allowance (
+            scope TEXT NOT NULL,
+            day_key TEXT NOT NULL,
+            count INTEGER NOT NULL,
+            PRIMARY KEY (scope, day_key)
+        )
+    """)
+
+
+def _simo_daily_allowance_used(conn, scope, day_key):
+    row = conn.execute(
+        "SELECT count FROM simo_daily_allowance WHERE scope = ? AND day_key = ?",
+        (scope, day_key),
+    ).fetchone()
+    return int(row[0]) if row else 0
+
+
+def _simo_take_daily_allowance(scopes, units=1):
+    day_key = get_today_key()
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        _simo_prepare_daily_allowance(conn)
+        usage = [(scope, _simo_daily_allowance_used(conn, scope, day_key) + units, limit)
+                 for scope, limit in scopes]
+        if any(count > limit for _, count, limit in usage):
+            conn.rollback()
+            return None
+        conn.executemany("""
+            INSERT INTO simo_daily_allowance (scope, day_key, count) VALUES (?, ?, ?)
+            ON CONFLICT(scope, day_key) DO UPDATE SET count = excluded.count
+        """, [(scope, day_key, count) for scope, count, _ in usage])
+        conn.commit()
+        return usage[0][1]
+    finally:
+        conn.close()
+
+
+def _simo_paid_chat_status(email, plan):
+    limit = SIMO_PAID_CHAT_DAILY_LIMITS.get(plan, 0)
+    if not limit:
+        return None
+    conn = get_db()
+    try:
+        _simo_prepare_daily_allowance(conn)
+        used = _simo_daily_allowance_used(conn, f"chat:{email}", get_today_key())
+        return {"daily_limit": limit, "remaining": max(0, limit - used)}
+    finally:
+        conn.close()
+
+
 def _simo_account_identity_reply(message) -> dict | None:
     text = " ".join(str(message or "").lower().replace("’", "'").split()).rstrip(" .?!")
     creator_question = re.fullmatch(
@@ -19248,7 +19346,23 @@ def api_chat():
             return jsonify({"ok": True, "reply": help_reply})
 
     action, cost = _simo_chat_meter_cost()
-    plan = _simo_account_plan(str(current_user_email() or "").strip().lower())
+    email = str(current_user_email() or "").strip().lower()
+    plan = _simo_account_plan(email)
+    chat_limit = SIMO_PAID_CHAT_DAILY_LIMITS.get(plan, 0)
+    mode = str(data.get("simo_mode") or data.get("lane") or "").strip().lower()
+    text = str(message or "")
+    clean_text = strip_mode_and_preset_lines(normalize_simo_intent_text(text)).strip()
+    if (
+        chat_limit and action == "chat"
+        and not (_simo_has_chat_attachment(data) or _simo_recent_image_path(text))
+        and (simo_is_chat_first_request(text) or
+             (mode in {"chat", "business"} and not is_hard_3d_request(clean_text or text)))
+    ):
+        request.environ["simo.included_chat"] = (email, chat_limit)
+        try:
+            return _simo_api_chat_unmetered()
+        finally:
+            request.environ.pop("simo.included_chat", None)
 
     # Plain text chat is the Free/Guest lane. The original chat owner still
     # enforces the per-user/session FREE_DAILY_LIMIT, while this extra global
@@ -19258,7 +19372,7 @@ def api_chat():
         if _simo_free_chat_global_count(day_key) >= SIMO_FREE_CHAT_GLOBAL_DAILY_CAP:
             return jsonify({
                 "ok": False,
-                "error": "Simo's Free Chat capacity is full for today. Please try again tomorrow or upgrade to Pro.",
+                "error": "Simo's Free Chat capacity is full for today. Please try again tomorrow.",
                 "code": "simo_free_chat_global_cap",
             }), 429
 
