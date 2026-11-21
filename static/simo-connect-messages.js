@@ -43,6 +43,8 @@
     #simoMessagesPanel .sc-entry .sc-edit-label{display:inline;color:#a8d5e8}
     #simoMessagesPanel .sc-entry .sc-edit-label[hidden]{display:none}
     #simoMessagesPanel .sc-edit-form{margin-top:6px}
+    #simoMessagesPanel .sc-contact-actions{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}
+    #simoMessagesPanel .sc-contact-actions > button:not([hidden]){display:inline-flex;align-items:center;justify-content:center;margin:0}
     #simoConnectContactForm{margin-block:8px;padding:10px;border:1px solid #4c799c;border-radius:8px}
     #simoConnectContactForm input{font-size:16px}
     #simoConnectContactStatus{display:block;color:#a8d5e8}
@@ -114,16 +116,22 @@
     <button type="button" id="simoConnectNewMessage" hidden>New message</button>
     <h4 style="margin:12px 0 5px">Conversations</h4><div id="simoConnectThreads" class="sc-threads"></div></div>
     <div id="simoConnectConversationTitle" style="margin-top:9px;font-weight:700">New message</div>
-    <div id="simoConnectThreadActions" hidden><button id="simoConnectContact" type="button" hidden>Save contact</button><button type="button" id="simoConnectVoice">Voice call</button><details class="sc-thread-tools" open><summary>Conversation options</summary>
-      <button type="button" id="simoConnectClear" title="Clear only your view of older messages">Clear my messages</button>
-      <button type="button" id="simoConnectHide" title="Remove from only your conversation list">Remove from my list</button>
-      <button type="button" id="simoConnectVideo" title="Open Simo Calling to start a video call">📹 Video call</button>
-      <small>These controls affect only your own conversation view. Others keep their messages. Files and messages remain stored on the server.</small>
-    </details></div>
+    <div id="simoConnectThreadActions" hidden>
+      <div class="sc-contact-actions">
+        <button type="button" id="simoConnectVoice">Voice call</button>
+        <button type="button" id="simoConnectVideo">Video call</button>
+        <button type="button" id="simoConnectContact" hidden>Save contact</button>
+      </div>
+      <details class="sc-thread-tools" open><summary>Conversation options</summary>
+        <button type="button" id="simoConnectClear" title="Clear only your view of older messages">Clear my messages</button>
+        <button type="button" id="simoConnectHide" title="Remove from only your conversation list">Remove from my list</button>
+        <small>These controls affect only your own conversation view. Others keep their messages. Files and messages remain stored on the server.</small>
+      </details>
+    </div>
     <form id="simoConnectContactForm" hidden>
       <div id="simoConnectContactHandle"></div>
       <label>Contact name<input id="simoConnectContactName" maxlength="48" required placeholder="e.g. John"></label>
-      <button type="submit" id="simoConnectContactSave">Save contact</button>
+      <button type="submit" id="simoConnectContactSave">Save name</button>
       <button type="button" id="simoConnectContactCancel">Cancel</button>
       <span id="simoConnectContactStatus" role="status"></span>
     </form>
@@ -237,7 +245,6 @@
       }
     });
     toolbar.prepend(modes);
-    el('simoConnectThreadActions').prepend(el('simoConnectVideo'));
     function updateUnreadLabel() {
       textMode.textContent = 'Text' + (state.unread ? ' · ' + state.unread : '');
     }
@@ -424,7 +431,7 @@
     el('simoConnectConversationTitle').textContent = thread ? shortName(thread) : 'New message';
     el('simoConnectContactForm').hidden = true;
     el('simoConnectThreadActions').hidden = !thread;
-    el('simoConnectVideo').hidden = !thread || thread.kind !== 'direct';
+    el('simoConnectVideo').hidden = !otherHandle(thread);
     el('simoConnectVoice').hidden = el('simoConnectVideo').hidden;
     closeToolForms();
     syncContactDisplay();
@@ -711,11 +718,18 @@
   const contactName = el('simoConnectContactName');
   const contactStatus = el('simoConnectContactStatus');
   const contactSave = el('simoConnectContactSave');
-  el('simoConnectContact').onclick = () => {
+  const contactButton = el('simoConnectContact');
+  contactButton.onclick = () => {
     if (contactSave.disabled) return;
-    const handle = otherHandle(state.threads.find(entry => entry.id === state.thread));
+    const thread = state.thread;
+    const handle = otherHandle(state.threads.find(entry => entry.id === thread));
     if (!handle) return;
-    contactName.value = state.contacts.get(handle)?.nickname || '';
+    const contact = state.contacts.get(handle);
+    if (!contact) {
+      void saveConversationContact(thread, handle);
+      return;
+    }
+    contactName.value = contact.nickname;
     el('simoConnectContactHandle').textContent = '@' + handle;
     contactStatus.textContent = '';
     contactForm.hidden = false;
@@ -723,9 +737,9 @@
   };
   el('simoConnectContactCancel').onclick = () => {
     contactForm.hidden = true;
-    el('simoConnectContact').focus();
+    contactButton.focus();
   };
-  contactForm.onsubmit = async event => {
+  contactForm.onsubmit = event => {
     event.preventDefault();
     if (contactSave.disabled || contactForm.hidden) return;
     const thread = state.thread;
@@ -735,25 +749,41 @@
       contactStatus.textContent = 'Enter a contact name.';
       return;
     }
-    contactSave.disabled = true;
+    void saveConversationContact(thread, handle, nickname);
+  };
+
+  async function saveConversationContact(thread, handle, nickname) {
+    const editing = !contactForm.hidden;
+    contactButton.disabled = contactSave.disabled = true;
     contactStatus.textContent = '';
     try {
+      if (!nickname) {
+        await loadContacts();
+        if (state.contacts.has(handle)) {
+          if (state.thread === thread) info('This contact is already saved for text, voice, and video.');
+          return;
+        }
+        nickname = handle;
+      }
       await api('contacts', {thread, nickname});
       state.contacts.set(handle, {...state.contacts.get(handle), handle, nickname});
       syncContactDisplay();
       window.dispatchEvent(new Event('simo-connect:contacts-changed'));
-      if (state.thread === thread && !contactForm.hidden) {
+      if (state.thread === thread) {
         contactForm.hidden = true;
-        el('simoConnectContact').focus();
-        info('Contact saved.');
+        if (editing) contactButton.focus();
+        info('Contact saved for text, voice, and video.');
       }
-      loadContacts().catch(()=>{});
+      void loadContacts().catch(() => {});
     } catch (error) {
-      if (state.thread === thread) contactStatus.textContent = error.message;
+      if (state.thread === thread) {
+        if (editing) contactStatus.textContent = error.message;
+        else info(error.message);
+      }
     } finally {
-      contactSave.disabled = false;
+      contactButton.disabled = contactSave.disabled = false;
     }
-  };
+  }
 
   el('simoConnectVideo').onclick = () => openConversationCall('video');
   el('simoConnectVoice').onclick = () => openConversationCall('audio');
