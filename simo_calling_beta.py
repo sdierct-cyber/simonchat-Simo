@@ -104,11 +104,11 @@ def register_simo_calling_beta(app, get_db, current_user_email):
             return response_error('Enter a valid Simo handle.')
         conn = open_db()
         try:
+            conn.execute('BEGIN IMMEDIATE')
             own_handle = identity(conn, email)
             if not own_handle:
                 return response_error('Choose your own handle first.')
             if contact_id is not None:
-                conn.execute('BEGIN IMMEDIATE')
                 dest = resolve_contact_id(conn, contact_id)
                 if not dest:
                     return response_error('This Simo ID is no longer available.', 404)
@@ -153,6 +153,7 @@ def register_simo_calling_beta(app, get_db, current_user_email):
             return response_error('Signal is too large.', 413)
         conn = open_db()
         try:
+            conn.execute('BEGIN IMMEDIATE')
             row = call_for(conn, call_id, email)
             if not row:
                 return response_error('Call not found.', 404)
@@ -160,6 +161,10 @@ def register_simo_calling_beta(app, get_db, current_user_email):
                 return response_error('This call has ended.', 409)
             if kind in ('accept','decline','answer') and email != row['recipient']:
                 return response_error('Only the recipient can answer.', 403)
+            if kind in ('accept', 'decline') and row['state'] != 'ringing':
+                return response_error('This call was already answered.', 409)
+            if kind == 'answer' and row['state'] != 'active':
+                return response_error('Accept the call before answering.', 409)
             if kind == 'offer' and email != row['caller']:
                 return response_error('Only the caller can offer.', 403)
             now = int(time.time())
@@ -211,7 +216,12 @@ def register_simo_calling_beta(app, get_db, current_user_email):
                     if not live or live['state'] != 'ringing' or int(time.time()) - int(live['created_at']) > 120:
                         continue
                 events.append({'id': r['id'], 'call_id': r['call_id'], 'kind': r['kind'], 'data': json.loads(r['data'])})
-            return jsonify({'ok': True, 'events': events})
+            watched_id = request.args.get('watch', '')
+            watched = call_for(conn, watched_id, email) if len(watched_id) == 36 else None
+            return jsonify({
+                'ok': True, 'events': events, 'cursor': rows[-1]['id'] if rows else after,
+                'watch_state': (watched['state'] if watched else 'ended') if watched_id else None,
+            })
         finally:
             conn.close()
 
@@ -236,3 +246,4 @@ def register_simo_calling_beta(app, get_db, current_user_email):
             return jsonify({'ok':True,'missed':[{'call_id':r['call_id'], 'created_at':r['created_at'],
                 'caller_handle':r['caller_handle'] or 'unknown'} for r in rows]})
         finally:conn.close()
+
