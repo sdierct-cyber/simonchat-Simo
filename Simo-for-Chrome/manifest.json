@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "Simo for Chrome",
+  "description": "Chat with Simo, ask about selected text or screenshots, and open Simo workspaces.",
+  "version": "0.3.0",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "contextMenus",
+    "sidePanel",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://simonchat.ai/*",
+    "http://127.0.0.1/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_title": "Open Simo",
+    "default_icon": "icons/32.png"
+  },
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://simonchat.ai/*",
+        "http://127.0.0.1/*"
+      ],
+      "js": [
+        "workspace.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src https://simonchat.ai http://127.0.0.1:5000; frame-src https://simonchat.ai http://127.0.0.1:5000; img-src 'self' blob:;"
+  },
+  "homepage_url": "https://simonchat.ai/chrome"
+}

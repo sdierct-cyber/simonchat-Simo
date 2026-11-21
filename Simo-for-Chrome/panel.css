@@ -1,0 +1,86 @@
+:root {
+  color-scheme: dark;
+  font: 14px/1.5 "Segoe UI", sans-serif;
+  color: #edf3ff;
+  background: #0b1220;
+  --muted: #a6b6cd;
+  --line: #29374f;
+  --accent: #a0d7ff;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { display: flex; flex-direction: column; height: 100dvh; margin: 0; }
+header, .account, .actions, .draft > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+header { padding: 15px 16px 10px; }
+.brand { display: flex; align-items: center; gap: 9px; }
+.brand img { width: 32px; height: 32px; }
+h1 { font-size: 23px; letter-spacing: -.02em; margin: 0; }
+a { color: var(--accent); }
+header a { white-space: nowrap; }
+.account { padding: 0 16px 10px; color: var(--muted); font-size: 12px; }
+#account { min-width: 0; overflow-wrap: anywhere; }
+#refresh { flex: 0 0 auto; white-space: nowrap; }
+details { padding: 9px 16px; border-block: 1px solid var(--line); }
+summary { cursor: pointer; }
+details nav { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 10px; }
+details nav a { padding: 5px 0; }
+.panel-modes { display: flex; gap: 8px; padding: 0 16px 10px; border-bottom: 1px solid var(--line); }
+.panel-modes [aria-pressed="true"] { color: #edf3ff; background: #19334e; border-color: #52799b; }
+.panel-view { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+#connect-full, #connect-status { margin: 10px 16px; }
+#connect-full { align-self: flex-end; font-size: 12px; }
+#connect-frame { display: flex; flex: 1; min-height: 0; }
+#connect-frame iframe { flex: 1; min-width: 0; border: 0; }
+main { flex: 1; overflow: auto; padding: 14px 16px; }
+#welcome { color: var(--muted); margin: 3px 0; }
+.message { padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #121d30; margin: 0 0 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.message.user { margin-left: 15px; background: #1a2c46; }
+.message strong { display: block; margin-bottom: 4px; font-size: 12px; }
+.sent-image { display: inline-block; max-width: 100%; margin-top: 8px; vertical-align: top; }
+.sent-image img { display: block; width: auto; max-width: 100%; max-height: 110px; border-radius: 8px; }
+form { border-top: 1px solid var(--line); background: #101a2b; padding: 12px 16px 10px; max-height: 70dvh; overflow: auto; }
+textarea { width: 100%; display: block; resize: vertical; min-height: 62px; max-height: 25dvh; border: 1px solid #425675; border-radius: 10px; background: #0c1525; color: inherit; font: inherit; padding: 9px; }
+button { border: 1px solid #598cc0; border-radius: 8px; padding: 6px 13px; background: #a0d7ff; color: #101d30; font: inherit; font-weight: 650; cursor: pointer; }
+button.quiet { background: transparent; color: var(--accent); border-color: var(--line); font-weight: 500; }
+button:disabled { opacity: .55; cursor: default; }
+:focus-visible { outline: 2px solid #8bd0ff; outline-offset: 2px; }
+.actions { margin-top: 9px; align-items: flex-start; }
+#chat-tools { padding: 5px 0; border: 0; }
+#chat-tools[open] button { display: block; margin-top: 5px; }
+.draft { margin-bottom: 8px; background: #172339; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
+.draft strong { overflow-wrap: anywhere; }
+.draft blockquote { margin: 4px 0 0; max-height: 64px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+#preview { display: block; width: auto; max-width: 100%; max-height: 83px; margin-top: 5px; border-radius: 5px; }
+#status { color: var(--muted); margin: 7px 0 0; min-height: 1.5em; font-size: 12px; }
+#status[data-error] { color: #ffb4b4; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+#call-banner { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; padding: 6px 12px; border-bottom: 1px solid #598cc0; background: #19334e; }
+#call-banner[data-call-state="active"] { border-color: #82ffc0; background: #075332; }
+#call-banner-status { flex: 1 1 140px; color: #edf3ff; font-size: 12px; font-weight: 700; }
+#call-banner button.quiet { padding: 4px 7px; color: #edf3ff; border-color: #a6b6cd; font-size: 12px; }
+
+.connection { padding-block: 4px; font-size: 12px; }
+.connection select { display: block; margin: 4px 0; max-width: 100%; font: inherit; }
+#call-banner[data-call-state="active"], #call-banner[data-call-state="incoming"] {
+  border-color: #82ffc0; animation: call-banner-pulse 1.6s ease-in-out infinite;
+}
+#call-banner[data-call-state="incoming"] { background: #075332; }
+#call-banner[data-call-state="ringing"] { border-color: #9edcff; }
+@keyframes call-banner-pulse {
+  0%, 100% { box-shadow: inset 4px 0 #82ffc0; }
+  50% { box-shadow: inset 4px 0 #1a9b59; }
+}
+@media (prefers-reduced-motion: reduce) {
+  #call-banner[data-call-state] { animation: none; }
+}
+
+.primary-actions { display: flex; align-items: center; gap: 6px; }
+#dictate { display: grid; place-items: center; min-width: 36px; min-height: 35px; padding: 6px; }
+#dictate[aria-pressed="true"] { background: #075332; color: #fff; border-color: #82ffc0; }
+#mic-permission { display: inline-block; margin-top: 6px; }
+
+/* Connect displays the outgoing ringing card. Keep the incoming website shortcut visible. */
+body:has(#connect-view:not([hidden])) #call-banner[data-call-state="ringing"] {
+  display: none;
+}
