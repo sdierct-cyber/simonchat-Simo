@@ -19945,7 +19945,7 @@ register_simo_connect_messages(app, get_db, current_user_email)
 
 # R10.71 — Server-side Simo Connect sign-in gate, including file downloads.
 from simo_connect_signin_guard import register_simo_connect_signin_guard
-register_simo_connect_signin_guard(app, current_user_email, get_user_by_email)
+register_simo_connect_signin_guard(app, current_user_email, get_user_by_email, get_db)
 
 # R10.66 — Isolated authenticated deletion REQUEST (not automated deletion).
 from simo_account_deletion_requests import register_simo_account_deletion_requests
