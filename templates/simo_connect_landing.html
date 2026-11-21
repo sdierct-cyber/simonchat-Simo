@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="{% if invite_id %}noindex, nofollow{% else %}index, follow{% endif %}">
+  <title>{% if invite_id %}Simo Connect invitation{% else %}Simo for Chrome{% endif %}</title>
+  <style>
+    :root { color-scheme: dark; font: 16px/1.55 system-ui, sans-serif; color: #edf5ff; background: #0b1424; }
+    body { margin: 0; }
+    main { max-width: 36rem; margin: 12vh auto; padding: 28px; }
+    h1 { font-size: clamp(1.8rem,6vw,3rem); line-height: 1.15; overflow-wrap: anywhere; }
+    a { color: #b7dcff; }
+    nav { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 26px; }
+    nav a { border: 1px solid #76a8da; padding: 9px 14px; border-radius: 8px; }
+    nav a:first-child { background: #b7dcff; color: #0b1424; }
+  </style>
+</head>
+<body>
+  <main>
+    <a href="/">Simo</a>
+    {% if invite_id %}
+      <h1>{{ inviter_name }} invited you to connect on Simo</h1>
+      <p>@{{ handle }}</p>
+      {% if signed_in %}
+        <nav aria-label="Invitation"><a href="{{ home }}#simo-id={{ invite_id }}">Open contact</a></nav>
+      {% else %}
+        <p>Create a free Simo account or sign in to see your friend’s contact card. Choose your Simo handle before sending your first message.</p>
+        <nav aria-label="Account">
+          <a href="{{ home }}?simo_invite_action=signup#simo-id={{ invite_id }}">Create a free account</a>
+          <a href="{{ home }}?simo_invite_action=login#simo-id={{ invite_id }}">Sign in</a>
+        </nav>
+      {% endif %}
+    {% else %}
+      <h1>Simo for Chrome</h1>
+      <p>Chat, dictate a draft, attach a screenshot, or open Simo Connect from the Chrome side panel. Sign in with your Simo account for messages and calls.</p>
+      {% if store_url %}
+        <nav aria-label="Install"><a href="{{ store_url }}">Add to Chrome</a></nav>
+      {% else %}
+        <p>Public installation will be available once the Chrome Web Store listing is published.</p>
+        <nav aria-label="Simo"><a href="/">Open Simo</a></nav>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>
