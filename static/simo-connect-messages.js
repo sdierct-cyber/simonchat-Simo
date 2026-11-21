@@ -46,9 +46,33 @@
     #simoConnectContactForm{margin-block:8px;padding:10px;border:1px solid #4c799c;border-radius:8px}
     #simoConnectContactForm input{font-size:16px}
     #simoConnectContactStatus{display:block;color:#a8d5e8}
-    #simoMessagesPanel .sc-tool-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:6px}
+    #simoMessagesPanel .sc-composer {
+      --action-gap: 8px;
+      display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 var(--action-gap);
+    }
+    #simoMessagesPanel .sc-composer > * { grid-column: 1 / -1; }
+    #simoMessagesPanel .sc-composer > .sc-message-label { grid-row: 1; }
+    #simoMessagesPanel .sc-composer > .sc-tool-row {
+      grid-area: 2 / 1 / 3 / 3; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: var(--action-gap); align-content: start; margin-top: 8px;
+    }
+    #simoMessagesPanel .sc-composer > .sc-compose-actions {
+      grid-area: 2 / 3; align-self: start; margin-top: 8px;
+    }
+    #simoMessagesPanel .sc-composer > :is(.sc-tool-row, .sc-compose-actions) button {
+      display: grid; place-items: center; width: 100%; min-width: 0; height: 40px; min-height: 40px;
+      margin: 0; padding: 4px; font-size: 13px; line-height: 1.2; text-align: center;
+    }
+    @media (max-width: 700px), (max-height: 500px) and (pointer: coarse) {
+      #simoMessagesPanel .sc-composer > :is(.sc-tool-row, .sc-compose-actions) button { min-height: 44px; }
+    }
+    @media (max-width: 305px) {
+      #simoMessagesPanel .sc-composer > :is(.sc-tool-row, .sc-compose-actions) button { font-size: 12px; }
+    }
     #simoMessagesPanel #simoConnectShortcuts{display:contents}
-    #simoMessagesPanel .sc-tool-row button,#simoMessagesPanel .sc-tool-list button{margin:0;min-height:36px}
+    #simoMessagesPanel .sc-minimize-shortcuts{display:flex;align-items:center;gap:8px;margin:6px 0}
+    #simoMessagesPanel .sc-minimize-shortcuts input{width:auto;margin:0;padding:0}
+    #simoMessagesPanel .sc-tool-list button{margin:0;min-height:36px}
     #simoMessagesPanel .sc-tool-list{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px}
     #simoMessagesPanel #simoConnectToolMenu{border:1px solid #4c799c;border-radius:8px;padding:0 8px;margin:6px 0}
     #simoMessagesPanel #simoConnectToolMenu summary{color:#b9e1f6;cursor:pointer;padding:7px 0}
@@ -81,7 +105,11 @@
       <button id="simoConnectSaveHandle" type="submit">Save my handle</button>
       <span id="simoConnectHandleStatus" role="status"></span>
     </form>
-    <div id="simoConnectDirectTo"><label>To (recipient’s Simo handle)<input id="simoConnectDirectRecipient" maxlength="25" placeholder="@friend_handle" autocomplete="off" autocapitalize="none" spellcheck="false"></label></div>
+    <div id="simoConnectDirectTo">
+      <label id="simoConnectSavedContactLabel" hidden>Saved contacts
+        <select id="simoConnectSavedContact"><option value="">Choose a saved contact…</option></select>
+      </label>
+      <label>To (recipient’s Simo handle)<input id="simoConnectDirectRecipient" maxlength="25" placeholder="@friend_handle" autocomplete="off" autocapitalize="none" spellcheck="false"></label></div>
     <div class="sc-conversations">
     <button type="button" id="simoConnectNewMessage" hidden>New message</button>
     <h4 style="margin:12px 0 5px">Conversations</h4><div id="simoConnectThreads" class="sc-threads"></div></div>
@@ -110,6 +138,7 @@
         <button type="button" id="simoConnectAttach" aria-expanded="false" aria-controls="simoConnectAttachment">Attach file</button>
         <button type="button" id="simoConnectCamera" aria-expanded="false" aria-controls="simoConnectPhotoPanel">Take Photo</button>
         <button type="button" id="simoConnectMic" aria-pressed="false" aria-label="Dictate a message">Dictate</button>
+        <button type="button" id="simoConnectInvite">Invite a friend</button>
         <button type="button" id="simoConnectMyId">Share my Simo ID</button>
         <button type="button" id="simoConnectScanId">Scan a Simo ID</button>
         <button type="button" id="simoConnectGroupTool" aria-expanded="false" aria-controls="simoConnectGroupOptions">New group conversation</button>
@@ -128,6 +157,9 @@
       <button type="button" id="simoConnectUpload">Share file</button>
     </section>
     <section id="simoConnectGroupOptions" aria-label="New group conversation" hidden>
+      <label id="simoConnectGroupContactLabel" hidden>Add a saved contact
+        <select id="simoConnectGroupContact"><option value="">Choose a saved contact…</option></select>
+      </label>
       <label>Recipient handles, separated by commas<input id="simoConnectRecipients" maxlength="300" placeholder="simo_test2, friend2"></label>
       <label>Group name<input id="simoConnectTitle" maxlength="64" placeholder="Friends and family"></label>
       <button type="button" id="simoConnectCreate">Create group</button>
@@ -139,6 +171,7 @@
       <canvas id="simoConnectIdQr" aria-label="QR code for your Simo ID" role="img" hidden></canvas>
       <a id="simoConnectIdLink" hidden></a>
       <button type="button" id="simoConnectIdCopy" hidden>Copy link</button>
+      <a id="simoConnectInviteEmail" hidden>Email invite</a>
       <button type="button" id="simoConnectIdShare" hidden>Share in conversation</button>
       <button type="button" id="simoConnectIdSave" hidden>Save contact</button>
       <button type="button" id="simoConnectIdMessage" hidden>Message</button>
@@ -186,6 +219,7 @@
     textMode.setAttribute('aria-controls', panel.id);
     textMode.onclick = () => button.click();
     modes.append(textMode);
+    const callEntries = new Map();
     for (const [mode, label] of [['audio', 'Voice call'], ['video', 'Video call']]) {
       const entry = document.createElement('button');
       entry.type = 'button';
@@ -193,7 +227,15 @@
       entry.setAttribute('aria-controls', callingPanel.id);
       entry.onclick = () => window.dispatchEvent(new CustomEvent('simo-connect:open-call', {detail:{mode}}));
       modes.append(entry);
+      callEntries.set(mode, {entry, label});
     }
+    window.addEventListener('simo-connect:call-status', ({detail}) => {
+      for (const [mode, {entry, label}] of callEntries) {
+        const state = detail.mode === mode ? detail.state : 'idle';
+        entry.dataset.callState = state;
+        entry.textContent = state === 'idle' ? label : state === 'incoming' ? 'Incoming ' + label.toLowerCase() : label + ' ' + state;
+      }
+    });
     toolbar.prepend(modes);
     el('simoConnectThreadActions').prepend(el('simoConnectVideo'));
     function updateUnreadLabel() {
@@ -299,8 +341,53 @@
   async function loadContacts() {
     const result = await api('contacts');
     state.contacts = new Map(result.contacts.map(contact => [contact.handle, contact]));
+    const contactsUnavailable = state.contacts.size === 0;
+    for (const id of ['simoConnectSavedContact', 'simoConnectGroupContact']) {
+      const select = el(id);
+      select.replaceChildren(new Option('Choose a saved contact…', ''));
+      for (const contact of state.contacts.values()) {
+        const favorite = contact.favorite ? '★ ' : '';
+        select.add(new Option(favorite + contact.nickname + ' (@' + contact.handle + ')', contact.handle));
+      }
+      el(id + 'Label').hidden = contactsUnavailable;
+    }
+    syncSavedContactChoice();
     syncContactDisplay();
   }
+
+  const savedContact = el('simoConnectSavedContact');
+  const directRecipient = el('simoConnectDirectRecipient');
+  savedContact.addEventListener('change', () => {
+    if (!savedContact.value) return;
+    directRecipient.value = '@' + savedContact.value;
+    el('simoConnectBody').focus();
+  });
+  function syncSavedContactChoice() {
+    const handle = directRecipient.value.trim().replace(/^@/, '').toLowerCase();
+    savedContact.value = state.contacts.has(handle) ? handle : '';
+  }
+  directRecipient.addEventListener('input', syncSavedContactChoice);
+  const groupContact = el('simoConnectGroupContact');
+  groupContact.addEventListener('change', () => {
+    const handle = groupContact.value;
+    groupContact.value = '';
+    if (!handle) return;
+    const recipients = el('simoConnectRecipients');
+    const handles = recipients.value.split(',').map(value => value.trim().replace(/^@/, '')).filter(Boolean);
+    if (handles.some(value => value.toLowerCase() === handle)) return;
+    const next = [...handles, handle].join(', ');
+    if (handles.length >= 11 || next.length > recipients.maxLength) {
+      info('A group can include up to 11 other people.');
+      return;
+    }
+    recipients.value = next;
+  });
+  function refreshSavedContacts() {
+    if (state.open) void loadContacts().catch(() => {});
+  }
+  window.addEventListener('simo-connect:calling-contacts-changed', refreshSavedContacts);
+  window.addEventListener('focus', refreshSavedContacts);
+
   function renderThreads(){
     const list=el('simoConnectThreads');
     const focused = list.contains(document.activeElement) ? document.activeElement.dataset.threadId : '';
@@ -652,7 +739,7 @@
     contactStatus.textContent = '';
     try {
       await api('contacts', {thread, nickname});
-      state.contacts.set(handle, {handle, nickname});
+      state.contacts.set(handle, {...state.contacts.get(handle), handle, nickname});
       syncContactDisplay();
       window.dispatchEvent(new Event('simo-connect:contacts-changed'));
       if (state.thread === thread && !contactForm.hidden) {
@@ -699,6 +786,7 @@
       if (direct) {
         if (!state.threads.some(entry => entry.id === direct.id)) state.threads.unshift(direct);
         recipient.value = '';
+        syncSavedContactChoice();
         activateThread(direct);
       }
       info('Message sent.');
@@ -895,6 +983,7 @@
   const idQr = el('simoConnectIdQr');
   const idLink = el('simoConnectIdLink');
   const idCopy = el('simoConnectIdCopy');
+  const inviteEmail = el('simoConnectInviteEmail');
   const idShare = el('simoConnectIdShare');
   const idSave = el('simoConnectIdSave');
   const idMessage = el('simoConnectIdMessage');
@@ -949,7 +1038,7 @@
     idVideo.srcObject = null;
     contactSession = null;
     idPanel.hidden = true;
-    for (const item of [idHandle, idVideo, idQr, idLink, ...idActions]) item.hidden = true;
+    for (const item of [idHandle, idVideo, idQr, idLink, inviteEmail, ...idActions]) item.hidden = true;
     for (const button of idActions) button.disabled = false;
   }
 
@@ -994,6 +1083,7 @@
       idHandle.textContent = '@' + card.handle;
       idHandle.hidden = false;
       idLink.href = contactLink(card.id);
+      idLink.removeAttribute('target');
       idLink.textContent = 'Open my Simo ID';
       idLink.hidden = idCopy.hidden = false;
       idShare.hidden = !current.thread;
@@ -1098,6 +1188,27 @@
     }
   }
 
+  el('simoConnectInvite').onclick = async () => {
+    if (highlightHandleSetup()) return;
+    const current = openContactPanel('Getting your invite link…');
+    el('simoConnectIdClose').focus();
+    try {
+      const {card} = await api('contact-card', {});
+      if (contactSession !== current) return;
+      current.card = card;
+      idLink.href = new URL('/invite/' + card.id, location.origin).href;
+      idLink.target = '_blank';
+      idLink.rel = 'noopener';
+      idLink.textContent = 'Preview invite';
+      idLink.hidden = idCopy.hidden = inviteEmail.hidden = false;
+      idStatus.textContent = 'Copy your invite link to share by text, or open it in an email draft.';
+      inviteEmail.href = 'mailto:?subject=' + encodeURIComponent('Connect with me on Simo')
+        + '&body=' + encodeURIComponent('Join me on Simo Connect: ' + idLink.href);
+    } catch (error) {
+      if (contactSession === current) idStatus.textContent = error.message;
+    }
+  };
+
   el('simoConnectMyId').onclick = showMyContactCard;
   el('simoConnectScanId').onclick = scanContactCard;
   el('simoConnectIdClose').onclick = () => {
@@ -1106,10 +1217,10 @@
   };
   idCopy.onclick = () => runContactAction(idCopy, async current => {
     try {
-      await navigator.clipboard.writeText(contactLink(current.card.id));
+      await navigator.clipboard.writeText(idLink.href);
       if (contactSession === current) idStatus.textContent = 'Contact link copied.';
     } catch {
-      if (contactSession === current) idStatus.textContent = 'Use your browser’s Copy link option on Open my Simo ID.';
+      if (contactSession === current) idStatus.textContent = 'Use your browser’s Copy link address option on the link.';
     }
   });
   idShare.onclick = () => runContactAction(idShare, async current => {
@@ -1127,6 +1238,7 @@
     window.dispatchEvent(new CustomEvent('simo-connect:contacts-changed'));
     await loadContacts();
   });
+  idMessage.textContent = 'Send a message';
   idMessage.onclick = () => runContactAction(idMessage, async current => {
     if (highlightHandleSetup()) return;
     const {thread} = await api('threads', {kind: 'direct', contact_id: current.card.id});
@@ -1145,21 +1257,33 @@
     if (document.hidden && contactSession && !contactSession.card) closeContactCard();
   });
 
+  let openingPendingCard = false;
   const openPendingContactCard = () => {
-    const incomingId = parseContactLink(window.location.href);
+    if (location.pathname !== '/' || openingPendingCard) return;
+    const page = new URL(location.href);
+    const action = page.searchParams.get('simo_invite_action');
+    if (action === 'signup' || action === 'login') page.searchParams.delete('simo_invite_action');
+    const incomingId = parseContactLink(page.href);
+    const signedIn = Boolean((window.__SIMO_ACCOUNT_CONTEXT__ || window.SIMO_BOOT)?.loggedIn);
     let pendingId = incomingId;
     try {
       if (incomingId) sessionStorage.setItem(pendingContactKey, incomingId);
       else pendingId = sessionStorage.getItem(pendingContactKey);
     } catch {}
-    if (cardIdPattern.test(pendingId || '')) {
+    if (!signedIn && incomingId && (action === 'signup' || action === 'login')) {
+      if (!window.__SIMO_ACCOUNT_CONTEXT__) return;
+      history.replaceState(history.state, '', page.pathname + page.search + page.hash);
+      document.getElementById(action === 'signup' ? 'signupBtn' : 'loginBtn')?.click();
+      return;
+    }
+    if (signedIn && cardIdPattern.test(pendingId || '')) {
+      openingPendingCard = true;
       window.dispatchEvent(new CustomEvent('simo-connect:panel-open', {detail: {panel: 'messages'}}));
-      open();
-      showContactCard(pendingId).then(resolved => {
+      open().then(() => showContactCard(pendingId)).then(resolved => {
         if (!resolved) return;
         try { sessionStorage.removeItem(pendingContactKey); } catch {}
-        if (incomingId) history.replaceState(history.state, '', window.location.pathname);
-      });
+        if (incomingId) history.replaceState(history.state, '', page.pathname + page.search);
+      }).finally(() => { openingPendingCard = false; });
     }
 
   };
@@ -1195,13 +1319,31 @@
     ['attach', attachTool],
     ['photo', cameraButton],
     ['dictate', el('simoConnectMic')],
+    ['invite', el('simoConnectInvite')],
     ['my-id', el('simoConnectMyId')],
     ['scan-id', el('simoConnectScanId')],
     ['group', groupTool]
   ];
   const account = String(window.SIMO_BOOT?.email || '').trim().toLowerCase();
-  const shortcutKey = 'simo_connect_shortcuts_v1:' + (account || 'guest');
-  let selectedTools = new Set(['attach']);
+  const extensionView = document.body.hasAttribute('data-connect-view');
+  const shortcutKey = extensionView ? 'simo_connect_extension_shortcuts_v1' : 'simo_connect_shortcuts_v1:' + (account || 'guest');
+  let selectedTools = new Set(extensionView ? [] : ['attach']);
+  let minimizeShortcuts = false;
+  if (extensionView) {
+    try { minimizeShortcuts = localStorage.getItem(shortcutKey + ':minimized') === 'true'; } catch {}
+    const row = document.createElement('label');
+    row.className = 'sc-minimize-shortcuts';
+    const toggle = document.createElement('input');
+    toggle.type = 'checkbox';
+    toggle.checked = minimizeShortcuts;
+    toggle.addEventListener('change', () => {
+      minimizeShortcuts = toggle.checked;
+      renderShortcuts();
+      try { localStorage.setItem(shortcutKey + ':minimized', String(minimizeShortcuts)); } catch {}
+    });
+    row.append(toggle, ' Minimize pinned shortcuts');
+    el('simoConnectCustomize').before(row);
+  }
   try {
     const saved = JSON.parse(localStorage.getItem(shortcutKey));
     if (Array.isArray(saved)) selectedTools = new Set(saved);
@@ -1209,10 +1351,11 @@
 
   function renderShortcuts() {
     for (const [key, control] of shortcuts) {
-      const destination = selectedTools.has(key) ? pinnedTools : menuTools;
+      const destination = !minimizeShortcuts && selectedTools.has(key) ? pinnedTools : menuTools;
       destination.append(control);
     }
     menuTools.hidden = !menuTools.childElementCount;
+    if (extensionView) pinnedTools.hidden = !pinnedTools.childElementCount;
   }
 
   for (const [key, control] of shortcuts) {
@@ -1289,6 +1432,7 @@
     closeToolsMenu();
     toolsToggle.focus({preventScroll: true});
   });
+  window.addEventListener('simo:account-context', () => queueMicrotask(openPendingContactCard));
   openPendingContactCard();
 
   // Notifications are initialized without showing a stale-message popup on page load.
